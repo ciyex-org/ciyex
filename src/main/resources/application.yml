@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: qiachart
+  datasource:
+    url: jdbc:mysql://localhost:3306/openemr
+    username: root
+    password:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+      properties:
+        hibernate:
+          dialect: org.hibernate.dialect.MySQL8Dialect
+    multipart:
+      max-file-size: 1GB  # Set the maximum file size allowed for uploads
+      max-request-size: 1GB  # Set the maximum request size (useful for multiple files or large payloads)
+#logging.level.root: trace
+
+# JWT Configuration
+jwt:
+  secret: Um7I76bdvjLLGMWPPYYZr4jYXSNKpHOtIQS8Ktg8C4w=
+  expiration: 31557600000
+
+cors:
+  allowed-origins: http://localhost:4200
