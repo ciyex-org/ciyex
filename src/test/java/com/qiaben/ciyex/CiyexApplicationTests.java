@@ -1,10 +1,10 @@
-package com.qiaben.ehr.qiachart;
+package com.qiaben.ciyex;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class QiachartApplicationTests {
+class CiyexApplicationTests {
 
 	@Test
 	void contextLoads() {

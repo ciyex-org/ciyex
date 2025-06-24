@@ -1,13 +1,13 @@
-package com.qiaben.ehr.qiachart;
+package com.qiaben.ciyex;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class QiachartApplication {
+public class CiyexApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(QiachartApplication.class, args);
+		SpringApplication.run(CiyexApplication.class, args);
 	}
 
 }
