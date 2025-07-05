@@ -1,1 +1,10 @@
-spring.application.name=qiachart
+spring.application.name: ciyex
+
+openemr:
+  oauth:
+    private-key-path: classpath:oaprivate.key
+    client-id: local-ciyex-client
+    audience: https://stg.qiaben-emr.com/oauth2/default/token
+    kid: qia-client-key-1
+    token-url: https://stg.qiaben-emr.com/oauth2/default/token
+    scope: system/Patient.read
