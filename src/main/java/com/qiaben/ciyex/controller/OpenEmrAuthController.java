@@ -4,13 +4,18 @@ import com.qiaben.ciyex.dto.OpenEmrTokenRequest;
 import com.qiaben.ciyex.dto.OpenEmrTokenResponse;
 import com.qiaben.ciyex.service.OpenEmrAuthService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/openemr")
-@RequiredArgsConstructor
 public class OpenEmrAuthController {
     private final OpenEmrAuthService authService;
+
+    @Autowired
+    public OpenEmrAuthController(OpenEmrAuthService authService) {
+        this.authService = authService;
+    }
 
     @PostMapping("/token")
     public OpenEmrTokenResponse getAccessToken(@RequestBody(required = false) OpenEmrTokenRequest request) throws Exception {
