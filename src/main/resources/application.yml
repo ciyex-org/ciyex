@@ -1,6 +1,7 @@
 spring.application.name: ciyex
 
 openemr:
+  api-url: https://stg.qiaben-emr.com/apis/default/api
   oauth:
     private-key-path: classpath:oaprivate.key
     client-id: local-ciyex-client
