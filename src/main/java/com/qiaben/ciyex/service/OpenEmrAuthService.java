@@ -1,5 +1,7 @@
 package com.qiaben.ciyex.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.OpenEmrTokenRequest;
 import com.qiaben.ciyex.dto.OpenEmrTokenResponse;
 import com.qiaben.ciyex.properties.OpenEmrOAuthProperties;
@@ -8,6 +10,8 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -18,14 +22,19 @@ import org.springframework.web.client.RestClient;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
+import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class OpenEmrAuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(OpenEmrAuthService.class);
 
     private final OpenEmrOAuthProperties properties;
     private final ResourceLoader resourceLoader;
@@ -39,6 +48,11 @@ public class OpenEmrAuthService {
                 resourceLoader.getResource(properties.getPrivateKeyPath()).getInputStream(),
                 StandardCharsets.UTF_8);
         this.privateKey = loadPrivateKey(pem);
+
+        // Debug: print the modulus of the loaded private key
+        if (this.privateKey instanceof RSAPrivateCrtKey rsaKey) {
+            log.info("Loaded Private Key Modulus: {}", rsaKey.getModulus().toString(16));
+        }
     }
 
     public OpenEmrTokenResponse getAccessToken(OpenEmrTokenRequest req) throws Exception {
@@ -49,6 +63,19 @@ public class OpenEmrAuthService {
         form.add("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer");
         form.add("client_assertion", jwt);
         form.add("scope", req.getScope() != null ? req.getScope() : properties.getScope());
+        // If your server needs client_id as form parameter, uncomment next line
+        // form.add("client_id", properties.getClientId());
+
+        // LOG REQUEST DATA
+        log.info("Requesting OpenEMR token with:");
+        log.info("Token URL: {}", properties.getTokenUrl());
+        log.info("Scope: {}", form.getFirst("scope"));
+        log.info("Grant type: {}", form.getFirst("grant_type"));
+        log.info("Client Assertion Type: {}", form.getFirst("client_assertion_type"));
+        log.debug("Client Assertion JWT: {}", jwt);
+        log.info("ClientId (iss/sub): {}", properties.getClientId());
+        log.info("Audience (aud): {}", properties.getAudience());
+        log.info("KID: {}", properties.getKid());
 
         String responseBody = restClient.post()
                 .uri(properties.getTokenUrl())
@@ -57,9 +84,10 @@ public class OpenEmrAuthService {
                 .retrieve()
                 .body(String.class);
 
+        log.info("OpenEMR token endpoint response: {}", responseBody);
+
         // Parse JSON
-        com.fasterxml.jackson.databind.JsonNode node =
-                new com.fasterxml.jackson.databind.ObjectMapper().readTree(responseBody);
+        JsonNode node = new ObjectMapper().readTree(responseBody);
 
         OpenEmrTokenResponse result = new OpenEmrTokenResponse();
         result.setRawResponse(responseBody);
@@ -70,20 +98,27 @@ public class OpenEmrAuthService {
     }
 
     private String createClientAssertion() {
-        long now = System.currentTimeMillis();
-        long exp = now + 300_000; // 5 min
+        long now = System.currentTimeMillis() / 1000L; // seconds
+        long exp = now + 300; // 5 minutes in seconds
 
-        return Jwts.builder()
+        // Build header manually to include "typ": "JWT"
+        Map<String, Object> header = new HashMap<>();
+        header.put("alg", "RS384");
+        header.put("kid", properties.getKid());
+        header.put("typ", "JWT");
+
+        String jwt = Jwts.builder()
+                .setHeader(header)
                 .setIssuer(properties.getClientId())
                 .setSubject(properties.getClientId())
                 .setAudience(properties.getAudience())
-                .setExpiration(new Date(exp))
-                .setNotBefore(new Date(now))
-                .setIssuedAt(new Date(now))
+                .setExpiration(new Date(exp * 1000L))
                 .setId(UUID.randomUUID().toString())
-                .setHeaderParam("kid", properties.getKid())
                 .signWith(privateKey, SignatureAlgorithm.RS384)
                 .compact();
+
+        log.info("Generated JWT: {}", jwt);
+        return jwt;
     }
 
     private static PrivateKey loadPrivateKey(String keyPem) throws Exception {

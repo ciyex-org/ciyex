@@ -17,12 +17,15 @@ openemr:
   api-url: https://stg.qiaben-emr.com/apis/default/api
   oauth:
     private-key-path: classpath:oaprivate.key
-    client-id: local-ciyex-clients
-    audience: https://stg.qiaben-emr.com/oauth2/default/token
+    client-id: local-ciyex-client
+    audience: http://stg.qiaben-emr.com/oauth2/default/token
     kid: qia-client-key-1
     token-url: https://stg.qiaben-emr.com/oauth2/default/token
-    scope: system/Patient.read
-
+    scope: patient/Patient.read
 jwt:
   secret: replace-this-with-a-very-secure-secret-key-should-be-32-bytes-minimum
   expiration-ms: 86400000
+
+logging:
+  level:
+    root: info
