@@ -1,11 +1,28 @@
-spring.application.name: ciyex
+spring:
+  application:
+    name: ciyex
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/ciyexdb
+    username: root
+    password: NeonKRATOS22
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
 
 openemr:
   api-url: https://stg.qiaben-emr.com/apis/default/api
   oauth:
     private-key-path: classpath:oaprivate.key
-    client-id: local-ciyex-client
+    client-id: local-ciyex-clients
     audience: https://stg.qiaben-emr.com/oauth2/default/token
     kid: qia-client-key-1
     token-url: https://stg.qiaben-emr.com/oauth2/default/token
     scope: system/Patient.read
+
+jwt:
+  secret: replace-this-with-a-very-secure-secret-key-should-be-32-bytes-minimum
+  expiration-ms: 86400000
