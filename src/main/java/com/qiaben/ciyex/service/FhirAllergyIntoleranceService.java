@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.service;
 
-import com.qiaben.ciyex.config.FhirProperties;
+
+import com.qiaben.ciyex.config.OpenEmrFhirProperties;
 import com.qiaben.ciyex.dto.AllergyIntoleranceResponseDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +16,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class FhirAllergyIntoleranceService {
 
-    private final FhirProperties Properties;
+    private final OpenEmrFhirProperties Properties;
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();  // Jackson ObjectMapper to parse JSON
 

@@ -1,6 +1,6 @@
 package com.qiaben.ciyex.service;
 
-import com.qiaben.ciyex.config.FhirProperties;
+import com.qiaben.ciyex.config.OpenEmrFhirProperties;
 import com.qiaben.ciyex.dto.FhirConditionResponseDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -12,7 +12,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 @RequiredArgsConstructor
 public class FhirConditionService {
 
-    private final FhirProperties FhirProperties;
+    private final OpenEmrFhirProperties FhirProperties;
     private final RestClient restClient;
 
     public ResponseEntity<FhirConditionResponseDTO> getConditions(

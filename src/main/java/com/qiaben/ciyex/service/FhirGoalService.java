@@ -1,6 +1,6 @@
 package com.qiaben.ciyex.service;
 
-import com.qiaben.ciyex.config.FhirProperties;
+import com.qiaben.ciyex.config.OpenEmrFhirProperties;
 import com.qiaben.ciyex.dto.FhirGoalDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
@@ -15,7 +15,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class FhirGoalService {
 
-    private final FhirProperties openEmrFhirProperties;
+    private final OpenEmrFhirProperties openEmrFhirProperties;
     private final RestTemplate restTemplate = new RestTemplate();
 
     // Method to fetch all Goal resources based on query parameters

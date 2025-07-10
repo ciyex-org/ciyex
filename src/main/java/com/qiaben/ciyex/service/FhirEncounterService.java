@@ -1,6 +1,6 @@
 package com.qiaben.ciyex.service;
 
-import com.qiaben.ciyex.config.FhirProperties;
+import com.qiaben.ciyex.config.OpenEmrFhirProperties;
 import com.qiaben.ciyex.dto.FhirEncounterDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
@@ -15,7 +15,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class FhirEncounterService {
 
-    private final FhirProperties openEmrFhirProperties;
+    private final OpenEmrFhirProperties openEmrFhirProperties;
     private final RestTemplate restTemplate = new RestTemplate();
 
     // Fetch all encounters for the patient

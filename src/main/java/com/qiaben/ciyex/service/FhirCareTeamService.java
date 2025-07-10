@@ -1,6 +1,6 @@
 package com.qiaben.ciyex.service;
 
-import com.qiaben.ciyex.config.FhirProperties;
+import com.qiaben.ciyex.config.OpenEmrFhirProperties;
 import com.qiaben.ciyex.dto.FhirCareTeamDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
@@ -15,7 +15,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class FhirCareTeamService {
 
-    private final FhirProperties openEmrFhirProperties;
+    private final OpenEmrFhirProperties openEmrFhirProperties;
     private final RestTemplate restTemplate = new RestTemplate();
 
     // Method to fetch all CareTeam resources based on query parameters

@@ -1,7 +1,7 @@
 package com.qiaben.ciyex.service;
 
+import com.qiaben.ciyex.config.OpenEmrFhirProperties;
 import com.qiaben.ciyex.dto.FhirDocumentReferenceDTO;
-import com.qiaben.ciyex.config.FhirProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -15,7 +15,7 @@ public class FhirDocumentReferenceService {
     private RestTemplate restTemplate;
 
     @Autowired
-    private FhirProperties openEmrFhirProperties;
+    private OpenEmrFhirProperties openEmrFhirProperties;
 
     private static final String BASE_URL = "/fhir/DocumentReference";
 

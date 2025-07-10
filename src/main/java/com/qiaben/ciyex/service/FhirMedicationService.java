@@ -1,6 +1,6 @@
 package com.qiaben.ciyex.service;
 
-import com.qiaben.ciyex.config.FhirProperties;
+import com.qiaben.ciyex.config.OpenEmrFhirProperties;
 import com.qiaben.ciyex.dto.FhirMedicationDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -11,7 +11,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 @RequiredArgsConstructor
 public class FhirMedicationService {
 
-    private final FhirProperties properties;
+    private final OpenEmrFhirProperties properties;
     private final RestClient restClient;
 
     public FhirMedicationDto getMedications(String id, String lastUpdated) {
