@@ -19,31 +19,42 @@ public class OpenEmrFhirCoverageService {
 
     private final RestClient restClient;
     private final OpenEmrFhirProperties properties;
+    private final OpenEmrAuthService openEmrAuthService;
 
     public CoverageResponseDTO getCoverage(String id, String lastUpdated, String patient, String payor) {
-        String url = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl() + "/fhir/Coverage")
-                .queryParamIfPresent("_id", id != null ? java.util.Optional.of(id) : java.util.Optional.empty())
-                .queryParamIfPresent("_lastUpdated", lastUpdated != null ? java.util.Optional.of(lastUpdated) : java.util.Optional.empty())
-                .queryParamIfPresent("patient", patient != null ? java.util.Optional.of(patient) : java.util.Optional.empty())
-                .queryParamIfPresent("payor", payor != null ? java.util.Optional.of(payor) : java.util.Optional.empty())
-                .toUriString();
+        try {
+            String url = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl() + "/fhir/Coverage")
+                    .queryParamIfPresent("_id", id != null ? java.util.Optional.of(id) : java.util.Optional.empty())
+                    .queryParamIfPresent("_lastUpdated", lastUpdated != null ? java.util.Optional.of(lastUpdated) : java.util.Optional.empty())
+                    .queryParamIfPresent("patient", patient != null ? java.util.Optional.of(patient) : java.util.Optional.empty())
+                    .queryParamIfPresent("payor", payor != null ? java.util.Optional.of(payor) : java.util.Optional.empty())
+                    .toUriString();
 
-        return restClient.get()
-                .uri(url)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getToken())
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(CoverageResponseDTO.class);
+            return restClient.get()
+                    .uri(url)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(CoverageResponseDTO.class);
+        } catch (Exception e) {
+            log.error("Error getting coverage", e);
+            throw new RuntimeException("Failed to fetch coverage", e);
+        }
     }
 
     public Map<String, Object> getCoverageByUuid(String uuid) {
-        String url = properties.getBaseUrl() + "/fhir/Coverage/" + uuid;
+        try {
+            String url = properties.getBaseUrl() + "/fhir/Coverage/" + uuid;
 
-        return restClient.get()
-                .uri(url)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getToken())
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(Map.class);
+            return restClient.get()
+                    .uri(url)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(Map.class);
+        } catch (Exception e) {
+            log.error("Error getting coverage by UUID", e);
+            throw new RuntimeException("Failed to fetch coverage by UUID", e);
+        }
     }
 }

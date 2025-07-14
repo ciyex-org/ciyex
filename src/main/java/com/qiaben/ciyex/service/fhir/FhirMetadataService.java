@@ -1,36 +1,53 @@
 package com.qiaben.ciyex.service.fhir;
 
 import com.qiaben.ciyex.config.OpenEmrFhirProperties;
-import org.springframework.http.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-
-import java.util.List;
+import org.springframework.web.client.RestClient;
 
 @Service
-
+@RequiredArgsConstructor
 public class FhirMetadataService {
 
-    private final OpenEmrFhirProperties OpenEmrFhirProperties;
-    private final RestTemplate restTemplate = new RestTemplate();
-
-    public FhirMetadataService(OpenEmrFhirProperties OpenEmrFhirProperties) {
-        this.OpenEmrFhirProperties = OpenEmrFhirProperties;
-    }
+    private final OpenEmrFhirProperties openEmrFhirProperties;
+    private final RestClient restClient;
+    private final OpenEmrAuthService openEmrAuthService;
 
     public ResponseEntity<Object> getMetadata() {
-        String url = OpenEmrFhirProperties.getBaseUrl() + "/fhir/metadata";
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(OpenEmrFhirProperties.getToken());
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-        return restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), Object.class);
+        try {
+            String url = openEmrFhirProperties.getBaseUrl() + "/fhir/metadata";
+
+            Object body = restClient
+                    .get()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(Object.class);
+
+            return ResponseEntity.ok(body);
+        }catch (Exception e) {
+            throw new RuntimeException("Failed to fetch FHIR metadata", e);
+        }
     }
 
     public ResponseEntity<Object> getSmartConfiguration() {
-        String url = OpenEmrFhirProperties.getBaseUrl() + "/fhir/.well-known/smart-configuration";
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(OpenEmrFhirProperties.getToken());
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-        return restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), Object.class);
+        try {
+            String url = openEmrFhirProperties.getBaseUrl() + "/fhir/.well-known/smart-configuration";
+
+            Object body = restClient
+                    .get()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(Object.class);
+
+            return ResponseEntity.ok(body);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

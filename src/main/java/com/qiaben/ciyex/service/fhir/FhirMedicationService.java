@@ -13,25 +13,34 @@ public class FhirMedicationService {
 
     private final OpenEmrFhirProperties properties;
     private final RestClient restClient;
+    private final OpenEmrAuthService openEmrAuthService;
 
     public FhirMedicationDto getMedications(String id, String lastUpdated) {
+        try{
         var urlBuilder = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl() + "/fhir/Medication");
         if (id != null) urlBuilder.queryParam("_id", id);
         if (lastUpdated != null) urlBuilder.queryParam("_lastUpdated", lastUpdated);
 
         return restClient.get()
                 .uri(urlBuilder.toUriString())
-                .header("Authorization", "Bearer " + properties.getToken())
+                .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
                 .retrieve()
                 .body(FhirMedicationDto.class);
+    }catch(Exception e){
+        e.printStackTrace();}
+            return null;
     }
 
     public FhirMedicationDto getMedicationByUuid(String uuid) {
-        String url = properties.getBaseUrl() + "/fhir/Medication/" + uuid;
-        return restClient.get()
-                .uri(url)
-                .header("Authorization", "Bearer " + properties.getToken())
-                .retrieve()
-                .body(FhirMedicationDto.class);
+        try {
+            String url = properties.getBaseUrl() + "/fhir/Medication/" + uuid;
+            return restClient.get()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .retrieve()
+                    .body(FhirMedicationDto.class);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

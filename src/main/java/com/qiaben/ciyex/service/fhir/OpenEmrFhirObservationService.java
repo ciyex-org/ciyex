@@ -5,6 +5,7 @@ import com.qiaben.ciyex.dto.fhir.ObservationResponseDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -16,50 +17,47 @@ import java.util.Map;
 public class OpenEmrFhirObservationService {
 
     private final OpenEmrFhirProperties openEmrProperties;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestClient restClient;
+    private final OpenEmrAuthService openEmrAuthService;
 
     public ObservationResponseDTO getObservations(Map<String, String> queryParams) {
-        String url = openEmrProperties.getBaseUrl() + "/Observation";
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
+        try{
+        String baseUrl = openEmrProperties.getBaseUrl() + "/Observation";
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
-        queryParams.forEach((key, value) -> {
-            if (value != null && !value.isBlank()) {
-                builder.queryParam(key, value);
+        queryParams.forEach((k, v) -> {
+            if (v != null && !v.isBlank()) {
+                builder.queryParam(k, v);
             }
         });
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(openEmrProperties.getToken());
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-
-        ResponseEntity<ObservationResponseDTO> response = restTemplate.exchange(
-                builder.toUriString(),
-                HttpMethod.GET,
-                entity,
-                ObservationResponseDTO.class
-        );
-
-        return response.getBody();
+        return restClient
+                .get()
+                .uri(builder.build(true).toUri())
+                .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken()
+                )
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(ObservationResponseDTO.class);
+    }catch (Exception e){
+        e.printStackTrace();
+        throw new RuntimeException("Failed to fetch observations: " + e.getMessage(), e);
+        }
     }
-
     public Map<String, Object> getObservationByUuid(String uuid) {
-        String url = openEmrProperties.getBaseUrl() + "/Observation/" + uuid;
+        try {
+            String url = openEmrProperties.getBaseUrl() + "/Observation/" + uuid;
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(openEmrProperties.getToken());
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-
-        ResponseEntity<Map> response = restTemplate.exchange(
-                url,
-                HttpMethod.GET,
-                entity,
-                Map.class
-        );
-
-        return response.getBody();
+            return restClient
+                    .get()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(Map.class);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Failed to fetch observation by UUID: " + e.getMessage(), e);
+        }
     }
 }
