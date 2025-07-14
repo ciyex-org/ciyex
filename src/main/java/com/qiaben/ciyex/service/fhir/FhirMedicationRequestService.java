@@ -5,6 +5,7 @@ import com.qiaben.ciyex.dto.fhir.FhirMedicationRequestDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -16,51 +17,48 @@ import java.util.Map;
 public class FhirMedicationRequestService {
 
     private final OpenEmrFhirProperties openEmrFhirProperties;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestClient restClient;
+    private final OpenEmrAuthService openEmrAuthService;
 
     // Method to fetch all MedicationRequest resources with query parameters
     public FhirMedicationRequestDTO getMedicationRequests(Map<String, String> queryParams) {
-        String baseUrl = openEmrFhirProperties.getBaseUrl() + "/fhir/MedicationRequest";
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
+        try {
+            String baseUrl = openEmrFhirProperties.getBaseUrl() + "/fhir/MedicationRequest";
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
-        queryParams.forEach((key, value) -> {
-            if (value != null && !value.isEmpty()) {
-                builder.queryParam(key, value);
-            }
-        });
+            queryParams.forEach((key, value) -> {
+                if (value != null && !value.isEmpty()) {
+                    builder.queryParam(key, value);
+                }
+            });
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(openEmrFhirProperties.getToken());
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-
-        HttpEntity<String> entity = new HttpEntity<>(headers);
-        ResponseEntity<FhirMedicationRequestDTO> response = restTemplate.exchange(
-                builder.toUriString(),
-                HttpMethod.GET,
-                entity,
-                FhirMedicationRequestDTO.class
-        );
-
-        return response.getBody();
+            return restClient
+                    .get()
+                    .uri(builder.build(true).toUri())
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(FhirMedicationRequestDTO.class);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     // Method to fetch a single MedicationRequest by UUID
     public FhirMedicationRequestDTO getMedicationRequestByUuid(String uuid) {
-        String baseUrl = openEmrFhirProperties.getBaseUrl() + "/fhir/MedicationRequest/" + uuid;
+        try {
+            String url = openEmrFhirProperties.getBaseUrl() + "/fhir/MedicationRequest/" + uuid;
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(openEmrFhirProperties.getToken());
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-
-        HttpEntity<String> entity = new HttpEntity<>(headers);
-        ResponseEntity<FhirMedicationRequestDTO> response = restTemplate.exchange(
-                baseUrl,
-                HttpMethod.GET,
-                entity,
-                FhirMedicationRequestDTO.class
-        );
-
-        return response.getBody();
+            return restClient
+                    .get()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(FhirMedicationRequestDTO.class);
+        }catch (Exception e) {
+            throw new RuntimeException("Failed to fetch MedicationRequest by UUID", e);
+        }
     }
 }
 

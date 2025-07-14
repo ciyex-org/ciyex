@@ -1,12 +1,12 @@
 package com.qiaben.ciyex.service.fhir;
 
-
 import com.qiaben.ciyex.config.OpenEmrFhirProperties;
 import com.qiaben.ciyex.dto.fhir.AllergyIntoleranceResponseDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.List;
@@ -16,41 +16,59 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class FhirAllergyIntoleranceService {
 
-    private final OpenEmrFhirProperties Properties;
-    private final RestTemplate restTemplate = new RestTemplate();
-    private final ObjectMapper objectMapper = new ObjectMapper();  // Jackson ObjectMapper to parse JSON
+    private final OpenEmrFhirProperties properties;
+    private final RestClient restClient;
+    private final ObjectMapper objectMapper;
+    private final OpenEmrAuthService openEmrAuthService;
 
     // Method to fetch a list of AllergyIntolerance resources
     public List<AllergyIntoleranceResponseDTO> getAllergyIntolerances(Map<String, String> queryParams) {
-        String baseUrl = Properties.getBaseUrl() + "/fhir/AllergyIntolerance";
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
+        try {
+            String baseUrl = properties.getBaseUrl() + "/fhir/AllergyIntolerance";
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
-        queryParams.forEach((key, value) -> {
-            if (value != null && !value.isEmpty()) {
-                builder.queryParam(key, value);
-            }
-        });
+            queryParams.forEach((key, value) -> {
+                if (value != null && !value.isEmpty()) {
+                    builder.queryParam(key, value);
+                }
+            });
 
-        String response = restTemplate.getForObject(builder.toUriString(), String.class);
-        // Parse and return the list of AllergyIntoleranceResponseDTO
-        return parseAllergyIntoleranceListResponse(response);
+            String response = restClient
+                    .get()
+                    .uri(builder.build(true).toUri())
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(String.class);
+
+            return parseAllergyIntoleranceListResponse(response);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     // Method to fetch a single AllergyIntolerance by UUID
     public AllergyIntoleranceResponseDTO getAllergyIntolerance(String uuid) {
-        String baseUrl = Properties.getBaseUrl() + "/fhir/AllergyIntolerance/" + uuid;
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
+        try {
+            String url = properties.getBaseUrl() + "/fhir/AllergyIntolerance/" + uuid;
 
-        String response = restTemplate.getForObject(builder.toUriString(), String.class);
+            String response = restClient
+                    .get()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(String.class);
 
-        // Parse and return the AllergyIntoleranceResponseDTO
-        return parseResponse(response);
+            return parseResponse(response);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     // Parsing a single AllergyIntoleranceResponseDTO from the response
     private AllergyIntoleranceResponseDTO parseResponse(String response) {
         try {
-            // Deserializing JSON response into AllergyIntoleranceResponseDTO
             return objectMapper.readValue(response, AllergyIntoleranceResponseDTO.class);
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse AllergyIntolerance response", e);
@@ -60,8 +78,10 @@ public class FhirAllergyIntoleranceService {
     // Parsing a list of AllergyIntoleranceResponseDTOs from the response
     private List<AllergyIntoleranceResponseDTO> parseAllergyIntoleranceListResponse(String response) {
         try {
-            // Deserializing JSON response into a list of AllergyIntoleranceResponseDTO
-            return objectMapper.readValue(response, objectMapper.getTypeFactory().constructCollectionType(List.class, AllergyIntoleranceResponseDTO.class));
+            return objectMapper.readValue(
+                    response,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, AllergyIntoleranceResponseDTO.class)
+            );
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse AllergyIntolerance list response", e);
         }

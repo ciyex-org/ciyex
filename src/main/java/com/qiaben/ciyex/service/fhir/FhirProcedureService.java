@@ -17,55 +17,65 @@ import java.util.Map;
 public class FhirProcedureService {
 
     private final OpenEmrFhirProperties properties;
+    private final OpenEmrAuthService openEmrAuthService;
 
-    public FhirProcedureService(OpenEmrFhirProperties properties) {
+    public FhirProcedureService(OpenEmrFhirProperties properties, OpenEmrAuthService openEmrAuthService) {
         this.properties = properties;
+        this.openEmrAuthService = openEmrAuthService;
     }
 
     public FhirProcedureListResponseDto getProcedures(FhirProcedureSearchRequestDto req) {
-        String url = properties.getBaseUrl() + "/fhir/Procedure";
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
+        try {
+            String url = properties.getBaseUrl() + "/fhir/Procedure";
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
 
-        Map<String, String> queryParams = new HashMap<>();
-        queryParams.put("_id", req.getId());
-        queryParams.put("_lastUpdated", req.getLastUpdated());
-        queryParams.put("patient", req.getPatient());
-        queryParams.put("date", req.getDate());
+            Map<String, String> queryParams = new HashMap<>();
+            queryParams.put("_id", req.getId());
+            queryParams.put("_lastUpdated", req.getLastUpdated());
+            queryParams.put("patient", req.getPatient());
+            queryParams.put("date", req.getDate());
 
-        queryParams.forEach((key, value) -> {
-            if (value != null && !value.isBlank()) {
-                builder.queryParam(key, value);
-            }
-        });
+            queryParams.forEach((key, value) -> {
+                if (value != null && !value.isBlank()) {
+                    builder.queryParam(key, value);
+                }
+            });
 
-        RestClient client = RestClient.builder().build();
+            RestClient client = RestClient.builder().build();
 
-        Map<String, Object> response = client.get()
-                .uri(builder.toUriString())
-                .header("Authorization", "Bearer " + properties.getToken())
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(Map.class);
+            Map<String, Object> response = client.get()
+                    .uri(builder.toUriString())
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(Map.class);
 
-        FhirProcedureListResponseDto dto = new FhirProcedureListResponseDto();
-        dto.setJsonObject(response);
-        return dto;
+            FhirProcedureListResponseDto dto = new FhirProcedureListResponseDto();
+            dto.setJsonObject(response);
+            return dto;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public FhirProcedureByIdResponseDto getProcedureById(String uuid) {
-        String url = properties.getBaseUrl() + "/fhir/Procedure/" + uuid;
+        try {
+            String url = properties.getBaseUrl() + "/fhir/Procedure/" + uuid;
 
-        RestClient client = RestClient.builder().build();
+            RestClient client = RestClient.builder().build();
 
-        Map<String, Object> response = client.get()
-                .uri(url)
-                .header("Authorization", "Bearer " + properties.getToken())
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(Map.class);
+            Map<String, Object> response = client.get()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(Map.class);
 
-        FhirProcedureByIdResponseDto dto = new FhirProcedureByIdResponseDto();
-        dto.setData(response);
-        return dto;
+            FhirProcedureByIdResponseDto dto = new FhirProcedureByIdResponseDto();
+            dto.setData(response);
+            return dto;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }
