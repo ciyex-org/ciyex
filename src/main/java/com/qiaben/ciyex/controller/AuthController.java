@@ -1,10 +1,9 @@
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
-import com.qiaben.ciyex.entity.Org;
+import com.qiaben.ciyex.entity.RoleName;
 import com.qiaben.ciyex.entity.User;
 import com.qiaben.ciyex.service.CiyexUserDetailsService;
-import com.qiaben.ciyex.service.OrgService;
 import com.qiaben.ciyex.util.JwtTokenUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,10 +14,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -37,9 +33,7 @@ public class AuthController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    @Autowired
-    private OrgService orgService;
-
+    // LOGIN
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<Map<String, Object>>> login(@RequestBody User loginRequest) {
         try {
@@ -51,18 +45,16 @@ public class AuthController {
             if (userOptional.isPresent()) {
                 User user = userOptional.get();
 
-                // The JWT will have all orgs as a claim (as you already designed)
                 String token = jwtTokenUtil.generateToken(user);
 
                 Map<String, Object> responseData = new HashMap<>();
                 responseData.put("token", token);
+                responseData.put("userId", user.getId());
                 responseData.put("fullName", user.getFullName());
-                responseData.put("roles", user.getRoles().stream().map(r -> r.getName().name()).toList());
-                // Include all orgs as list of maps
-                responseData.put("orgs", user.getOrgs().stream().map(org -> Map.of(
-                        "orgId", org.getId(),
-                        "orgName", org.getOrgName()
-                )).toList());
+                responseData.put("email", user.getEmail());
+                responseData.put("orgs", jwtTokenUtil.getOrgsFromToken(token));
+                responseData.put("orgIds", jwtTokenUtil.getOrgIdsFromToken(token));
+                responseData.put("facilityIds", jwtTokenUtil.getFacilityIdsFromToken(token));
 
                 return ResponseEntity.ok(
                         ApiResponse.<Map<String, Object>>builder()
@@ -103,18 +95,22 @@ public class AuthController {
     }
 
 
-    // REGISTER (requires orgId)
+    // REGISTER (assign to a facility with a role)
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<User>> register(@RequestBody User user, @RequestParam Long orgId) {
+    public ResponseEntity<ApiResponse<User>> register(
+            @RequestBody User user,
+            @RequestParam Long facilityId,
+            @RequestParam RoleName role
+    ) {
         try {
             user.setPassword(passwordEncoder.encode(user.getPassword()));
-            User savedUser = ciyexUserDetailsService.createUserForOrg(user, orgId);
-            log.info("User registered successfully with email/org: " + savedUser.getEmail() + "/" + orgId);
+            User savedUser = ciyexUserDetailsService.assignUserToFacility(user, facilityId, role);
+            log.info("User registered successfully with email/facility: " + savedUser.getEmail() + "/" + facilityId);
             savedUser.setPassword(null);
             return ResponseEntity.ok(
                     ApiResponse.<User>builder()
                             .success(true)
-                            .message("User registered successfully.")
+                            .message("User registered and assigned to facility.")
                             .data(savedUser)
                             .build()
             );
@@ -215,15 +211,15 @@ public class AuthController {
         }
     }
 
-    // UPDATE (requires orgId, as user may belong to multiple orgs)
+    // UPDATE (email + facility assignment)
     @PutMapping("/user/{email}")
     public ResponseEntity<ApiResponse<User>> updateUser(
             @PathVariable String email,
-            @RequestBody User user,
-            @RequestParam Long orgId) {
+            @RequestBody User user
+    ) {
         try {
-            User existingUser = ciyexUserDetailsService.getUserByEmailAndOrg(email, orgId)
-                    .orElseThrow(() -> new RuntimeException("User not found for the specified organization"));
+            User existingUser = ciyexUserDetailsService.getUserByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
 
             if (!existingUser.getEmail().equals(user.getEmail())) {
                 Optional<User> userWithSameEmail = ciyexUserDetailsService.getUserByEmail(user.getEmail());
@@ -256,7 +252,7 @@ public class AuthController {
             existingUser.setSecurityQuestion(user.getSecurityQuestion());
             existingUser.setSecurityAnswer(user.getSecurityAnswer());
 
-            User updatedUser = ciyexUserDetailsService.updateUserByEmail(existingUser.getEmail(), existingUser, orgId);
+            User updatedUser = ciyexUserDetailsService.updateUserByEmail(existingUser.getEmail(), existingUser);
             updatedUser.setPassword(null);
 
             log.info("User updated successfully with email: " + updatedUser.getEmail());
@@ -309,7 +305,7 @@ public class AuthController {
             return ResponseEntity.ok(
                     ApiResponse.<Void>builder()
                             .success(true)
-                            .message("User deleted successfully from all orgs.")
+                            .message("User deleted successfully.")
                             .data(null)
                             .build()
             );
@@ -325,44 +321,28 @@ public class AuthController {
         }
     }
 
-
-    // Password reset (requires orgId)
+    // Password reset (no orgId required anymore)
     public static class PasswordResetRequest {
         private String email;
         private String newPassword;
-        private Long orgId; // Add orgId
 
-        public String getEmail() {
-            return email;
-        }
-        public void setEmail(String email) {
-            this.email = email;
-        }
-        public String getNewPassword() {
-            return newPassword;
-        }
-        public void setNewPassword(String newPassword) {
-            this.newPassword = newPassword;
-        }
-        public Long getOrgId() {
-            return orgId;
-        }
-        public void setOrgId(Long orgId) {
-            this.orgId = orgId;
-        }
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+        public String getNewPassword() { return newPassword; }
+        public void setNewPassword(String newPassword) { this.newPassword = newPassword; }
     }
 
     @PostMapping("/user/reset-password")
     public ResponseEntity<ApiResponse<Void>> resetPassword(@RequestBody PasswordResetRequest resetRequest) {
         try {
-            Optional<User> userOptional = ciyexUserDetailsService.getUserByEmailAndOrg(resetRequest.getEmail(), resetRequest.getOrgId());
+            Optional<User> userOptional = ciyexUserDetailsService.getUserByEmail(resetRequest.getEmail());
 
             if (userOptional.isEmpty()) {
-                log.warn("User not found with email/org: " + resetRequest.getEmail() + "/" + resetRequest.getOrgId());
+                log.warn("User not found with email: " + resetRequest.getEmail());
                 return ResponseEntity.badRequest().body(
                         ApiResponse.<Void>builder()
                                 .success(false)
-                                .message("User not found for this org")
+                                .message("User not found")
                                 .data(null)
                                 .build()
                 );
@@ -370,9 +350,9 @@ public class AuthController {
 
             User user = userOptional.get();
             user.setPassword(passwordEncoder.encode(resetRequest.getNewPassword()));
-            ciyexUserDetailsService.updateUserByEmail(user.getEmail(), user, resetRequest.getOrgId());
+            ciyexUserDetailsService.updateUserByEmail(user.getEmail(), user);
 
-            log.info("Password updated successfully for email/org: " + user.getEmail() + "/" + resetRequest.getOrgId());
+            log.info("Password updated successfully for email: " + user.getEmail());
 
             return ResponseEntity.ok(
                     ApiResponse.<Void>builder()
@@ -382,7 +362,7 @@ public class AuthController {
                             .build()
             );
         } catch (Exception e) {
-            log.error("An error occurred while resetting password for email/org: " + resetRequest.getEmail() + "/" + resetRequest.getOrgId() + ". Exception: " + e.getMessage());
+            log.error("An error occurred while resetting password for email: " + resetRequest.getEmail() + ". Exception: " + e.getMessage());
             return ResponseEntity.status(500).body(
                     ApiResponse.<Void>builder()
                             .success(false)

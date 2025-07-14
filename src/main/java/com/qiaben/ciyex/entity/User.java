@@ -2,7 +2,6 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
@@ -13,12 +12,11 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@EqualsAndHashCode(onlyExplicitlyIncluded = true) // Only includes explicitly marked fields!
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class User {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @EqualsAndHashCode.Include // Only id is included
+    @EqualsAndHashCode.Include
     private Long id;
 
     @Column(nullable = false)
@@ -60,19 +58,7 @@ public class User {
     @Column(name = "security_answer")
     private String securityAnswer;
 
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "user_roles",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id")
-    )
-    private Set<Role> roles = new HashSet<>();
-
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "user_orgs",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "org_id")
-    )
-    private Set<Org> orgs = new HashSet<>();
+    @Builder.Default
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<UserFacilityRole> userFacilityRoles = new HashSet<>();
 }

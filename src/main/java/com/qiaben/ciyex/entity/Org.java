@@ -2,7 +2,6 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.util.HashSet;
 import java.util.Set;
 
@@ -12,11 +11,11 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@EqualsAndHashCode(onlyExplicitlyIncluded = true) // Only includes explicitly marked fields!
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Org {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @EqualsAndHashCode.Include // Only id is included
+    @EqualsAndHashCode.Include
     private Long id;
 
     @Column(name = "org_name", nullable = false, unique = true)
@@ -38,6 +37,6 @@ public class Org {
     private String country;
 
     @Builder.Default
-    @ManyToMany(mappedBy = "orgs", fetch = FetchType.EAGER)
-    private Set<User> users = new HashSet<>();
+    @OneToMany(mappedBy = "org", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<Facility> facilities = new HashSet<>();
 }

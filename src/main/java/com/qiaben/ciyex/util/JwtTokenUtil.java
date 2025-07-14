@@ -1,8 +1,6 @@
 package com.qiaben.ciyex.util;
 
-import com.qiaben.ciyex.entity.Org;
-import com.qiaben.ciyex.entity.Role;
-import com.qiaben.ciyex.entity.User;
+import com.qiaben.ciyex.entity.*;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -29,7 +27,7 @@ public class JwtTokenUtil {
     }
 
     /**
-     * Generate JWT for the given user, including all orgs and roles.
+     * Generate JWT for the given user, including all orgs, facilities, and roles.
      */
     public String generateToken(User user) {
         Map<String, Object> claims = new HashMap<>();
@@ -37,22 +35,67 @@ public class JwtTokenUtil {
         claims.put("email", user.getEmail());
         claims.put("fullName", user.getFullName());
 
-        // Add organizations as a list of orgId/orgName maps
-        List<Map<String, Object>> orgList = user.getOrgs().stream()
-                .map(org -> {
-                    Map<String, Object> orgMap = new HashMap<>();
-                    orgMap.put("orgId", org.getId());
-                    orgMap.put("orgName", org.getOrgName());
-                    return orgMap;
+        // --- New nested orgs -> facilities -> roles structure ---
+        // Group userFacilityRoles by Org -> Facility
+        Map<Long, Map<String, Object>> orgMap = new LinkedHashMap<>();
+
+        Set<Long> facilityIdSet = new HashSet<>();
+
+        for (UserFacilityRole ufr : user.getUserFacilityRoles()) {
+            Facility facility = ufr.getFacility();
+            Org org = facility.getOrg();
+
+            // Build or fetch org entry
+            Map<String, Object> orgEntry = orgMap.computeIfAbsent(org.getId(), k -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("orgId", org.getId());
+                m.put("orgName", org.getOrgName());
+                m.put("facilities", new LinkedHashMap<Long, Map<String, Object>>());
+                return m;
+            });
+
+            @SuppressWarnings("unchecked")
+            Map<Long, Map<String, Object>> facilityMap = (Map<Long, Map<String, Object>>) orgEntry.get("facilities");
+
+            // Build or fetch facility entry
+            Map<String, Object> facilityEntry = facilityMap.computeIfAbsent(facility.getId(), k -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("facilityId", facility.getId());
+                m.put("facilityName", facility.getFacilityName());
+                m.put("roles", new LinkedHashSet<String>());
+                return m;
+            });
+
+            @SuppressWarnings("unchecked")
+            Set<String> roles = (Set<String>) facilityEntry.get("roles");
+            roles.add(ufr.getRole().name());
+
+            facilityIdSet.add(facility.getId());
+        }
+
+        // Convert org map to org list, each with facilities as a list (not map)
+        List<Map<String, Object>> orgList = orgMap.values().stream()
+                .map(orgEntry -> {
+                    Map<Long, Map<String, Object>> facilityMap = (Map<Long, Map<String, Object>>) orgEntry.remove("facilities");
+                    List<Map<String, Object>> facilities = facilityMap.values().stream()
+                            .peek(facEntry -> {
+                                // Convert roles set to list
+                                Set<String> roles = (Set<String>) facEntry.get("roles");
+                                facEntry.put("roles", new ArrayList<>(roles));
+                            })
+                            .collect(Collectors.toList());
+                    orgEntry.put("facilities", facilities);
+                    return orgEntry;
                 })
                 .collect(Collectors.toList());
+
         claims.put("orgs", orgList);
 
-        // Add roles as a list of strings
-        List<String> roles = user.getRoles().stream()
-                .map(role -> role.getName().name())
-                .collect(Collectors.toList());
-        claims.put("roles", roles);
+        // Optional: Add all facilityIds as a flat array
+        claims.put("facilityIds", new ArrayList<>(facilityIdSet));
+
+        // Optional: Add all orgIds as a flat array
+        claims.put("orgIds", orgList.stream().map(o -> o.get("orgId")).collect(Collectors.toList()));
 
         return Jwts.builder()
                 .setClaims(claims)
@@ -85,8 +128,13 @@ public class JwtTokenUtil {
     }
 
     @SuppressWarnings("unchecked")
-    public List<String> getRolesFromToken(String token) {
-        return getClaimFromToken(token, claims -> (List<String>) claims.get("roles"));
+    public List<Long> getOrgIdsFromToken(String token) {
+        return getClaimFromToken(token, claims -> (List<Long>) claims.get("orgIds"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Long> getFacilityIdsFromToken(String token) {
+        return getClaimFromToken(token, claims -> (List<Long>) claims.get("facilityIds"));
     }
 
     private Boolean isTokenExpired(String token) {
