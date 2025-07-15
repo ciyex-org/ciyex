@@ -1,0 +1,31 @@
+package com.qiaben.ciyex.dto.telnyx;
+
+import lombok.Data;
+
+import java.util.List;
+
+@Data
+public class ListShortcodesMessagingProfileDto {
+
+    private List<Shortcode> data;
+    private Meta meta;
+
+    @Data
+    public static class Shortcode {
+        private String recordType;
+        private String id;
+        private String shortCode;
+        private String countryCode;
+        private String messagingProfileId;
+        private String createdAt;
+        private String updatedAt;
+    }
+
+    @Data
+    public static class Meta {
+        private int totalPages;
+        private int totalResults;
+        private int pageNumber;
+        private int pageSize;
+    }
+}

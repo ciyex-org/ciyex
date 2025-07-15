@@ -1,12 +1,28 @@
-// src/main/java/com/qiaben/ciyex/dto/telnyx/TelnyxErrorDto.java
+
+
 package com.qiaben.ciyex.dto.telnyx;
 
 import lombok.Data;
 
-/** 400 / 401 error wrapper (simplified). */
+
+import java.util.List;
+
 @Data
 public class TelnyxErrorDto {
-    private int    code;
-    private String title;
-    private String detail;
+    private List<ErrorDetail> errors;
+
+    @Data
+    public static class ErrorDetail {
+        private Integer code;
+        private String title;
+        private String detail;
+        private ErrorSource source;
+    }
+
+    @Data
+    public static class ErrorSource {
+        private String pointer;
+        private String parameter;
+    }
+
 }
