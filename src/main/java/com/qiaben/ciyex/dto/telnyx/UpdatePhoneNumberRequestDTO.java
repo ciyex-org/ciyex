@@ -1,3 +1,4 @@
+
 // src/main/java/com/qiaben/ciyex/dto/telnyx/UpdatePhoneNumberRequestDTO.java
 package com.qiaben.ciyex.dto.telnyx;
 
@@ -10,3 +11,4 @@ public class UpdatePhoneNumberRequestDTO {
     private String messagingProfileId;  // "" to un‑assign
     private String messagingProduct;    // quoted product id
 }
+

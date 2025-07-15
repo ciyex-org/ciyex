@@ -1,4 +1,6 @@
+
 // src/main/java/com/qiaben/ciyex/dto/telnyx/HostedNumberEligibilityResponseDto.java
+
 package com.qiaben.ciyex.dto.telnyx;
 
 import lombok.Data;
@@ -17,3 +19,4 @@ public class HostedNumberEligibilityResponseDto {
         private String detail;                        // verbose explanation
     }
 }
+

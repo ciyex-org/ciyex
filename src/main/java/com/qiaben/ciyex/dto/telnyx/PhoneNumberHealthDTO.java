@@ -1,3 +1,4 @@
+
 // src/main/java/com/qiaben/ciyex/dto/telnyx/PhoneNumberHealthDTO.java
 package com.qiaben.ciyex.dto.telnyx;
 
@@ -11,3 +12,4 @@ public class PhoneNumberHealthDTO {
     private BigDecimal successRatio;
     private BigDecimal spamRatio;
 }
+
