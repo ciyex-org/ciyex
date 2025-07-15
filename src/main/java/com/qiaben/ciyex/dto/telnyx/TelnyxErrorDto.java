@@ -1,6 +1,9 @@
+
+
 package com.qiaben.ciyex.dto.telnyx;
 
 import lombok.Data;
+
 
 import java.util.List;
 
@@ -21,4 +24,5 @@ public class TelnyxErrorDto {
         private String pointer;
         private String parameter;
     }
+
 }
