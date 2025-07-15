@@ -5,6 +5,7 @@ import com.qiaben.ciyex.dto.fhir.FhirDiagnosticReportDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -16,50 +17,45 @@ import java.util.Map;
 public class FhirDiagnosticReportService {
 
     private final OpenEmrFhirProperties openEmrFhirProperties;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestClient restClient;
+    private final OpenEmrAuthService openEmrAuthService;
 
     // Method to fetch all DiagnosticReports based on query parameters
     public FhirDiagnosticReportDTO getDiagnosticReports(Map<String, String> queryParams) {
-        String baseUrl = openEmrFhirProperties.getBaseUrl() + "/fhir/DiagnosticReport";
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
+        try {
+            String baseUrl = openEmrFhirProperties.getBaseUrl() + "/fhir/DiagnosticReport";
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
-        queryParams.forEach((key, value) -> {
-            if (value != null && !value.isEmpty()) {
-                builder.queryParam(key, value);
-            }
-        });
+            queryParams.forEach((k, v) -> {
+                if (v != null && !v.isEmpty()) {
+                    builder.queryParam(k, v);
+                }
+            });
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(openEmrFhirProperties.getToken());
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-
-        HttpEntity<String> entity = new HttpEntity<>(headers);
-        ResponseEntity<FhirDiagnosticReportDTO> response = restTemplate.exchange(
-                builder.toUriString(),
-                HttpMethod.GET,
-                entity,
-                FhirDiagnosticReportDTO.class
-        );
-
-        return response.getBody();
+            return restClient
+                    .get()
+                    .uri(builder.build(true).toUri())
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(FhirDiagnosticReportDTO.class);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
-
     // Method to fetch a single DiagnosticReport by UUID
     public FhirDiagnosticReportDTO getDiagnosticReportByUuid(String uuid) {
-        String baseUrl = openEmrFhirProperties.getBaseUrl() + "/fhir/DiagnosticReport/" + uuid;
+        try {
+            String url = openEmrFhirProperties.getBaseUrl() + "/fhir/DiagnosticReport/" + uuid;
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(openEmrFhirProperties.getToken());
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-
-        HttpEntity<String> entity = new HttpEntity<>(headers);
-        ResponseEntity<FhirDiagnosticReportDTO> response = restTemplate.exchange(
-                baseUrl,
-                HttpMethod.GET,
-                entity,
-                FhirDiagnosticReportDTO.class
-        );
-
-        return response.getBody();
-    }
-}
+            return restClient
+                    .get()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(FhirDiagnosticReportDTO.class);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }}
