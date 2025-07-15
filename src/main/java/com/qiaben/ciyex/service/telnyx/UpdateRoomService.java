@@ -16,7 +16,7 @@ public class UpdateRoomService {
 
     public RoomResponseDto updateRoom(String roomId, UpdateRoomRequestDto dto) {
         RestClient client = RestClient.builder()
-                .baseUrl(telnyxProperties.getApiUrl())
+                .baseUrl(telnyxProperties.getApiBaseUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + telnyxProperties.getApiKey())
                 .build();
 

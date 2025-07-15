@@ -1,3 +1,4 @@
+/*
 package com.qiaben.ciyex.config;
 
 import org.springframework.context.annotation.Bean;
@@ -12,3 +13,4 @@ public class FhirAppConfig {
         return new RestTemplate();  // Defines the RestTemplate bean
     }
 }
+*/

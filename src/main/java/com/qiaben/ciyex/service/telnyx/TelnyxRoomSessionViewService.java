@@ -15,7 +15,7 @@ public class TelnyxRoomSessionViewService {
 
     public RoomSessionResponseDto getRoomSessionById(String sessionId, boolean includeParticipants) {
         RestClient client = RestClient.builder()
-                .baseUrl(props.getApiUrl())
+                .baseUrl(props.getApiBaseUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + props.getApiKey())
                 .defaultHeader(HttpHeaders.ACCEPT, "application/json")
                 .build();

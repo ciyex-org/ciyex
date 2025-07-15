@@ -23,7 +23,7 @@ public class TelnyxRoomParticipantService {
             int pageNumber) {
 
         RestClient client = RestClient.builder()
-                .baseUrl(props.getApiUrl())
+                .baseUrl(props.getApiBaseUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + props.getApiKey())
                 .defaultHeader(HttpHeaders.ACCEPT, "application/json")
                 .build();

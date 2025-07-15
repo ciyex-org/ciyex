@@ -11,6 +11,18 @@ import java.util.List;
 public class TelnyxErrorDto {
     private List<ErrorDetail> errors;
 
+    public Object getCode() {
+        return null;
+    }
+
+    public Object getTitle() {
+        return null;
+    }
+
+    public Object getDetail() {
+        return null;
+    }
+
     @Data
     public static class ErrorDetail {
         private Integer code;

@@ -14,7 +14,7 @@ public class DeleteRoomService {
 
     public void deleteRoom(String roomId) {
         RestClient client = RestClient.builder()
-                .baseUrl(telnyxProperties.getApiUrl())
+                .baseUrl(telnyxProperties.getApiBaseUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + telnyxProperties.getApiKey())
                 .build();
 
