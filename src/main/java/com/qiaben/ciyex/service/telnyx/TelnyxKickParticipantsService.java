@@ -18,7 +18,7 @@ public class TelnyxKickParticipantsService {
 
     public KickParticipantsResponseDto kickParticipants(String roomSessionId, KickParticipantsRequestDto requestDto) {
         RestClient restClient = RestClient.builder()
-                .baseUrl(properties.getApiUrl())
+                .baseUrl(properties.getApiBaseUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getApiKey())
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();

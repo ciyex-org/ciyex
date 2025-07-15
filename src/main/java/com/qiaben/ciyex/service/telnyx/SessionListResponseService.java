@@ -21,7 +21,7 @@ public class SessionListResponseService
     )
     {
         RestClient client = RestClient.builder()
-                .baseUrl(telnyxProperties.getApiUrl())
+                .baseUrl(telnyxProperties.getApiBaseUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + telnyxProperties.getApiKey())
                 .defaultHeader(HttpHeaders.ACCEPT, "application/json")
                 .build();

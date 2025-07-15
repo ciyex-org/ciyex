@@ -24,7 +24,7 @@ public class TelnyxRoomService {
     private final RestTemplate restTemplate = new RestTemplate();
 
     public RoomDto getRooms(Map<String, String> queryParams) {
-        String url = telnyxProperties.getApiUrl() + "/v2/rooms";
+        String url = telnyxProperties.getApiBaseUrl() + "/v2/rooms";
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", "Bearer " + telnyxProperties.getApiKey());
@@ -46,7 +46,7 @@ public class TelnyxRoomService {
     }
 
     public RoomResponseDto createRoom(RoomRequestDto roomRequestDto) {
-        String url = telnyxProperties.getApiUrl() + "/v2/rooms";
+        String url = telnyxProperties.getApiBaseUrl() + "/v2/rooms";
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", "Bearer " + telnyxProperties.getApiKey());

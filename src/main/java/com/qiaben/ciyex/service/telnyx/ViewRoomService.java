@@ -15,13 +15,13 @@ public class ViewRoomService {
     private final TelnyxProperties telnyxProperties;
 
     public ViewRoomDto getRoomDetails(String roomId, boolean includeSessions) {
-        String url = telnyxProperties.getApiUrl() + "/rooms/" + roomId;
+        String url = telnyxProperties.getApiBaseUrl()+ "/rooms/" + roomId;
         if (includeSessions) {
             url += "?include_sessions=true";
         }
 
         RestClient client = RestClient.builder()
-                .baseUrl(telnyxProperties.getApiUrl())
+                .baseUrl(telnyxProperties.getApiBaseUrl())
                 .defaultHeader("Authorization", "Bearer " + telnyxProperties.getApiKey())
                 .defaultHeader("Accept", "application/json")
                 .build();

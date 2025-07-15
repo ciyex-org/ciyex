@@ -17,7 +17,7 @@ public class TelnyxRoomSessionMuteService {
 
     public ActionResultDto mute(String sessionId, MuteRequestDto body) {
         RestClient client = RestClient.builder()
-                .baseUrl(props.getApiUrl())
+                .baseUrl(props.getApiBaseUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + props.getApiKey())
                 .defaultHeader(HttpHeaders.ACCEPT, "application/json")
                 .build();
