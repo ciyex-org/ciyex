@@ -2,22 +2,17 @@ package com.qiaben.ciyex.service.telnyx;
 
 import com.qiaben.ciyex.config.TelnyxProperties;
 import com.qiaben.ciyex.dto.telnyx.ListMessagingURLDto;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
+@RequiredArgsConstructor
 public class ListMessagingURLService {
 
     private final TelnyxProperties telnyxProperties;
-    private final RestTemplate restTemplate;
-
-    @Autowired
-    public ListMessagingURLService(TelnyxProperties telnyxProperties, RestTemplate restTemplate) {
-        this.telnyxProperties = telnyxProperties;
-        this.restTemplate = restTemplate;
-    }
+    private final RestClient restClient;
 
     public ListMessagingURLDto listMessagingUrlDomains(Integer page, Integer size) {
         String url = UriComponentsBuilder
@@ -26,6 +21,11 @@ public class ListMessagingURLService {
                 .queryParam("page[size]", size != null ? size : 20)
                 .toUriString();
 
-        return restTemplate.getForObject(url, ListMessagingURLDto.class);
+        return restClient
+                .get()
+                .uri(url)
+                .header("Authorization", "Bearer " + telnyxProperties.getApiKey())
+                .retrieve()
+                .body(ListMessagingURLDto.class);
     }
 }

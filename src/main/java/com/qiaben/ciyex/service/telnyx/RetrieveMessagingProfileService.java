@@ -2,24 +2,25 @@ package com.qiaben.ciyex.service.telnyx;
 
 import com.qiaben.ciyex.config.TelnyxProperties;
 import com.qiaben.ciyex.dto.telnyx.RetrieveMessagingProfileDto;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 
 @Service
+@RequiredArgsConstructor
 public class RetrieveMessagingProfileService {
 
     private final TelnyxProperties telnyxProperties;
-    private final RestTemplate restTemplate;
-
-    @Autowired
-    public RetrieveMessagingProfileService(TelnyxProperties telnyxProperties, RestTemplate restTemplate) {
-        this.telnyxProperties = telnyxProperties;
-        this.restTemplate = restTemplate;
-    }
+    private final RestClient restClient;
 
     public RetrieveMessagingProfileDto getMessagingProfile(String id) {
         String url = String.format("%s/v2/messaging_profiles/%s", telnyxProperties.getApiBaseUrl(), id);
-        return restTemplate.getForObject(url, RetrieveMessagingProfileDto.class);
+
+        return restClient
+                .get()
+                .uri(url)
+                .header("Authorization", "Bearer " + telnyxProperties.getApiKey())
+                .retrieve()
+                .body(RetrieveMessagingProfileDto.class);
     }
 }

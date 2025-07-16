@@ -16,9 +16,6 @@ public class ConferenceCreateService {
     private final RestClient restClient;
     private final TelnyxProperties telnyxProperties;
 
-    /**
-     * Calls Telnyx POST /v2/conferences.
-     */
     public ConferenceResponseDto createConference(ConferenceCreateRequestDto req) {
 
         return restClient

@@ -4,23 +4,18 @@ import com.qiaben.ciyex.config.TelnyxProperties;
 import com.qiaben.ciyex.dto.telnyx.ShortCodesDto;
 import com.qiaben.ciyex.dto.telnyx.SingleShortCodeDto;
 import com.qiaben.ciyex.dto.telnyx.UpdateShortCodeRequest;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
+@RequiredArgsConstructor
 public class ShortCodesService {
 
     private final TelnyxProperties telnyxProperties;
-    private final RestTemplate restTemplate;
-
-    @Autowired
-    public ShortCodesService(TelnyxProperties telnyxProperties, RestTemplate restTemplate) {
-        this.telnyxProperties = telnyxProperties;
-        this.restTemplate = restTemplate;
-    }
+    private final RestClient restClient;
 
     // List short codes with optional filters
     public ShortCodesDto listShortCodes(Integer pageNumber, Integer pageSize, String messagingProfileId) {
@@ -31,49 +26,40 @@ public class ShortCodesService {
         if (pageSize != null) builder.queryParam("page[size]", pageSize);
         if (messagingProfileId != null) builder.queryParam("filter[messaging_profile_id]", messagingProfileId);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + telnyxProperties.getApiKey());
-        headers.set("Accept", "application/json");
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-
-        ResponseEntity<ShortCodesDto> response = restTemplate.exchange(
-                builder.toUriString(),
-                HttpMethod.GET,
-                entity,
-                ShortCodesDto.class
-        );
-        return response.getBody();
+        return restClient
+                .get()
+                .uri(builder.toUriString())
+                .header("Authorization", "Bearer " + telnyxProperties.getApiKey())
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(ShortCodesDto.class);
     }
 
-    // Retrieve single short code by id
+    // Retrieve single short code by ID
     public SingleShortCodeDto getShortCode(String id) {
         String url = telnyxProperties.getApiBaseUrl() + "/v2/short_codes/" + id;
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + telnyxProperties.getApiKey());
-        headers.set("Accept", "application/json");
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-
-        ResponseEntity<SingleShortCodeDto> response = restTemplate.exchange(
-                url, HttpMethod.GET, entity, SingleShortCodeDto.class
-        );
-        return response.getBody();
+        return restClient
+                .get()
+                .uri(url)
+                .header("Authorization", "Bearer " + telnyxProperties.getApiKey())
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(SingleShortCodeDto.class);
     }
 
-    // Update short code
+
     public SingleShortCodeDto updateShortCode(String id, UpdateShortCodeRequest request) {
         String url = telnyxProperties.getApiBaseUrl() + "/v2/short_codes/" + id;
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + telnyxProperties.getApiKey());
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Accept", "application/json");
-
-        HttpEntity<UpdateShortCodeRequest> entity = new HttpEntity<>(request, headers);
-
-        ResponseEntity<SingleShortCodeDto> response = restTemplate.exchange(
-                url, HttpMethod.PATCH, entity, SingleShortCodeDto.class
-        );
-        return response.getBody();
+        return restClient
+                .patch()
+                .uri(url)
+                .header("Authorization", "Bearer " + telnyxProperties.getApiKey())
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(SingleShortCodeDto.class);
     }
 }
