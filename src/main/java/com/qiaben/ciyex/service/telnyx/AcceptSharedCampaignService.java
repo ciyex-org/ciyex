@@ -13,7 +13,6 @@ import org.springframework.web.client.RestClient;
 @RequiredArgsConstructor
 public class AcceptSharedCampaignService {
 
-    @Qualifier("telnyxProperties") // Specify the qualifier to resolve ambiguity
     private final TelnyxProperties properties;
 
     private final RestClient restClient = RestClient.builder().build();

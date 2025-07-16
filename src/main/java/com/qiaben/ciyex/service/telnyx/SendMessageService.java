@@ -2,24 +2,29 @@ package com.qiaben.ciyex.service.telnyx;
 
 import com.qiaben.ciyex.config.TelnyxProperties;
 import com.qiaben.ciyex.dto.telnyx.SendMessageDto;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 
 @Service
+@RequiredArgsConstructor
 public class SendMessageService {
 
     private final TelnyxProperties telnyxProperties;
-    private final RestTemplate restTemplate;
-
-    @Autowired
-    public SendMessageService(TelnyxProperties telnyxProperties, RestTemplate restTemplate) {
-        this.telnyxProperties = telnyxProperties;
-        this.restTemplate = restTemplate;
-    }
+    private final RestClient restClient;
 
     public Object sendMessage(SendMessageDto sendMessageDto) {
         String url = String.format("%s/v2/messages", telnyxProperties.getApiBaseUrl());
-        return restTemplate.postForObject(url, sendMessageDto, Object.class);
+
+        return restClient
+                .post()
+                .uri(url)
+                .header("Authorization", "Bearer " + telnyxProperties.getApiKey())
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(sendMessageDto)
+                .retrieve()
+                .body(Object.class);
     }
 }

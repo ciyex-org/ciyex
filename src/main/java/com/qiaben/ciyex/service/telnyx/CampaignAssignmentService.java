@@ -15,7 +15,7 @@ public class CampaignAssignmentService {
     private final TelnyxProperties telnyxProperties;
     private final RestClient restClient;
 
-    // -------- POST /v2/messaging_profile_campaign_assignments ----------
+
     public AssignMessagingProfileResponseDTO assignMessagingProfile(AssignMessagingProfileRequestDTO body) {
         String url = telnyxProperties.getApiBaseUrl() + "/v2/messaging_profile_campaign_assignments";
         return restClient.post()
@@ -27,7 +27,6 @@ public class CampaignAssignmentService {
                 .body(AssignMessagingProfileResponseDTO.class);
     }
 
-    // -------- GET /v2/messaging_profile_campaign_assignments/{taskId} ----------
     public TaskStatusResponseDTO getTaskStatus(String taskId) {
         String url = telnyxProperties.getApiBaseUrl() + "/v2/messaging_profile_campaign_assignments/" + taskId;
         return restClient.get()
@@ -37,7 +36,7 @@ public class CampaignAssignmentService {
                 .body(TaskStatusResponseDTO.class);
     }
 
-    // -------- GET /v2/messaging_profile_campaign_assignments/{taskId}/phone_number_status ----------
+
     public PhoneNumberStatusListResponseDTO getPhoneNumberStatuses(String taskId, Integer page, Integer recordsPerPage) {
         String base = telnyxProperties.getApiBaseUrl() + "/v2/messaging_profile_campaign_assignments/" + taskId + "/phone_number_status";
         String url = UriComponentsBuilder.fromHttpUrl(base)

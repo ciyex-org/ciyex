@@ -23,6 +23,4 @@ public class ConferenceRetrieveService {
                 .retrieve()
                 .body(ConferenceResponseDto.class);
     }
-
-    // (Include listConferences here if you already added it)
 }

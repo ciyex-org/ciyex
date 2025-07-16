@@ -21,9 +21,6 @@ public class TeXmlCallRecordingService {
     private final TelnyxProperties telnyxProperties;
     private final ObjectMapper objectMapper;
 
-    /* ------------------------------------------------------ *
-     * 1) Start a call recording                               *
-     * ------------------------------------------------------ */
     public TeXmlCallRecordingResponseDto startCallRecording(
             String accountSid, String callSid, TeXmlCallRecordingRequestDto body) {
 
@@ -43,9 +40,6 @@ public class TeXmlCallRecordingService {
                 .body(TeXmlCallRecordingResponseDto.class);
     }
 
-    /* ------------------------------------------------------ *
-     * 2) Fetch all recordings for a call                      *
-     * ------------------------------------------------------ */
     public TeXmlCallRecordingListResponseDto getCallRecordings(
             String accountSid, String callSid) {
 
@@ -59,9 +53,7 @@ public class TeXmlCallRecordingService {
                 .body(TeXmlCallRecordingListResponseDto.class);
     }
 
-    /* ------------------------------------------------------ *
-     * 3) Update (pause / resume / stop) a specific recording *
-     * ------------------------------------------------------ */
+
     public TeXmlCallRecordingResponseDto updateCallRecording(
             String accountSid,
             String callSid,
