@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.service.fhir;
 
 import com.qiaben.ciyex.config.OpenEmrFhirProperties;
+import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.fhir.FhirDiagnosticReportDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
@@ -58,4 +59,30 @@ public class FhirDiagnosticReportService {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }}
+    }
+    public ApiResponse<FhirDiagnosticReportDTO> createDiagnosticReport(FhirDiagnosticReportDTO report) {
+        try {
+            String url = openEmrFhirProperties.getBaseUrl() + "/fhir/DiagnosticReport";
+
+            FhirDiagnosticReportDTO createdReport = restClient
+                    .post()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(report)
+                    .retrieve()
+                    .body(FhirDiagnosticReportDTO.class);
+
+            return ApiResponse.<FhirDiagnosticReportDTO>builder()
+                    .success(true)
+                    .message("Diagnostic report created successfully!")
+                    .data(createdReport)
+                    .build();
+        } catch (Exception e) {
+            return ApiResponse.<FhirDiagnosticReportDTO>builder()
+                    .success(false)
+                    .message("Failed to create diagnostic report: " + e.getMessage())
+                    .build();
+        }
+    }
+}
