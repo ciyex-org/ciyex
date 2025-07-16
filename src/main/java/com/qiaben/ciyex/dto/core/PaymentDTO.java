@@ -15,4 +15,21 @@ public class PaymentDTO {
 
     @NotNull(message = "Bill date is required")
     private LocalDate billDate;
+
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public LocalDate getBillDate() {
+        return billDate;
+    }
+
+    public void setBillDate(LocalDate billDate) {
+        this.billDate = billDate;
+    }
 }

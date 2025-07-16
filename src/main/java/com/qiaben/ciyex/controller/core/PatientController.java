@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+
 @RestController
 @RequestMapping("/api/patient")
 public class PatientController {
@@ -27,6 +28,11 @@ public class PatientController {
         ApiResponse<?> response = patientService.registerPatient(patientForm);
         return ResponseEntity.ok(response);
     }
+    @PostMapping("/diagnosis")
+    public ResponseEntity<?> saveDiagnosis(@Valid @RequestBody DiagnosisDTO diagnosis) {
+        // Save logic here
+        return ResponseEntity.ok("Diagnosis saved!");
+    }
 
     @PostMapping("/vitals")
     public ResponseEntity<?> saveVitalSigns(@Valid @RequestBody VitalSignsDTO vitals) {
@@ -34,11 +40,7 @@ public class PatientController {
         return ResponseEntity.ok("Vitals saved!");
     }
 
-    @PostMapping("/diagnosis")
-    public ResponseEntity<?> saveDiagnosis(@Valid @RequestBody DiagnosisDTO diagnosis) {
-        // Save logic here
-        return ResponseEntity.ok("Diagnosis saved!");
-    }
+
 
     @PostMapping("/payment")
     public ResponseEntity<?> createPayment(@Valid @RequestBody PaymentDTO payment) {
