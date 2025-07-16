@@ -20,7 +20,7 @@ public class TeXmlConferenceService {
     private final RestClient restClient;
     private final TelnyxProperties telnyxProperties;
 
-    // --- Conference Operations ---
+
 
     public TeXmlConferenceDto fetchConference(String accountSid, String conferenceSid) {
         String url = telnyxProperties.getApiBaseUrl()
@@ -75,7 +75,6 @@ public class TeXmlConferenceService {
                 .body(TeXmlRecordingListResponseDto.class);
     }
 
-    // --- Participant Operations ---
 
     public TeXmlParticipantListResponseDto listParticipants(String accountSid, String conferenceSid) {
         String url = telnyxProperties.getApiBaseUrl()

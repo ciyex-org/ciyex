@@ -1,10 +1,15 @@
 package com.qiaben.ciyex.mapper;
 
-import com.qiaben.ciyex.dto.core.PatientFormDTO;
-import com.qiaben.ciyex.dto.fhir.FhirPatientDto;
+//import com.qiaben.ciyex.dto.core.*;
+//import com.qiaben.ciyex.dto.fhir.*;
+
+import com.qiaben.ciyex.dto.core.*;
+import com.qiaben.ciyex.dto.fhir.*;
+
 import java.util.List;
 
 public class PatientFhirMapper {
+
 
     public static FhirPatientDto fromPatientForm(PatientFormDTO dto) {
         FhirPatientDto fhir = new FhirPatientDto();
@@ -40,5 +45,47 @@ public class PatientFhirMapper {
         // (Add more mappings as needed!)
 
         return fhir;
+    }
+    public static FhirDiagnosticReportDTO fromDiagnosisDTO(DiagnosisDTO diagnosisDTO) {
+        FhirDiagnosticReportDTO report = new FhirDiagnosticReportDTO();
+        // Map DiagnosisDTO fields to FhirDiagnosticReportDTO fields as needed
+        // Example:
+        report.setId(diagnosisDTO.getMedicalId()); // Map medicalId to id or another appropriate field
+        // You can continue mapping other fields similarly
+
+        return report;
+    }
+    public static FhirPatientBillDTO fromPatientBillDTO(PatientBillDTO dto) {
+        return FhirPatientBillDTO.builder()
+                .billId(dto.getBillId())
+                .serviceId(dto.getServiceId())
+                .serviceDate(dto.getServiceDate())
+                .appointmentId(dto.getAppointmentId())
+                .quantity(dto.getQuantity())
+                .unitCost(dto.getUnitCost())
+                .totalCost(dto.getTotalCost())
+                .build();
+    }
+
+    public static FhirPaymentDTO fromPaymentDTO(PaymentDTO dto) {
+        return FhirPaymentDTO.builder()
+                .id(dto.getId())
+                .billDate(dto.getBillDate())
+                .build();
+    }
+
+    public static FhirVitalSignsDTO fromVitalSignsDTO(VitalSignsDTO dto) {
+        return FhirVitalSignsDTO.builder()
+                .patientId(dto.getPatientId())
+                .medicalId(dto.getMedicalId())
+                .bodyTemperature(dto.getBodyTemperature())
+                .heartRate(dto.getHeartRate())
+                .systolic(dto.getSystolic())
+                .diastolic(dto.getDiastolic())
+                .respiratoryRate(dto.getRespiratoryRate())
+                .oxygenSaturation(dto.getOxygenSaturation())
+                .weight(dto.getWeight())
+                .height(dto.getHeight())
+                .build();
     }
 }

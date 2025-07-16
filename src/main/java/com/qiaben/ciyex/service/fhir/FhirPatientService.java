@@ -1,9 +1,8 @@
 package com.qiaben.ciyex.service.fhir;
 
 import com.qiaben.ciyex.config.OpenEmrFhirProperties;
-import com.qiaben.ciyex.dto.fhir.FhirPatientDto;
-import com.qiaben.ciyex.dto.fhir.FhirPatientListResponseDto;
-import com.qiaben.ciyex.dto.fhir.FhirPatientSingleResponseDto;
+import com.qiaben.ciyex.dto.ApiResponse;
+import com.qiaben.ciyex.dto.fhir.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -108,4 +107,85 @@ public class FhirPatientService {
             throw new RuntimeException(e);
         }
     }
+
+    public  ApiResponse<FhirPaymentDTO> createPayment(FhirPaymentDTO payment) {
+        try {
+            String url = openEmrFhirProperties.getBaseUrl() + "/fhir/Payment";
+
+            FhirPaymentDTO createdPayment = restClient
+                    .post()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(payment)
+                    .retrieve()
+                    .body(FhirPaymentDTO.class);
+
+            return ApiResponse.<FhirPaymentDTO>builder()
+                    .success(true)
+                    .message("Payment recorded successfully!")
+                    .data(createdPayment)
+                    .build();
+        } catch (Exception e) {
+            return ApiResponse.<FhirPaymentDTO>builder()
+                    .success(false)
+                    .message("Failed to record payment: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    // New method to create a Patient Bill
+    public ApiResponse<FhirPatientBillDTO> createPatientBill(FhirPatientBillDTO bill) {
+        try {
+            String url = openEmrFhirProperties.getBaseUrl() + "/fhir/PatientBill";
+
+            FhirPatientBillDTO createdBill = restClient
+                    .post()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(bill)
+                    .retrieve()
+                    .body(FhirPatientBillDTO.class);
+
+            return ApiResponse.<FhirPatientBillDTO>builder()
+                    .success(true)
+                    .message("Bill created successfully!")
+                    .data(createdBill)
+                    .build();
+        } catch (Exception e) {
+            return ApiResponse.<FhirPatientBillDTO>builder()
+                    .success(false)
+                    .message("Failed to create bill: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    // New method to save Vital Signs
+    public ApiResponse<FhirVitalSignsDTO> saveVitalSigns(FhirVitalSignsDTO vitals) {
+        try {
+            String url = openEmrFhirProperties.getBaseUrl() + "/fhir/VitalSigns";
+
+            FhirVitalSignsDTO savedVitals = restClient
+                    .post()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(vitals)
+                    .retrieve()
+                    .body(FhirVitalSignsDTO.class);
+
+            return ApiResponse.<FhirVitalSignsDTO>builder()
+                    .success(true)
+                    .message("Vital signs saved successfully!")
+                    .data(savedVitals)
+                    .build();
+        } catch (Exception e) {
+            return ApiResponse.<FhirVitalSignsDTO>builder()
+                    .success(false)
+                    .message("Failed to save vital signs: " + e.getMessage())
+                    .build();
+        }
+    }
+
 }

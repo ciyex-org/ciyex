@@ -18,12 +18,7 @@ public class TelnyxDialService {
 
     private final TelnyxProperties telnyxProperties;
 
-    /**
-     * Issues a Dial command to Telnyx.
-     *
-     * @param request body
-     * @return parsed TelnyxDialResponseDTO
-     */
+
     public TelnyxDialResponseDTO dial(TelnyxDialRequestDTO request) {
         RestClient client = RestClient.builder()
                 .baseUrl(telnyxProperties.getApiBaseUrl())
