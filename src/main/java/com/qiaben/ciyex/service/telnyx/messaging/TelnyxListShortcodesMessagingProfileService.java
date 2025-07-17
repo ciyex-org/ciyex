@@ -1,0 +1,32 @@
+package com.qiaben.ciyex.service.telnyx.messaging;
+
+import com.qiaben.ciyex.config.TelnyxProperties;
+import com.qiaben.ciyex.dto.telnyx.messaging.TelnyxListShortcodesMessagingProfileDto;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.util.UriComponentsBuilder;
+
+@Service
+@RequiredArgsConstructor
+public class TelnyxListShortcodesMessagingProfileService {
+
+    private final TelnyxProperties telnyxProperties;
+    private final RestClient restClient;
+
+    public TelnyxListShortcodesMessagingProfileDto getShortcodes(String id, int pageNumber, int pageSize) {
+        String url = String.format("%s/v2/messaging_profiles/%s/short_codes", telnyxProperties.getApiBaseUrl(), id);
+
+        String finalUrl = UriComponentsBuilder.fromHttpUrl(url)
+                .queryParam("page[number]", pageNumber)
+                .queryParam("page[size]", pageSize)
+                .toUriString();
+
+        return restClient
+                .get()
+                .uri(finalUrl)
+                .header("Authorization", "Bearer " + telnyxProperties.getApiKey())
+                .retrieve()
+                .body(TelnyxListShortcodesMessagingProfileDto.class);
+    }
+}
