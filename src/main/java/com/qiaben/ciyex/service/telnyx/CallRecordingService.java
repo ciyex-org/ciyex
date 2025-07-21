@@ -1,22 +1,27 @@
 package com.qiaben.ciyex.service.telnyx;
 
 
-import com.qiaben.ciyex.dto.telnyx.*;
+
+import com.qiaben.ciyex.dto.telnyx.video.TelnyxRecordingDto;
+import com.qiaben.ciyex.dto.telnyx.video.TelnyxRecordingListResponseDto;
+import com.qiaben.ciyex.dto.telnyx.video.TelnyxRecordingTranscriptionDto;
+import com.qiaben.ciyex.dto.telnyx.video.TelnyxRecordingTranscriptionListResponseDto;
+import com.qiaben.ciyex.dto.telnyx.voice.TelnyxCustomStorageCredentialDto;
 
 import java.util.List;
 
 public interface CallRecordingService {
-    RecordingListResponseDto listRecordings(String queryString);
-    RecordingDto getRecording(String recordingId);
+    TelnyxRecordingListResponseDto listRecordings(String queryString);
+    TelnyxRecordingDto getRecording(String recordingId);
     void          deleteRecording(String recordingId);
     void          deleteRecordingsBatch(List<String> recordingIds);
 
-    RecordingTranscriptionListResponseDto listTranscriptions();
-    RecordingTranscriptionDto getTranscription(String transcriptionId);
+    TelnyxRecordingTranscriptionListResponseDto listTranscriptions();
+    TelnyxRecordingTranscriptionDto getTranscription(String transcriptionId);
     void                                  deleteTranscription(String transcriptionId);
 
-    CustomStorageCredentialDto getCredentials(String connectionId);
-    CustomStorageCredentialDto createCredentials(String connectionId, CustomStorageCredentialDto body);
-    CustomStorageCredentialDto updateCredentials(String connectionId, CustomStorageCredentialDto body);
+    TelnyxCustomStorageCredentialDto getCredentials(String connectionId);
+    TelnyxCustomStorageCredentialDto createCredentials(String connectionId, TelnyxCustomStorageCredentialDto body);
+    TelnyxCustomStorageCredentialDto updateCredentials(String connectionId, TelnyxCustomStorageCredentialDto body);
     void                       deleteCredentials(String connectionId);
 }

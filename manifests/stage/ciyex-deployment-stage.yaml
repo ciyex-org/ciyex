@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ciyex-app-stage
+  labels:
+    app: ciyex-app-stage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ciyex-app-stage
+  template:
+    metadata:
+      labels:
+        app: ciyex-app-stage
+    spec:
+      containers:
+        - name: ciyex-app-stage
+          image: IMAGE_URL:IMAGE_TAG
+          ports:
+            - containerPort: 8080  # Spring Boot
+            - containerPort: 3000  # Next.js
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "stage"
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://mysql:3306/ciyexdb"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "root"
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ciyex-mysql-secret
+                  key: mysql-root-password
+            - name: NEXT_PUBLIC_API_URL
+              value: "https://stg.ciyex.com/api"
+
