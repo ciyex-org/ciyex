@@ -27,7 +27,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 
 	// MySQL + Lombok
-	implementation 'com.mysql:mysql-connector-j:8.3.0'
+	implementation 'com.mysql:mysql-connector-j:9.3.0'
 	implementation 'org.projectlombok:lombok:1.18.38'
 	annotationProcessor 'org.projectlombok:lombok:1.18.38'
 
