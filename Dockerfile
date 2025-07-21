@@ -3,9 +3,12 @@ FROM node:20 AS next-builder
 
 WORKDIR /app/ciyex-ui
 
+# Install pnpm globally
+RUN npm install -g pnpm
+
 # Copy package files and install dependencies
-COPY ciyex-ui/package*.json ./
-RUN npm install
+COPY ciyex-ui/pnpm-lock.yaml ciyex-ui/package.json ./
+RUN pnpm install --frozen-lockfile
 
 # Copy rest of the UI code
 COPY ciyex-ui .
@@ -25,9 +28,8 @@ RUN if [ "$ENVIRONMENT" = "stage" ]; then \
       cp .env .env; \
     fi
 
-
 # Build Next.js app (SSR)
-RUN npm run build
+RUN pnpm run build
 
 # ---- Build Spring Boot ----
 FROM gradle:8.5-jdk21 AS backend-builder
