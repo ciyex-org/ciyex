@@ -12,7 +12,7 @@ COPY ciyex-ui .
 
 # Select which .env file to use for the build
 ARG NEXT_ENV=.env
-RUN if [ -f "$NEXT_ENV" ]; then cp "$NEXT_ENV" .env; fi
+RUN if [ "$NEXT_ENV" != ".env" ] && [ -f "$NEXT_ENV" ]; then cp "$NEXT_ENV" .env; fi
 
 # Build Next.js app (SSR)
 RUN npm run build
