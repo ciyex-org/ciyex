@@ -10,9 +10,21 @@ RUN npm install
 # Copy rest of the UI code
 COPY ciyex-ui .
 
-# Select which .env file to use for the build
-ARG NEXT_ENV=.env
-RUN if [ "$NEXT_ENV" != ".env" ] && [ -f "$NEXT_ENV" ]; then cp "$NEXT_ENV" .env; fi
+# Select environment: ENVIRONMENT=stage or ENVIRONMENT=prod
+ARG ENVIRONMENT=prod
+
+# Remove any previous .env files to avoid ambiguity
+RUN rm -f .env .env.local
+
+# Choose the correct env file and copy as .env
+RUN if [ "$ENVIRONMENT" = "stage" ]; then \
+      cp .env.stage .env; \
+    elif [ "$ENVIRONMENT" = "local" ]; then \
+      cp .env.local .env; \
+    else \
+      cp .env .env; \
+    fi
+
 
 # Build Next.js app (SSR)
 RUN npm run build
