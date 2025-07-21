@@ -1,26 +1,24 @@
 package com.qiaben.ciyex.dto.fhir;
 
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-import java.util.List;
+import lombok.*;
 
 @Data
 @NoArgsConstructor
-public class AppointmentResponseDTO {
-    private String resourceType;
-    private Meta meta;
-    private List<Entry> entry; // List of entries, each representing an appointment
+@AllArgsConstructor
+@Builder
+public class AppointmentResponseDTO{
+    private String resourceType = "Appointment";
+    private String status      = "booked";      // FHIR‑required
+    private String description;                 // e.g. “Consultation”
+    private String start;                       // ISO 8601 date‑time
+    private String end;                         // ISO 8601 date‑time
+    private Participant participant;            // physician + patient
 
-    @Data
-    @NoArgsConstructor
-    public static class Meta {
-        private String lastUpdated;
-    }
-
-    @Data
-    @NoArgsConstructor
-    public static class Entry {
-        private AppointmentResponseDTO resource; // This will hold the appointment resource itself
+    @Data @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class Participant {
+        private String actorReference;          // “Practitioner/{id}”
+        private String actorDisplay;            // Doctor name
+        private boolean required = true;
+        private String status    = "accepted";
     }
 }

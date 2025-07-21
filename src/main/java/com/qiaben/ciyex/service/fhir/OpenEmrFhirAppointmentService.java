@@ -2,64 +2,87 @@ package com.qiaben.ciyex.service.fhir;
 
 import com.qiaben.ciyex.config.OpenEmrFhirProperties;
 import com.qiaben.ciyex.dto.fhir.AppointmentResponseDTO;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.qiaben.ciyex.dto.fhir.AppointmentResponseDTO;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import org.springframework.http.ResponseEntity;
 
 @Service
+@RequiredArgsConstructor
 public class OpenEmrFhirAppointmentService {
 
     private final OpenEmrFhirProperties openEmrFhirProperties;
-    private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final RestClient            restClient;
+    private final OpenEmrAuthService    openEmrAuthService;
 
-    @Autowired
-    public OpenEmrFhirAppointmentService(OpenEmrFhirProperties openEmrFhirProperties, RestClient restClient, OpenEmrAuthService openEmrAuthService) {
-        this.openEmrFhirProperties = openEmrFhirProperties;
-        this.restClient = restClient;
-        this.openEmrAuthService = openEmrAuthService;
-    }
-
+    /* -------------------------------------------------- GET LIST */
     public AppointmentResponseDTO getAppointments(String patientId, String lastUpdated) {
         try {
             String url = openEmrFhirProperties.getBaseUrl() + "/fhir/Appointment";
 
-            if (patientId != null) {
+            if (patientId != null && !patientId.isBlank()) {
                 url += "?patient=" + patientId;
             }
-            if (lastUpdated != null) {
+            if (lastUpdated != null && !lastUpdated.isBlank()) {
                 url += (url.contains("?") ? "&" : "?") + "_lastUpdated=" + lastUpdated;
             }
 
-            // Using RestClient to make the API call and getting response entity
             ResponseEntity<AppointmentResponseDTO> response = restClient.get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", bearer())
                     .retrieve()
-                    .toEntity(AppointmentResponseDTO.class); // Get the response entity
+                    .toEntity(AppointmentResponseDTO.class);
 
-            return response.getBody(); // Return the full response including metadata and entry
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            return response.getBody();
+        } catch (Exception ex) {
+            throw new RuntimeException("Failed to fetch appointments", ex);
         }
     }
 
-    // Method for getting a single appointment by uuid
+    /* -------------------------------------------------- GET BY UUID */
     public AppointmentResponseDTO getAppointmentByUuid(String uuid) {
         try {
             String url = openEmrFhirProperties.getBaseUrl() + "/fhir/Appointment/" + uuid;
 
-            // Using RestClient to fetch the single appointment
             ResponseEntity<AppointmentResponseDTO> response = restClient.get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", bearer())
                     .retrieve()
                     .toEntity(AppointmentResponseDTO.class);
 
-            return response.getBody();// Return the single appointment
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            return response.getBody();
+        } catch (Exception ex) {
+            throw new RuntimeException("Failed to fetch appointment " + uuid, ex);
+        }
+    }
+
+    /* -------------------------------------------------- CREATE (POST) */
+    public AppointmentResponseDTO createAppointment(AppointmentResponseDTO body) {
+        try {
+            String url = openEmrFhirProperties.getBaseUrl() + "/fhir/Appointment";
+
+            ResponseEntity<AppointmentResponseDTO> response = restClient.post()
+                    .uri(url)
+                    .header("Authorization", bearer())
+                    .body(body)
+                    .retrieve()
+                    .toEntity(AppointmentResponseDTO.class);
+
+            return response.getBody();
+        } catch (Exception ex) {
+            throw new RuntimeException("Failed to create appointment", ex);
+        }
+    }
+
+    /* -------------------------------------------------- HELPER */
+    /** Builds “Bearer &lt;token&gt;” and handles checked‑exception propagation neatly. */
+    private String bearer() {
+        try {
+            return "Bearer " + openEmrAuthService.getCachedAccessToken();
+        } catch (Exception ex) {
+            // wrap checked Exception into unchecked to satisfy RestClient header()
+            throw new RuntimeException("Unable to obtain OpenEMR access token", ex);
         }
     }
 }
