@@ -59,6 +59,6 @@ public class User {
     private String securityAnswer;
 
     @Builder.Default
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private Set<UserFacilityRole> userFacilityRoles = new HashSet<>();
 }

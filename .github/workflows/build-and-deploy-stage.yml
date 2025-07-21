@@ -1,0 +1,67 @@
+name: Build & Deploy Ciyex App Stage
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  IMAGE_NAME: ciyex-app-stage
+  ACR_NAME: hinikubestageacr.azurecr.io
+  CLUSTER_NAME: hiniKubeStage
+  RESOURCE_GROUP: hiniKubeStage-rg
+  VERSION: v1.0.${{ github.run_number }}
+
+jobs:
+  pr-build:
+    name: PR Build - Validate Docker Image
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Build Docker image (no push)
+        run: |
+          docker build --build-arg ENVIRONMENT=stage -t $ACR_NAME/$IMAGE_NAME:$VERSION .
+          echo "✅ PR image build successful: $ACR_NAME/$IMAGE_NAME:$VERSION"
+
+  build-and-deploy:
+    name: Deploy to AKS (Staging)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_STAGE }}
+
+      - name: Azure ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build --build-arg ENVIRONMENT=stage -t $ACR_NAME/$IMAGE_NAME:$VERSION .
+          docker push $ACR_NAME/$IMAGE_NAME:$VERSION
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_STAGE }}
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER_NAME }}
+
+      - name: Update manifest image tags for deployment
+        run: |
+          sed -i "s|IMAGE_URL:IMAGE_TAG|${{ env.ACR_NAME }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}|g" manifests/stage/ciyex-deployment-stage.yaml
+
+      - name: Deploy to AKS
+        run: kubectl apply -f manifests/stage/

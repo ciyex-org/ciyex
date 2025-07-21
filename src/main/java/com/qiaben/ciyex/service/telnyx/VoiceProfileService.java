@@ -1,8 +1,9 @@
 package com.qiaben.ciyex.service.telnyx;
 
-import com.qiaben.ciyex.dto.telnyx.UpdateVoiceProfileRequestDto;
-import com.qiaben.ciyex.dto.telnyx.UpdateVoiceProfileResponseDto;
+
+import com.qiaben.ciyex.dto.telnyx.voice.TelnyxUpdateVoiceProfileRequestDto;
+import com.qiaben.ciyex.dto.telnyx.voice.TelnyxUpdateVoiceProfileResponseDto;
 
 public interface VoiceProfileService {
-    UpdateVoiceProfileResponseDto updateVoiceProfile(String brandId, UpdateVoiceProfileRequestDto request);
+    TelnyxUpdateVoiceProfileResponseDto updateVoiceProfile(String brandId, TelnyxUpdateVoiceProfileRequestDto request);
 }
