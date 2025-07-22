@@ -15,7 +15,6 @@ spring:
     properties:
       hibernate.dialect: org.hibernate.dialect.MySQLDialect
 
-
 openemr:
   api-url: https://stg.qiaben-emr.com/apis/default/api
   oauth:
