@@ -1,90 +1,105 @@
 package com.qiaben.ciyex.service.core;
 
 import com.qiaben.ciyex.dto.ApiResponse;
-import com.qiaben.ciyex.dto.core.*;
-import com.qiaben.ciyex.dto.fhir.*;
-import com.qiaben.ciyex.mapper.PatientFhirMapper;
 import com.qiaben.ciyex.service.fhir.FhirDiagnosticReportService;
 import com.qiaben.ciyex.service.fhir.FhirPatientService;
 import com.qiaben.ciyex.service.fhir.OpenEmrAuthService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.Patient;
+import org.hl7.fhir.r4.model.DiagnosticReport;
+import org.hl7.fhir.r4.model.Observation;
+import org.hl7.fhir.r4.model.Invoice;
+import org.hl7.fhir.r4.model.PaymentReconciliation;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PatientService {
 
     private final FhirPatientService fhirPatientService;
     private final FhirDiagnosticReportService diagnosticReportService;
     private final OpenEmrAuthService openEmrAuthService;
 
-    public ApiResponse<FhirPatientSingleResponseDto> registerPatient(PatientFormDTO dto) {
-        // 1. Map PatientFormDTO to FhirPatientDto
-        FhirPatientDto fhirPatient = PatientFhirMapper.fromPatientForm(dto);
-
+    public ApiResponse<Patient> getPatientById(String patientId) {
+        log.info("Fetching patient by ID: {}", patientId);
         try {
-            // 2. Get cached OpenEMR access token
-            String token = openEmrAuthService.getCachedAccessToken();
-
-            // 3. Register patient in FHIR (set token dynamically for this request)
-            FhirPatientSingleResponseDto response = fhirPatientService.createPatient(fhirPatient, token);
-
-            // 4. Return wrapped API response
-            return ApiResponse.<FhirPatientSingleResponseDto>builder()
+            Patient patient = fhirPatientService.getPatientByUuid(patientId);
+            log.info("Successfully fetched patient: {}", patient.getIdElement().getIdPart());
+            return ApiResponse.<Patient>builder()
                     .success(true)
-                    .message("Patient registered successfully!")
-                    .data(response)
+                    .data(patient)
                     .build();
         } catch (Exception e) {
-            return ApiResponse.<FhirPatientSingleResponseDto>builder()
+            log.error("Failed to fetch patient with ID {}: {}", patientId, e.getMessage(), e);
+            return ApiResponse.<Patient>builder()
+                    .success(false)
+                    .message("Failed to fetch patient: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    public ApiResponse<Patient> registerPatient(Patient patient) {
+        log.info("Registering new patient with identifier: {}", patient.getIdentifierFirstRep().getValue());
+        try {
+            Patient createdPatient = fhirPatientService.createPatient(patient);
+            log.info("Patient registered successfully with ID: {}", createdPatient.getIdElement().getIdPart());
+            return ApiResponse.<Patient>builder()
+                    .success(true)
+                    .message("Patient registered successfully!")
+                    .data(createdPatient)
+                    .build();
+        } catch (Exception e) {
+            log.error("Failed to register patient: {}", e.getMessage(), e);
+            return ApiResponse.<Patient>builder()
                     .success(false)
                     .message("Failed to register patient: " + e.getMessage())
                     .build();
         }
     }
-    public ApiResponse<FhirDiagnosticReportDTO> saveDiagnosis(DiagnosisDTO diagnosis) {
-        try {
-            // Convert DiagnosisDTO to FhirDiagnosticReportDTO
-            FhirDiagnosticReportDTO fhirDiagnosticReport = PatientFhirMapper.fromDiagnosisDTO(diagnosis);
 
-            // Create diagnostic report in OpenEMR
-            ApiResponse<FhirDiagnosticReportDTO> response = diagnosticReportService.createDiagnosticReport(fhirDiagnosticReport);
-
-            // Return response from OpenEMR
-            return response;
-        } catch (Exception e) {
-            return ApiResponse.<FhirDiagnosticReportDTO>builder()
-                    .success(false)
-                    .message("Failed to save diagnosis: " + e.getMessage())
-                    .build();
+    public ApiResponse<DiagnosticReport> saveDiagnosis(DiagnosticReport diagnosis) {
+        log.info("Saving diagnostic report for patient: {}", diagnosis.getSubject().getReference());
+        ApiResponse<DiagnosticReport> response = diagnosticReportService.createDiagnosticReport(diagnosis);
+        if (response.isSuccess()) {
+            log.info("Diagnostic report saved successfully with ID: {}", response.getData().getIdElement().getIdPart());
+        } else {
+            log.error("Failed to save diagnostic report: {}", response.getMessage());
         }
+        return response;
     }
 
-
-    public ApiResponse<?> saveVitalSigns(VitalSignsDTO vitals) {
-        try {
-            FhirVitalSignsDTO fhirVitals = PatientFhirMapper.fromVitalSignsDTO(vitals);
-            return fhirPatientService.saveVitalSigns(fhirVitals);
-        } catch (Exception e) {
-            return ApiResponse.builder().success(false).message("Failed to save vitals").build();
+    public ApiResponse<Observation> saveVitalSigns(Observation vitals) {
+        log.info("Saving vital signs for patient: {}", vitals.getSubject().getReference());
+        ApiResponse<Observation> response = fhirPatientService.saveVitalSigns(vitals);
+        if (response.isSuccess()) {
+            log.info("Vital signs saved successfully with ID: {}", response.getData().getIdElement().getIdPart());
+        } else {
+            log.error("Failed to save vital signs: {}", response.getMessage());
         }
+        return response;
     }
 
-    public ApiResponse<?> createPayment(PaymentDTO payment) {
-        try {
-            FhirPaymentDTO fhirPayment = PatientFhirMapper.fromPaymentDTO(payment);
-            return fhirPatientService.createPayment(fhirPayment);
-        } catch (Exception e) {
-            return ApiResponse.builder().success(false).message("Failed to create payment").build();
+    public ApiResponse<PaymentReconciliation> createPayment(PaymentReconciliation payment) {
+        //log.info("Creating payment for patient: {}", payment.getPatient().getReference());
+        ApiResponse<PaymentReconciliation> response = fhirPatientService.createPayment(payment);
+        if (response.isSuccess()) {
+            log.info("Payment created successfully with ID: {}", response.getData().getIdElement().getIdPart());
+        } else {
+            log.error("Failed to create payment: {}", response.getMessage());
         }
+        return response;
     }
 
-    public ApiResponse<?> createBill(PatientBillDTO bill) {
-        try {
-            FhirPatientBillDTO fhirBill = PatientFhirMapper.fromPatientBillDTO(bill);
-            return fhirPatientService.createPatientBill(fhirBill);
-        } catch (Exception e) {
-            return ApiResponse.builder().success(false).message("Failed to create bill").build();
+    public ApiResponse<Invoice> createBill(Invoice bill) {
+        log.info("Creating bill for patient: {}", bill.getSubject().getReference());
+        ApiResponse<Invoice> response = fhirPatientService.createPatientBill(bill);
+        if (response.isSuccess()) {
+            log.info("Bill created successfully with ID: {}", response.getData().getIdElement().getIdPart());
+        } else {
+            log.error("Failed to create bill: {}", response.getMessage());
         }
+        return response;
     }
 }

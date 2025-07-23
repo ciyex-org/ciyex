@@ -1,30 +1,36 @@
 package com.qiaben.ciyex.service.fhir;
 
-import com.qiaben.ciyex.config.OpenEmrFhirProperties;
-import com.qiaben.ciyex.dto.fhir.FhirCarePlanResponseDTO;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.parser.IParser;
+import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
+import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.Bundle;
+import org.hl7.fhir.r4.model.CarePlan;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.List;
 import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FhirCarePlanService {
 
-    private final OpenEmrFhirProperties properties;
     private final RestClient restClient;
-    private final ObjectMapper objectMapper;
     private final OpenEmrAuthService openEmrAuthService;
+    private final OrgIntegrationConfigProvider integrationConfigProvider;
+    private final FhirContext fhirContext = FhirContext.forR4();
 
-    // Method to fetch a list of CarePlan resources
-    public List<FhirCarePlanResponseDTO> getCarePlans(Map<String, String> queryParams) {
+    // Fetch a list (bundle) of CarePlans based on query parameters
+    public Bundle getCarePlans(Map<String, String> queryParams) {
         try {
-            String baseUrl = properties.getBaseUrl() + "/fhir/CarePlan";
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            String baseUrl = openEmrConfig.getApiUrl() + "/fhir/CarePlan";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
             queryParams.forEach((key, value) -> {
@@ -33,24 +39,40 @@ public class FhirCarePlanService {
                 }
             });
 
+            String finalUrl = builder.build(true).toUriString();
+            log.info("[FhirCarePlanService] Fetching CarePlans for org: {}, url: {}, params: {}",
+                    openEmrConfig.getClientId(), finalUrl, queryParams);
+
             String response = restClient
                     .get()
-                    .uri(builder.build(true).toUri())
+                    .uri(finalUrl)
                     .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
 
-            return parseCarePlanListResponse(response);
+            log.debug("[FhirCarePlanService] FHIR CarePlan bundle response: {}",
+                    response != null ? response.substring(0, Math.min(400, response.length())) : "null");
+
+            IParser parser = fhirContext.newJsonParser();
+            Bundle bundle = parser.parseResource(Bundle.class, response);
+            log.info("[FhirCarePlanService] Parsed {} CarePlan entries from bundle.", bundle.getEntry().size());
+
+            return bundle;
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log.error("[FhirCarePlanService] Failed to fetch CarePlans, params: {}", queryParams, e);
+            throw new RuntimeException("Failed to fetch CarePlans", e);
         }
     }
 
-    // Method to fetch a single CarePlan by UUID
-    public FhirCarePlanResponseDTO getCarePlan(String uuid) {
+    // Fetch a single CarePlan by UUID
+    public CarePlan getCarePlan(String uuid) {
         try {
-            String url = properties.getBaseUrl() + "/fhir/CarePlan/" + uuid;
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            String url = openEmrConfig.getApiUrl() + "/fhir/CarePlan/" + uuid;
+
+            log.info("[FhirCarePlanService] Fetching CarePlan by UUID for org: {}, url: {}",
+                    openEmrConfig.getClientId(), url);
 
             String response = restClient
                     .get()
@@ -60,30 +82,17 @@ public class FhirCarePlanService {
                     .retrieve()
                     .body(String.class);
 
-            return parseResponse(response);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+            log.debug("[FhirCarePlanService] FHIR CarePlan response: {}",
+                    response != null ? response.substring(0, Math.min(400, response.length())) : "null");
 
-    // Parsing a single CarePlanResponseDTO from the response
-    private FhirCarePlanResponseDTO parseResponse(String response) {
-        try {
-            return objectMapper.readValue(response, FhirCarePlanResponseDTO.class);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to parse CarePlan response", e);
-        }
-    }
+            IParser parser = fhirContext.newJsonParser();
+            CarePlan carePlan = parser.parseResource(CarePlan.class, response);
 
-    // Parsing a list of CarePlanResponseDTOs from the response
-    private List<FhirCarePlanResponseDTO> parseCarePlanListResponse(String response) {
-        try {
-            return objectMapper.readValue(
-                    response,
-                    objectMapper.getTypeFactory().constructCollectionType(List.class, FhirCarePlanResponseDTO.class)
-            );
+            log.info("[FhirCarePlanService] Successfully parsed CarePlan for UUID: {}", uuid);
+            return carePlan;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse CarePlan list response", e);
+            log.error("[FhirCarePlanService] Failed to fetch CarePlan by UUID: {}", uuid, e);
+            throw new RuntimeException("Failed to fetch CarePlan by UUID", e);
         }
     }
 }

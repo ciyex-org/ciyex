@@ -1,81 +1,85 @@
 package com.qiaben.ciyex.service.fhir;
 
-import com.qiaben.ciyex.config.OpenEmrFhirProperties;
-import com.qiaben.ciyex.dto.fhir.FhirProcedureByIdResponseDto;
-import com.qiaben.ciyex.dto.fhir.FhirProcedureListResponseDto;
-import com.qiaben.ciyex.dto.fhir.FhirProcedureSearchRequestDto;
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.parser.IParser;
+import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
+import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.Bundle;
+import org.hl7.fhir.r4.model.Procedure;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @Service
-
+@RequiredArgsConstructor
+@Slf4j
 public class FhirProcedureService {
 
-    private final OpenEmrFhirProperties properties;
+    private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final OpenEmrAuthService openEmrAuthService;
+    private final RestClient restClient;
+    private final FhirContext fhirContext = FhirContext.forR4();
 
-    public FhirProcedureService(OpenEmrFhirProperties properties, OpenEmrAuthService openEmrAuthService) {
-        this.properties = properties;
-        this.openEmrAuthService = openEmrAuthService;
-    }
-
-    public FhirProcedureListResponseDto getProcedures(FhirProcedureSearchRequestDto req) {
+    // Search procedures with FHIR params
+    public Bundle getProcedures(Map<String, String> params) {
+        String url = null;
         try {
-            String url = properties.getBaseUrl() + "/fhir/Procedure";
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            url = openEmrConfig.getApiUrl() + "/fhir/Procedure";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
 
-            Map<String, String> queryParams = new HashMap<>();
-            queryParams.put("_id", req.getId());
-            queryParams.put("_lastUpdated", req.getLastUpdated());
-            queryParams.put("patient", req.getPatient());
-            queryParams.put("date", req.getDate());
-
-            queryParams.forEach((key, value) -> {
-                if (value != null && !value.isBlank()) {
-                    builder.queryParam(key, value);
-                }
+            params.forEach((key, value) -> {
+                if (value != null && !value.isBlank()) builder.queryParam(key, value);
             });
 
-            RestClient client = RestClient.builder().build();
+            String fullUrl = builder.build(true).toUriString();
+            log.info("[FhirProcedureService] Searching procedures from URL: {}", fullUrl);
 
-            Map<String, Object> response = client.get()
-                    .uri(builder.toUriString())
+            String json = restClient.get()
+                    .uri(fullUrl)
                     .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
-                    .body(Map.class);
+                    .body(String.class);
 
-            FhirProcedureListResponseDto dto = new FhirProcedureListResponseDto();
-            dto.setJsonObject(response);
-            return dto;
+            log.debug("[FhirProcedureService] Response: {}", json);
+
+            IParser parser = fhirContext.newJsonParser();
+            return parser.parseResource(Bundle.class, json);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log.error("[FhirProcedureService] Failed to fetch procedures from URL: {}. Error: {}", url, e.getMessage(), e);
+            throw new RuntimeException("Failed to fetch procedures", e);
         }
     }
 
-    public FhirProcedureByIdResponseDto getProcedureById(String uuid) {
+    // Get a single Procedure by UUID
+    public Procedure getProcedureById(String uuid) {
+        String url = null;
         try {
-            String url = properties.getBaseUrl() + "/fhir/Procedure/" + uuid;
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            url = openEmrConfig.getApiUrl() + "/fhir/Procedure/" + uuid;
+            log.info("[FhirProcedureService] Fetching procedure by ID {} from URL: {}", uuid, url);
 
-            RestClient client = RestClient.builder().build();
-
-            Map<String, Object> response = client.get()
+            String json = restClient.get()
                     .uri(url)
                     .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
-                    .body(Map.class);
+                    .body(String.class);
 
-            FhirProcedureByIdResponseDto dto = new FhirProcedureByIdResponseDto();
-            dto.setData(response);
-            return dto;
+            log.debug("[FhirProcedureService] Response for procedure {}: {}", uuid, json);
+
+            IParser parser = fhirContext.newJsonParser();
+            return parser.parseResource(Procedure.class, json);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log.error("[FhirProcedureService] Failed to fetch procedure by ID {} from URL: {}. Error: {}", uuid, url, e.getMessage(), e);
+            throw new RuntimeException("Failed to fetch procedure by UUID: " + uuid, e);
         }
     }
 }

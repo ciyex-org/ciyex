@@ -1,57 +1,56 @@
 package com.qiaben.ciyex.controller.core;
 
-import com.qiaben.ciyex.dto.ApiResponse;
-import com.qiaben.ciyex.dto.core.*;
+import ca.uhn.fhir.context.FhirContext;
 import com.qiaben.ciyex.service.core.PatientService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.hl7.fhir.r4.model.Invoice;
+import org.hl7.fhir.r4.model.Observation;
+import org.hl7.fhir.r4.model.Patient;
+import org.hl7.fhir.r4.model.PaymentReconciliation;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/patient")
+@RequiredArgsConstructor
 public class PatientController {
 
     private final PatientService patientService;
+    private final FhirContext fhirContext = FhirContext.forR4();
 
-    @Autowired
-    public PatientController(PatientService patientService) {
-        this.patientService = patientService;
+    @GetMapping("/{patientId}")
+    public ResponseEntity<String> getPatientById(@PathVariable String patientId) {
+        Patient patient = patientService.getPatientById(patientId).getData();
+        String json = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(patient);
+        return ResponseEntity.ok(json);
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerPatient(@Valid @RequestBody PatientFormDTO patientForm) {
-        ApiResponse<?> response = patientService.registerPatient(patientForm);
-        return ResponseEntity.ok(response);
-    }
-    @PostMapping("/diagnosis")
-    public ResponseEntity<?> saveDiagnosis(@Valid @RequestBody DiagnosisDTO diagnosis) {
-        // Save logic here
-        return ResponseEntity.ok("Diagnosis saved!");
+    public ResponseEntity<String> registerPatient(@Valid @RequestBody Patient patient) {
+        Patient createdPatient = patientService.registerPatient(patient).getData();
+        String json = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(createdPatient);
+        return ResponseEntity.ok(json);
     }
 
     @PostMapping("/vitals")
-    public ResponseEntity<?> saveVitalSigns(@Valid @RequestBody VitalSignsDTO vitals) {
-        // Handle saving logic
-        return ResponseEntity.ok("Vitals saved!");
+    public ResponseEntity<String> saveVitalSigns(@Valid @RequestBody Observation vitals) {
+        Observation savedVitals = patientService.saveVitalSigns(vitals).getData();
+        String json = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(savedVitals);
+        return ResponseEntity.ok(json);
     }
 
-
-
     @PostMapping("/payment")
-    public ResponseEntity<?> createPayment(@Valid @RequestBody PaymentDTO payment) {
-        // Save payment logic here
-        return ResponseEntity.ok("Payment recorded!");
+    public ResponseEntity<String> createPayment(@Valid @RequestBody PaymentReconciliation payment) {
+        PaymentReconciliation savedPayment = patientService.createPayment(payment).getData();
+        String json = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(savedPayment);
+        return ResponseEntity.ok(json);
     }
 
     @PostMapping("/patient-bill")
-    public ResponseEntity<?> createBill(@Valid @RequestBody PatientBillDTO bill) {
-        // Logic here...
-        return ResponseEntity.ok("Bill created!");
+    public ResponseEntity<String> createBill(@Valid @RequestBody Invoice bill) {
+        Invoice savedBill = patientService.createBill(bill).getData();
+        String json = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(savedBill);
+        return ResponseEntity.ok(json);
     }
-
 }

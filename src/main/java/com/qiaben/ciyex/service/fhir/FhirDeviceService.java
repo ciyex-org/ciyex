@@ -1,58 +1,105 @@
 package com.qiaben.ciyex.service.fhir;
 
-import com.qiaben.ciyex.dto.fhir.FhirDeviceDTO;
-import com.qiaben.ciyex.config.OpenEmrFhirProperties;
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.parser.IParser;
+import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
+import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.Bundle;
+import org.hl7.fhir.r4.model.Device;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestTemplate;
-import lombok.RequiredArgsConstructor;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FhirDeviceService {
 
     private final RestClient restClient;
-    private final OpenEmrFhirProperties openEmrFhirProperties;
     private final OpenEmrAuthService openEmrAuthService;
+    private final OrgIntegrationConfigProvider integrationConfigProvider;
+    private final FhirContext fhirContext = FhirContext.forR4();
 
-    public List<FhirDeviceDTO> getDevices(String _id, String _lastUpdated, String patient) {
+    // Fetch a Bundle (list) of Devices by search parameters
+    public Bundle getDevices(String _id, String _lastUpdated, String patient) {
+        OpenEmrConfig openEmrConfig = null;
+        String url = null;
         try {
-            String baseUrl = openEmrFhirProperties.getBaseUrl() + "/fhir/Device";
+            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            String baseUrl = openEmrConfig.getApiUrl() + "/fhir/Device";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
             if (_id != null && !_id.isEmpty()) builder.queryParam("_id", _id);
             if (_lastUpdated != null && !_lastUpdated.isEmpty()) builder.queryParam("_lastUpdated", _lastUpdated);
             if (patient != null && !patient.isEmpty()) builder.queryParam("patient", patient);
 
-            return restClient
+            url = builder.build(true).toUri().toString();
+
+            log.info("[FhirDeviceService] Fetching devices for org={}, clientId={}, url={}, params: _id={}, _lastUpdated={}, patient={}",
+                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, _id, _lastUpdated, patient);
+
+            String response = restClient
                     .get()
-                    .uri(builder.build(true).toUri())
+                    .uri(url)
                     .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
-                    .body(new org.springframework.core.ParameterizedTypeReference<List<FhirDeviceDTO>>() {
-                    });
+                    .body(String.class);
+
+            log.debug("[FhirDeviceService] Devices bundle response: {}",
+                    response != null ? response.substring(0, Math.min(response.length(), 400)) : "null");
+
+            IParser parser = fhirContext.newJsonParser();
+            Bundle bundle = parser.parseResource(Bundle.class, response);
+
+            log.info("[FhirDeviceService] Parsed {} device entries from bundle.", bundle.getEntry().size());
+            return bundle;
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log.error("[FhirDeviceService] Error getting devices (org={}, clientId={}, url={}, _id={}, _lastUpdated={}, patient={})",
+                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
+                    openEmrConfig != null ? openEmrConfig.getClientId() : null,
+                    url, _id, _lastUpdated, patient, e);
+            throw new RuntimeException("Failed to fetch devices", e);
         }
     }
 
-    public FhirDeviceDTO getDeviceById(String uuid) {
-        try{
-        String url = openEmrFhirProperties.getBaseUrl() + "/fhir/Device/" + uuid;
+    // Fetch a single Device by UUID
+    public Device getDeviceById(String uuid) {
+        OpenEmrConfig openEmrConfig = null;
+        String url = null;
+        try {
+            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            url = openEmrConfig.getApiUrl() + "/fhir/Device/" + uuid;
 
-        return restClient
-                .get()
-                .uri(url)
-                .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(FhirDeviceDTO.class);
+            log.info("[FhirDeviceService] Fetching device by UUID for org={}, clientId={}, url={}, uuid={}",
+                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, uuid);
+
+            String response = restClient
+                    .get()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(String.class);
+
+            log.debug("[FhirDeviceService] FHIR Device response: {}",
+                    response != null ? response.substring(0, Math.min(response.length(), 400)) : "null");
+
+            IParser parser = fhirContext.newJsonParser();
+            Device device = parser.parseResource(Device.class, response);
+
+            log.info("[FhirDeviceService] Successfully parsed Device for UUID={}", uuid);
+            return device;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch Device by UUID", e);}
+            log.error("[FhirDeviceService] Error getting device by UUID (org={}, clientId={}, url={}, uuid={})",
+                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
+                    openEmrConfig != null ? openEmrConfig.getClientId() : null,
+                    url, uuid, e);
+            throw new RuntimeException("Failed to fetch Device by UUID", e);
+        }
     }
 }

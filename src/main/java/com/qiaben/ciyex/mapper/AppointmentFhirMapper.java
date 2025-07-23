@@ -1,3 +1,4 @@
+/*
 package com.qiaben.ciyex.mapper;
 
 import com.qiaben.ciyex.dto.core.AppointmentDTO;
@@ -35,3 +36,4 @@ public class AppointmentFhirMapper {
                 .build();
     }
 }
+*/

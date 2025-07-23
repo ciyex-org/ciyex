@@ -1,29 +1,38 @@
 package com.qiaben.ciyex.service.fhir;
 
-import com.qiaben.ciyex.config.OpenEmrFhirProperties;
-import com.qiaben.ciyex.dto.fhir.FhirEncounterDTO;
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.parser.IParser;
+import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
+import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.ParameterizedTypeReference;
+import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.Bundle;
+import org.hl7.fhir.r4.model.Encounter;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.List;
 import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FhirEncounterService {
 
-    private final OpenEmrFhirProperties openEmrFhirProperties;
     private final RestClient restClient;
     private final OpenEmrAuthService openEmrAuthService;
+    private final OrgIntegrationConfigProvider integrationConfigProvider;
+    private final FhirContext fhirContext = FhirContext.forR4();
 
-    // Fetch all encounters for the patient
-    public List<FhirEncounterDTO> getEncounters(Map<String, String> queryParams) {
+    // Fetch all encounters for the patient (FHIR-standard endpoint)
+    public Bundle getEncounters(Map<String, String> queryParams) {
+        OpenEmrConfig openEmrConfig = null;
+        String url = null;
         try {
-            String baseUrl = openEmrFhirProperties.getBaseUrl() + "/portal/patient/encounter";
+            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            String baseUrl = openEmrConfig.getApiUrl() + "/fhir/Encounter";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
             queryParams.forEach((key, value) -> {
@@ -32,33 +41,67 @@ public class FhirEncounterService {
                 }
             });
 
-            return restClient
+            url = builder.build(true).toUriString();
+            log.info("[FhirEncounterService] Fetching Encounters for org={}, clientId={}, url={}, queryParams={}",
+                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, queryParams);
+
+            String response = restClient
                     .get()
-                    .uri(builder.build(true).toUri())
+                    .uri(url)
                     .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
-                    .body(new ParameterizedTypeReference<List<FhirEncounterDTO>>() {
-                    });
+                    .body(String.class);
+
+            log.debug("[FhirEncounterService] Encounter bundle response (first 400 chars): {}",
+                    response != null ? response.substring(0, Math.min(response.length(), 400)) : "null");
+
+            IParser parser = fhirContext.newJsonParser();
+            Bundle bundle = parser.parseResource(Bundle.class, response);
+
+            log.info("[FhirEncounterService] Parsed {} Encounter entries from bundle.", bundle.getEntry().size());
+            return bundle;
         } catch (Exception e) {
-            e.printStackTrace();
-            return List.of(); // Return an empty list in case of error
+            log.error("[FhirEncounterService] Error fetching Encounters (org={}, clientId={}, url={}): {}",
+                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
+                    openEmrConfig != null ? openEmrConfig.getClientId() : null,
+                    url, e.getMessage(), e);
+            return new Bundle(); // Return an empty bundle on error
         }
     }
 
     // Fetch a specific encounter by UUID
-    public FhirEncounterDTO getEncounterByUuid(String euuid) {
+    public Encounter getEncounterByUuid(String euuid) {
+        OpenEmrConfig openEmrConfig = null;
+        String url = null;
         try {
-            String baseUrl = openEmrFhirProperties.getBaseUrl() + "/portal/patient/encounter/" + euuid;
+            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            url = openEmrConfig.getApiUrl() + "/fhir/Encounter/" + euuid;
 
-            return restClient
+            log.info("[FhirEncounterService] Fetching Encounter by UUID: org={}, clientId={}, url={}, uuid={}",
+                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, euuid);
+
+            String response = restClient
                     .get()
-                    .uri(baseUrl)
+                    .uri(url)
                     .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
-                    .body(FhirEncounterDTO.class);
+                    .body(String.class);
+
+            log.debug("[FhirEncounterService] Single Encounter response (first 400 chars): {}",
+                    response != null ? response.substring(0, Math.min(response.length(), 400)) : "null");
+
+            IParser parser = fhirContext.newJsonParser();
+            Encounter encounter = parser.parseResource(Encounter.class, response);
+
+            log.info("[FhirEncounterService] Successfully parsed Encounter with UUID: {}", euuid);
+            return encounter;
         } catch (Exception e) {
+            log.error("[FhirEncounterService] Error fetching Encounter by UUID (org={}, clientId={}, url={}, uuid={}): {}",
+                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
+                    openEmrConfig != null ? openEmrConfig.getClientId() : null,
+                    url, euuid, e.getMessage(), e);
             throw new RuntimeException(e);
         }
     }

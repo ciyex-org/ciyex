@@ -1,89 +1,83 @@
 package com.qiaben.ciyex.service.fhir;
 
-import com.qiaben.ciyex.config.OpenEmrFhirProperties;
-import com.qiaben.ciyex.dto.fhir.FhirPersonByIdResponseDto;
-import com.qiaben.ciyex.dto.fhir.FhirPersonListResponseDto;
-import com.qiaben.ciyex.dto.fhir.FhirPersonSearchRequestDto;
-import org.springframework.beans.factory.annotation.Autowired;
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.parser.IParser;
+import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
+import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.Bundle;
+import org.hl7.fhir.r4.model.Person;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @Service
-
+@RequiredArgsConstructor
+@Slf4j
 public class FhirPersonService {
 
-    private OpenEmrAuthService openEmrAuthService;
-    private final OpenEmrFhirProperties properties;
+    private final OpenEmrAuthService openEmrAuthService;
+    private final OrgIntegrationConfigProvider integrationConfigProvider;
+    private final RestClient restClient;
+    private final FhirContext fhirContext = FhirContext.forR4();
 
-    @Autowired
-    public FhirPersonService(OpenEmrFhirProperties properties, OpenEmrAuthService openEmrAuthService) {
-        this.properties = properties;
-        this.openEmrAuthService = openEmrAuthService;
+    public Bundle getPersons(Map<String, String> searchParams) {
+        String url = null;
+        try {
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            String baseUrl = openEmrConfig.getApiUrl() + "/fhir/Person";
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
+
+            searchParams.forEach((key, value) -> {
+                if (value != null && !value.isBlank()) builder.queryParam(key, value);
+            });
+
+            url = builder.build(true).toUriString();
+            log.info("[FhirPersonService] Fetching persons from URL: {}", url);
+
+            String response = restClient.get()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(String.class);
+
+            log.debug("[FhirPersonService] Persons response: {}", response);
+
+            IParser parser = fhirContext.newJsonParser();
+            return parser.parseResource(Bundle.class, response);
+        } catch (Exception e) {
+            log.error("[FhirPersonService] Failed to fetch persons from URL: {}. Error: {}", url, e.getMessage(), e);
+            throw new RuntimeException("Failed to fetch persons", e);
+        }
     }
 
-    public FhirPersonService(OpenEmrFhirProperties properties) {
-        this.properties = properties;
-    }
+    public Person getPersonById(String uuid) {
+        String url = null;
+        try {
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            url = openEmrConfig.getApiUrl() + "/fhir/Person/" + uuid;
+            log.info("[FhirPersonService] Fetching person by ID {} from URL: {}", uuid, url);
 
-    public FhirPersonListResponseDto getPersons(FhirPersonSearchRequestDto req) throws Exception {
-        String baseUrl = properties.getBaseUrl() + "/fhir/Person";
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
+            String response = restClient.get()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(String.class);
 
-        Map<String, String> queryParams = new HashMap<>();
-        queryParams.put("_id", req.getId());
-        queryParams.put("_lastUpdated", req.getLastUpdated());
+            log.debug("[FhirPersonService] Person response: {}", response);
 
-        queryParams.put("name", req.getName());
-        queryParams.put("active", req.getActive());
-        queryParams.put("address", req.getAddress());
-        queryParams.put("address-city", req.getAddressCity());
-        queryParams.put("address-postalcode", req.getAddressPostalcode());
-        queryParams.put("address-state", req.getAddressState());
-        queryParams.put("email", req.getEmail());
-        queryParams.put("family", req.getFamily());
-        queryParams.put("given", req.getGiven());
-        queryParams.put("phone", req.getPhone());
-        queryParams.put("telecom", req.getTelecom());
-
-        queryParams.forEach((key, value) -> {
-            if (value != null && !value.isBlank()) {
-                builder.queryParam(key, value);
-            }
-        });
-
-        RestClient restClient = RestClient.builder().build();
-
-        Map<String, Object> result = restClient.get()
-                .uri(builder.toUriString())
-                .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(Map.class);
-
-        FhirPersonListResponseDto dto = new FhirPersonListResponseDto();
-        dto.setJsonObject(result);
-        return dto;
-    }
-
-    public FhirPersonByIdResponseDto getPersonById(String uuid) throws Exception {
-        String url = properties.getBaseUrl() + "/fhir/Person/" + uuid;
-
-        RestClient restClient = RestClient.builder().build();
-
-        Map<String, Object> result = restClient.get()
-                .uri(url)
-                .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(Map.class);
-
-        FhirPersonByIdResponseDto dto = new FhirPersonByIdResponseDto();
-        dto.setData(result);
-        return dto;
+            IParser parser = fhirContext.newJsonParser();
+            return parser.parseResource(Person.class, response);
+        } catch (Exception e) {
+            log.error("[FhirPersonService] Failed to fetch person by ID {} from URL: {}. Error: {}", uuid, url, e.getMessage(), e);
+            throw new RuntimeException("Failed to fetch person by ID: " + uuid, e);
+        }
     }
 }

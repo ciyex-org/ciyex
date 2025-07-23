@@ -1,64 +1,98 @@
 package com.qiaben.ciyex.service.fhir;
 
-import com.qiaben.ciyex.config.OpenEmrFhirProperties;
-import com.qiaben.ciyex.dto.fhir.FhirCareTeamDTO;
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.parser.IParser;
+import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
+import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.*;
+import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.Bundle;
+import org.hl7.fhir.r4.model.CareTeam;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.List;
 import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FhirCareTeamService {
 
-    private final OpenEmrFhirProperties openEmrFhirProperties;
     private final RestClient restClient;
     private final OpenEmrAuthService openEmrAuthService;
+    private final OrgIntegrationConfigProvider integrationConfigProvider;
+    private final FhirContext fhirContext = FhirContext.forR4();
 
-    // Method to fetch all CareTeam resources based on query parameters
-    public List<FhirCareTeamDTO> getCareTeams(Map<String, String> queryParams) {
-        try{
-        String baseUrl = openEmrFhirProperties.getBaseUrl() + "/fhir/CareTeam";
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
+    // Fetch all CareTeam resources as a FHIR Bundle
+    public Bundle getCareTeams(Map<String, String> queryParams) {
+        try {
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            String baseUrl = openEmrConfig.getApiUrl() + "/fhir/CareTeam";
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
-        queryParams.forEach((k, v) -> {
-            if (v != null && !v.isBlank()) {
-                builder.queryParam(k, v);
-            }
-        });
+            queryParams.forEach((k, v) -> {
+                if (v != null && !v.isBlank()) {
+                    builder.queryParam(k, v);
+                }
+            });
 
-        return restClient
-                .get()
-                .uri(builder.build(true).toUri())
-                .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(new ParameterizedTypeReference<List<FhirCareTeamDTO>>() {});
-    }catch (Exception e) {
+            String finalUrl = builder.build(true).toUriString();
+            log.info("[FhirCareTeamService] Fetching CareTeams for org: {}, url: {}, params: {}",
+                    openEmrConfig.getClientId(), finalUrl, queryParams);
+
+            String response = restClient
+                    .get()
+                    .uri(finalUrl)
+                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(String.class);
+
+            log.debug("[FhirCareTeamService] FHIR CareTeam bundle response: {}",
+                    response != null ? response.substring(0, Math.min(400, response.length())) : "null");
+
+            IParser parser = fhirContext.newJsonParser();
+            Bundle bundle = parser.parseResource(Bundle.class, response);
+            log.info("[FhirCareTeamService] Parsed {} CareTeam entries from bundle.", bundle.getEntry().size());
+
+            return bundle;
+        } catch (Exception e) {
+            log.error("[FhirCareTeamService] Failed to fetch CareTeams, params: {}", queryParams, e);
             throw new RuntimeException("Failed to fetch CareTeams", e);
         }
     }
-    // Method to fetch a single CareTeam by UUID
-    public FhirCareTeamDTO getCareTeamByUuid(String uuid) {
-        try {
-            String url = openEmrFhirProperties.getBaseUrl() + "/fhir/CareTeam/" + uuid;
 
-            return restClient
+    // Fetch a single CareTeam by UUID
+    public CareTeam getCareTeamByUuid(String uuid) {
+        try {
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            String url = openEmrConfig.getApiUrl() + "/fhir/CareTeam/" + uuid;
+
+            log.info("[FhirCareTeamService] Fetching CareTeam by UUID for org: {}, url: {}",
+                    openEmrConfig.getClientId(), url);
+
+            String response = restClient
                     .get()
                     .uri(url)
                     .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
-                    .body(FhirCareTeamDTO.class);
+                    .body(String.class);
+
+            log.debug("[FhirCareTeamService] FHIR CareTeam response: {}",
+                    response != null ? response.substring(0, Math.min(400, response.length())) : "null");
+
+            IParser parser = fhirContext.newJsonParser();
+            CareTeam careTeam = parser.parseResource(CareTeam.class, response);
+
+            log.info("[FhirCareTeamService] Successfully parsed CareTeam for UUID: {}", uuid);
+            return careTeam;
         } catch (Exception e) {
+            log.error("[FhirCareTeamService] Failed to fetch CareTeam by UUID: {}", uuid, e);
             throw new RuntimeException("Failed to fetch CareTeam by UUID", e);
         }
     }
 }
-

@@ -1,46 +1,60 @@
 package com.qiaben.ciyex.service.fhir;
 
-import com.qiaben.ciyex.config.OpenEmrFhirProperties;
-import com.qiaben.ciyex.dto.fhir.FhirProviderReportDTO;
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.parser.IParser;
+import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
+import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
+import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.Practitioner;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FhirProviderService {
 
-    private final OpenEmrFhirProperties openEmrFhirProperties;
-    private final RestTemplate restTemplate;
+    private final OrgIntegrationConfigProvider integrationConfigProvider;
+    private final OpenEmrAuthService openEmrAuthService;
+    private final RestClient restClient;
+    private final FhirContext fhirContext = FhirContext.forR4();
 
     /**
-     * Creates a provider (Practitioner) in OpenEMR.
+     * Creates a provider (Practitioner) in OpenEMR (multi-tenant aware).
      *
-     * @param providerDTO Provider data in FHIR format
-     * @param token Authorization token for OpenEMR
-     * @return FhirProviderReportDTO
+     * @param practitioner Practitioner resource (FHIR R4)
+     * @return Created Practitioner
      */
-    public FhirProviderReportDTO createProvider(FhirProviderReportDTO providerDTO, String token) {
-        String url = openEmrFhirProperties.getBaseUrl() + "/fhir/Practitioner";
+    public Practitioner createProvider(Practitioner practitioner) {
+        String url = null;
+        try {
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            url = openEmrConfig.getApiUrl() + "/fhir/Practitioner";
+            String token = openEmrAuthService.getCachedAccessToken();
 
-        // Prepare headers
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "Bearer " + token);
+            IParser parser = fhirContext.newJsonParser();
+            String practitionerJson = parser.encodeResourceToString(practitioner);
 
-        // Wrap the FhirProviderReportDTO in HttpEntity
-        HttpEntity<FhirProviderReportDTO> entity = new HttpEntity<>(providerDTO, headers);
+            log.info("[FhirProviderService] Creating provider at URL: {}", url);
+            log.debug("[FhirProviderService] Request payload: {}", practitionerJson);
 
-        // Perform the HTTP POST request with the entity
-        ResponseEntity<FhirProviderReportDTO> response = restTemplate.exchange(
-                url, HttpMethod.POST, entity, FhirProviderReportDTO.class
-        );
+            String responseBody = restClient.post()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(practitionerJson)
+                    .retrieve()
+                    .body(String.class);
 
-        return response.getBody();  // Return the response body (created provider)
+            log.debug("[FhirProviderService] Response: {}", responseBody);
+
+            return parser.parseResource(Practitioner.class, responseBody);
+        } catch (Exception e) {
+            log.error("[FhirProviderService] Failed to create provider at URL: {}. Error: {}", url, e.getMessage(), e);
+            throw new RuntimeException("Failed to create provider", e);
+        }
     }
 }

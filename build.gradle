@@ -26,6 +26,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 
+	// https://mvnrepository.com/artifact/ca.uhn.hapi.fhir/hapi-fhir-structures-r4
+	implementation("ca.uhn.hapi.fhir:hapi-fhir-structures-r4:8.2.1")
+
 	// MySQL + Lombok
 	implementation 'com.mysql:mysql-connector-j:9.3.0'
 	implementation 'org.projectlombok:lombok:1.18.38'
@@ -51,6 +54,7 @@ dependencies {
 	// Other
 	implementation 'org.bouncycastle:bcprov-jdk18on:1.81'
 	implementation 'commons-io:commons-io:2.19.0'
+	implementation("com.github.ben-manes.caffeine:caffeine:3.2.2")
 
 	// Testing
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'

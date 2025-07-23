@@ -1,116 +1,146 @@
 package com.qiaben.ciyex.service.fhir;
 
-import com.qiaben.ciyex.config.OpenEmrFhirProperties;
-import com.qiaben.ciyex.dto.fhir.FhirPractitionerRequestDto;
-import com.qiaben.ciyex.dto.fhir.FhirPractitionerSearchParamsDto;
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.parser.IParser;
+import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
+import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.Bundle;
+import org.hl7.fhir.r4.model.Practitioner;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FhirPractitionerService {
 
-    private final OpenEmrFhirProperties openEmrFhirProperties;
+    private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final RestClient restClient;
     private final OpenEmrAuthService openEmrAuthService;
+    private final FhirContext fhirContext = FhirContext.forR4();
 
-    public ResponseEntity<Object> getPractitioners(FhirPractitionerSearchParamsDto params) {
+    // Search practitioners by FHIR params
+    public Bundle getPractitioners(Map<String, String> params) {
+        String url = null;
         try {
-            String url = openEmrFhirProperties.getBaseUrl() + "/fhir/Practitioner";
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            url = openEmrConfig.getApiUrl() + "/fhir/Practitioner";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
-            Map<String, String> paramMap = new HashMap<>();
-            if (params.get_id() != null) paramMap.put("_id", params.get_id());
-            if (params.get_lastUpdated() != null) paramMap.put("_lastUpdated", params.get_lastUpdated());
-            if (params.getName() != null) paramMap.put("name", params.getName());
-            if (params.getActive() != null) paramMap.put("active", params.getActive());
-            if (params.getAddress() != null) paramMap.put("address", params.getAddress());
-            if (params.getAddressCity() != null) paramMap.put("address-city", params.getAddressCity());
-            if (params.getAddressPostalcode() != null)
-                paramMap.put("address-postalcode", params.getAddressPostalcode());
-            if (params.getAddressState() != null) paramMap.put("address-state", params.getAddressState());
-            if (params.getEmail() != null) paramMap.put("email", params.getEmail());
-            if (params.getFamily() != null) paramMap.put("family", params.getFamily());
-            if (params.getGiven() != null) paramMap.put("given", params.getGiven());
-            if (params.getPhone() != null) paramMap.put("phone", params.getPhone());
-            if (params.getTelecom() != null) paramMap.put("telecom", params.getTelecom());
-            paramMap.forEach(builder::queryParam);
 
-            Object body = restClient
+            params.forEach((key, value) -> {
+                if (value != null && !value.isBlank()) builder.queryParam(key, value);
+            });
+
+            String fullUrl = builder.build(true).toUriString();
+            log.info("[FhirPractitionerService] Fetching practitioners from URL: {}", fullUrl);
+
+            String json = restClient
                     .get()
-                    .uri(builder.build(true).toUri())
+                    .uri(fullUrl)
                     .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
-                    .body(Object.class);
+                    .body(String.class);
 
-            return ResponseEntity.ok(body);
+            log.debug("[FhirPractitionerService] Response: {}", json);
+
+            IParser parser = fhirContext.newJsonParser();
+            return parser.parseResource(Bundle.class, json);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log.error("[FhirPractitionerService] Failed to fetch practitioners from URL: {}. Error: {}", url, e.getMessage(), e);
+            throw new RuntimeException("Failed to fetch practitioners", e);
         }
     }
 
-    public ResponseEntity<Object> getPractitionerById(String uuid) {
+    // Get by id (UUID)
+    public Practitioner getPractitionerById(String uuid) {
+        String url = null;
         try {
-            String url = openEmrFhirProperties.getBaseUrl() + "/fhir/Practitioner/" + uuid;
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            url = openEmrConfig.getApiUrl() + "/fhir/Practitioner/" + uuid;
+            log.info("[FhirPractitionerService] Fetching practitioner by ID {} from URL: {}", uuid, url);
 
-            Object body = restClient
+            String json = restClient
                     .get()
                     .uri(url)
                     .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
-                    .body(Object.class);
+                    .body(String.class);
 
-            return ResponseEntity.ok(body);
+            log.debug("[FhirPractitionerService] Response for practitioner {}: {}", uuid, json);
+
+            IParser parser = fhirContext.newJsonParser();
+            return parser.parseResource(Practitioner.class, json);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log.error("[FhirPractitionerService] Failed to fetch practitioner by ID {} from URL: {}. Error: {}", uuid, url, e.getMessage(), e);
+            throw new RuntimeException("Failed to fetch practitioner by ID: " + uuid, e);
         }
     }
 
-    public ResponseEntity<Object> createPractitioner(FhirPractitionerRequestDto dto) {
+    // Create
+    public Practitioner createPractitioner(Practitioner practitioner) {
+        String url = null;
         try {
-            String url = openEmrFhirProperties.getBaseUrl() + "/fhir/Practitioner";
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            url = openEmrConfig.getApiUrl() + "/fhir/Practitioner";
+            IParser parser = fhirContext.newJsonParser();
+            String payload = parser.encodeResourceToString(practitioner);
 
-            Object body = restClient
+            log.info("[FhirPractitionerService] Creating practitioner at URL: {}", url);
+            log.debug("[FhirPractitionerService] Payload: {}", payload);
+
+            String json = restClient
                     .post()
                     .uri(url)
                     .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(dto)
+                    .body(payload)
                     .retrieve()
-                    .body(Object.class);
+                    .body(String.class);
 
-            return ResponseEntity.ok(body);
+            log.debug("[FhirPractitionerService] Response after create: {}", json);
+            return parser.parseResource(Practitioner.class, json);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log.error("[FhirPractitionerService] Failed to create practitioner at URL: {}. Error: {}", url, e.getMessage(), e);
+            throw new RuntimeException("Failed to create practitioner", e);
         }
     }
 
-    public ResponseEntity<Object> updatePractitioner(String uuid, FhirPractitionerRequestDto dto) {
+    // Update
+    public Practitioner updatePractitioner(String uuid, Practitioner practitioner) {
+        String url = null;
         try {
-            String url = openEmrFhirProperties.getBaseUrl() + "/fhir/Practitioner/" + uuid;
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            url = openEmrConfig.getApiUrl() + "/fhir/Practitioner/" + uuid;
+            IParser parser = fhirContext.newJsonParser();
+            String payload = parser.encodeResourceToString(practitioner);
 
-            Object body = restClient
+            log.info("[FhirPractitionerService] Updating practitioner {} at URL: {}", uuid, url);
+            log.debug("[FhirPractitionerService] Payload: {}", payload);
+
+            String json = restClient
                     .method(HttpMethod.PUT)
                     .uri(url)
                     .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(dto)
+                    .body(payload)
                     .retrieve()
-                    .body(Object.class);
+                    .body(String.class);
 
-            return ResponseEntity.ok(body);
+            log.debug("[FhirPractitionerService] Response after update: {}", json);
+            return parser.parseResource(Practitioner.class, json);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log.error("[FhirPractitionerService] Failed to update practitioner {} at URL: {}. Error: {}", uuid, url, e.getMessage(), e);
+            throw new RuntimeException("Failed to update practitioner", e);
         }
     }
 }

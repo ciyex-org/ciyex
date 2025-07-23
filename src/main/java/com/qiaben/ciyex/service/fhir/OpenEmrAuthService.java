@@ -2,12 +2,15 @@ package com.qiaben.ciyex.service.fhir;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.qiaben.ciyex.dto.fhir.OpenEmrTokenRequest;
-import com.qiaben.ciyex.dto.fhir.OpenEmrTokenResponse;
-import com.qiaben.ciyex.properties.OpenEmrOAuthProperties;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
+import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.RequestContext;
+import com.qiaben.ciyex.dto.openemr.OpenEmrTokenResponse;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -29,6 +32,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -36,76 +40,96 @@ public class OpenEmrAuthService {
 
     private static final Logger log = LoggerFactory.getLogger(OpenEmrAuthService.class);
 
-    private final OpenEmrOAuthProperties properties;
     private final ResourceLoader resourceLoader;
     private final RestClient restClient;
+    private final OrgIntegrationConfigProvider integrationConfigProvider;
 
-    private PrivateKey privateKey;
+    // --- Caffeine per-org token/key cache ---
+    private final Cache<Long, TokenCache> tokenCacheMap = Caffeine.newBuilder()
+            .expireAfterWrite(3, TimeUnit.MINUTES) // Cache entries expire 5 min after write
+            .maximumSize(1000)
+            .build();
 
-    // --- In-memory token cache ---
-    private volatile String cachedAccessToken = null;
-    private volatile long cachedTokenExpiryTimeMillis = 0; // Epoch millis
+    private static class TokenCache {
+        String accessToken;
+        long expiryMillis;
+        PrivateKey privateKey;
+        String privateKeyPath;
+    }
 
-    @PostConstruct
-    public void init() throws Exception {
-        String pem = IOUtils.toString(
-                resourceLoader.getResource(properties.getPrivateKeyPath()).getInputStream(),
-                StandardCharsets.UTF_8);
-        this.privateKey = loadPrivateKey(pem);
+    /**
+     * Returns a valid access token for the current org, requesting a new one if expired/missing.
+     */
+    public String getCachedAccessToken()  {
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        if (orgId == null) throw new IllegalStateException("No orgId in request context");
+        OpenEmrConfig config = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
 
-        if (this.privateKey instanceof RSAPrivateCrtKey rsaKey) {
-            log.info("Loaded Private Key Modulus: {}", rsaKey.getModulus().toString(16));
+        TokenCache cache = tokenCacheMap.get(orgId, k -> new TokenCache());
+        synchronized (cache) {
+            String keyPath = config.getPrivateKeyPath();
+            if (keyPath == null || keyPath.isBlank()) {
+                keyPath = "classpath:oaprivate.key";
+            }
+
+            // Reload key if changed or not loaded yet
+            if (cache.privateKey == null || !keyPath.equals(cache.privateKeyPath)) {
+                try {
+                    cache.privateKey = loadPrivateKeyFromPath(keyPath);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                cache.privateKeyPath = keyPath;
+                if (cache.privateKey instanceof RSAPrivateCrtKey rsaKey) {
+                    log.info("[Org:{}] Loaded Private Key Modulus: {}", orgId, rsaKey.getModulus().toString(16));
+                }
+            }
+
+            long now = System.currentTimeMillis();
+            // Refresh if token is missing/expired/about to expire (30s buffer)
+            if (cache.accessToken == null || now > (cache.expiryMillis - 30_000)) {
+                log.info("[Org:{}] Cached token is missing/expired, requesting new token...", orgId);
+                OpenEmrTokenResponse tokenResponse = null;
+                try {
+                    tokenResponse = getAccessToken(config, cache.privateKey);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+
+                cache.accessToken = tokenResponse.getAccessToken();
+                cache.expiryMillis = now + tokenResponse.getExpiresIn() * 1000L;
+                log.info("[Org:{}] Cached new access token, expires in {} seconds", orgId, tokenResponse.getExpiresIn());
+            } else {
+                log.debug("[Org:{}] Returning cached OpenEMR access token", orgId);
+            }
+            return cache.accessToken;
         }
     }
 
     /**
-     * Returns a valid access token, requesting a new one if expired/missing.
-     * This method is thread-safe.
+     * Always requests a new access token from OpenEMR, for given config/key.
      */
-    public synchronized String getCachedAccessToken() throws Exception {
-        long now = System.currentTimeMillis();
-        // Refresh if token is expired or about to expire (buffer 30 sec)
-        if (cachedAccessToken == null || now > (cachedTokenExpiryTimeMillis - 30_000)) {
-            log.info("Cached token is missing/expired, requesting new token...");
-            OpenEmrTokenResponse tokenResponse = getAccessToken();
-
-            this.cachedAccessToken = tokenResponse.getAccessToken();
-            // expires_in is in seconds, convert to millis and add to now
-            this.cachedTokenExpiryTimeMillis = now + tokenResponse.getExpiresIn() * 1000L;
-            log.info("Cached new access token, expires in {} seconds", tokenResponse.getExpiresIn());
-        } else {
-            log.debug("Returning cached OpenEMR access token");
-        }
-        return this.cachedAccessToken;
-    }
-
-    /**
-     * Always requests a new access token from OpenEMR.
-     */
-    public OpenEmrTokenResponse getAccessToken() throws Exception {
-        String jwt = createClientAssertion();
+    public OpenEmrTokenResponse getAccessToken(OpenEmrConfig config, PrivateKey privateKey) throws Exception {
+        String jwt = createClientAssertion(config, privateKey);
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "client_credentials");
         form.add("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer");
         form.add("client_assertion", jwt);
-        form.add("scope", properties.getScope());
-        // If your server needs client_id as form parameter, uncomment next line
-        // form.add("client_id", properties.getClientId());
+        form.add("scope", config.getScope());
 
-        // LOG REQUEST DATA
         log.info("Requesting OpenEMR token with:");
-        log.info("Token URL: {}", properties.getTokenUrl());
+        log.info("Token URL: {}", config.getTokenUrl());
         log.info("Scope: {}", form.getFirst("scope"));
         log.info("Grant type: {}", form.getFirst("grant_type"));
         log.info("Client Assertion Type: {}", form.getFirst("client_assertion_type"));
         log.debug("Client Assertion JWT: {}", jwt);
-        log.info("ClientId (iss/sub): {}", properties.getClientId());
-        log.info("Audience (aud): {}", properties.getAudience());
-        log.info("KID: {}", properties.getKid());
+        log.info("ClientId (iss/sub): {}", config.getClientId());
+        log.info("Audience (aud): {}", config.getAudience());
+        log.info("KID: {}", config.getKid());
 
         String responseBody = restClient.post()
-                .uri(properties.getTokenUrl())
+                .uri(config.getTokenUrl())
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(form)
                 .retrieve()
@@ -124,21 +148,20 @@ public class OpenEmrAuthService {
         return result;
     }
 
-    private String createClientAssertion() {
+    private String createClientAssertion(OpenEmrConfig config, PrivateKey privateKey) {
         long now = System.currentTimeMillis() / 1000L; // seconds
         long exp = now + 300; // 5 minutes in seconds
 
-        // Build header manually to include "typ": "JWT"
         Map<String, Object> header = new HashMap<>();
         header.put("alg", "RS384");
-        header.put("kid", properties.getKid());
+        header.put("kid", config.getKid());
         header.put("typ", "JWT");
 
         String jwt = Jwts.builder()
                 .setHeader(header)
-                .setIssuer(properties.getClientId())
-                .setSubject(properties.getClientId())
-                .setAudience(properties.getAudience())
+                .setIssuer(config.getClientId())
+                .setSubject(config.getClientId())
+                .setAudience(config.getAudience())
                 .setExpiration(new Date(exp * 1000L))
                 .setId(UUID.randomUUID().toString())
                 .signWith(privateKey, SignatureAlgorithm.RS384)
@@ -146,6 +169,23 @@ public class OpenEmrAuthService {
 
         log.info("Generated JWT: {}", jwt);
         return jwt;
+    }
+
+    private PrivateKey loadPrivateKeyFromPath(String privateKeyPath) throws Exception {
+        String pem;
+        if (privateKeyPath == null || privateKeyPath.isBlank() || privateKeyPath.startsWith("classpath:")) {
+            String resource = (privateKeyPath == null || privateKeyPath.isBlank())
+                    ? "classpath:oaprivate.key"
+                    : privateKeyPath;
+            pem = IOUtils.toString(
+                    resourceLoader.getResource(resource).getInputStream(),
+                    StandardCharsets.UTF_8);
+        } else {
+            pem = IOUtils.toString(
+                    new java.io.FileInputStream(privateKeyPath),
+                    StandardCharsets.UTF_8);
+        }
+        return loadPrivateKey(pem);
     }
 
     private static PrivateKey loadPrivateKey(String keyPem) throws Exception {

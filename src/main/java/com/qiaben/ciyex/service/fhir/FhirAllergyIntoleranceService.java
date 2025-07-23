@@ -1,30 +1,39 @@
 package com.qiaben.ciyex.service.fhir;
 
-import com.qiaben.ciyex.config.OpenEmrFhirProperties;
-import com.qiaben.ciyex.dto.fhir.AllergyIntoleranceResponseDTO;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.parser.IParser;
+import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
+import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.RequestContext;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.AllergyIntolerance;
+import org.hl7.fhir.r4.model.Bundle;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FhirAllergyIntoleranceService {
 
-    private final OpenEmrFhirProperties properties;
     private final RestClient restClient;
-    private final ObjectMapper objectMapper;
     private final OpenEmrAuthService openEmrAuthService;
+    private final OrgIntegrationConfigProvider integrationConfigProvider;
+    private final FhirContext fhirContext = FhirContext.forR4();
 
-    // Method to fetch a list of AllergyIntolerance resources
-    public List<AllergyIntoleranceResponseDTO> getAllergyIntolerances(Map<String, String> queryParams) {
+    public List<AllergyIntolerance> getAllergyIntolerances(Map<String, String> queryParams) {
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
         try {
-            String baseUrl = properties.getBaseUrl() + "/fhir/AllergyIntolerance";
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            String baseUrl = openEmrConfig.getApiUrl() + "/fhir/AllergyIntolerance";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
             queryParams.forEach((key, value) -> {
@@ -32,6 +41,8 @@ public class FhirAllergyIntoleranceService {
                     builder.queryParam(key, value);
                 }
             });
+
+            log.info("[Org:{}] Fetching AllergyIntolerance list with params: {}", orgId, queryParams);
 
             String response = restClient
                     .get()
@@ -41,16 +52,31 @@ public class FhirAllergyIntoleranceService {
                     .retrieve()
                     .body(String.class);
 
-            return parseAllergyIntoleranceListResponse(response);
+            IParser parser = fhirContext.newJsonParser();
+            Bundle bundle = parser.parseResource(Bundle.class, response);
+
+            List<AllergyIntolerance> allergyIntoleranceList = new ArrayList<>();
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.getResource() instanceof AllergyIntolerance) {
+                    allergyIntoleranceList.add((AllergyIntolerance) entry.getResource());
+                }
+            }
+
+            log.info("[Org:{}] Found {} AllergyIntolerance records.", orgId, allergyIntoleranceList.size());
+            return allergyIntoleranceList;
         } catch (Exception e) {
+            log.error("[Org:{}] Failed to fetch AllergyIntolerance list: {}", orgId, e.getMessage(), e);
             throw new RuntimeException(e);
         }
     }
 
-    // Method to fetch a single AllergyIntolerance by UUID
-    public AllergyIntoleranceResponseDTO getAllergyIntolerance(String uuid) {
+    public AllergyIntolerance getAllergyIntolerance(String uuid) {
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
         try {
-            String url = properties.getBaseUrl() + "/fhir/AllergyIntolerance/" + uuid;
+            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            String url = openEmrConfig.getApiUrl() + "/fhir/AllergyIntolerance/" + uuid;
+
+            log.info("[Org:{}] Fetching AllergyIntolerance by UUID: {}", orgId, uuid);
 
             String response = restClient
                     .get()
@@ -60,30 +86,14 @@ public class FhirAllergyIntoleranceService {
                     .retrieve()
                     .body(String.class);
 
-            return parseResponse(response);
+            IParser parser = fhirContext.newJsonParser();
+            AllergyIntolerance resource = parser.parseResource(AllergyIntolerance.class, response);
+
+            log.info("[Org:{}] Successfully fetched AllergyIntolerance: {}", orgId, uuid);
+            return resource;
         } catch (Exception e) {
+            log.error("[Org:{}] Failed to fetch AllergyIntolerance by UUID {}: {}", orgId, uuid, e.getMessage(), e);
             throw new RuntimeException(e);
-        }
-    }
-
-    // Parsing a single AllergyIntoleranceResponseDTO from the response
-    private AllergyIntoleranceResponseDTO parseResponse(String response) {
-        try {
-            return objectMapper.readValue(response, AllergyIntoleranceResponseDTO.class);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to parse AllergyIntolerance response", e);
-        }
-    }
-
-    // Parsing a list of AllergyIntoleranceResponseDTOs from the response
-    private List<AllergyIntoleranceResponseDTO> parseAllergyIntoleranceListResponse(String response) {
-        try {
-            return objectMapper.readValue(
-                    response,
-                    objectMapper.getTypeFactory().constructCollectionType(List.class, AllergyIntoleranceResponseDTO.class)
-            );
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to parse AllergyIntolerance list response", e);
         }
     }
 }
