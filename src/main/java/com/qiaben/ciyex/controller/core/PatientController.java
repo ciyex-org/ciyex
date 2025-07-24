@@ -4,12 +4,11 @@ import ca.uhn.fhir.context.FhirContext;
 import com.qiaben.ciyex.service.core.PatientService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.hl7.fhir.r4.model.Invoice;
-import org.hl7.fhir.r4.model.Observation;
-import org.hl7.fhir.r4.model.Patient;
-import org.hl7.fhir.r4.model.PaymentReconciliation;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/patient")
@@ -27,11 +26,13 @@ public class PatientController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<String> registerPatient(@Valid @RequestBody Patient patient) {
+    public ResponseEntity<String> registerPatient(@RequestBody String patientJson) {
+        Patient patient = fhirContext.newJsonParser().parseResource(Patient.class, patientJson);
         Patient createdPatient = patientService.registerPatient(patient).getData();
-        String json = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(createdPatient);
-        return ResponseEntity.ok(json);
+        String response = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(createdPatient);
+        return ResponseEntity.ok(response);
     }
+
 
     @PostMapping("/vitals")
     public ResponseEntity<String> saveVitalSigns(@Valid @RequestBody Observation vitals) {
@@ -53,4 +54,12 @@ public class PatientController {
         String json = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(savedBill);
         return ResponseEntity.ok(json);
     }
+
+    @GetMapping
+    public ResponseEntity<String> getAllPatients(@RequestParam Map<String, String> queryParams) {
+        Bundle patientsBundle = patientService.getAllPatients(queryParams).getData();
+        String json = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(patientsBundle);
+        return ResponseEntity.ok(json);
+    }
+
 }

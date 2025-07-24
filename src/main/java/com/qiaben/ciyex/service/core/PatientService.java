@@ -6,12 +6,10 @@ import com.qiaben.ciyex.service.fhir.FhirPatientService;
 import com.qiaben.ciyex.service.fhir.OpenEmrAuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hl7.fhir.r4.model.Patient;
-import org.hl7.fhir.r4.model.DiagnosticReport;
-import org.hl7.fhir.r4.model.Observation;
-import org.hl7.fhir.r4.model.Invoice;
-import org.hl7.fhir.r4.model.PaymentReconciliation;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
+
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -102,4 +100,22 @@ public class PatientService {
         }
         return response;
     }
+
+    public ApiResponse<Bundle> getAllPatients(Map<String, String> queryParams) {
+        log.info("Fetching all patients with params: {}", queryParams);
+        try {
+            Bundle bundle = fhirPatientService.getPatients(queryParams);
+            return ApiResponse.<Bundle>builder()
+                    .success(true)
+                    .data(bundle)
+                    .build();
+        } catch (Exception e) {
+            log.error("Failed to fetch all patients: {}", e.getMessage(), e);
+            return ApiResponse.<Bundle>builder()
+                    .success(false)
+                    .message("Failed to fetch patients: " + e.getMessage())
+                    .build();
+        }
+    }
+
 }
