@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.Appointment;
+import org.hl7.fhir.r4.model.Bundle;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ca.uhn.fhir.context.FhirContext;
@@ -21,26 +22,42 @@ public class AppointmentController {
 
     @PostMapping("/create")
     public ResponseEntity<String> createAppointment(@Valid @RequestBody Appointment appointment) {
-        String patientRef = "null";
-     /*   if (appointment.hasSubject() && appointment.getSubject() != null) {
-            patientRef = appointment.getSubject().getReference();
-        }*/
-
-        log.info("Received request to create appointment for patient ref: {}", patientRef);
-
+        log.info("Received request to create appointment");
         ApiResponse<Appointment> response = appointmentService.create(appointment);
 
         if (response.isSuccess() && response.getData() != null) {
             String json = fhirContext.newJsonParser()
                     .setPrettyPrint(true)
                     .encodeResourceToString(response.getData());
-            log.info("Appointment created successfully with ID: {}", response.getData().getIdElement().getIdPart());
             return ResponseEntity.ok(json);
         } else {
-            log.error("Failed to create appointment: {}", response.getMessage());
             return ResponseEntity.badRequest()
                     .body("{\"error\":\"" + response.getMessage().replace("\"", "\\\"") + "\"}");
         }
     }
 
+    @GetMapping("/list")
+    public ResponseEntity<String> getAppointments(
+            @RequestParam(required = false) String patient,
+            @RequestParam(required = false) String lastUpdated
+    ) {
+        try {
+            Bundle result = appointmentService.getAppointments(patient, lastUpdated);
+            String json = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(result);
+            return ResponseEntity.ok(json);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("{\"error\":\"" + e.getMessage() + "\"}");
+        }
+    }
+
+    @GetMapping("/{uuid}")
+    public ResponseEntity<String> getAppointmentByUuid(@PathVariable String uuid) {
+        try {
+            Appointment appointment = appointmentService.getAppointmentByUuid(uuid);
+            String json = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(appointment);
+            return ResponseEntity.ok(json);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("{\"error\":\"" + e.getMessage() + "\"}");
+        }
+    }
 }

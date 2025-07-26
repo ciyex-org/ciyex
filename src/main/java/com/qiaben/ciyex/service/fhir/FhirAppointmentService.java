@@ -23,13 +23,36 @@ public class FhirAppointmentService {
     private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final FhirContext fhirContext = FhirContext.forR4();
 
-    /** Get a list of appointments (as a Bundle) by patient and/or lastUpdated. */
+    public Appointment createAppointment(Appointment appointment) {
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        try {
+            OpenEmrConfig config = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            String url = config.getApiUrl() + "/fhir/Appointment";
+
+            String body = fhirContext.newJsonParser().encodeResourceToString(appointment);
+
+            String response = restClient.post()
+                    .uri(url)
+                    .header("Authorization", bearer())
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
+
+            return fhirContext.newJsonParser().parseResource(Appointment.class, response);
+        } catch (Exception ex) {
+            log.error("[Org:{}] Failed to create appointment: {}", orgId, ex.getMessage(), ex);
+            throw new RuntimeException("Failed to create appointment", ex);
+        }
+    }
+
     public Bundle getAppointments(String patientId, String lastUpdated) {
         Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            StringBuilder url = new StringBuilder(openEmrConfig.getApiUrl() + "/fhir/Appointment");
+            OpenEmrConfig config = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            StringBuilder url = new StringBuilder(config.getApiUrl() + "/fhir/Appointment");
             boolean first = true;
+
             if (patientId != null && !patientId.isBlank()) {
                 url.append(first ? "?" : "&").append("patient=").append(patientId);
                 first = false;
@@ -38,37 +61,24 @@ public class FhirAppointmentService {
                 url.append(first ? "?" : "&").append("_lastUpdated=").append(lastUpdated);
             }
 
-            log.info("[Org:{}] Requesting appointments with URL: {}", orgId, url);
-
             String response = restClient.get()
                     .uri(url.toString())
                     .header("Authorization", bearer())
                     .retrieve()
                     .body(String.class);
 
-            log.debug("[Org:{}] FHIR Appointment list response: {}", orgId, response);
-
-            IParser parser = fhirContext.newJsonParser();
-            Bundle bundle = parser.parseResource(Bundle.class, response);
-
-            int total = bundle.getEntry() != null ? bundle.getEntry().size() : 0;
-            log.info("[Org:{}] Appointments fetched: {}", orgId, total);
-
-            return bundle;
+            return fhirContext.newJsonParser().parseResource(Bundle.class, response);
         } catch (Exception ex) {
             log.error("[Org:{}] Failed to fetch appointments: {}", orgId, ex.getMessage(), ex);
             throw new RuntimeException("Failed to fetch appointments", ex);
         }
     }
 
-    /** Get a single appointment by UUID. */
     public Appointment getAppointmentByUuid(String uuid) {
         Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String url = openEmrConfig.getApiUrl() + "/fhir/Appointment/" + uuid;
-
-            log.info("[Org:{}] Requesting appointment by UUID: {} (URL: {})", orgId, uuid, url);
+            OpenEmrConfig config = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
+            String url = config.getApiUrl() + "/fhir/Appointment/" + uuid;
 
             String response = restClient.get()
                     .uri(url)
@@ -76,53 +86,13 @@ public class FhirAppointmentService {
                     .retrieve()
                     .body(String.class);
 
-            log.debug("[Org:{}] FHIR Appointment UUID {} response: {}", orgId, uuid, response);
-
-            IParser parser = fhirContext.newJsonParser();
-            Appointment appt = parser.parseResource(Appointment.class, response);
-
-            log.info("[Org:{}] Appointment UUID {} fetched successfully", orgId, uuid);
-            return appt;
+            return fhirContext.newJsonParser().parseResource(Appointment.class, response);
         } catch (Exception ex) {
             log.error("[Org:{}] Failed to fetch appointment {}: {}", orgId, uuid, ex.getMessage(), ex);
-            throw new RuntimeException("Failed to fetch appointment " + uuid, ex);
+            throw new RuntimeException("Failed to fetch appointment", ex);
         }
     }
 
-    /** Create a new appointment (POST). */
-    public Appointment createAppointment(Appointment appointment) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String url = openEmrConfig.getApiUrl() + "/fhir/Appointment";
-
-            IParser parser = fhirContext.newJsonParser();
-            String requestBody = parser.encodeResourceToString(appointment);
-
-            log.info("[Org:{}] Creating appointment via URL: {}", orgId, url);
-            log.debug("[Org:{}] Appointment POST body: {}", orgId, requestBody);
-
-            String response = restClient.post()
-                    .uri(url)
-                    .header("Authorization", bearer())
-                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                    .body(requestBody)
-                    .retrieve()
-                    .body(String.class);
-
-            log.debug("[Org:{}] FHIR Appointment creation response: {}", orgId, response);
-
-            Appointment created = parser.parseResource(Appointment.class, response);
-
-            log.info("[Org:{}] Appointment created with id: {}", orgId, created.getIdElement().getIdPart());
-            return created;
-        } catch (Exception ex) {
-            log.error("[Org:{}] Failed to create appointment: {}", orgId, ex.getMessage(), ex);
-            throw new RuntimeException("Failed to create appointment", ex);
-        }
-    }
-
-    /** Helper for Bearer token */
     private String bearer() {
         try {
             return "Bearer " + openEmrAuthService.getCachedAccessToken();
