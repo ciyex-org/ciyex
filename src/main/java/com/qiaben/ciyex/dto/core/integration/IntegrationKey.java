@@ -1,7 +1,8 @@
 package com.qiaben.ciyex.dto.core.integration;
 
 public enum IntegrationKey {
-    OPENEMR("openemr", OpenEmrConfig.class),
+    PRACTICE_DB("practice_db", PracticeDbConfig.class),
+    FHIR("fhir", FhirConfig.class),
     STRIPE("stripe", StripeConfig.class),
     SPHERE("sphere", SphereConfig.class),
     TWILIO("twilio", TwilioConfig.class),

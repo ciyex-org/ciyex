@@ -3,8 +3,9 @@ package com.qiaben.ciyex.service.fhir;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.dto.core.integration.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.Binary;
@@ -18,23 +19,25 @@ import org.springframework.web.client.RestClient;
 public class FhirBinaryService {
 
     private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
     private final OrgIntegrationConfigProvider integrationConfigProvider;
+    // Inject your FhirAuthService or token provider here as needed.
+    private final FhirAuthService fhirAuthService;
 
     private final FhirContext fhirContext = FhirContext.forR4();
-    private static final String BINARY_URL = "/fhir/Binary/{id}";
+    private static final String BINARY_URL = "/Binary/{id}";
 
     /**
      * Fetches a Binary FHIR resource by its FHIR id, using multi-tenant organization context.
      */
     public Binary getBinaryDocument(String id) {
-        log.info("Fetching Binary document for id: {}", id);
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        log.info("Fetching Binary document for orgId {} and id: {}", orgId, id);
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String url = openEmrConfig.getApiUrl() + BINARY_URL.replace("{id}", id);
-            log.debug("Resolved OpenEMR FHIR Binary endpoint URL: {}", url);
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            String url = fhirConfig.getApiUrl() + BINARY_URL.replace("{id}", id);
+            log.debug("Resolved FHIR Binary endpoint URL: {}", url);
 
-            String accessToken = openEmrAuthService.getCachedAccessToken();
+            String accessToken = fhirAuthService.getCachedAccessToken(); // Implement this for FHIR
             log.debug("Using access token: {}", accessToken != null ? "[REDACTED]" : null);
 
             String response = restClient

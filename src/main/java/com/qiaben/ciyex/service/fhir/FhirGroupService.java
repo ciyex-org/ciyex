@@ -3,7 +3,7 @@ package com.qiaben.ciyex.service.fhir;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,16 +24,16 @@ public class FhirGroupService {
 
     private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final FhirContext fhirContext = FhirContext.forR4();
 
     // Fetch Group resources by query parameters (returns a Bundle)
     public Bundle getGroup(Map<String, String> queryParams) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String baseUrl = openEmrConfig.getApiUrl() + "/fhir/Group";
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            String baseUrl = fhirConfig.getApiUrl() + "/Group";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
             queryParams.forEach((key, value) -> {
@@ -43,13 +43,13 @@ public class FhirGroupService {
             });
 
             url = builder.build(true).toUri().toString();
-            log.info("[FhirGroupService] Fetching FHIR Group Bundle for org: {}, clientId: {}, url: {}, params: {}",
-                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, queryParams);
+            log.info("[FhirGroupService] Fetching FHIR Group Bundle for clientId: {}, url: {}, params: {}",
+                    fhirConfig.getClientId(), url, queryParams);
 
             String response = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -58,8 +58,7 @@ public class FhirGroupService {
             IParser parser = fhirContext.newJsonParser();
             return parser.parseResource(Bundle.class, response);
         } catch (Exception e) {
-            log.error("[FhirGroupService] Error fetching FHIR Group Bundle for org: {}, url: {}, params: {}, message: {}",
-                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
+            log.error("[FhirGroupService] Error fetching FHIR Group Bundle url: {}, params: {}, message: {}",
                     url, queryParams, e.getMessage(), e);
             throw new RuntimeException("Failed to fetch groups", e);
         }
@@ -67,18 +66,17 @@ public class FhirGroupService {
 
     // Fetch a single Group by UUID
     public Group getGroupByUuid(String uuid) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Group/" + uuid;
-            log.info("[FhirGroupService] Fetching FHIR Group by UUID for org: {}, clientId: {}, url: {}, uuid: {}",
-                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, uuid);
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Group/" + uuid;
+            log.info("[FhirGroupService] Fetching FHIR Group by UUID: url: {}, uuid: {}", url, uuid);
 
             String response = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -87,8 +85,7 @@ public class FhirGroupService {
             IParser parser = fhirContext.newJsonParser();
             return parser.parseResource(Group.class, response);
         } catch (Exception e) {
-            log.error("[FhirGroupService] Error fetching FHIR Group by UUID for org: {}, url: {}, uuid: {}, message: {}",
-                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
+            log.error("[FhirGroupService] Error fetching FHIR Group by UUID url: {}, uuid: {}, message: {}",
                     url, uuid, e.getMessage(), e);
             throw new RuntimeException("Failed to fetch group by UUID", e);
         }
@@ -96,18 +93,17 @@ public class FhirGroupService {
 
     // Export group by id (returns raw FHIR server response as String)
     public ResponseEntity<String> exportGroup(String id) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Group/" + id + "/$export";
-            log.info("[FhirGroupService] Exporting FHIR Group by id for org: {}, clientId: {}, url: {}, id: {}",
-                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, id);
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Group/" + id + "/$export";
+            log.info("[FhirGroupService] Exporting FHIR Group by id: url: {}, id: {}", url, id);
 
             String response = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -115,8 +111,7 @@ public class FhirGroupService {
             log.debug("[FhirGroupService] FHIR Group export (id={}) response: {}", id, response);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("[FhirGroupService] Error exporting FHIR Group for org: {}, url: {}, id: {}, message: {}",
-                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
+            log.error("[FhirGroupService] Error exporting FHIR Group url: {}, id: {}, message: {}",
                     url, id, e.getMessage(), e);
             throw new RuntimeException(e);
         }

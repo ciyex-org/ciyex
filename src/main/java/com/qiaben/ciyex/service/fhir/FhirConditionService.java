@@ -3,7 +3,7 @@ package com.qiaben.ciyex.service.fhir;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,27 +20,27 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class FhirConditionService {
 
     private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final FhirContext fhirContext = FhirContext.forR4();
 
     // Fetch a list/search of Condition resources
     public Bundle getConditions(String id, String lastUpdated, String patient) {
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String url = UriComponentsBuilder.fromHttpUrl(openEmrConfig.getApiUrl())
-                    .path("/fhir/Condition")
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            String url = UriComponentsBuilder.fromHttpUrl(fhirConfig.getApiUrl())
+                    .path("/Condition")
                     .queryParam("_id", id)
                     .queryParam("_lastUpdated", lastUpdated)
                     .queryParam("patient", patient)
                     .toUriString();
 
             log.info("[FhirConditionService] Fetching conditions for org: {}, url: {}, params: id={}, lastUpdated={}, patient={}",
-                    openEmrConfig.getClientId(), url, id, lastUpdated, patient);
+                    fhirConfig.getClientId(), url, id, lastUpdated, patient);
 
             String response = restClient.get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -62,16 +62,16 @@ public class FhirConditionService {
     // Fetch a single Condition by UUID
     public Condition getConditionByUuid(String uuid) {
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String url = UriComponentsBuilder.fromHttpUrl(openEmrConfig.getApiUrl())
-                    .path("/fhir/Condition/" + uuid)
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            String url = UriComponentsBuilder.fromHttpUrl(fhirConfig.getApiUrl())
+                    .path("/Condition/" + uuid)
                     .toUriString();
 
-            log.info("[FhirConditionService] Fetching Condition by UUID for org: {}, url: {}", openEmrConfig.getClientId(), url);
+            log.info("[FhirConditionService] Fetching Condition by UUID for org: {}, url: {}", fhirConfig.getClientId(), url);
 
             String response = restClient.get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);

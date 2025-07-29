@@ -3,7 +3,7 @@ package com.qiaben.ciyex.service.fhir;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,15 +24,15 @@ public class FhirPractitionerService {
 
     private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final FhirContext fhirContext = FhirContext.forR4();
 
     // Search practitioners by FHIR params
     public Bundle getPractitioners(Map<String, String> params) {
         String url = null;
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Practitioner";
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Practitioner";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
 
             params.forEach((key, value) -> {
@@ -45,7 +45,7 @@ public class FhirPractitionerService {
             String json = restClient
                     .get()
                     .uri(fullUrl)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -64,14 +64,14 @@ public class FhirPractitionerService {
     public Practitioner getPractitionerById(String uuid) {
         String url = null;
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Practitioner/" + uuid;
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Practitioner/" + uuid;
             log.info("[FhirPractitionerService] Fetching practitioner by ID {} from URL: {}", uuid, url);
 
             String json = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -90,8 +90,8 @@ public class FhirPractitionerService {
     public Practitioner createPractitioner(Practitioner practitioner) {
         String url = null;
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Practitioner";
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Practitioner";
             IParser parser = fhirContext.newJsonParser();
             String payload = parser.encodeResourceToString(practitioner);
 
@@ -101,7 +101,7 @@ public class FhirPractitionerService {
             String json = restClient
                     .post()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)
                     .retrieve()
@@ -119,8 +119,8 @@ public class FhirPractitionerService {
     public Practitioner updatePractitioner(String uuid, Practitioner practitioner) {
         String url = null;
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Practitioner/" + uuid;
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Practitioner/" + uuid;
             IParser parser = fhirContext.newJsonParser();
             String payload = parser.encodeResourceToString(practitioner);
 
@@ -130,7 +130,7 @@ public class FhirPractitionerService {
             String json = restClient
                     .method(HttpMethod.PUT)
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)
                     .retrieve()

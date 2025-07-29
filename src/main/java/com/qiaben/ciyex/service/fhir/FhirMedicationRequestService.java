@@ -3,7 +3,7 @@ package com.qiaben.ciyex.service.fhir;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,17 +22,17 @@ import java.util.Map;
 public class FhirMedicationRequestService {
 
     private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final FhirContext fhirContext = FhirContext.forR4();
 
     // Fetch all MedicationRequest resources as a FHIR Bundle
     public Bundle getMedicationRequests(Map<String, String> queryParams) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String baseUrl = openEmrConfig.getApiUrl() + "/fhir/MedicationRequest";
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            String baseUrl = fhirConfig.getApiUrl() + "/MedicationRequest";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
             queryParams.forEach((key, value) -> {
@@ -42,13 +42,12 @@ public class FhirMedicationRequestService {
             });
 
             url = builder.build(true).toUriString();
-            log.info("[FhirMedicationRequestService] Fetching MedicationRequests for org: {}, clientId: {}, url: {}, params: {}",
-                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, queryParams);
+            log.info("[FhirMedicationRequestService] Fetching MedicationRequests: url: {}, params: {}", url, queryParams);
 
             String responseBody = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -58,8 +57,7 @@ public class FhirMedicationRequestService {
             IParser parser = fhirContext.newJsonParser();
             return parser.parseResource(Bundle.class, responseBody);
         } catch (Exception e) {
-            log.error("[FhirMedicationRequestService] Failed to fetch MedicationRequests for org: {}, url: {}, params: {}, error: {}",
-                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
+            log.error("[FhirMedicationRequestService] Failed to fetch MedicationRequests: url={}, params={}, error={}",
                     url, queryParams, e.getMessage(), e);
             throw new RuntimeException("Failed to fetch MedicationRequests", e);
         }
@@ -67,19 +65,18 @@ public class FhirMedicationRequestService {
 
     // Fetch a single MedicationRequest by UUID
     public MedicationRequest getMedicationRequestByUuid(String uuid) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/MedicationRequest/" + uuid;
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/MedicationRequest/" + uuid;
 
-            log.info("[FhirMedicationRequestService] Fetching MedicationRequest by UUID for org: {}, clientId: {}, url: {}, uuid: {}",
-                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, uuid);
+            log.info("[FhirMedicationRequestService] Fetching MedicationRequest by UUID: url: {}, uuid: {}", url, uuid);
 
             String responseBody = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -89,8 +86,7 @@ public class FhirMedicationRequestService {
             IParser parser = fhirContext.newJsonParser();
             return parser.parseResource(MedicationRequest.class, responseBody);
         } catch (Exception e) {
-            log.error("[FhirMedicationRequestService] Failed to fetch MedicationRequest by UUID for org: {}, url: {}, uuid: {}, error: {}",
-                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
+            log.error("[FhirMedicationRequestService] Failed to fetch MedicationRequest by UUID: url={}, uuid={}, error={}",
                     url, uuid, e.getMessage(), e);
             throw new RuntimeException("Failed to fetch MedicationRequest by UUID", e);
         }

@@ -3,7 +3,7 @@ package com.qiaben.ciyex.service.fhir;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,16 +23,16 @@ public class FhirImmunizationService {
 
     private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final FhirContext fhirContext = FhirContext.forR4();
 
     // Fetch a list of Immunizations (as Bundle)
     public Bundle getImmunizations(Map<String, String> queryParams) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String baseUrl = openEmrConfig.getApiUrl() + "/fhir/Immunization";
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            String baseUrl = fhirConfig.getApiUrl() + "/Immunization";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
             queryParams.forEach((key, value) -> {
@@ -42,13 +42,12 @@ public class FhirImmunizationService {
             });
 
             url = builder.build(true).toUriString();
-            log.info("[FhirImmunizationService] Fetching Immunization Bundle for org: {}, clientId: {}, url: {}, params: {}",
-                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, queryParams);
+            log.info("[FhirImmunizationService] Fetching Immunization Bundle: url={}, params={}", url, queryParams);
 
             String response = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -57,8 +56,7 @@ public class FhirImmunizationService {
             IParser parser = fhirContext.newJsonParser();
             return parser.parseResource(Bundle.class, response);
         } catch (Exception e) {
-            log.error("[FhirImmunizationService] Error fetching Immunization Bundle for org: {}, url: {}, params: {}, message: {}",
-                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
+            log.error("[FhirImmunizationService] Error fetching Immunization Bundle, url={}, params={}, message={}",
                     url, queryParams, e.getMessage(), e);
             throw new RuntimeException("Failed to fetch immunizations", e);
         }
@@ -66,18 +64,17 @@ public class FhirImmunizationService {
 
     // Fetch a single Immunization by UUID
     public Immunization getImmunization(String uuid) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Immunization/" + uuid;
-            log.info("[FhirImmunizationService] Fetching Immunization by UUID for org: {}, clientId: {}, url: {}, uuid: {}",
-                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, uuid);
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Immunization/" + uuid;
+            log.info("[FhirImmunizationService] Fetching Immunization by UUID: url={}, uuid={}", url, uuid);
 
             String response = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -86,9 +83,7 @@ public class FhirImmunizationService {
             IParser parser = fhirContext.newJsonParser();
             return parser.parseResource(Immunization.class, response);
         } catch (Exception e) {
-            log.error("[FhirImmunizationService] Error fetching Immunization by UUID for org: {}, url: {}, uuid: {}, message: {}",
-                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
-                    url, uuid, e.getMessage(), e);
+            log.error("[FhirImmunizationService] Error fetching Immunization by UUID: url={}, uuid={}, message={}", url, uuid, e.getMessage(), e);
             throw new RuntimeException("Failed to fetch Immunization by UUID", e);
         }
     }

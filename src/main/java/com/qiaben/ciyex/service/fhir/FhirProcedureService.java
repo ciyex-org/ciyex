@@ -3,7 +3,7 @@ package com.qiaben.ciyex.service.fhir;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +22,7 @@ import java.util.Map;
 public class FhirProcedureService {
 
     private final OrgIntegrationConfigProvider integrationConfigProvider;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final RestClient restClient;
     private final FhirContext fhirContext = FhirContext.forR4();
 
@@ -30,8 +30,8 @@ public class FhirProcedureService {
     public Bundle getProcedures(Map<String, String> params) {
         String url = null;
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Procedure";
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Procedure"; // Add /fhir/ if needed
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
 
             params.forEach((key, value) -> {
@@ -43,7 +43,7 @@ public class FhirProcedureService {
 
             String json = restClient.get()
                     .uri(fullUrl)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -62,13 +62,13 @@ public class FhirProcedureService {
     public Procedure getProcedureById(String uuid) {
         String url = null;
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Procedure/" + uuid;
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Procedure/" + uuid; // Add /fhir/ if needed
             log.info("[FhirProcedureService] Fetching procedure by ID {} from URL: {}", uuid, url);
 
             String json = restClient.get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);

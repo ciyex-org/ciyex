@@ -3,7 +3,7 @@ package com.qiaben.ciyex.service.fhir;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,15 +22,15 @@ import java.util.Map;
 public class FhirCareTeamService {
 
     private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final FhirContext fhirContext = FhirContext.forR4();
 
     // Fetch all CareTeam resources as a FHIR Bundle
     public Bundle getCareTeams(Map<String, String> queryParams) {
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String baseUrl = openEmrConfig.getApiUrl() + "/fhir/CareTeam";
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            String baseUrl = fhirConfig.getApiUrl() + "/CareTeam";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
             queryParams.forEach((k, v) -> {
@@ -41,12 +41,12 @@ public class FhirCareTeamService {
 
             String finalUrl = builder.build(true).toUriString();
             log.info("[FhirCareTeamService] Fetching CareTeams for org: {}, url: {}, params: {}",
-                    openEmrConfig.getClientId(), finalUrl, queryParams);
+                    fhirConfig.getClientId(), finalUrl, queryParams);
 
             String response = restClient
                     .get()
                     .uri(finalUrl)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -68,16 +68,16 @@ public class FhirCareTeamService {
     // Fetch a single CareTeam by UUID
     public CareTeam getCareTeamByUuid(String uuid) {
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String url = openEmrConfig.getApiUrl() + "/fhir/CareTeam/" + uuid;
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            String url = fhirConfig.getApiUrl() + "/CareTeam/" + uuid;
 
             log.info("[FhirCareTeamService] Fetching CareTeam by UUID for org: {}, url: {}",
-                    openEmrConfig.getClientId(), url);
+                    fhirConfig.getClientId(), url);
 
             String response = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);

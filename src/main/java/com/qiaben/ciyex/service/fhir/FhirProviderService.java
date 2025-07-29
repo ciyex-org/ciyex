@@ -3,7 +3,7 @@ package com.qiaben.ciyex.service.fhir;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,12 +18,12 @@ import org.springframework.web.client.RestClient;
 public class FhirProviderService {
 
     private final OrgIntegrationConfigProvider integrationConfigProvider;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final RestClient restClient;
     private final FhirContext fhirContext = FhirContext.forR4();
 
     /**
-     * Creates a provider (Practitioner) in OpenEMR (multi-tenant aware).
+     * Creates a provider (Practitioner) in the FHIR server (multi-tenant aware).
      *
      * @param practitioner Practitioner resource (FHIR R4)
      * @return Created Practitioner
@@ -31,9 +31,9 @@ public class FhirProviderService {
     public Practitioner createProvider(Practitioner practitioner) {
         String url = null;
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Practitioner";
-            String token = openEmrAuthService.getCachedAccessToken();
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Practitioner"; // Use /fhir/Practitioner if your base URL requires it
+            String token = fhirAuthService.getCachedAccessToken();
 
             IParser parser = fhirContext.newJsonParser();
             String practitionerJson = parser.encodeResourceToString(practitioner);

@@ -1,7 +1,9 @@
 package com.qiaben.ciyex.entity;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -38,5 +40,6 @@ public class Org {
 
     @Builder.Default
     @OneToMany(mappedBy = "org", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Set<Facility> facilities = new HashSet<>();
+    @JsonManagedReference("org-userOrgRoles")
+    private Set<UserOrgRole> userOrgRoles = new HashSet<>();
 }
