@@ -60,4 +60,9 @@ public class AppointmentController {
             return ResponseEntity.badRequest().body("{\"error\":\"" + e.getMessage() + "\"}");
         }
     }
+
+    @GetMapping("/count")
+    public long getAppointmentCount() {
+        return appointmentService.countAppointments();
+    }
 }

@@ -68,5 +68,10 @@ public class PatientController {
         return ResponseEntity.ok(json);
     }
 
+    @GetMapping("/count")
+    public ResponseEntity<ApiResponse<Integer>> getPatientCount() {
+        return ResponseEntity.ok(patientService.getPatientCount());
+    }
+
 }
 
