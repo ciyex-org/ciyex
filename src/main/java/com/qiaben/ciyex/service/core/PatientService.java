@@ -8,6 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 
+
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -35,6 +38,8 @@ public class PatientService {
                     .build();
         }
     }
+
+
 
     public ApiResponse<Patient> registerPatient(Patient patient) {
         log.info("Registering new patient with identifier: {}", patient.getIdentifierFirstRep().getValue());
@@ -113,5 +118,6 @@ public class PatientService {
                     .message("Failed to fetch patients: " + e.getMessage())
                     .build();
         }
+
     }
 }

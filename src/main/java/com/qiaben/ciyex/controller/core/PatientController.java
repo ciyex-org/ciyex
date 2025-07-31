@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.controller.core;
 
 import ca.uhn.fhir.context.FhirContext;
+import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.service.core.PatientService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -8,7 +9,10 @@ import org.hl7.fhir.r4.model.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/patient")
@@ -31,6 +35,8 @@ public class PatientController {
         String json = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(patient);
         return ResponseEntity.ok(json);
     }
+
+
 
     @PostMapping("/register")
     public ResponseEntity<String> registerPatient(@RequestBody String body) {
@@ -61,4 +67,6 @@ public class PatientController {
         String json = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(savedBill);
         return ResponseEntity.ok(json);
     }
+
 }
+
