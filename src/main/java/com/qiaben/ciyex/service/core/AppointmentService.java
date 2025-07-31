@@ -55,4 +55,17 @@ public class AppointmentService {
                 .findFirst()
                 .orElse("Unknown");
     }
+    public long countAppointments() {
+        try {
+            Bundle bundle = fhirAppointmentService.getAppointments(null, null); // null = get all
+            long count = bundle.getEntry().stream()
+                    .filter(entry -> entry.getResource() instanceof Appointment)
+                    .count();
+            log.info("Fetched {} appointments", count);
+            return count;
+        } catch (Exception e) {
+            log.error("Error counting appointments: {}", e.getMessage(), e);
+            return 0;
+        }
+    }
 }

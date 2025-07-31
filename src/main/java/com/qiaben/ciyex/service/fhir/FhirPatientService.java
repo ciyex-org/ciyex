@@ -272,4 +272,9 @@ public class FhirPatientService {
                     .build();
         }
     }
+
+    // ✅ Get All Patients (no filters)
+    public Bundle getAllPatients() {
+        return getPatients(Map.of());
+    }
 }

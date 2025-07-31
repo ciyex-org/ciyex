@@ -120,4 +120,21 @@ public class PatientService {
         }
 
     }
+
+    public ApiResponse<Integer> getPatientCount() {
+        try {
+            int count = fhirPatientService.getAllPatients().getEntry().size();
+            return ApiResponse.<Integer>builder()
+                    .success(true)
+                    .message("Patient count retrieved")
+                    .data(count)
+                    .build();
+        } catch (Exception e) {
+            log.error("Count failed: {}", e.getMessage());
+            return ApiResponse.<Integer>builder()
+                    .success(false)
+                    .message("Count fetch error: " + e.getMessage())
+                    .build();
+        }
+    }
 }
