@@ -9,8 +9,10 @@ import org.hl7.fhir.r4.model.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/patient")
@@ -46,6 +48,12 @@ public class PatientController {
             return ResponseEntity.badRequest().body("{\"error\":\"Invalid or malformed UUID\"}");
         }
     }
+    @GetMapping("/recent")
+    public ResponseEntity<ApiResponse<List<Map<String, String>>>> getRecentPatients(
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseEntity.ok(patientService.getRecentPatients(limit));
+    }
+
 
     // ✅ 4. Register a New Patient (FHIR JSON)
     @PostMapping("/register")
@@ -87,4 +95,9 @@ public class PatientController {
         String json = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(patientsBundle);
         return ResponseEntity.ok(json);
     }
+
+
+
+
 }
+
