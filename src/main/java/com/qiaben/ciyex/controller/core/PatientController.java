@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.controller.core;
 
 import ca.uhn.fhir.context.FhirContext;
+import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.service.core.PatientService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -33,11 +35,7 @@ public class PatientController {
         String json = fhirContext.newJsonParser().setPrettyPrint(true).encodeResourceToString(patient);
         return ResponseEntity.ok(json);
     }
-    @GetMapping("/recent")
-    public ResponseEntity<ApiResponse<List<Map<String, String>>>> getRecentPatients(
-            @RequestParam(defaultValue = "10") int limit) {
-        return ResponseEntity.ok(patientService.getRecentPatients(limit));
-    }
+
 
 
     @PostMapping("/register")

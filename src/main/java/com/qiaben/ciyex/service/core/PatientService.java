@@ -9,6 +9,8 @@ import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -36,48 +38,7 @@ public class PatientService {
                     .build();
         }
     }
-    public ApiResponse<List<Map<String, String>>> getRecentPatients(int limit) {
-        try {
-            Bundle bundle = fhirPatientService.getAllPatients(); // or use sorted query later
-            List<Map<String, String>> recent = bundle.getEntry().stream()
-                    .map(entry -> (Patient) entry.getResource())
-                    .sorted((a, b) -> {
-                        // Compare meta.lastUpdated
-                        return b.getMeta().getLastUpdated().compareTo(a.getMeta().getLastUpdated());
-                    })
-                    .limit(5)
-                    .map(p -> {
-                        Map<String, String> map = new HashMap<>();
-                        map.put("id", p.getIdElement().getIdPart());
-                        map.put("name", p.getName().isEmpty() ? "Unnamed" : p.getName().get(0).getNameAsSingleString());
-                        map.put("birthDate", p.getBirthDate() != null ? p.getBirthDate().toString() : "");
-                        map.put("gender", p.getGender() != null ? p.getGender().toCode() : "unknown");
-                        map.put("homePhone", p.getTelecom().stream()
-                                .filter(t -> t.getSystem() == ContactPoint.ContactPointSystem.PHONE)
-                                .findFirst().map(ContactPoint::getValue).orElse(""));
-                        map.put("ssn", p.getIdentifier().stream()
-                                .filter(i -> i.getType().getText().equalsIgnoreCase("SSN"))
-                                .findFirst().map(Identifier::getValue).orElse(""));
-                        map.put("externalId", p.getIdentifier().stream()
-                                .filter(i -> i.getType().getText().equalsIgnoreCase("External ID"))
-                                .findFirst().map(Identifier::getValue).orElse(""));
-                        return map;
-                    })
-                    .toList();
 
-            return ApiResponse.<List<Map<String, String>>>builder()
-                    .success(true)
-                    .message("Recent patients fetched")
-                    .data(recent)
-                    .build();
-        } catch (Exception e) {
-            log.error("Failed to fetch recent patients: {}", e.getMessage());
-            return ApiResponse.<List<Map<String, String>>>builder()
-                    .success(false)
-                    .message("Error: " + e.getMessage())
-                    .build();
-        }
-    }
 
 
     public ApiResponse<Patient> registerPatient(Patient patient) {

@@ -16,6 +16,8 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -186,15 +188,6 @@ public class FhirPatientService {
                     .message("Failed to record payment: " + e.getMessage())
                     .build();
         }
-    }
-    public List<Patient> getRecentPatients(int limit) {
-        Bundle bundle = getAllPatients();
-        return bundle.getEntry().stream()
-                .map(e -> (Patient) e.getResource())
-                .sorted(Comparator.comparing((Patient p) ->
-                        p.getMeta().getLastUpdated() != null ? p.getMeta().getLastUpdated().getTime() : 0L).reversed())
-                .limit(limit)
-                .collect(Collectors.toList());
     }
 
 
