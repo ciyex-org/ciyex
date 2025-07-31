@@ -2,8 +2,8 @@ package com.qiaben.ciyex.service.fhir;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
 import com.qiaben.ciyex.dto.core.integration.RequestContext;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
@@ -25,29 +25,28 @@ import java.util.Map;
 public class FhirAllergyIntoleranceService {
 
     private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final FhirContext fhirContext = FhirContext.forR4();
 
     public List<AllergyIntolerance> getAllergyIntolerances(Map<String, String> queryParams) {
         Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String baseUrl = openEmrConfig.getApiUrl() + "/fhir/AllergyIntolerance";
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            String baseUrl = fhirConfig.getApiUrl() + "/AllergyIntolerance";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
-
             queryParams.forEach((key, value) -> {
                 if (value != null && !value.isEmpty()) {
                     builder.queryParam(key, value);
                 }
             });
 
-            log.info("[Org:{}] Fetching AllergyIntolerance list with params: {}", orgId, queryParams);
+            log.info("[Org:{}] Fetching AllergyIntolerance list (FHIR) with params: {}", orgId, queryParams);
 
             String response = restClient
                     .get()
                     .uri(builder.build(true).toUri())
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -62,7 +61,7 @@ public class FhirAllergyIntoleranceService {
                 }
             }
 
-            log.info("[Org:{}] Found {} AllergyIntolerance records.", orgId, allergyIntoleranceList.size());
+            log.info("[Org:{}] (FHIR) Found {} AllergyIntolerance records.", orgId, allergyIntoleranceList.size());
             return allergyIntoleranceList;
         } catch (Exception e) {
             log.error("[Org:{}] Failed to fetch AllergyIntolerance list: {}", orgId, e.getMessage(), e);
@@ -73,15 +72,15 @@ public class FhirAllergyIntoleranceService {
     public AllergyIntolerance getAllergyIntolerance(String uuid) {
         Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String url = openEmrConfig.getApiUrl() + "/fhir/AllergyIntolerance/" + uuid;
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            String url = fhirConfig.getApiUrl() + "/AllergyIntolerance/" + uuid;
 
-            log.info("[Org:{}] Fetching AllergyIntolerance by UUID: {}", orgId, uuid);
+            log.info("[Org:{}] Fetching AllergyIntolerance by UUID (FHIR): {}", orgId, uuid);
 
             String response = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -89,7 +88,7 @@ public class FhirAllergyIntoleranceService {
             IParser parser = fhirContext.newJsonParser();
             AllergyIntolerance resource = parser.parseResource(AllergyIntolerance.class, response);
 
-            log.info("[Org:{}] Successfully fetched AllergyIntolerance: {}", orgId, uuid);
+            log.info("[Org:{}] (FHIR) Successfully fetched AllergyIntolerance: {}", orgId, uuid);
             return resource;
         } catch (Exception e) {
             log.error("[Org:{}] Failed to fetch AllergyIntolerance by UUID {}: {}", orgId, uuid, e.getMessage(), e);

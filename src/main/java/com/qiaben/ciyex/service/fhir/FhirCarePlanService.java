@@ -3,8 +3,9 @@ package com.qiaben.ciyex.service.fhir;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.service.fhir.FhirAuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.Bundle;
@@ -22,15 +23,15 @@ import java.util.Map;
 public class FhirCarePlanService {
 
     private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final FhirContext fhirContext = FhirContext.forR4();
 
     // Fetch a list (bundle) of CarePlans based on query parameters
     public Bundle getCarePlans(Map<String, String> queryParams) {
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String baseUrl = openEmrConfig.getApiUrl() + "/fhir/CarePlan";
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            String baseUrl = fhirConfig.getApiUrl() + "/CarePlan";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
             queryParams.forEach((key, value) -> {
@@ -41,12 +42,12 @@ public class FhirCarePlanService {
 
             String finalUrl = builder.build(true).toUriString();
             log.info("[FhirCarePlanService] Fetching CarePlans for org: {}, url: {}, params: {}",
-                    openEmrConfig.getClientId(), finalUrl, queryParams);
+                    fhirConfig.getClientId(), finalUrl, queryParams);
 
             String response = restClient
                     .get()
                     .uri(finalUrl)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -68,16 +69,16 @@ public class FhirCarePlanService {
     // Fetch a single CarePlan by UUID
     public CarePlan getCarePlan(String uuid) {
         try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String url = openEmrConfig.getApiUrl() + "/fhir/CarePlan/" + uuid;
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            String url = fhirConfig.getApiUrl() + "/CarePlan/" + uuid;
 
             log.info("[FhirCarePlanService] Fetching CarePlan by UUID for org: {}, url: {}",
-                    openEmrConfig.getClientId(), url);
+                    fhirConfig.getClientId(), url);
 
             String response = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);

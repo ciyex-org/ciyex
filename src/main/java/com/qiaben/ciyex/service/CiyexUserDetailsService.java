@@ -1,10 +1,10 @@
 package com.qiaben.ciyex.service;
 
+import com.qiaben.ciyex.dto.core.integration.RequestContext;
 import com.qiaben.ciyex.entity.*;
 import com.qiaben.ciyex.repository.OrgRepository;
 import com.qiaben.ciyex.repository.UserRepository;
-import com.qiaben.ciyex.repository.FacilityRepository;
-import com.qiaben.ciyex.repository.UserFacilityRoleRepository;
+import com.qiaben.ciyex.repository.UserOrgRoleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -25,86 +25,115 @@ public class CiyexUserDetailsService implements UserDetailsService {
     @Autowired
     private OrgRepository orgRepository;
     @Autowired
-    private FacilityRepository facilityRepository;
-    @Autowired
-    private UserFacilityRoleRepository userFacilityRoleRepository;
+    private UserOrgRoleRepository userOrgRoleRepository;
 
-    // Used by Spring Security, logs in by email alone (regardless of org)
+    // Used by Spring Security for login; orgId is OPTIONAL here
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
-        // Defensive copy to avoid ConcurrentModificationException
-        Set<UserFacilityRole> safeRoles = new HashSet<>(user.getUserFacilityRoles());
-        Set<GrantedAuthority> authorities = safeRoles.stream()
-                .map(ufr -> new SimpleGrantedAuthority(ufr.getRole().name()))
+        // Get orgId from context if present, else allow login for all orgs
+        RequestContext ctx = RequestContext.get();
+        Long orgId = ctx != null ? ctx.getOrgId() : null;
+
+        Set<UserOrgRole> roles;
+        if (orgId != null) {
+            // If orgId present, filter by org
+            roles = user.getUserOrgRoles().stream()
+                    .filter(uor -> uor.getOrg().getId().equals(orgId))
+                    .collect(Collectors.toSet());
+        } else {
+            // If orgId not present (login scenario), get ALL roles for this user
+            roles = user.getUserOrgRoles();
+        }
+
+        Set<GrantedAuthority> authorities = roles.stream()
+                .map(uor -> new SimpleGrantedAuthority(uor.getRole().name()))
                 .collect(Collectors.toSet());
 
         return new org.springframework.security.core.userdetails.User(user.getEmail(), user.getPassword(), authorities);
     }
 
+    // All other service methods: orgId is REQUIRED
     public List<User> getAllUsers() {
-        List<User> users = userRepository.findAll();
+        Long orgId = getCurrentOrgId();
+        final Long finalOrgId = orgId;
+        List<User> users = userRepository.findAll().stream()
+                .filter(user -> user.getUserOrgRoles().stream()
+                        .anyMatch(uor -> uor.getOrg().getId().equals(finalOrgId)))
+                .collect(Collectors.toList());
         users.forEach(u -> u.setPassword("<Hidden>"));
         return users;
     }
 
     public Optional<User> getUserByEmail(String email) {
-        Optional<User> user = userRepository.findByEmail(email);
+        Long orgId = getCurrentOrgId();
+        final Long finalOrgId = orgId;
+        Optional<User> user = userRepository.findByEmail(email)
+                .filter(u -> u.getUserOrgRoles().stream()
+                        .anyMatch(uor -> uor.getOrg().getId().equals(finalOrgId)));
         user.ifPresent(value -> value.setPassword("<Hidden>"));
         return user;
     }
 
-    // Assign user to facility with a specific role (creates new user if needed)
     @Transactional
-    public User assignUserToFacility(User user, Long facilityId, RoleName roleName) {
-        Facility facility = facilityRepository.findById(facilityId)
-                .orElseThrow(() -> new RuntimeException("Facility not found"));
+    public User assignUserToOrg(User user, Long orgId, RoleName roleName) {
+        if (orgId == null) orgId = getCurrentOrgId();
+
+        final Long finalOrgId = orgId;
+        final RoleName finalRoleName = roleName;
+
+        Org org = orgRepository.findById(finalOrgId)
+                .orElseThrow(() -> new RuntimeException("Org not found"));
 
         User persistedUser = userRepository.findByEmail(user.getEmail()).orElse(userRepository.save(user));
 
-        // Check if the user already has the role in the facility
-        boolean alreadyAssigned = userFacilityRoleRepository
-                .findByUser_Id(persistedUser.getId())
+        boolean alreadyAssigned = userOrgRoleRepository
+                .findByUserId(persistedUser.getId())
                 .stream()
-                .anyMatch(ufr -> ufr.getFacility().getId().equals(facilityId) && ufr.getRole() == roleName);
+                .anyMatch(uor -> uor.getOrg().getId().equals(finalOrgId) && uor.getRole() == finalRoleName);
 
         if (alreadyAssigned) {
-            throw new RuntimeException("User is already assigned to this facility with the same role.");
+            throw new RuntimeException("User is already assigned to this org with the same role.");
         }
 
-        UserFacilityRole ufr = UserFacilityRole.builder()
+        UserOrgRole uor = UserOrgRole.builder()
                 .user(persistedUser)
-                .facility(facility)
-                .role(roleName)
+                .org(org)
+                .role(finalRoleName)
                 .build();
 
-        // Save to DB and ensure relationships are up to date
-        userFacilityRoleRepository.save(ufr);
-
-        // If you maintain bidirectional mapping, update local sets
-        persistedUser.getUserFacilityRoles().add(ufr);
-        facility.getUserFacilityRoles().add(ufr);
+        userOrgRoleRepository.save(uor);
+        persistedUser.getUserOrgRoles().add(uor);
+        org.getUserOrgRoles().add(uor);
 
         userRepository.save(persistedUser);
-        facilityRepository.save(facility);
+        orgRepository.save(org);
 
         persistedUser.setPassword("<Hidden>");
         return persistedUser;
     }
 
-    // Update user info
     public User updateUserByEmail(String email, User userDetails) {
+        Long orgId = getCurrentOrgId();
+        final Long finalOrgId = orgId;
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        user.setFullName(userDetails.getFullName());
+        boolean hasOrg = user.getUserOrgRoles().stream()
+                .anyMatch(uor -> uor.getOrg().getId().equals(finalOrgId));
+        if (!hasOrg) throw new RuntimeException("User not in this org");
+
+        user.setFirstName(userDetails.getFirstName());
+        user.setLastName(userDetails.getLastName());
+        user.setMiddleName(userDetails.getMiddleName());
         user.setDateOfBirth(userDetails.getDateOfBirth());
         user.setEmail(userDetails.getEmail());
         user.setPhoneNumber(userDetails.getPhoneNumber());
         user.setProfileImage(userDetails.getProfileImage());
         user.setStreet(userDetails.getStreet());
+        user.setStreet2(userDetails.getStreet2());
         user.setCity(userDetails.getCity());
         user.setState(userDetails.getState());
         user.setPostalCode(userDetails.getPostalCode());
@@ -117,42 +146,57 @@ public class CiyexUserDetailsService implements UserDetailsService {
         return updated;
     }
 
-    // Remove user completely (careful: this will delete user and all their facility-role assignments!)
     @Transactional
     public void deleteUserByEmail(String email) {
-        userRepository.deleteByEmail(email);
+        Long orgId = getCurrentOrgId();
+        final Long finalOrgId = orgId;
+        Optional<User> userOpt = userRepository.findByEmail(email)
+                .filter(u -> u.getUserOrgRoles().stream()
+                        .anyMatch(uor -> uor.getOrg().getId().equals(finalOrgId)));
+        userOpt.ifPresent(userRepository::delete);
     }
 
-    // Remove user's role assignment from a facility (using triple-key)
     @Transactional
-    public void removeUserFromFacility(String email, Long facilityId, RoleName roleName) {
+    public void removeUserFromOrg(String email, Long orgId, RoleName roleName) {
+        if (orgId == null) orgId = getCurrentOrgId();
+
+        final Long finalOrgId = orgId;
+        final RoleName finalRoleName = roleName;
+
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        Facility facility = facilityRepository.findById(facilityId)
-                .orElseThrow(() -> new RuntimeException("Facility not found"));
+        Org org = orgRepository.findById(finalOrgId)
+                .orElseThrow(() -> new RuntimeException("Org not found"));
 
-        // Find the assignment
-        List<UserFacilityRole> assignments = userFacilityRoleRepository.findByUser_Id(user.getId()).stream()
-                .filter(ufr -> ufr.getFacility().getId().equals(facilityId) && ufr.getRole() == roleName)
+        List<UserOrgRole> assignments = userOrgRoleRepository.findByUserId(user.getId()).stream()
+                .filter(uor -> uor.getOrg().getId().equals(finalOrgId) && uor.getRole() == finalRoleName)
                 .collect(Collectors.toList());
-        assignments.forEach(ufr -> userFacilityRoleRepository.deleteById(ufr.getId()));
+        assignments.forEach(uor -> userOrgRoleRepository.deleteById(uor.getId()));
 
-        // Remove from local sets
-        user.getUserFacilityRoles().removeIf(
-                ufr -> ufr.getFacility().getId().equals(facilityId) && ufr.getRole() == roleName);
-        facility.getUserFacilityRoles().removeIf(
-                ufr -> ufr.getUser().getId().equals(user.getId()) && ufr.getRole() == roleName);
+        user.getUserOrgRoles().removeIf(
+                uor -> uor.getOrg().getId().equals(finalOrgId) && uor.getRole() == finalRoleName);
+        org.getUserOrgRoles().removeIf(
+                uor -> uor.getUser().getId().equals(user.getId()) && uor.getRole() == finalRoleName);
 
         userRepository.save(user);
-        facilityRepository.save(facility);
+        orgRepository.save(org);
     }
 
-    // Get all orgs, facilities, and roles for a user (to build login response)
-    public List<UserFacilityRole> getFacilityRolesForUser(String email) {
+    public List<UserOrgRole> getOrgRolesForUser(String email) {
+        Long orgId = getCurrentOrgId();
+        final Long finalOrgId = orgId;
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-        // Defensive copy
-        return new ArrayList<>(user.getUserFacilityRoles());
+        return user.getUserOrgRoles().stream()
+                .filter(uor -> uor.getOrg().getId().equals(finalOrgId))
+                .collect(Collectors.toList());
     }
 
+    private Long getCurrentOrgId() {
+        RequestContext ctx = RequestContext.get();
+        if (ctx == null || ctx.getOrgId() == null) {
+            throw new IllegalStateException("No orgId set in RequestContext");
+        }
+        return ctx.getOrgId();
+    }
 }

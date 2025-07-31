@@ -4,7 +4,7 @@ import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,17 +23,17 @@ import java.util.Map;
 public class FhirDiagnosticReportService {
 
     private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final FhirContext fhirContext = FhirContext.forR4();
 
     // Fetch all DiagnosticReports based on query parameters
     public Bundle getDiagnosticReports(Map<String, String> queryParams) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String baseUrl = openEmrConfig.getApiUrl() + "/fhir/DiagnosticReport";
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            String baseUrl = fhirConfig.getApiUrl() + "/DiagnosticReport";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
             queryParams.forEach((k, v) -> {
@@ -41,13 +41,13 @@ public class FhirDiagnosticReportService {
             });
             url = builder.build(true).toUriString();
 
-            log.info("[FhirDiagnosticReportService] Fetching DiagnosticReports for org={}, clientId={}, url={}, params={}",
-                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, queryParams);
+            log.info("[FhirDiagnosticReportService] Fetching DiagnosticReports for clientId={}, url={}, params={}",
+                    fhirConfig.getClientId(), url, queryParams);
 
             String response = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -61,9 +61,8 @@ public class FhirDiagnosticReportService {
             log.info("[FhirDiagnosticReportService] Parsed {} DiagnosticReport entries from bundle.", bundle.getEntry().size());
             return bundle;
         } catch (Exception e) {
-            log.error("[FhirDiagnosticReportService] Error fetching DiagnosticReports (org={}, clientId={}, url={}, params={})",
-                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
-                    openEmrConfig != null ? openEmrConfig.getClientId() : null,
+            log.error("[FhirDiagnosticReportService] Error fetching DiagnosticReports (clientId={}, url={}, params={})",
+                    fhirConfig != null ? fhirConfig.getClientId() : null,
                     url, queryParams, e);
             throw new RuntimeException("Failed to fetch DiagnosticReports", e);
         }
@@ -71,19 +70,19 @@ public class FhirDiagnosticReportService {
 
     // Fetch a single DiagnosticReport by UUID
     public DiagnosticReport getDiagnosticReportByUuid(String uuid) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/DiagnosticReport/" + uuid;
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/DiagnosticReport/" + uuid;
 
-            log.info("[FhirDiagnosticReportService] Fetching DiagnosticReport by UUID for org={}, clientId={}, url={}, uuid={}",
-                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, uuid);
+            log.info("[FhirDiagnosticReportService] Fetching DiagnosticReport by UUID for clientId={}, url={}, uuid={}",
+                    fhirConfig.getClientId(), url, uuid);
 
             String response = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -97,32 +96,31 @@ public class FhirDiagnosticReportService {
             log.info("[FhirDiagnosticReportService] Successfully parsed DiagnosticReport for UUID={}", uuid);
             return report;
         } catch (Exception e) {
-            log.error("[FhirDiagnosticReportService] Error fetching DiagnosticReport by UUID (org={}, clientId={}, url={}, uuid={})",
-                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
-                    openEmrConfig != null ? openEmrConfig.getClientId() : null,
+            log.error("[FhirDiagnosticReportService] Error fetching DiagnosticReport by UUID (clientId={}, url={}, uuid={})",
+                    fhirConfig != null ? fhirConfig.getClientId() : null,
                     url, uuid, e);
             throw new RuntimeException("Failed to fetch DiagnosticReport by UUID", e);
         }
     }
 
-    // Create DiagnosticReport in FHIR (OpenEMR)
+    // Create DiagnosticReport in FHIR
     public ApiResponse<DiagnosticReport> createDiagnosticReport(DiagnosticReport report) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/DiagnosticReport";
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/DiagnosticReport";
 
             IParser parser = fhirContext.newJsonParser();
             String reportJson = parser.encodeResourceToString(report);
 
-            log.info("[FhirDiagnosticReportService] Creating DiagnosticReport for org={}, clientId={}, url={}",
-                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url);
+            log.info("[FhirDiagnosticReportService] Creating DiagnosticReport for clientId={}, url={}",
+                    fhirConfig.getClientId(), url);
 
             String response = restClient
                     .post()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(reportJson)
                     .retrieve()
@@ -140,9 +138,8 @@ public class FhirDiagnosticReportService {
                     .data(createdReport)
                     .build();
         } catch (Exception e) {
-            log.error("[FhirDiagnosticReportService] Error creating DiagnosticReport (org={}, clientId={}, url={})",
-                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
-                    openEmrConfig != null ? openEmrConfig.getClientId() : null,
+            log.error("[FhirDiagnosticReportService] Error creating DiagnosticReport (clientId={}, url={})",
+                    fhirConfig != null ? fhirConfig.getClientId() : null,
                     url, e);
             return ApiResponse.<DiagnosticReport>builder()
                     .success(false)

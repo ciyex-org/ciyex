@@ -50,11 +50,12 @@ public class AuthController {
                 Map<String, Object> responseData = new HashMap<>();
                 responseData.put("token", token);
                 responseData.put("userId", user.getId());
-                responseData.put("fullName", user.getFullName());
+                responseData.put("firstName", user.getFirstName());
+                responseData.put("LastName", user.getLastName());
+                responseData.put("uuid", user.getUuid());
                 responseData.put("email", user.getEmail());
                 responseData.put("orgs", jwtTokenUtil.getOrgsFromToken(token));
                 responseData.put("orgIds", jwtTokenUtil.getOrgIdsFromToken(token));
-                responseData.put("facilityIds", jwtTokenUtil.getFacilityIdsFromToken(token));
 
                 return ResponseEntity.ok(
                         ApiResponse.<Map<String, Object>>builder()
@@ -95,22 +96,20 @@ public class AuthController {
     }
 
 
-    // REGISTER (assign to a facility with a role)
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<User>> register(
             @RequestBody User user,
-            @RequestParam Long facilityId,
-            @RequestParam RoleName role
+            @RequestParam Long orgId
     ) {
         try {
             user.setPassword(passwordEncoder.encode(user.getPassword()));
-            User savedUser = ciyexUserDetailsService.assignUserToFacility(user, facilityId, role);
-            log.info("User registered successfully with email/facility: " + savedUser.getEmail() + "/" + facilityId);
+            User savedUser = ciyexUserDetailsService.assignUserToOrg(user, orgId, RoleName.PATIENT);
+            log.info("User registered successfully with email/org: " + savedUser.getEmail() + "/" + orgId);
             savedUser.setPassword(null);
             return ResponseEntity.ok(
                     ApiResponse.<User>builder()
                             .success(true)
-                            .message("User registered and assigned to facility.")
+                            .message("User registered and assigned to org.")
                             .data(savedUser)
                             .build()
             );
@@ -125,6 +124,7 @@ public class AuthController {
             );
         }
     }
+
 
     @GetMapping("/encode-password/{rawPassword}")
     public ResponseEntity<ApiResponse<String>> encodePassword(@PathVariable String rawPassword) {
@@ -240,7 +240,10 @@ public class AuthController {
                 existingUser.setPassword(passwordEncoder.encode(user.getPassword()));
             }
 
-            existingUser.setFullName(user.getFullName());
+            existingUser.setFirstName(user.getFirstName());
+            existingUser.setMiddleName(user.getMiddleName());
+            existingUser.setLastName(user.getLastName());
+            existingUser.setUuid(user.getUuid());
             existingUser.setPhoneNumber(user.getPhoneNumber());
             existingUser.setCity(user.getCity());
             existingUser.setState(user.getState());

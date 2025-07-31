@@ -4,7 +4,7 @@ import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,9 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
+
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -27,150 +25,166 @@ import java.util.stream.Collectors;
 public class FhirPatientService {
 
     private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final FhirContext fhirContext = FhirContext.forR4();
 
-    private String getBaseUrl() {
-        OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-        return openEmrConfig.getApiUrl();
-    }
+    // ----------- PATIENT METHODS -----------
 
-    // 1. Get All Patients (with optional query filters)
     public Bundle getPatients(Map<String, String> queryParams) {
+        String url = null;
         try {
-            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(getBaseUrl() + "/fhir/Patient");
-            queryParams.forEach(builder::queryParam);
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(fhirConfig.getApiUrl() + "/Patient");
+            queryParams.forEach((key, value) -> {
+                if (value != null && !value.isEmpty()) builder.queryParam(key, value);
+            });
+
+            url = builder.build(true).toUriString();
+            log.info("[FhirPatientService] Fetching patients from URL: {}", url);
 
             String responseBody = restClient
                     .get()
-                    .uri(builder.build(true).toUriString())
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .uri(url)
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
 
-            return fhirContext.newJsonParser().parseResource(Bundle.class, responseBody);
+            log.debug("[FhirPatientService] Patients response: {}", responseBody);
+
+            IParser parser = fhirContext.newJsonParser();
+            return parser.parseResource(Bundle.class, responseBody);
         } catch (Exception e) {
-            log.error("Failed to fetch patients: {}", e.getMessage(), e);
+            log.error("[FhirPatientService] Failed to fetch patients from URL: {}. Error: {}", url, e.getMessage(), e);
             throw new RuntimeException("Failed to fetch patients", e);
         }
     }
 
-    public Bundle getAllPatients() {
-        return getPatients(Map.of());
-    }
-
-    // 2. Simplified Patient List for frontend UI
-    public List<Map<String, String>> getSimplifiedPatients() {
-        Bundle bundle = getAllPatients();
-        return bundle.getEntry().stream()
-                .map(entry -> {
-                    Patient p = (Patient) entry.getResource();
-                    Map<String, String> m = new HashMap<>();
-                    m.put("id", p.getIdElement().getIdPart());
-                    m.put("name", p.getName().isEmpty() ? "Unnamed" : p.getName().get(0).getNameAsSingleString());
-                    m.put("birthDate", p.getBirthDate() != null ? p.getBirthDate().toString() : "");
-                    m.put("gender", p.getGender() != null ? p.getGender().toCode() : "unknown");
-                    return m;
-                }).toList();
-    }
-
-    // 3. Get Patient by UUID
     public Patient getPatientByUuid(String uuid) {
+        String url = null;
         try {
-            String url = getBaseUrl() + "/fhir/Patient/" + uuid;
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Patient/" + uuid;
+
+            log.info("[FhirPatientService] Fetching patient by UUID {} from URL: {}", uuid, url);
 
             String responseBody = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
 
-            return fhirContext.newJsonParser().parseResource(Patient.class, responseBody);
-        } catch (Exception e) {
-            log.error("Failed to fetch patient UUID {}: {}", uuid, e.getMessage(), e);
-            throw new RuntimeException("Failed to fetch patient", e);
-        }
-    }
-
-    // 4. Create Patient
-    public Patient createPatient(Patient patientResource) {
-        String url = null;
-        try {
-            OpenEmrConfig openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Patient";
-
-            // 🔐 Log token being used
-            String token = openEmrAuthService.getCachedAccessToken();
-            String responseBody = null;
-            log.debug("FHIR response body: {}", responseBody);
-
+            log.debug("[FhirPatientService] Patient response: {}", responseBody);
 
             IParser parser = fhirContext.newJsonParser();
-            String patientJson = parser.encodeResourceToString(patientResource);
-
-            responseBody = restClient
-                    .post()
-                    .uri(url)
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(patientJson)
-                    .retrieve()
-                    .body(String.class);
-
             return parser.parseResource(Patient.class, responseBody);
         } catch (Exception e) {
-            log.error("❌ Failed to create patient: {}", e.getMessage(), e);
+            log.error("[FhirPatientService] Failed to fetch patient UUID {} from URL: {}. Error: {}", uuid, url, e.getMessage(), e);
             throw new RuntimeException(e);
         }
     }
 
-
-    // 5. Update Patient
-    public Patient updatePatient(String uuid, Patient patientResource) {
+    public Patient createPatient(Patient patientResource) {
+        String url = null;
         try {
-            String url = getBaseUrl() + "/fhir/Patient/" + uuid;
-            String patientJson = fhirContext.newJsonParser().encodeResourceToString(patientResource);
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Patient";
+
+            IParser parser = fhirContext.newJsonParser();
+            String patientJson = parser.encodeResourceToString(patientResource);
+
+            log.info("[FhirPatientService] Creating patient at URL: {}", url);
+            log.debug("[FhirPatientService] Patient payload: {}", patientJson);
 
             String responseBody = restClient
-                    .method(HttpMethod.PUT)
+                    .post()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(patientJson)
                     .retrieve()
                     .body(String.class);
 
-            return fhirContext.newJsonParser().parseResource(Patient.class, responseBody);
+            log.debug("[FhirPatientService] Patient creation response: {}", responseBody);
+
+            return parser.parseResource(Patient.class, responseBody);
         } catch (Exception e) {
-            log.error("Failed to update patient: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to update patient", e);
+            log.error("[FhirPatientService] Failed to create patient at URL: {}. Error: {}", url, e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
-    // 6. Save Vitals
-    public ApiResponse<Observation> saveVitalSigns(Observation vitalsResource) {
+    public Patient updatePatient(String uuid, Patient patientResource) {
+        String url = null;
         try {
-            String url = getBaseUrl() + "/fhir/VitalSigns";
-            String vitalsJson = fhirContext.newJsonParser().encodeResourceToString(vitalsResource);
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Patient/" + uuid;
+
+            IParser parser = fhirContext.newJsonParser();
+            String patientJson = parser.encodeResourceToString(patientResource);
+
+            log.info("[FhirPatientService] Updating patient UUID {} at URL: {}", uuid, url);
+            log.debug("[FhirPatientService] Patient update payload: {}", patientJson);
+
+            String responseBody = restClient
+                    .method(HttpMethod.PUT)
+                    .uri(url)
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(patientJson)
+                    .retrieve()
+                    .body(String.class);
+
+            log.debug("[FhirPatientService] Patient update response: {}", responseBody);
+
+            return parser.parseResource(Patient.class, responseBody);
+        } catch (Exception e) {
+            log.error("[FhirPatientService] Failed to update patient UUID {} at URL: {}. Error: {}", uuid, url, e.getMessage(), e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    // ----------- PAYMENT METHODS (FHIR PaymentReconciliation) -----------
+
+    public ApiResponse<PaymentReconciliation> createPayment(PaymentReconciliation paymentResource) {
+        String url = null;
+        try {
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/PaymentReconciliation";
+
+            IParser parser = fhirContext.newJsonParser();
+            String paymentJson = parser.encodeResourceToString(paymentResource);
+
+            log.info("[FhirPatientService] Creating payment at URL: {}", url);
+            log.debug("[FhirPatientService] Payment payload: {}", paymentJson);
 
             String responseBody = restClient
                     .post()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(vitalsJson)
+                    .body(paymentJson)
                     .retrieve()
                     .body(String.class);
 
-            Observation saved = fhirContext.newJsonParser().parseResource(Observation.class, responseBody);
-            return ApiResponse.<Observation>builder().success(true).data(saved).build();
+            PaymentReconciliation createdPayment = parser.parseResource(PaymentReconciliation.class, responseBody);
+
+            log.debug("[FhirPatientService] Payment creation response: {}", responseBody);
+
+            return ApiResponse.<PaymentReconciliation>builder()
+                    .success(true)
+                    .message("Payment recorded successfully!")
+                    .data(createdPayment)
+                    .build();
         } catch (Exception e) {
-            log.error("Failed to save vitals: {}", e.getMessage(), e);
-            return ApiResponse.<Observation>builder().success(false).message(e.getMessage()).build();
+            log.error("[FhirPatientService] Failed to create payment at URL: {}. Error: {}", url, e.getMessage(), e);
+            return ApiResponse.<PaymentReconciliation>builder()
+                    .success(false)
+                    .message("Failed to record payment: " + e.getMessage())
+                    .build();
         }
     }
     public List<Patient> getRecentPatients(int limit) {
@@ -184,49 +198,85 @@ public class FhirPatientService {
     }
 
 
-    // 7. Create Bill
+    // ----------- BILL METHODS (FHIR Invoice) -----------
+
     public ApiResponse<Invoice> createPatientBill(Invoice billResource) {
+        String url = null;
         try {
-            String url = getBaseUrl() + "/fhir/PatientBill";
-            String billJson = fhirContext.newJsonParser().encodeResourceToString(billResource);
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Invoice";
+
+            IParser parser = fhirContext.newJsonParser();
+            String billJson = parser.encodeResourceToString(billResource);
+
+            log.info("[FhirPatientService] Creating patient bill at URL: {}", url);
+            log.debug("[FhirPatientService] Bill payload: {}", billJson);
 
             String responseBody = restClient
                     .post()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(billJson)
                     .retrieve()
                     .body(String.class);
 
-            Invoice created = fhirContext.newJsonParser().parseResource(Invoice.class, responseBody);
-            return ApiResponse.<Invoice>builder().success(true).data(created).build();
+            Invoice createdBill = parser.parseResource(Invoice.class, responseBody);
+
+            log.debug("[FhirPatientService] Patient bill creation response: {}", responseBody);
+
+            return ApiResponse.<Invoice>builder()
+                    .success(true)
+                    .message("Bill created successfully!")
+                    .data(createdBill)
+                    .build();
         } catch (Exception e) {
-            log.error("Failed to create bill: {}", e.getMessage(), e);
-            return ApiResponse.<Invoice>builder().success(false).message(e.getMessage()).build();
+            log.error("[FhirPatientService] Failed to create patient bill at URL: {}. Error: {}", url, e.getMessage(), e);
+            return ApiResponse.<Invoice>builder()
+                    .success(false)
+                    .message("Failed to create bill: " + e.getMessage())
+                    .build();
         }
     }
 
-    // 8. Record Payment
-    public ApiResponse<PaymentReconciliation> createPayment(PaymentReconciliation paymentResource) {
+    // ----------- VITAL SIGNS METHODS (FHIR Observation) -----------
+
+    public ApiResponse<Observation> saveVitalSigns(Observation vitalsResource) {
+        String url = null;
         try {
-            String url = getBaseUrl() + "/fhir/Payment";
-            String paymentJson = fhirContext.newJsonParser().encodeResourceToString(paymentResource);
+            FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Observation";
+
+            IParser parser = fhirContext.newJsonParser();
+            String vitalsJson = parser.encodeResourceToString(vitalsResource);
+
+            log.info("[FhirPatientService] Saving vital signs at URL: {}", url);
+            log.debug("[FhirPatientService] Vital signs payload: {}", vitalsJson);
 
             String responseBody = restClient
                     .post()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(paymentJson)
+                    .body(vitalsJson)
                     .retrieve()
                     .body(String.class);
 
-            PaymentReconciliation saved = fhirContext.newJsonParser().parseResource(PaymentReconciliation.class, responseBody);
-            return ApiResponse.<PaymentReconciliation>builder().success(true).data(saved).build();
+            Observation savedVitals = parser.parseResource(Observation.class, responseBody);
+
+            log.debug("[FhirPatientService] Vital signs save response: {}", responseBody);
+
+            return ApiResponse.<Observation>builder()
+                    .success(true)
+                    .message("Vital signs saved successfully!")
+                    .data(savedVitals)
+                    .build();
         } catch (Exception e) {
-            log.error("Failed to create payment: {}", e.getMessage(), e);
-            return ApiResponse.<PaymentReconciliation>builder().success(false).message(e.getMessage()).build();
+            log.error("[FhirPatientService] Failed to save vital signs at URL: {}. Error: {}", url, e.getMessage(), e);
+            return ApiResponse.<Observation>builder()
+                    .success(false)
+                    .message("Failed to save vital signs: " + e.getMessage())
+                    .build();
         }
     }
 }

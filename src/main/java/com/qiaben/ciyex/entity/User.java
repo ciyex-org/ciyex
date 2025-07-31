@@ -1,10 +1,13 @@
 package com.qiaben.ciyex.entity;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 @Entity
 @Table(name = "users")
@@ -19,11 +22,14 @@ public class User {
     @EqualsAndHashCode.Include
     private Long id;
 
+    private UUID uuid;
+
     @Column(nullable = false)
     private String password;
 
-    @Column(name = "full_name")
-    private String fullName;
+    private String firstName;
+    private String lastName;
+    private String middleName;
 
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
@@ -39,6 +45,8 @@ public class User {
 
     @Column(name = "street")
     private String street;
+
+    private String street2;
 
     @Column(name = "city")
     private String city;
@@ -59,6 +67,7 @@ public class User {
     private String securityAnswer;
 
     @Builder.Default
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-    private Set<UserFacilityRole> userFacilityRoles = new HashSet<>();
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @JsonManagedReference("user-userOrgRoles")
+    private Set<UserOrgRole> userOrgRoles = new HashSet<>();
 }

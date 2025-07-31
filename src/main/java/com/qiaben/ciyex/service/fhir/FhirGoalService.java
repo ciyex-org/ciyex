@@ -3,7 +3,7 @@ package com.qiaben.ciyex.service.fhir;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,17 +21,17 @@ import java.util.Map;
 public class FhirGoalService {
 
     private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final FhirContext fhirContext = FhirContext.forR4();
 
     // Fetch all Goal resources as a FHIR Bundle (collection)
     public Bundle getGoals(Map<String, String> queryParams) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            String baseUrl = openEmrConfig.getApiUrl() + "/fhir/Goal";
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            String baseUrl = fhirConfig.getApiUrl() + "/Goal";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
 
             queryParams.forEach((key, value) -> {
@@ -41,13 +41,13 @@ public class FhirGoalService {
             });
 
             url = builder.build(true).toUri().toString();
-            log.info("[FhirGoalService] Fetching FHIR Goal Bundle for org: {}, clientId: {}, url: {}, params: {}",
-                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, queryParams);
+            log.info("[FhirGoalService] Fetching FHIR Goal Bundle for clientId: {}, url: {}, params: {}",
+                    fhirConfig.getClientId(), url, queryParams);
 
             String responseBody = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(org.springframework.http.MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -56,8 +56,7 @@ public class FhirGoalService {
             IParser parser = fhirContext.newJsonParser();
             return parser.parseResource(Bundle.class, responseBody);
         } catch (Exception e) {
-            log.error("[FhirGoalService] Error fetching FHIR Goal Bundle for org: {}, url: {}, params: {}, message: {}",
-                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
+            log.error("[FhirGoalService] Error fetching FHIR Goal Bundle for url: {}, params: {}, message: {}",
                     url, queryParams, e.getMessage(), e);
             throw new RuntimeException("Failed to fetch goals", e);
         }
@@ -65,19 +64,19 @@ public class FhirGoalService {
 
     // Fetch a single Goal by UUID
     public Goal getGoalByUuid(String uuid) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Goal/" + uuid;
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Goal/" + uuid;
 
-            log.info("[FhirGoalService] Fetching FHIR Goal by UUID for org: {}, clientId: {}, url: {}, uuid: {}",
-                    openEmrConfig.getAudience(), openEmrConfig.getClientId(), url, uuid);
+            log.info("[FhirGoalService] Fetching FHIR Goal by UUID for clientId: {}, url: {}, uuid: {}",
+                    fhirConfig.getClientId(), url, uuid);
 
             String responseBody = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(org.springframework.http.MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -86,8 +85,7 @@ public class FhirGoalService {
             IParser parser = fhirContext.newJsonParser();
             return parser.parseResource(Goal.class, responseBody);
         } catch (Exception e) {
-            log.error("[FhirGoalService] Error fetching FHIR Goal by UUID for org: {}, url: {}, uuid: {}, message: {}",
-                    openEmrConfig != null ? openEmrConfig.getAudience() : null,
+            log.error("[FhirGoalService] Error fetching FHIR Goal by UUID for url: {}, uuid: {}, message: {}",
                     url, uuid, e.getMessage(), e);
             throw new RuntimeException("Failed to fetch Goal by UUID", e);
         }

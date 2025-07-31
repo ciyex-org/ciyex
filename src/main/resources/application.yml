@@ -2,16 +2,16 @@ spring:
   application:
     name: ciyex
   datasource:
-    url: jdbc:mysql://localhost:3306/ciyexdb?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC
-    username: root
-    password: root
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:postgresql://localhost:5432/ciyexdb
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
     properties:
-      hibernate.dialect: org.hibernate.dialect.MySQLDialect
+      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
 
 jwt:
   secret: Um7I76bdvjLLGMWPPYYZr4jYXSNKpHOtIQS8Ktg8C4w=

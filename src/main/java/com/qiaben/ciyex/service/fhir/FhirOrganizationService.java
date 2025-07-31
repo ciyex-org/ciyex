@@ -3,7 +3,7 @@ package com.qiaben.ciyex.service.fhir;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +21,7 @@ public class FhirOrganizationService {
 
     private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final FhirContext fhirContext = FhirContext.forR4();
 
     public Bundle getOrganizations(
@@ -29,11 +29,11 @@ public class FhirOrganizationService {
             String phone, String telecom, String address, String addressCity,
             String addressPostalCode, String addressState
     ) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(openEmrConfig.getApiUrl() + "/fhir/Organization")
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(fhirConfig.getApiUrl() + "/Organization")
                     .queryParam("_id", _id)
                     .queryParam("_lastUpdated", _lastUpdated)
                     .queryParam("name", name)
@@ -50,7 +50,7 @@ public class FhirOrganizationService {
 
             String response = restClient.get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -66,11 +66,11 @@ public class FhirOrganizationService {
     }
 
     public Organization postOrganization(Organization organization) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Organization";
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Organization";
 
             IParser parser = fhirContext.newJsonParser();
             String orgJson = parser.encodeResourceToString(organization);
@@ -80,7 +80,7 @@ public class FhirOrganizationService {
 
             String response = restClient.post()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(orgJson)
                     .retrieve()
@@ -96,17 +96,17 @@ public class FhirOrganizationService {
     }
 
     public Organization getOrganizationByUuid(String uuid) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Organization/" + uuid;
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Organization/" + uuid;
 
             log.info("[FhirOrganizationService] Fetching organization by UUID {} from URL: {}", uuid, url);
 
             String response = restClient.get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
@@ -122,11 +122,11 @@ public class FhirOrganizationService {
     }
 
     public Organization updateOrganization(String uuid, Organization updatedOrganization) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/Organization/" + uuid;
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/Organization/" + uuid;
 
             IParser parser = fhirContext.newJsonParser();
             String orgJson = parser.encodeResourceToString(updatedOrganization);
@@ -136,7 +136,7 @@ public class FhirOrganizationService {
 
             String response = restClient.put()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(orgJson)
                     .retrieve()

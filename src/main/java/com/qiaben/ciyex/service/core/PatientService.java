@@ -3,14 +3,12 @@ package com.qiaben.ciyex.service.core;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.service.fhir.FhirDiagnosticReportService;
 import com.qiaben.ciyex.service.fhir.FhirPatientService;
-import com.qiaben.ciyex.service.fhir.OpenEmrAuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.List;
+
 import java.util.Map;
 
 @Service
@@ -20,22 +18,21 @@ public class PatientService {
 
     private final FhirPatientService fhirPatientService;
     private final FhirDiagnosticReportService diagnosticReportService;
-    private final OpenEmrAuthService openEmrAuthService;
 
-    // ✅ Fetch patient by UUID
     public ApiResponse<Patient> getPatientById(String patientId) {
         log.info("Fetching patient by ID: {}", patientId);
         try {
             Patient patient = fhirPatientService.getPatientByUuid(patientId);
+            log.info("Successfully fetched patient: {}", patient.getIdElement().getIdPart());
             return ApiResponse.<Patient>builder()
                     .success(true)
                     .data(patient)
                     .build();
         } catch (Exception e) {
-            log.error("Failed to fetch patient with ID {}: {}", patientId, e.getMessage());
+            log.error("Failed to fetch patient with ID {}: {}", patientId, e.getMessage(), e);
             return ApiResponse.<Patient>builder()
                     .success(false)
-                    .message("Invalid or missing patient UUID")
+                    .message("Failed to fetch patient: " + e.getMessage())
                     .build();
         }
     }
@@ -83,101 +80,81 @@ public class PatientService {
     }
 
 
-    // ✅ Register a new patient
     public ApiResponse<Patient> registerPatient(Patient patient) {
+        log.info("Registering new patient with identifier: {}", patient.getIdentifierFirstRep().getValue());
         try {
-            Patient created = fhirPatientService.createPatient(patient);
+            Patient createdPatient = fhirPatientService.createPatient(patient);
+            log.info("Patient registered successfully with ID: {}", createdPatient.getIdElement().getIdPart());
             return ApiResponse.<Patient>builder()
                     .success(true)
-                    .message("Patient registered successfully")
-                    .data(created)
+                    .message("Patient registered successfully!")
+                    .data(createdPatient)
                     .build();
         } catch (Exception e) {
-            log.error("Registration failed: {}", e.getMessage());
+            log.error("Failed to register patient: {}", e.getMessage(), e);
             return ApiResponse.<Patient>builder()
                     .success(false)
-                    .message("Registration failed: " + e.getMessage())
+                    .message("Failed to register patient: " + e.getMessage())
                     .build();
         }
     }
 
-    // ✅ Save diagnostic report
-    public ApiResponse<DiagnosticReport> saveDiagnosis(DiagnosticReport report) {
-        ApiResponse<DiagnosticReport> res = diagnosticReportService.createDiagnosticReport(report);
-        if (!res.isSuccess()) log.error("Diagnosis save failed: {}", res.getMessage());
-        return res;
+    public ApiResponse<DiagnosticReport> saveDiagnosis(DiagnosticReport diagnosis) {
+        log.info("Saving diagnostic report for patient: {}", diagnosis.getSubject().getReference());
+        ApiResponse<DiagnosticReport> response = diagnosticReportService.createDiagnosticReport(diagnosis);
+        if (response.isSuccess()) {
+            log.info("Diagnostic report saved successfully with ID: {}", response.getData().getIdElement().getIdPart());
+        } else {
+            log.error("Failed to save diagnostic report: {}", response.getMessage());
+        }
+        return response;
     }
 
-    // ✅ Save vital signs
     public ApiResponse<Observation> saveVitalSigns(Observation vitals) {
-        ApiResponse<Observation> res = fhirPatientService.saveVitalSigns(vitals);
-        if (!res.isSuccess()) log.error("Vital signs save failed: {}", res.getMessage());
-        return res;
+        log.info("Saving vital signs for patient: {}", vitals.getSubject().getReference());
+        ApiResponse<Observation> response = fhirPatientService.saveVitalSigns(vitals);
+        if (response.isSuccess()) {
+            log.info("Vital signs saved successfully with ID: {}", response.getData().getIdElement().getIdPart());
+        } else {
+            log.error("Failed to save vital signs: {}", response.getMessage());
+        }
+        return response;
     }
 
-    // ✅ Create payment
     public ApiResponse<PaymentReconciliation> createPayment(PaymentReconciliation payment) {
-        ApiResponse<PaymentReconciliation> res = fhirPatientService.createPayment(payment);
-        if (!res.isSuccess()) log.error("Payment failed: {}", res.getMessage());
-        return res;
+        //log.info("Creating payment for patient: {}", payment.getPatient().getReference());
+        ApiResponse<PaymentReconciliation> response = fhirPatientService.createPayment(payment);
+        if (response.isSuccess()) {
+            log.info("Payment created successfully with ID: {}", response.getData().getIdElement().getIdPart());
+        } else {
+            log.error("Failed to create payment: {}", response.getMessage());
+        }
+        return response;
     }
 
-    // ✅ Create bill
     public ApiResponse<Invoice> createBill(Invoice bill) {
-        ApiResponse<Invoice> res = fhirPatientService.createPatientBill(bill);
-        if (!res.isSuccess()) log.error("Bill creation failed: {}", res.getMessage());
-        return res;
+        log.info("Creating bill for patient: {}", bill.getSubject().getReference());
+        ApiResponse<Invoice> response = fhirPatientService.createPatientBill(bill);
+        if (response.isSuccess()) {
+            log.info("Bill created successfully with ID: {}", response.getData().getIdElement().getIdPart());
+        } else {
+            log.error("Failed to create bill: {}", response.getMessage());
+        }
+        return response;
     }
 
-    // ✅ Get all raw FHIR patients (Bundle)
     public ApiResponse<Bundle> getAllPatients(Map<String, String> queryParams) {
         try {
-            Bundle bundle = fhirPatientService.getPatients(queryParams);
+            Bundle patientsBundle = fhirPatientService.getPatients(queryParams);
             return ApiResponse.<Bundle>builder()
                     .success(true)
-                    .data(bundle)
+                    .data(patientsBundle)
                     .build();
         } catch (Exception e) {
-            log.error("Error fetching patients: {}", e.getMessage());
+            log.error("Failed to fetch patients: {}", e.getMessage(), e);
             return ApiResponse.<Bundle>builder()
                     .success(false)
-                    .message("Fetch error: " + e.getMessage())
-                    .build();
-        }
-    }
-
-    // ✅ Simplified List
-    public ApiResponse<List<Map<String, String>>> getSimplifiedPatientList() {
-        try {
-            List<Map<String, String>> list = fhirPatientService.getSimplifiedPatients();
-            return ApiResponse.<List<Map<String, String>>>builder()
-                    .success(true)
-                    .message("Simplified patient list fetched")
-                    .data(list)
-                    .build();
-        } catch (Exception e) {
-            log.error("Failed to fetch simplified list: {}", e.getMessage());
-            return ApiResponse.<List<Map<String, String>>>builder()
-                    .success(false)
-                    .message("Fetch failed: " + e.getMessage())
-                    .build();
-        }
-    }
-
-    // ✅ Count total patients
-    public ApiResponse<Integer> getPatientCount() {
-        try {
-            int count = fhirPatientService.getAllPatients().getEntry().size();
-            return ApiResponse.<Integer>builder()
-                    .success(true)
-                    .message("Patient count retrieved")
-                    .data(count)
-                    .build();
-        } catch (Exception e) {
-            log.error("Count failed: {}", e.getMessage());
-            return ApiResponse.<Integer>builder()
-                    .success(false)
-                    .message("Count fetch error: " + e.getMessage())
+                    .message("Failed to fetch patients: " + e.getMessage())
                     .build();
         }
 

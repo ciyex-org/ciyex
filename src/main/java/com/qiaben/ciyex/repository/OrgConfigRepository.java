@@ -8,4 +8,3 @@ import java.util.Optional;
 public interface OrgConfigRepository extends JpaRepository<OrgConfig, Long> {
     Optional<OrgConfig> findByOrgId(Long orgId);
 }
-

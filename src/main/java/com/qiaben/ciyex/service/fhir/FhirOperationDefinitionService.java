@@ -1,7 +1,7 @@
 package com.qiaben.ciyex.service.fhir;
 
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.OpenEmrConfig;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,25 +16,25 @@ import org.springframework.web.client.RestClient;
 public class FhirOperationDefinitionService {
 
     private final RestClient restClient;
-    private final OpenEmrAuthService openEmrAuthService;
+    private final FhirAuthService fhirAuthService;
     private final OrgIntegrationConfigProvider integrationConfigProvider;
 
     /**
      * Fetch all FHIR OperationDefinition resources (returns a Bundle).
      */
     public ResponseEntity<Object> getAllOperationDefinitions() {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/OperationDefinition";
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/OperationDefinition";
 
-            log.info("[FhirOperationDefinitionService] Fetching all OperationDefinitions from URL: {} for org: {}", url, openEmrConfig.getAudience());
+            log.info("[FhirOperationDefinitionService] Fetching all OperationDefinitions from URL: {}", url);
 
             Object response = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(Object.class);
@@ -43,7 +43,7 @@ public class FhirOperationDefinitionService {
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("[FhirOperationDefinitionService] Failed to fetch all OperationDefinitions from URL: {} for org: {}. Error: {}", url, openEmrConfig != null ? openEmrConfig.getAudience() : null, e.getMessage(), e);
+            log.error("[FhirOperationDefinitionService] Failed to fetch all OperationDefinitions from URL: {}. Error: {}", url, e.getMessage(), e);
             throw new RuntimeException("Failed to fetch all OperationDefinitions", e);
         }
     }
@@ -53,18 +53,18 @@ public class FhirOperationDefinitionService {
      * @param operation The name or id of the OperationDefinition resource.
      */
     public ResponseEntity<Object> getOperationDefinitionByName(String operation) {
-        OpenEmrConfig openEmrConfig = null;
+        FhirConfig fhirConfig = null;
         String url = null;
         try {
-            openEmrConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.OPENEMR);
-            url = openEmrConfig.getApiUrl() + "/fhir/OperationDefinition/" + operation;
+            fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+            url = fhirConfig.getApiUrl() + "/OperationDefinition/" + operation;
 
-            log.info("[FhirOperationDefinitionService] Fetching OperationDefinition '{}' from URL: {} for org: {}", operation, url, openEmrConfig.getAudience());
+            log.info("[FhirOperationDefinitionService] Fetching OperationDefinition '{}' from URL: {}", operation, url);
 
             Object response = restClient
                     .get()
                     .uri(url)
-                    .header("Authorization", "Bearer " + openEmrAuthService.getCachedAccessToken())
+                    .header("Authorization", "Bearer " + fhirAuthService.getCachedAccessToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(Object.class);
@@ -73,7 +73,7 @@ public class FhirOperationDefinitionService {
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("[FhirOperationDefinitionService] Failed to fetch OperationDefinition '{}' from URL: {} for org: {}. Error: {}", operation, url, openEmrConfig != null ? openEmrConfig.getAudience() : null, e.getMessage(), e);
+            log.error("[FhirOperationDefinitionService] Failed to fetch OperationDefinition '{}' from URL: {}. Error: {}", operation, url, e.getMessage(), e);
             throw new RuntimeException("Failed to fetch OperationDefinition: " + operation, e);
         }
     }

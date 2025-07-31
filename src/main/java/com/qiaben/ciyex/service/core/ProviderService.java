@@ -2,7 +2,6 @@ package com.qiaben.ciyex.service.core;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.service.fhir.FhirProviderService;
-import com.qiaben.ciyex.service.fhir.OpenEmrAuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.Practitioner;
@@ -16,7 +15,6 @@ import java.util.List;
 public class ProviderService {
 
     private final FhirProviderService fhirProviderService;
-    private final OpenEmrAuthService openEmrAuthService;
 
     /**
      * Registers a provider (practitioner) in OpenEMR FHIR.
