@@ -1,16 +1,14 @@
 package com.qiaben.ciyex.service.core;
 
 import com.qiaben.ciyex.dto.ApiResponse;
-import com.qiaben.ciyex.service.fhir.FhirDiagnosticReportService;
-import com.qiaben.ciyex.service.fhir.FhirPatientService;
+import com.qiaben.ciyex.storage.fhir.FhirDiagnosticReportService;
+import com.qiaben.ciyex.storage.fhir.FhirPatientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Service

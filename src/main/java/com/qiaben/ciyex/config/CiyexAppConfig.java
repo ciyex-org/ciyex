@@ -7,6 +7,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
 import com.qiaben.ciyex.dto.core.integration.RequestContext;
+import com.qiaben.ciyex.storage.ExternalOrgStorage;
+import com.qiaben.ciyex.storage.NoOpExternalOrgStorage;
+import com.qiaben.ciyex.storage.fhir.FhirExternalOrgStorage;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -16,6 +19,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.util.Map;
 
 
 @Configuration
@@ -59,4 +63,17 @@ public class CiyexAppConfig {
         return mapper;
     }
 
+    @Bean
+    public FhirContext fhirContext() {
+        return FhirContext.forR4(); // Provide a shared FhirContext bean
+    }
+
+    @Bean
+    public Map<String, ExternalOrgStorage> storageImplementations(FhirExternalOrgStorage fhirExternalOrgStorage) {
+        return Map.of(
+                "fhir", fhirExternalOrgStorage,
+                "noOp", new NoOpExternalOrgStorage()
+                // Add more implementations, e.g., "practice_db", practiceDbExternalOrgStorage
+        );
+    }
 }

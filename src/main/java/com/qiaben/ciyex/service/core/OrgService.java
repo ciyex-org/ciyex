@@ -3,6 +3,8 @@ package com.qiaben.ciyex.service.core;
 import com.qiaben.ciyex.dto.core.OrgDto;
 import com.qiaben.ciyex.entity.Org;
 import com.qiaben.ciyex.repository.OrgRepository;
+import com.qiaben.ciyex.storage.ExternalOrgStorage;
+import com.qiaben.ciyex.storage.ExternalOrgStorageResolver;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
