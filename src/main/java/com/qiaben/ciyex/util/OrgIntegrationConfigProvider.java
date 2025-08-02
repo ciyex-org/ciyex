@@ -42,6 +42,33 @@ public class OrgIntegrationConfigProvider {
         return get(orgId, integrationKey);
     }
 
+    public String getStorageType(Long orgId) {
+        OrgConfig orgConfig = orgConfigRepository.findByOrgId(orgId)
+                .orElseThrow(() -> new RuntimeException("OrgConfig not found for orgId: " + orgId));
+        if (orgConfig.getIntegrations() == null) return null;
+        JsonNode integrations = orgConfig.getIntegrations();
+
+        // Check for explicit 'storage_type' field
+        if (integrations.has("storage_type")) {
+            return integrations.get("storage_type").asText(null);
+        }
+
+        // Infer based on present integration keys (prioritize FHIR, then PRACTICE_DB, etc.)
+        if (integrations.has(IntegrationKey.FHIR.key())) {
+            return "fhir";
+        } else if (integrations.has(IntegrationKey.PRACTICE_DB.key())) {
+            return "practice_db";
+        } // Add more inferences as needed for other potential storage types
+
+        return null; // No storage type detected
+    }
+
+    public String getStorageTypeForCurrentOrg() {
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        if (orgId == null) throw new IllegalStateException("No orgId in request context");
+        return getStorageType(orgId);
+    }
+
 }
 
 /*
@@ -54,4 +81,7 @@ public void someServiceMethod(Long orgId) {
     StripeConfig stripeConfig = integrationConfigProvider.get(orgId, IntegrationKey.STRIPE);
     TwilioConfig twilioConfig = integrationConfigProvider.get(orgId, IntegrationKey.TWILIO);
     // ...and so on
+
+    String storageType = integrationConfigProvider.getStorageType(orgId);
+    // Use storageType to resolve the appropriate ExternalOrgStorage
 }*/

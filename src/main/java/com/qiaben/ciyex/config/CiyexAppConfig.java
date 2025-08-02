@@ -1,11 +1,14 @@
 package com.qiaben.ciyex.config;
 
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.rest.client.api.IGenericClient;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
 import com.qiaben.ciyex.dto.core.integration.RequestContext;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.support.HttpRequestWrapper;

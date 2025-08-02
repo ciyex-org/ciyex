@@ -20,6 +20,9 @@ public class Org {
     @EqualsAndHashCode.Include
     private Long id;
 
+    @Column(name = "fhir_id")  // New field to store FHIR record ID
+    private String fhirId;
+
     @Column(name = "org_name", nullable = false, unique = true)
     private String orgName;
 
