@@ -22,7 +22,7 @@ public class FhirAppointmentService {
     private final OrgIntegrationConfigProvider integrationConfigProvider;
     private final FhirContext fhirContext = FhirContext.forR4();
     // Inject your FHIR AuthService here if you have one:
-    // private final FhirAuthService fhirAuthService;
+     private final FhirAuthService fhirAuthService;
 
     /** Get a list of appointments (as a Bundle) by patient and/or lastUpdated. */
     public Bundle getAppointments(String patientId, String lastUpdated) {
@@ -126,7 +126,7 @@ public class FhirAppointmentService {
     /** Helper for Bearer token */
     private String bearer() {
         // Replace with your own logic for FHIR access token retrieval!
-        // return "Bearer " + fhirAuthService.getCachedAccessToken();
-        throw new UnsupportedOperationException("Implement FHIR access token logic");
+        return "Bearer " + fhirAuthService.getCachedAccessToken();
+       // throw new UnsupportedOperationException("Implement FHIR access token logic");
     }
 }

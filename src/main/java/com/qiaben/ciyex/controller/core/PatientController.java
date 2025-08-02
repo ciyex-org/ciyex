@@ -3,6 +3,7 @@ package com.qiaben.ciyex.controller.core;
 import ca.uhn.fhir.context.FhirContext;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.service.core.PatientService;
+import com.qiaben.ciyex.service.fhir.FhirPatientService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.hl7.fhir.r4.model.*;
@@ -21,6 +22,7 @@ public class PatientController {
 
     private final PatientService patientService;
     private final FhirContext fhirContext = FhirContext.forR4();
+    private final FhirPatientService fhirPatientService;
 
     @GetMapping
     public ResponseEntity<String> getAllPatients(@RequestParam(required = false) Map<String, String> queryParams) {
@@ -71,6 +73,26 @@ public class PatientController {
     @GetMapping("/count")
     public ResponseEntity<ApiResponse<Integer>> getPatientCount() {
         return ResponseEntity.ok(patientService.getPatientCount());
+    }
+
+    @GetMapping("/list")
+    public ResponseEntity<?> getPatients() {
+        Bundle bundle = fhirPatientService.getAllPatients();
+
+        List<Map<String, String>> patients = bundle.getEntry().stream()
+                .map(entry -> {
+                    Patient patient = (Patient) entry.getResource();
+                    return Map.of(
+                            "id", String.valueOf(patient.getIdElement().getIdPart()),
+                            "fullName", patient.getName().isEmpty() ? "N/A" : patient.getName().get(0).getNameAsSingleString(),
+                            "homePhone", patient.getTelecom().isEmpty() ? "N/A" : patient.getTelecom().get(0).getValue(),
+                            "dob", patient.hasBirthDate() ? patient.getBirthDate().toString() : "N/A",
+                            "externalId", String.valueOf(patient.getIdElement().getIdPart())
+                    );
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(Map.of("patients", patients));
     }
 
 }

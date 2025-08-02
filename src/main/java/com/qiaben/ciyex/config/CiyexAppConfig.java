@@ -2,6 +2,7 @@ package com.qiaben.ciyex.config;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.qiaben.ciyex.dto.core.integration.FhirConfig;
 import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
 import com.qiaben.ciyex.dto.core.integration.RequestContext;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
@@ -21,7 +22,9 @@ public class CiyexAppConfig {
     public RestClient restClient(OrgIntegrationConfigProvider integrationConfigProvider) {
         return RestClient.builder()
                 .requestInterceptor((request, body, execution) -> {
-                    String fhirApiUrl = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+                    FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+                    String fhirApiUrl = fhirConfig.getApiUrl(); // this is the actual String you need
+
                     String reqUrl = request.getURI().toString();
                     if (reqUrl.startsWith(fhirApiUrl)) {
                         Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
