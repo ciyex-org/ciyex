@@ -68,13 +68,27 @@ public class CiyexUserDetailsService implements UserDetailsService {
     }
 
     public Optional<User> getUserByEmail(String email) {
-        Long orgId = getCurrentOrgId();
-        final Long finalOrgId = orgId;
-        Optional<User> user = userRepository.findByEmail(email)
-                .filter(u -> u.getUserOrgRoles().stream()
-                        .anyMatch(uor -> uor.getOrg().getId().equals(finalOrgId)));
-        user.ifPresent(value -> value.setPassword("<Hidden>"));
-        return user;
+        Optional<User> userOpt = userRepository.findByEmail(email);
+
+        if (userOpt.isEmpty()) return Optional.empty();
+
+        User user = userOpt.get();
+
+        // If orgId is present in context, filter user-org-role
+        RequestContext ctx = RequestContext.get();
+        Long orgId = (ctx != null) ? ctx.getOrgId() : null;
+
+        if (orgId != null) {
+            boolean belongsToOrg = user.getUserOrgRoles().stream()
+                    .anyMatch(uor -> uor.getOrg().getId().equals(orgId));
+
+            if (!belongsToOrg) {
+                return Optional.empty(); // deny access to user outside org
+            }
+        }
+
+        user.setPassword("<Hidden>");
+        return Optional.of(user);
     }
 
     @Transactional
