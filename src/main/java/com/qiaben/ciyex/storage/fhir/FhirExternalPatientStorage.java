@@ -1,0 +1,237 @@
+package com.qiaben.ciyex.storage.fhir;
+
+import ca.uhn.fhir.rest.client.api.IGenericClient;
+import ca.uhn.fhir.rest.client.exceptions.FhirClientConnectionException;
+import ca.uhn.fhir.rest.gclient.TokenClientParam;
+import com.qiaben.ciyex.dto.PatientDto;
+import com.qiaben.ciyex.dto.core.integration.RequestContext;
+import com.qiaben.ciyex.provider.FhirClientProvider;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.StorageType;
+import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.Bundle;
+import org.hl7.fhir.r4.model.HumanName;
+import org.hl7.fhir.r4.model.Patient;
+import org.hl7.fhir.r4.model.StringType;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@StorageType("fhir")
+@Component("fhirExternalPatientStorage")
+@Slf4j
+public class FhirExternalPatientStorage implements ExternalStorage<PatientDto> {
+
+    private final FhirClientProvider fhirClientProvider;
+    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
+
+    @Autowired
+    public FhirExternalPatientStorage(FhirClientProvider fhirClientProvider) {
+        this.fhirClientProvider = fhirClientProvider;
+        log.info("Initializing FhirExternalPatientStorage with FhirClientProvider");
+    }
+
+    @Override
+    public String create(PatientDto entityDto) {
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        log.info("Entering create for orgId: {}, patientName: {}", orgId, getPatientName(entityDto));
+        return executeWithRetry(() -> {
+            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            log.debug("Fetched IGenericClient for orgId: {}", orgId);
+            Patient fhirPatient = mapToFhirPatient(entityDto);
+            log.debug("Mapped PatientDto to FHIR Patient: name={}, mrn={}", fhirPatient.getNameFirstRep(), entityDto.getMedicalRecordNumber());
+            String externalId = client.create().resource(fhirPatient).execute().getId().getIdPart();
+            log.info("Created Patient with externalId: {} for orgId: {}", externalId, orgId);
+            return externalId;
+        });
+    }
+
+    @Override
+    public void update(PatientDto entityDto, String externalId) {
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        log.info("Entering update for orgId: {}, externalId: {}, patientName: {}", orgId, externalId, getPatientName(entityDto));
+        executeWithRetry(() -> {
+            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            log.debug("Fetched IGenericClient for orgId: {}", orgId);
+            Patient fhirPatient = mapToFhirPatient(entityDto);
+            fhirPatient.setId(externalId);
+            log.debug("Updating FHIR Patient with id: {}, name={}, mrn={}", externalId, fhirPatient.getNameFirstRep(), entityDto.getMedicalRecordNumber());
+            client.update().resource(fhirPatient).execute();
+            log.info("Updated Patient with externalId: {} for orgId: {}", externalId, orgId);
+            return null;
+        });
+    }
+
+    @Override
+    public PatientDto get(String externalId) {
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        log.info("Entering get for orgId: {}, externalId: {}", orgId, externalId);
+        return executeWithRetry(() -> {
+            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            log.debug("Fetched IGenericClient for orgId: {}", orgId);
+            Patient fhirPatient = client.read().resource(Patient.class).withId(externalId).execute();
+            log.debug("Retrieved FHIR Patient with id: {}, name={}", externalId, fhirPatient.getNameFirstRep());
+            PatientDto patientDto = mapFromFhirPatient(fhirPatient);
+            log.info("Retrieved PatientDto with externalId: {} for orgId: {}", externalId, orgId);
+            log.debug("Mapped PatientDto: externalId={}, name={}, mrn={}", patientDto.getExternalId(), getPatientName(patientDto), patientDto.getMedicalRecordNumber());
+            return patientDto;
+        });
+    }
+
+    @Override
+    public void delete(String externalId) {
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        log.info("Entering delete for orgId: {}, externalId: {}", orgId, externalId);
+        executeWithRetry(() -> {
+            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            log.debug("Fetched IGenericClient for orgId: {}", orgId);
+            log.info("Deleting Patient with externalId: {} for orgId: {}", externalId, orgId);
+            client.delete().resourceById("Patient", externalId).execute();
+            log.info("Deleted Patient with externalId: {} for orgId: {}", externalId, orgId);
+            return null;
+        });
+    }
+
+    @Override
+    public List<PatientDto> searchAll() {
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        log.info("Entering searchAll for orgId: {}", orgId);
+        if (orgId == null) {
+            log.warn("orgId is null in RequestContext, defaulting to no filtering");
+        }
+
+        Bundle bundle = fhirClientProvider.getForCurrentOrg().search()
+                .forResource(org.hl7.fhir.r4.model.Patient.class)
+                .where(new TokenClientParam("_tag").exactly().systemAndCode("http://ciyex.com/tenant", orgId != null ? orgId.toString() : ""))
+                .returnBundle(Bundle.class)
+                .execute();
+
+        log.debug("Received Bundle with {} entries for orgId: {}", bundle.getEntry().size(), orgId);
+        List<PatientDto> patientDtos = bundle.getEntry().stream()
+                .map(entry -> {
+                    Patient patient = (Patient) entry.getResource();
+                    log.debug("Processing Patient entry: id={}, name={}", patient.getIdElement().getIdPart(), patient.getNameFirstRep());
+                    PatientDto dto = new PatientDto();
+                    dto.setExternalId(patient.getIdElement().getIdPart());
+                    if (!patient.getName().isEmpty()) {
+                        HumanName name = patient.getNameFirstRep();
+                        dto.setFirstName(name.getGivenAsSingleString());
+                        dto.setLastName(name.getFamily());
+                        dto.setMiddleName(name.getGiven().size() > 1 ? name.getGiven().get(1).getValue() : null);
+                    }
+                    dto.setGender(patient.getGender() != null ? patient.getGender().getDisplay() : null);
+                    dto.setDateOfBirth(patient.getBirthDate() != null ? DATE_FORMAT.format(patient.getBirthDate()) : null);
+                    dto.setPhoneNumber(patient.getTelecom().stream()
+                            .filter(t -> t.getSystem() == org.hl7.fhir.r4.model.ContactPoint.ContactPointSystem.PHONE)
+                            .findFirst().map(org.hl7.fhir.r4.model.ContactPoint::getValue).orElse(null));
+                    dto.setEmail(patient.getTelecom().stream()
+                            .filter(t -> t.getSystem() == org.hl7.fhir.r4.model.ContactPoint.ContactPointSystem.EMAIL)
+                            .findFirst().map(org.hl7.fhir.r4.model.ContactPoint::getValue).orElse(null));
+                    dto.setAddress(patient.getAddressFirstRep().getLine().stream().findFirst().map(StringType::getValue).orElse(null));
+                    dto.setMedicalRecordNumber(patient.getIdentifierFirstRep().getValue());
+                    dto.setOrgId(orgId); // Set orgId from RequestContext
+                    log.debug("Mapped PatientDto: externalId={}, name={}, mrn={}", dto.getExternalId(), getPatientName(dto), dto.getMedicalRecordNumber());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+
+        log.info("Retrieved {} patients for orgId: {} after mapping", patientDtos.size(), orgId);
+        return patientDtos;
+    }
+
+    @Override
+    public boolean supports(Class<?> entityType) {
+        return PatientDto.class.isAssignableFrom(entityType);
+    }
+
+    private <T> T executeWithRetry(FhirOperation<T> operation) {
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        log.debug("Entering executeWithRetry for orgId: {}", orgId);
+        try {
+            T result = operation.execute();
+            log.debug("executeWithRetry succeeded for orgId: {}", orgId);
+            return result;
+        } catch (FhirClientConnectionException e) {
+            log.error("FhirClientConnectionException for orgId: {} with status: {}, message: {}", orgId, e.getStatusCode(), e.getMessage());
+            if (e.getStatusCode() == 401) {
+                log.warn("Received 401, retrying with fresh FHIR client for orgId: {}", orgId);
+                return operation.execute();
+            }
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected exception in executeWithRetry for orgId: {}, message: {}, stacktrace: {}", orgId, e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @FunctionalInterface
+    private interface FhirOperation<T> {
+        T execute();
+    }
+
+    private Patient mapToFhirPatient(PatientDto patientDto) {
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        log.debug("Mapping PatientDto to FHIR Patient for orgId: {}, name: {}, mrn: {}", orgId, getPatientName(patientDto), patientDto.getMedicalRecordNumber());
+        Patient fhirPatient = new Patient();
+        if (patientDto.getFirstName() != null || patientDto.getLastName() != null) {
+            HumanName name = new HumanName();
+            name.addGiven(patientDto.getFirstName()); // Use top-level fields
+            if (patientDto.getMiddleName() != null) name.addGiven(patientDto.getMiddleName());
+            if (patientDto.getLastName() != null) name.setFamily(patientDto.getLastName());
+            fhirPatient.setName(List.of(name));
+        }
+        if (patientDto.getGender() != null) fhirPatient.setGender(org.hl7.fhir.r4.model.Enumerations.AdministrativeGender.fromCode(patientDto.getGender()));
+        if (patientDto.getDateOfBirth() != null) {
+            try {
+                fhirPatient.setBirthDate(DATE_FORMAT.parse(patientDto.getDateOfBirth()));
+            } catch (Exception e) {
+                log.warn("Failed to parse dateOfBirth: {}, using null", patientDto.getDateOfBirth(), e);
+            }
+        }
+        if (patientDto.getPhoneNumber() != null) fhirPatient.addTelecom(new org.hl7.fhir.r4.model.ContactPoint().setSystem(org.hl7.fhir.r4.model.ContactPoint.ContactPointSystem.PHONE).setValue(patientDto.getPhoneNumber()));
+        if (patientDto.getEmail() != null) fhirPatient.addTelecom(new org.hl7.fhir.r4.model.ContactPoint().setSystem(org.hl7.fhir.r4.model.ContactPoint.ContactPointSystem.EMAIL).setValue(patientDto.getEmail()));
+        if (patientDto.getAddress() != null) {
+            org.hl7.fhir.r4.model.Address address = new org.hl7.fhir.r4.model.Address();
+            address.addLine(patientDto.getAddress());
+            fhirPatient.setAddress(List.of(address));
+        }
+        if (patientDto.getMedicalRecordNumber() != null) fhirPatient.addIdentifier().setValue(patientDto.getMedicalRecordNumber());
+        log.debug("Mapped FHIR Patient for orgId: {}, name: {}, mrn: {}", orgId, getPatientName(patientDto), patientDto.getMedicalRecordNumber());
+        return fhirPatient;
+    }
+
+    private PatientDto mapFromFhirPatient(Patient fhirPatient) {
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        log.debug("Mapping FHIR Patient to PatientDto for orgId: {}, id: {}, name: {}", orgId, fhirPatient.getIdElement().getIdPart(), fhirPatient.getNameFirstRep());
+        PatientDto dto = new PatientDto();
+        dto.setExternalId(fhirPatient.getIdElement().getIdPart());
+        if (!fhirPatient.getName().isEmpty()) {
+            HumanName name = fhirPatient.getNameFirstRep();
+            dto.setFirstName(name.getGivenAsSingleString());
+            dto.setLastName(name.getFamily());
+            dto.setMiddleName(name.getGiven().size() > 1 ? name.getGiven().get(1).getValue() : null);
+        }
+        dto.setGender(fhirPatient.getGender() != null ? fhirPatient.getGender().getDisplay() : null);
+        dto.setDateOfBirth(fhirPatient.getBirthDate() != null ? DATE_FORMAT.format(fhirPatient.getBirthDate()) : null);
+        dto.setPhoneNumber(fhirPatient.getTelecom().stream()
+                .filter(t -> t.getSystem() == org.hl7.fhir.r4.model.ContactPoint.ContactPointSystem.PHONE)
+                .findFirst().map(org.hl7.fhir.r4.model.ContactPoint::getValue).orElse(null));
+        dto.setEmail(fhirPatient.getTelecom().stream()
+                .filter(t -> t.getSystem() == org.hl7.fhir.r4.model.ContactPoint.ContactPointSystem.EMAIL)
+                .findFirst().map(org.hl7.fhir.r4.model.ContactPoint::getValue).orElse(null));
+        dto.setAddress(fhirPatient.getAddressFirstRep().getLine().stream().findFirst().map(StringType::getValue).orElse(null));
+        dto.setMedicalRecordNumber(fhirPatient.getIdentifierFirstRep().getValue());
+        dto.setOrgId(orgId); // Set orgId from RequestContext
+        log.debug("Mapped PatientDto for orgId: {}, externalId: {}, name: {}, mrn: {}", orgId, dto.getExternalId(), getPatientName(dto), dto.getMedicalRecordNumber());
+        return dto;
+    }
+
+    private String getPatientName(PatientDto patientDto) {
+        return (patientDto.getFirstName() != null ? patientDto.getFirstName() : "") + " " +
+                (patientDto.getLastName() != null ? patientDto.getLastName() : "");
+    }
+}
