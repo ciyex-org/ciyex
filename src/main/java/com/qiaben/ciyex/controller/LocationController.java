@@ -1,8 +1,8 @@
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
-import com.qiaben.ciyex.dto.core.LocationDto;
-import com.qiaben.ciyex.service.core.LocationService;
+import com.qiaben.ciyex.dto.LocationDto;
+import com.qiaben.ciyex.service.LocationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -38,17 +38,23 @@ public class LocationController {
         }
     }
 
-    @GetMapping("/{externalId}")
-    public ResponseEntity<ApiResponse<LocationDto>> get(@PathVariable String externalId) {
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<LocationDto>> get(@PathVariable Long id) {
         try {
-            LocationDto location = service.getById(externalId);
+            LocationDto location = service.getById(id);
+            if (location == null) {
+                return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
+                        .success(false)
+                        .message("Location not found with id: " + id)
+                        .build());
+            }
             return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
                     .success(true)
                     .message("Location retrieved successfully")
                     .data(location)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to retrieve location with externalId {}: {}", externalId, e.getMessage());
+            log.error("Failed to retrieve location with id {}: {}", id, e.getMessage());
             return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
                     .success(false)
                     .message("Failed to retrieve location: " + e.getMessage())
@@ -56,17 +62,23 @@ public class LocationController {
         }
     }
 
-    @PutMapping("/{externalId}")
-    public ResponseEntity<ApiResponse<LocationDto>> update(@PathVariable String externalId, @RequestBody LocationDto dto) {
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<LocationDto>> update(@PathVariable Long id, @RequestBody LocationDto dto) {
         try {
-            LocationDto updatedLocation = service.update(externalId, dto);
+            LocationDto updatedLocation = service.update(id, dto);
+            if (updatedLocation == null) {
+                return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
+                        .success(false)
+                        .message("Location not found with id: " + id)
+                        .build());
+            }
             return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
                     .success(true)
                     .message("Location updated successfully")
                     .data(updatedLocation)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to update location with externalId {}: {}", externalId, e.getMessage());
+            log.error("Failed to update location with id {}: {}", id, e.getMessage());
             return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
                     .success(false)
                     .message("Failed to update location: " + e.getMessage())
@@ -74,16 +86,16 @@ public class LocationController {
         }
     }
 
-    @DeleteMapping("/{externalId}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String externalId) {
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         try {
-            service.delete(externalId);
+            service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)
                     .message("Location deleted successfully")
                     .build());
         } catch (Exception e) {
-            log.error("Failed to delete location with externalId {}: {}", externalId, e.getMessage());
+            log.error("Failed to delete location with id {}: {}", id, e.getMessage());
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(false)
                     .message("Failed to delete location: " + e.getMessage())

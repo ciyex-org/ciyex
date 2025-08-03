@@ -1,8 +1,8 @@
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
-import com.qiaben.ciyex.dto.core.OrgDto;
-import com.qiaben.ciyex.service.core.OrgService;
+import com.qiaben.ciyex.dto.OrgDto;
+import com.qiaben.ciyex.service.OrgService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

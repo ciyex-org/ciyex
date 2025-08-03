@@ -1,4 +1,4 @@
-package com.qiaben.ciyex.service.core;
+package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.storage.fhir.FhirAppointmentService;

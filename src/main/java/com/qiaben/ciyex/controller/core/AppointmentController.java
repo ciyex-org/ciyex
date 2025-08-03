@@ -1,7 +1,7 @@
 package com.qiaben.ciyex.controller.core;
 
 import com.qiaben.ciyex.dto.ApiResponse;
-import com.qiaben.ciyex.service.core.AppointmentService;
+import com.qiaben.ciyex.service.AppointmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

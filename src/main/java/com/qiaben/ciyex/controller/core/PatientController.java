@@ -2,7 +2,7 @@ package com.qiaben.ciyex.controller.core;
 
 import ca.uhn.fhir.context.FhirContext;
 import com.qiaben.ciyex.dto.ApiResponse;
-import com.qiaben.ciyex.service.core.PatientService;
+import com.qiaben.ciyex.service.PatientService;
 import com.qiaben.ciyex.storage.fhir.FhirPatientService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
