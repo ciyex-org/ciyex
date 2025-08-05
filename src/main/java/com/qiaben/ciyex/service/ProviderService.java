@@ -320,4 +320,10 @@ public class ProviderService {
         }
         return orgId;
     }
+
+    @Transactional(readOnly = true)
+    public long getProviderCountByOrgId() {
+        // You might want to add security checks here if needed
+        return repository.countByOrgId(getCurrentOrgId());
+    }
 }
