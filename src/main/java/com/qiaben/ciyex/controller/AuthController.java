@@ -52,8 +52,21 @@ public class AuthController {
                 responseData.put("userId", user.getId());
                 responseData.put("firstName", user.getFirstName());
                 responseData.put("LastName", user.getLastName());
+                responseData.put("phone", user.getPhoneNumber());
+                responseData.put("dateOfBirth", user.getDateOfBirth());
                 responseData.put("uuid", user.getUuid());
                 responseData.put("email", user.getEmail());
+                responseData.put("street", user.getStreet());
+                responseData.put("street2", user.getStreet2());
+                responseData.put("city", user.getCity());
+                responseData.put("state", user.getState());
+                responseData.put("postalCode", user.getPostalCode());
+                responseData.put("country", user.getCountry());
+
+
+                responseData.put("securityQuestion", user.getSecurityQuestion());
+                responseData.put("securityAnswer", user.getSecurityAnswer());
+
                 responseData.put("orgs", jwtTokenUtil.getOrgsFromToken(token));
                 responseData.put("orgIds", jwtTokenUtil.getOrgIdsFromToken(token));
 

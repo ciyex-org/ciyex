@@ -5,7 +5,7 @@ java -jar /app/app.jar &
 
 # Start Next.js (SSR) in production mode
 cd /app
-cd ciyex-ui
+cd ciyex-ehr-ui
 npm run start &
 
 # Wait for any process to exit (so container doesn't immediately exit)
