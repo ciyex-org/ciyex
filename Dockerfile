@@ -7,7 +7,7 @@ WORKDIR /app/ciyex-ehr-ui
 RUN npm install -g pnpm
 
 # Copy package files and install dependencies
-COPY ciyex-ui/pnpm-lock.yaml ciyex-ui/package.json ./
+COPY ciyex-ehr-ui/pnpm-lock.yaml ciyex-ehr-ui/package.json ./
 RUN pnpm install --frozen-lockfile
 
 # Copy rest of the UI code
