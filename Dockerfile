@@ -1,17 +1,17 @@
 # ---- Build Next.js ----
 FROM node:20 AS next-builder
 
-WORKDIR /app/ciyex-ui
+WORKDIR /app/ciyex-ehr-ui
 
 # Install pnpm globally
 RUN npm install -g pnpm
 
 # Copy package files and install dependencies
-COPY ciyex-ui/pnpm-lock.yaml ciyex-ui/package.json ./
+COPY ciyex-ehr-ui/pnpm-lock.yaml ciyex-ehr-ui/package.json ./
 RUN pnpm install --frozen-lockfile
 
 # Copy rest of the UI code
-COPY ciyex-ui .
+COPY ciyex-ehr-ui .
 
 # Select environment: ENVIRONMENT=stage or ENVIRONMENT=prod
 ARG ENVIRONMENT=prod
@@ -46,7 +46,7 @@ WORKDIR /app
 COPY --from=backend-builder /app/build/libs/*.jar /app/app.jar
 
 # Copy built Next.js app
-COPY --from=next-builder /app/ciyex-ui /app/ciyex-ui
+COPY --from=next-builder /app/ciyex-ehr-ui /app/ciyex-ehr-ui
 
 # Install Node.js for SSR Next.js runtime
 RUN apt-get update && apt-get install -y curl && \
