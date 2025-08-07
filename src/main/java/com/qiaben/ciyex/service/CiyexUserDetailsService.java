@@ -1,6 +1,6 @@
 package com.qiaben.ciyex.service;
 
-import com.qiaben.ciyex.dto.core.integration.RequestContext;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.entity.*;
 import com.qiaben.ciyex.repository.OrgRepository;
 import com.qiaben.ciyex.repository.UserRepository;

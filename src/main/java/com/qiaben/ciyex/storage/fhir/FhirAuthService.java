@@ -4,10 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.qiaben.ciyex.dto.core.integration.FhirConfig;
-import com.qiaben.ciyex.dto.core.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.core.integration.RequestContext;
-import com.qiaben.ciyex.dto.openemr.OpenEmrTokenResponse;
+import com.qiaben.ciyex.dto.integration.FhirConfig;
+import com.qiaben.ciyex.dto.integration.IntegrationKey;
+import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.dto.FhirTokenResponse;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -50,7 +50,7 @@ public class FhirAuthService {
             // Refresh if token is missing/expired/about to expire (30s buffer)
             if (cache.accessToken == null || now > (cache.expiryMillis - 30_000)) {
                 log.info("[Org:{}] FHIR cached token is missing/expired, requesting new token...", orgId);
-                OpenEmrTokenResponse tokenResponse = null;
+                FhirTokenResponse tokenResponse = null;
                 try {
                     tokenResponse = getAccessToken(config);
                 } catch (Exception e) {
@@ -70,7 +70,7 @@ public class FhirAuthService {
     /**
      * Always requests a new access token from FHIR Azure API, for given config.
      */
-    public OpenEmrTokenResponse getAccessToken(FhirConfig config) throws Exception {
+    public FhirTokenResponse getAccessToken(FhirConfig config) throws Exception {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "client_credentials");
         form.add("client_id", config.getClientId());
@@ -97,7 +97,7 @@ public class FhirAuthService {
         // Parse JSON
         JsonNode node = new ObjectMapper().readTree(responseBody);
 
-        OpenEmrTokenResponse result = new OpenEmrTokenResponse();
+        FhirTokenResponse result = new FhirTokenResponse();
         result.setRawResponse(responseBody);
         result.setAccessToken(node.path("access_token").asText());
         result.setTokenType(node.path("token_type").asText());
