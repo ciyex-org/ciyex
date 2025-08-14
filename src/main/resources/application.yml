@@ -4,7 +4,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/ciyexdb
     username: postgres
-    password: mypassword
+    password: postgres
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
