@@ -1,7 +1,7 @@
 package com.qiaben.ciyex.storage.fhir;
 
 import com.qiaben.ciyex.dto.ProviderDto;
-import com.qiaben.ciyex.dto.core.integration.RequestContext;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.entity.Provider;
 import com.qiaben.ciyex.repository.ProviderRepository;
 import com.qiaben.ciyex.storage.ExternalProviderStorage;

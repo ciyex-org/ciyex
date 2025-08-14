@@ -7,7 +7,7 @@ import com.qiaben.ciyex.repository.ProviderRepository;
 import com.qiaben.ciyex.storage.ExternalStorage;
 import com.qiaben.ciyex.storage.ExternalStorageResolver;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.dto.core.integration.RequestContext;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -319,5 +319,11 @@ public class ProviderService {
             // For now, assume a manual check or filter is in place
         }
         return orgId;
+    }
+
+    @Transactional(readOnly = true)
+    public long getProviderCountByOrgId() {
+        // You might want to add security checks here if needed
+        return repository.countByOrgId(getCurrentOrgId());
     }
 }

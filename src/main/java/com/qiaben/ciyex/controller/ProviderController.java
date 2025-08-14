@@ -169,4 +169,26 @@ public class ProviderController {
                         .data(null)
                         .build());
     }
+
+    @GetMapping("/count")
+    public ResponseEntity<ApiResponse<Long>> getProviderCountByOrgId() {
+        try {
+            long count = service.getProviderCountByOrgId();
+            return ResponseEntity.ok(
+                    ApiResponse.<Long>builder()
+                            .success(true)
+                            .message("Provider count retrieved successfully")
+                            .data(count)
+                            .build()
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<Long>builder()
+                            .success(false)
+                            .message("Failed to retrieve provider count")
+                            .data(null)
+                            .build());
+        }
+    }
+
 }
