@@ -9,10 +9,7 @@ import com.qiaben.ciyex.provider.FhirClientProvider;
 import com.qiaben.ciyex.storage.ExternalStorage;
 import com.qiaben.ciyex.storage.StorageType;
 import lombok.extern.slf4j.Slf4j;
-import org.hl7.fhir.r4.model.Bundle;
-import org.hl7.fhir.r4.model.HumanName;
-import org.hl7.fhir.r4.model.Patient;
-import org.hl7.fhir.r4.model.StringType;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -133,6 +130,37 @@ public class FhirExternalPatientStorage implements ExternalStorage<PatientDto> {
                     dto.setAddress(patient.getAddressFirstRep().getLine().stream().findFirst().map(StringType::getValue).orElse(null));
                     dto.setMedicalRecordNumber(patient.getIdentifierFirstRep().getValue());
                     dto.setOrgId(orgId); // Set orgId from RequestContext
+
+                    // Mapping demographics (extensions)
+                    patient.getExtension().forEach(extension -> {
+                        switch (extension.getUrl()) {
+                            case "http://example.org/fhir/preferredName":
+                                dto.setPreferredName(extension.getValue().toString());
+                                break;
+                            case "http://example.org/fhir/licenseId":
+                                dto.setLicenseId(extension.getValue().toString());
+                                break;
+                            case "http://example.org/fhir/sexualOrientation":
+                                dto.setSexualOrientation(extension.getValue().toString());
+                                break;
+                            case "http://example.org/fhir/emergencyContact":
+                                dto.setEmergencyContact(extension.getValue().toString());
+                                break;
+                            case "http://example.org/fhir/race":
+                                dto.setRace(extension.getValue().toString());
+                                break;
+                            case "http://example.org/fhir/ethnicity":
+                                dto.setEthnicity(extension.getValue().toString());
+                                break;
+                            case "http://example.org/fhir/guardianName":
+                                dto.setGuardianName(extension.getValue().toString());
+                                break;
+                            case "http://example.org/fhir/guardianRelationship":
+                                dto.setGuardianRelationship(extension.getValue().toString());
+                                break;
+                        }
+                    });
+
                     log.debug("Mapped PatientDto: externalId={}, name={}, mrn={}", dto.getExternalId(), getPatientName(dto), dto.getMedicalRecordNumber());
                     return dto;
                 })
@@ -178,7 +206,7 @@ public class FhirExternalPatientStorage implements ExternalStorage<PatientDto> {
         Patient fhirPatient = new Patient();
         if (patientDto.getFirstName() != null || patientDto.getLastName() != null) {
             HumanName name = new HumanName();
-            name.addGiven(patientDto.getFirstName()); // Use top-level fields
+            name.addGiven(patientDto.getFirstName());
             if (patientDto.getMiddleName() != null) name.addGiven(patientDto.getMiddleName());
             if (patientDto.getLastName() != null) name.setFamily(patientDto.getLastName());
             fhirPatient.setName(List.of(name));
@@ -199,6 +227,33 @@ public class FhirExternalPatientStorage implements ExternalStorage<PatientDto> {
             fhirPatient.setAddress(List.of(address));
         }
         if (patientDto.getMedicalRecordNumber() != null) fhirPatient.addIdentifier().setValue(patientDto.getMedicalRecordNumber());
+
+        // Mapping demographics fields (extensions)
+        if (patientDto.getPreferredName() != null) {
+            fhirPatient.addExtension(new Extension("http://example.org/fhir/preferredName", new StringType(patientDto.getPreferredName())));
+        }
+        if (patientDto.getLicenseId() != null) {
+            fhirPatient.addExtension(new Extension("http://example.org/fhir/licenseId", new StringType(patientDto.getLicenseId())));
+        }
+        if (patientDto.getSexualOrientation() != null) {
+            fhirPatient.addExtension(new Extension("http://example.org/fhir/sexualOrientation", new StringType(patientDto.getSexualOrientation())));
+        }
+        if (patientDto.getEmergencyContact() != null) {
+            fhirPatient.addExtension(new Extension("http://example.org/fhir/emergencyContact", new StringType(patientDto.getEmergencyContact())));
+        }
+        if (patientDto.getRace() != null) {
+            fhirPatient.addExtension(new Extension("http://example.org/fhir/race", new StringType(patientDto.getRace())));
+        }
+        if (patientDto.getEthnicity() != null) {
+            fhirPatient.addExtension(new Extension("http://example.org/fhir/ethnicity", new StringType(patientDto.getEthnicity())));
+        }
+        if (patientDto.getGuardianName() != null) {
+            fhirPatient.addExtension(new Extension("http://example.org/fhir/guardianName", new StringType(patientDto.getGuardianName())));
+        }
+        if (patientDto.getGuardianRelationship() != null) {
+            fhirPatient.addExtension(new Extension("http://example.org/fhir/guardianRelationship", new StringType(patientDto.getGuardianRelationship())));
+        }
+
         log.debug("Mapped FHIR Patient for orgId: {}, name: {}, mrn: {}", orgId, getPatientName(patientDto), patientDto.getMedicalRecordNumber());
         return fhirPatient;
     }
@@ -225,6 +280,37 @@ public class FhirExternalPatientStorage implements ExternalStorage<PatientDto> {
         dto.setAddress(fhirPatient.getAddressFirstRep().getLine().stream().findFirst().map(StringType::getValue).orElse(null));
         dto.setMedicalRecordNumber(fhirPatient.getIdentifierFirstRep().getValue());
         dto.setOrgId(orgId); // Set orgId from RequestContext
+
+        // Map demographics fields (extensions)
+        fhirPatient.getExtension().forEach(extension -> {
+            switch (extension.getUrl()) {
+                case "http://example.org/fhir/preferredName":
+                    dto.setPreferredName(extension.getValue().toString());
+                    break;
+                case "http://example.org/fhir/licenseId":
+                    dto.setLicenseId(extension.getValue().toString());
+                    break;
+                case "http://example.org/fhir/sexualOrientation":
+                    dto.setSexualOrientation(extension.getValue().toString());
+                    break;
+                case "http://example.org/fhir/emergencyContact":
+                    dto.setEmergencyContact(extension.getValue().toString());
+                    break;
+                case "http://example.org/fhir/race":
+                    dto.setRace(extension.getValue().toString());
+                    break;
+                case "http://example.org/fhir/ethnicity":
+                    dto.setEthnicity(extension.getValue().toString());
+                    break;
+                case "http://example.org/fhir/guardianName":
+                    dto.setGuardianName(extension.getValue().toString());
+                    break;
+                case "http://example.org/fhir/guardianRelationship":
+                    dto.setGuardianRelationship(extension.getValue().toString());
+                    break;
+            }
+        });
+
         log.debug("Mapped PatientDto for orgId: {}, externalId: {}, name: {}, mrn: {}", orgId, dto.getExternalId(), getPatientName(dto), dto.getMedicalRecordNumber());
         return dto;
     }
