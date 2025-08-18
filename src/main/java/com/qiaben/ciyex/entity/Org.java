@@ -45,4 +45,8 @@ public class Org {
     @OneToMany(mappedBy = "org", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonManagedReference("org-userOrgRoles")
     private Set<UserOrgRole> userOrgRoles = new HashSet<>();
+
+//    @OneToMany(mappedBy = "organization", cascade = CascadeType.ALL, orphanRemoval = true)
+//    @JsonManagedReference("org-encounters")
+//    private Set<Encounter> encounters = new HashSet<>();
 }

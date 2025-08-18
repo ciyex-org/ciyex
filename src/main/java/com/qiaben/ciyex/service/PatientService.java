@@ -7,7 +7,7 @@ import com.qiaben.ciyex.repository.PatientRepository;
 import com.qiaben.ciyex.storage.ExternalStorage;
 import com.qiaben.ciyex.storage.ExternalStorageResolver;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.dto.core.integration.RequestContext;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -31,7 +31,19 @@ public class PatientService {
         this.storageResolver = storageResolver;
         this.configProvider = configProvider;
     }
+    @Transactional(readOnly = true)
+    public long countPatientsForCurrentOrg() {
+        Long orgId = getCurrentOrgId();
+        if (orgId == null) {
+            log.error("No orgId found in RequestContext during count");
+            throw new SecurityException("No orgId available in request context");
+        }
+        log.info("Counting patients for orgId: {}", orgId);
+        return repository.countByOrgId(orgId);
+    }
 
+
+    // Create a new patient
     @Transactional
     public PatientDto create(PatientDto dto) {
         Long currentOrgId = getCurrentOrgId();
@@ -46,6 +58,7 @@ public class PatientService {
             throw new IllegalArgumentException("First name, last name, and medical record number are required");
         }
 
+        // Create patient entity from DTO
         Patient patient = mapToEntity(dto);
         patient.setOrgId(currentOrgId);
         patient.setCreatedDate(LocalDateTime.now().toString());
@@ -65,7 +78,7 @@ public class PatientService {
             }
         }
 
-        // Save to database only if external storage succeeded or not configured
+        // Save patient to database
         patient.setExternalId(externalId);
         patient = repository.save(patient);
         log.debug("Saved patient to DB: id={}, externalId={}, orgId={}", patient.getId(), patient.getExternalId(), patient.getOrgId());
@@ -80,6 +93,7 @@ public class PatientService {
         return dto;
     }
 
+    // Fetch patient by ID
     @Transactional(readOnly = true)
     public PatientDto getById(Long id) {
         Long currentOrgId = getCurrentOrgId();
@@ -96,26 +110,35 @@ public class PatientService {
             throw new SecurityException("Access denied: Patient id " + id + " does not belong to orgId " + currentOrgId);
         }
 
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        // Fetch extended demographics from FHIR if available
         PatientDto patientDto = mapToDto(patient); // Default to DB data
-        if (storageType != null && patient.getExternalId() != null) {
-            log.debug("Attempting to fetch extended details for patient id: {} with externalId: {} for orgId: {}", id, patient.getExternalId(), currentOrgId);
-            ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
-            PatientDto extendedPatientDto = externalStorage.get(patient.getExternalId());
-            if (extendedPatientDto != null) {
-                log.info("Successfully loaded extended details for patient id: {} from external storage for orgId: {}", id, currentOrgId);
-                log.debug("Extended PatientDto: id={}, externalId={}, orgId={}", extendedPatientDto.getId(), extendedPatientDto.getExternalId(), extendedPatientDto.getOrgId());
-                extendedPatientDto.setId(patient.getId()); // Preserve DB ID
-                patientDto = extendedPatientDto;
-            } else {
-                log.warn("No extended details found in external storage for patient id: {} with externalId: {} for orgId: {}", id, patient.getExternalId(), currentOrgId);
+        if (patient.getExternalId() != null) {
+            PatientDto fhirPatientDto = getPatientFromFhir(patient.getExternalId());
+            if (fhirPatientDto != null) {
+                log.info("Successfully fetched extended demographics from FHIR for patient id: {}", id);
+                patientDto.setPreferredName(fhirPatientDto.getPreferredName());
+                patientDto.setLicenseId(fhirPatientDto.getLicenseId());
+                patientDto.setSexualOrientation(fhirPatientDto.getSexualOrientation());
+                patientDto.setEmergencyContact(fhirPatientDto.getEmergencyContact());
+                patientDto.setRace(fhirPatientDto.getRace());
+                patientDto.setEthnicity(fhirPatientDto.getEthnicity());
+                patientDto.setGuardianName(fhirPatientDto.getGuardianName());
+                patientDto.setGuardianRelationship(fhirPatientDto.getGuardianRelationship());
             }
         }
-        log.info("Returning patient dto for id: {} and orgId: {}", id, currentOrgId);
-        log.debug("Returning PatientDto: id={}, externalId={}, orgId={}", patientDto.getId(), patientDto.getExternalId(), patientDto.getOrgId());
+
         return patientDto;
     }
 
+    // Fetch extended FHIR data for a patient
+    public PatientDto getPatientFromFhir(String externalId) {
+        // Use externalId to get data from FHIR storage
+        log.debug("Fetching extended patient data from FHIR with externalId: {}", externalId);
+        ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
+        return externalStorage.get(externalId);
+    }
+
+    // Update an existing patient
     @Transactional
     public PatientDto update(Long id, PatientDto dto) {
         Long currentOrgId = getCurrentOrgId();
@@ -147,7 +170,6 @@ public class PatientService {
         updateEntityFromDto(patient, dto);
         patient.setLastModifiedDate(LocalDateTime.now().toString());
         patient = repository.save(patient);
-        log.debug("Saved updated patient to DB: id={}, externalId={}, orgId={}", patient.getId(), patient.getExternalId(), patient.getOrgId());
         dto.setId(patient.getId()); // Set database id in DTO
         dto.setExternalId(patient.getExternalId()); // Update externalId in DTO if changed
         log.info("Updated patient with id: {} and externalId: {} in DB for orgId: {}", id, patient.getExternalId(), currentOrgId);
@@ -155,6 +177,7 @@ public class PatientService {
         return dto;
     }
 
+    // Delete a patient
     @Transactional
     public void delete(Long id) {
         Long currentOrgId = getCurrentOrgId();
@@ -166,17 +189,16 @@ public class PatientService {
 
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
-        log.debug("Fetched patient from DB: id={}, externalId={}, orgId={}", patient.getId(), patient.getExternalId(), patient.getOrgId());
         if (!currentOrgId.equals(patient.getOrgId())) {
             throw new SecurityException("Access denied: Patient id " + id + " does not belong to orgId " + currentOrgId);
         }
 
+        // Delete from external storage
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && patient.getExternalId() != null) {
             try {
                 ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
                 externalStorage.delete(patient.getExternalId());
-                log.info("Successfully deleted patient with id: {} and externalId: {} from external storage for orgId: {}", id, patient.getExternalId(), currentOrgId);
             } catch (Exception e) {
                 log.error("Failed to delete patient from external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
                 throw new RuntimeException("Failed to sync with external storage", e); // Rollback transaction
@@ -187,6 +209,7 @@ public class PatientService {
         log.info("Deleted patient with id: {} from DB for orgId: {}", id, currentOrgId);
     }
 
+    // Fetch all patients for a specific org
     @Transactional(readOnly = true)
     public ApiResponse<List<PatientDto>> getAllPatients() {
         Long currentOrgId = getCurrentOrgId();
@@ -210,6 +233,7 @@ public class PatientService {
                 .build();
     }
 
+    // Helper method to map a PatientDto to a Patient entity
     private Patient mapToEntity(PatientDto dto) {
         Patient patient = new Patient();
         patient.setFirstName(dto.getFirstName());
@@ -224,6 +248,7 @@ public class PatientService {
         return patient;
     }
 
+    // Helper method to map a Patient entity to a PatientDto
     private PatientDto mapToDto(Patient patient) {
         PatientDto dto = new PatientDto();
         dto.setId(patient.getId()); // Always set id
@@ -247,6 +272,7 @@ public class PatientService {
         return dto;
     }
 
+    // Helper method to update entity from DTO
     private void updateEntityFromDto(Patient patient, PatientDto dto) {
         if (dto.getFirstName() != null) patient.setFirstName(dto.getFirstName());
         if (dto.getLastName() != null) patient.setLastName(dto.getLastName());

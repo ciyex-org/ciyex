@@ -6,4 +6,5 @@ import java.util.Optional;
 
 public interface OrgRepository extends JpaRepository<Org, Long> {
     Optional<Org> findByOrgName(String orgName);
+    Optional<Org> findById(Long id);
 }
