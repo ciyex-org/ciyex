@@ -2,7 +2,7 @@ package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.ScheduleDto;
-import com.qiaben.ciyex.dto.core.integration.RequestContext;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.entity.ProviderSchedule;
 import com.qiaben.ciyex.repository.ProviderScheduleRepository;
 import com.qiaben.ciyex.storage.ExternalStorage;

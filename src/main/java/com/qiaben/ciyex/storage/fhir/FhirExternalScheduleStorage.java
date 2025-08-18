@@ -1,7 +1,7 @@
 package com.qiaben.ciyex.storage.fhir;
 
 import com.qiaben.ciyex.dto.ScheduleDto;
-import com.qiaben.ciyex.dto.core.integration.RequestContext;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.storage.ExternalStorage;
 import com.qiaben.ciyex.storage.StorageType;
 import lombok.extern.slf4j.Slf4j;
