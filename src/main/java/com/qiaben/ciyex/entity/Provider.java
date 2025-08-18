@@ -1,9 +1,6 @@
 package com.qiaben.ciyex.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -47,4 +44,14 @@ public class Provider {
 
     private String createdDate; // Yes
     private String lastModifiedDate; // Yes
+    // New column
+    @Enumerated(EnumType.STRING)
+    private ProviderStatus status;
+
+    @PrePersist
+    public void prePersist() {
+        if (status == null) {
+            status = ProviderStatus.ACTIVE; // default on create
+        }
+    } // Optional (Active, Inactive, etc.)
 }
