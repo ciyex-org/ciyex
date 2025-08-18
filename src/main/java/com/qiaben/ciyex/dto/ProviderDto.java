@@ -1,5 +1,6 @@
 package com.qiaben.ciyex.dto;
 
+import com.qiaben.ciyex.entity.ProviderStatus;
 import lombok.Data;
 
 @Data
@@ -91,7 +92,7 @@ public class ProviderDto {
         private String username; // Yes (For EHR access)
         private String passwordHash; // Yes
         private String rolesPermissions; // Yes (EHR roles)
-        private String status; // Optional
+        private ProviderStatus status;
     }
 
     @Data

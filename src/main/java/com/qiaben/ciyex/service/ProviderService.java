@@ -3,6 +3,7 @@ package com.qiaben.ciyex.service;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.ProviderDto;
 import com.qiaben.ciyex.entity.Provider;
+import com.qiaben.ciyex.entity.ProviderStatus;
 import com.qiaben.ciyex.repository.ProviderRepository;
 import com.qiaben.ciyex.storage.ExternalStorage;
 import com.qiaben.ciyex.storage.ExternalStorageResolver;
@@ -42,69 +43,95 @@ public class ProviderService {
         log.debug("Verifying access for orgId: {} to create new provider", currentOrgId);
         dto.setOrgId(currentOrgId); // Set orgId for the new provider
 
+        // Validate the required fields
         if (dto.getNpi() == null || dto.getIdentification() == null || dto.getIdentification().getFirstName() == null ||
                 dto.getIdentification().getLastName() == null || dto.getProfessionalDetails() == null ||
                 dto.getProfessionalDetails().getLicenseNumber() == null) {
             throw new IllegalArgumentException("NPI, first name, last name, and license number are required");
         }
 
+        // Map DTO to Entity
         Provider provider = mapToEntity(dto);
         provider.setOrgId(currentOrgId);
         provider.setCreatedDate(LocalDateTime.now().toString());
         provider.setLastModifiedDate(LocalDateTime.now().toString());
+
         String externalId = null;
 
-        // Attempt external storage creation first
+        // Attempt external storage creation first (FHIR)
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null) {
             try {
                 ExternalStorage<ProviderDto> externalStorage = storageResolver.resolve(ProviderDto.class);
-                externalId = externalStorage.create(dto);
+                externalId = externalStorage.create(dto);  // Create in external storage
                 log.info("Successfully created provider in external storage with externalId: {} for orgId: {}", externalId, currentOrgId);
             } catch (Exception e) {
                 log.error("Failed to create provider in external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e); // Rollback transaction
+                throw new RuntimeException("Failed to sync with external storage", e);  // Rollback transaction
             }
         }
 
-        // Save to database only if external storage succeeded or not configured
+        // Ensure externalId is set
         provider.setExternalId(externalId);
+
+        // Save to database **only after external storage is successful**
         provider = repository.save(provider);
         log.info("Created provider with id: {} and externalId: {} in DB for orgId: {}", provider.getId(), externalId, currentOrgId);
 
+        // Return the DTO of the provider (with externalId)
         return mapToDto(provider);
     }
 
     @Transactional(readOnly = true)
     public ProviderDto getById(Long id) {
         log.debug("Entering getById with id: {}", id);
+
+        // Fetch the current organization ID
         Long currentOrgId = getCurrentOrgId();
         if (currentOrgId == null) {
             log.error("No orgId found in RequestContext during getById for id: {}", id);
             throw new SecurityException("No orgId available in request context");
         }
+
         log.debug("Verifying access for orgId: {} to provider with id: {}", currentOrgId, id);
 
-        // Fetch provider from database
+        // Fetch provider from the database
         Provider provider = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
         log.debug("Fetched provider from DB: id={}, externalId={}, orgId={}", provider.getId(), provider.getExternalId(), provider.getOrgId());
+
+        // Check if the provider belongs to the current organization
         if (!currentOrgId.equals(provider.getOrgId())) {
             throw new SecurityException("Access denied: Provider id " + id + " does not belong to orgId " + currentOrgId);
         }
         log.info("Found provider in DB with id: {} for orgId: {}", id, currentOrgId);
 
+        // Default mapping from DB data
+        ProviderDto resultDto = mapToDto(provider);
+
+        // If external storage is available, attempt to fetch extended provider details
         String storageType = configProvider.getStorageTypeForCurrentOrg();
-        ProviderDto resultDto = mapToDto(provider); // Default to DB data
         if (storageType != null && provider.getExternalId() != null) {
             log.debug("Attempting to fetch extended details for provider id: {} with externalId: {} for orgId: {}", id, provider.getExternalId(), currentOrgId);
             ExternalStorage<ProviderDto> externalStorage = storageResolver.resolve(ProviderDto.class);
+
             try {
                 ProviderDto extendedProviderDto = externalStorage.get(provider.getExternalId());
+
                 if (extendedProviderDto != null) {
                     log.info("Successfully loaded extended details for provider id: {} from external storage for orgId: {}", id, currentOrgId);
                     log.debug("Extended ProviderDto: id={}, fhirId={}, orgId={}", extendedProviderDto.getId(), extendedProviderDto.getFhirId(), extendedProviderDto.getOrgId());
+
                     extendedProviderDto.setId(provider.getId()); // Preserve DB ID
+                    // Manually map fields from Provider to extendedProviderDto
+                    populateIdentification(provider, extendedProviderDto);
+                    populateProfessionalDetails(provider, extendedProviderDto);
+
+                    // Ensure NPI is set if missing from extended data
+                    if (extendedProviderDto.getNpi() == null) {
+                        extendedProviderDto.setNpi(provider.getNpi());
+                    }
+
                     resultDto = extendedProviderDto;
                 } else {
                     log.warn("No extended details found in external storage for provider id: {} with externalId: {} for orgId: {}", id, provider.getExternalId(), currentOrgId);
@@ -113,9 +140,38 @@ public class ProviderService {
                 log.error("Failed to fetch extended details from external storage for provider id: {} with externalId: {}, error: {}", id, provider.getExternalId(), e.getMessage());
             }
         }
+
         log.info("Returning provider dto for id: {} and orgId: {}", id, currentOrgId);
         log.debug("Returning ProviderDto: id={}, fhirId={}, orgId={}", resultDto.getId(), resultDto.getFhirId(), resultDto.getOrgId());
+
         return resultDto;
+    }
+
+    // Method to populate identification fields
+    private void populateIdentification(Provider provider, ProviderDto extendedProviderDto) {
+        ProviderDto.Identification identification = new ProviderDto.Identification();
+        identification.setFirstName(provider.getFirstName());
+        identification.setLastName(provider.getLastName());
+        identification.setMiddleName(provider.getMiddleName());
+        identification.setPrefix(provider.getPrefix());
+        identification.setSuffix(provider.getSuffix());
+        identification.setGender(provider.getGender());
+        identification.setDateOfBirth(provider.getDateOfBirth());
+        identification.setPhoto(provider.getPhoto());
+
+        extendedProviderDto.setIdentification(identification);
+    }
+
+    // Method to populate professional details fields
+    private void populateProfessionalDetails(Provider provider, ProviderDto extendedProviderDto) {
+        ProviderDto.ProfessionalDetails professionalDetails = new ProviderDto.ProfessionalDetails();
+        professionalDetails.setSpecialty(provider.getSpecialty());
+        professionalDetails.setProviderType(provider.getProviderType());
+        professionalDetails.setLicenseNumber(provider.getLicenseNumber());
+        professionalDetails.setLicenseState(provider.getLicenseState());
+        professionalDetails.setLicenseExpiry(provider.getLicenseExpiry());
+
+        extendedProviderDto.setProfessionalDetails(professionalDetails);
     }
 
     @Transactional
@@ -267,25 +323,31 @@ public class ProviderService {
     private ProviderDto mapToDto(Provider provider) {
         ProviderDto dto = new ProviderDto();
         dto.setId(provider.getId()); // Always set id
-        dto.setNpi(provider.getNpi());
+        dto.setNpi(provider.getNpi()); // Map NPI
+
+        // Map Identification (First Name, Last Name, Gender, DOB, etc.)
         if (provider.getFirstName() != null || provider.getLastName() != null) {
             ProviderDto.Identification identification = new ProviderDto.Identification();
             identification.setFirstName(provider.getFirstName());
             identification.setLastName(provider.getLastName());
-            identification.setMiddleName(provider.getMiddleName());
-            identification.setPrefix(provider.getPrefix());
-            identification.setSuffix(provider.getSuffix());
-            identification.setGender(provider.getGender());
-            identification.setDateOfBirth(provider.getDateOfBirth());
-            identification.setPhoto(provider.getPhoto());
-            dto.setIdentification(identification);
+            identification.setMiddleName(provider.getMiddleName());  // Map middle name if available
+            identification.setPrefix(provider.getPrefix());          // Map prefix if available
+            identification.setSuffix(provider.getSuffix());          // Map suffix if available
+            identification.setGender(provider.getGender());          // Map gender if available
+            identification.setDateOfBirth(provider.getDateOfBirth()); // Map DOB
+            identification.setPhoto(provider.getPhoto());            // Map photo if available
+            dto.setIdentification(identification); // Set identification
         }
+
+        // Map Contact Information (Email, Phone, etc.)
         if (provider.getEmail() != null || provider.getPhoneNumber() != null) {
             ProviderDto.Contact contact = new ProviderDto.Contact();
-            contact.setEmail(provider.getEmail());
-            contact.setPhoneNumber(provider.getPhoneNumber());
-            contact.setMobileNumber(provider.getMobileNumber());
-            contact.setFaxNumber(provider.getFaxNumber());
+            contact.setEmail(provider.getEmail());                // Map email
+            contact.setPhoneNumber(provider.getPhoneNumber());    // Map phone number
+            contact.setMobileNumber(provider.getMobileNumber());  // Map mobile number if available
+            contact.setFaxNumber(provider.getFaxNumber());        // Map fax number if available
+
+            // Address mapping
             if (provider.getAddress() != null) {
                 ProviderDto.Contact.Address address = new ProviderDto.Contact.Address();
                 contact.setAddress(address);
@@ -308,6 +370,10 @@ public class ProviderService {
             audit.setLastModifiedDate(provider.getLastModifiedDate());
             dto.setAudit(audit);
         }
+        //  Add SystemAccess mapping here
+        ProviderDto.SystemAccess systemAccess = new ProviderDto.SystemAccess();
+        systemAccess.setStatus(provider.getStatus()); // Map enum from entity
+        dto.setSystemAccess(systemAccess);
         return dto;
     }
 
@@ -326,4 +392,14 @@ public class ProviderService {
         // You might want to add security checks here if needed
         return repository.countByOrgId(getCurrentOrgId());
     }
+
+    @Transactional
+    public ProviderDto updateStatus(Long id, ProviderStatus status) {
+        Provider provider = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Provider not found"));
+        provider.setStatus(status);
+        provider.setLastModifiedDate(LocalDateTime.now().toString());
+        return mapToDto(repository.save(provider));
+    }
+
 }
