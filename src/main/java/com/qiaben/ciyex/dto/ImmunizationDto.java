@@ -1,18 +1,3 @@
-//package com.qiaben.ciyex.dto;
-//
-//import lombok.Data;
-//import java.time.LocalDate;
-//
-//import lombok.Data;
-//
-//@Data
-//public class ImmunizationDto {
-//    private Long id;
-//    private String vaccineName;
-//    private String dateAdministered; // Date as String, or you can use LocalDate
-//    private Long patientId;
-//    private String administeredBy;
-//}
 package com.qiaben.ciyex.dto;
 
 import lombok.Data;
@@ -20,12 +5,25 @@ import lombok.Data;
 @Data
 public class ImmunizationDto {
     private Long id;
-    private String vaccineName;
+    private String vaccine;
+    private String dose;
     private String dateAdministered;
+    private String amountAdministered;
+    private String immunizationExpirationDate;
+    private String immunizationManufacturer;
+    private String immunizationLotNumber;
+    private String administratorName;
+    private String dateInformationGiven;
+    private String dateVISStatement;
+    private String route;
+    private String administrationSite;
+    private String notes;
+    private String informationSource;
+    private String completionStatus;
+    private String substanceRefusalReason;
+    private String reasonCode;
+    private String immunizationOrderingProvider;
+
     private Long patientId;
-    private String administeredBy;
-    private Long encounterId; // Used to set the encounter relationship
-    private Long orgId;
-    //private Long immuid;
-    private Long externaleId;
+    private Long orgId; // Organization ID passed in header
 }

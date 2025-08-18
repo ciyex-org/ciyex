@@ -3,47 +3,44 @@ package com.qiaben.ciyex.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Entity
-@Table(name = "patient_medical_history", schema = "ciyexdb")
-@Getter
-@Setter
+@Table(name = "patient_medical_history")
+@Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class PatientMedicalHistory {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "external_id")
+    private String externalId; // FHIR Condition id
+
+    @Column(name = "org_id", nullable = false)
+    private Long orgId;
+
+    @Column(name = "patient_id", nullable = false)
     private Long patientId;
 
-    private String medicalCondition;
+    @Column(name = "encounter_id", nullable = false)
+    private Long encounterId;
 
-    private String diagnosisDetails;
+    @Column(name = "condition_name", length = 255)
+    private String condition;
 
-    private LocalDateTime diagnosisDate;
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
 
-    private String treatmentDetails;
+    @Column(name = "status", length = 50)
+    private String status; // active/resolved/etc
 
-    private Boolean isChronic;
+    private LocalDate onsetDate;
+    private LocalDate resolvedDate;
 
-    private LocalDateTime createdAt;
-
-    private LocalDateTime updatedAt;
-
-    @PrePersist
-    public void prePersist() {
-        if (createdAt == null) {
-            createdAt = LocalDateTime.now();
-        }
-        updatedAt = createdAt;
-    }
-
-    @PreUpdate
-    public void preUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
+    private LocalDate createdDate;
+    private LocalDate lastModifiedDate;
 }
