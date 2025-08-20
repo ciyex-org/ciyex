@@ -7,7 +7,8 @@ public enum IntegrationKey {
     SPHERE("sphere", SphereConfig.class),
     TWILIO("twilio", TwilioConfig.class),
     SMTP("smtp", SmtpConfig.class),
-    TELEHEALTH("telehealth", TelehealthConfig.class);
+    TELEHEALTH("telehealth", TelehealthConfig.class),
+    AI("ai", AiConfig.class);
 
     private final String key;
     private final Class<?> clazz;
