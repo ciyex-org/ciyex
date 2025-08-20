@@ -13,16 +13,17 @@ public class CommunicationDto {
     private String category;
     private String sentDate;
     private Audit audit;
-
     private String payload;
-
-    private String sender;
-    private List<String> recipients;
+    private String sender; // Restored as string with externalId reference
+    private List<String> recipients; // Restored as list of strings with externalId references
     private String subject;
     private String inResponseTo;
-
-    private Long patientId; // Added for request body
-    private Long providerId; // Added for request body
+    private Long patientId;
+    private Long providerId;
+    private Long fromId; // For response, internal ID of sender
+    private String fromName; // For response, name of sender
+    private List<Long> toIds; // For response, internal IDs of recipients
+    private List<String> toNames; // For response, names of recipients
 
     @Data
     public static class Audit {

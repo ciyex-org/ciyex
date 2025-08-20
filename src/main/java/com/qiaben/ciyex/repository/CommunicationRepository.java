@@ -20,8 +20,10 @@ public interface CommunicationRepository extends JpaRepository<Communication, Lo
 
     Page<Communication> findByOrgId(Long orgId, Pageable pageable);
 
+    @Query("SELECT c FROM Communication c WHERE c.orgId = :orgId AND c.externalId = :externalId")
     Optional<Communication> findByExternalIdAndOrgId(String externalId, Long orgId);
 
+    @Query("SELECT c FROM Communication c WHERE c.orgId = :orgId AND c.inResponseTo = :inResponseTo")
     List<Communication> findByInResponseToAndOrgId(String inResponseTo, Long orgId);
 
     @Query("SELECT c FROM Communication c WHERE c.orgId = :orgId AND (c.subject = :ref OR c.recipients LIKE CONCAT('%', :ref, '%'))")

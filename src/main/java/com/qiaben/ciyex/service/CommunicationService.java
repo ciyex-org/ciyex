@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @Slf4j
@@ -72,55 +73,116 @@ public class CommunicationService {
             throw new IllegalArgumentException("Status, sender, and at least one recipient are required");
         }
 
+        // Validate and map sender
         String senderRef = dto.getSender();
+        String senderExternalId = null;
         if (senderRef.startsWith("Provider/")) {
-            String senderExternalId = senderRef.replace("Provider/", "");
-            Provider provider = providerRepository.findAllByOrgId(currentOrgId).stream()
-                    .filter(p -> p.getExternalId().equals(senderExternalId))
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Sender provider not found: " + senderExternalId));
+            Long senderId = Long.parseLong(senderRef.replace("Provider/", ""));
+            Optional<Provider> providerOpt = providerRepository.findById(senderId);
+            if (providerOpt.isEmpty()) {
+                log.error("Sender provider not found with ID: {}", senderId);
+                throw new RuntimeException("Sender provider not found: " + senderId);
+            }
+            Provider provider = providerOpt.get();
+            if (!currentOrgId.equals(provider.getOrgId())) {
+                throw new SecurityException("Sender provider does not belong to current org");
+            }
+            senderExternalId = provider.getExternalId();
+            dto.setSender("Provider/" + senderExternalId);
         } else if (senderRef.startsWith("Patient/")) {
-            String senderExternalId = senderRef.replace("Patient/", "");
-            Patient patient = patientRepository.findAllByOrgId(currentOrgId).stream()
-                    .filter(p -> p.getExternalId().equals(senderExternalId))
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Sender patient not found: " + senderExternalId));
+            Long senderId = Long.parseLong(senderRef.replace("Patient/", ""));
+            Optional<Patient> patientOpt = patientRepository.findById(senderId);
+            if (patientOpt.isEmpty()) {
+                log.error("Sender patient not found with ID: {}", senderId);
+                throw new RuntimeException("Sender patient not found: " + senderId);
+            }
+            Patient patient = patientOpt.get();
+            if (!currentOrgId.equals(patient.getOrgId())) {
+                throw new SecurityException("Sender patient does not belong to current org");
+            }
+            senderExternalId = patient.getExternalId();
+            dto.setSender("Patient/" + senderExternalId);
         } else {
             throw new IllegalArgumentException("Invalid sender reference: " + senderRef);
         }
 
+        // Validate and map recipients
+        List<String> mappedRecipients = new ArrayList<>();
         for (String recipientRef : dto.getRecipients()) {
+            String recipientExternalId = null;
             if (recipientRef.startsWith("Provider/")) {
-                String recipientExternalId = recipientRef.replace("Provider/", "");
-                providerRepository.findAllByOrgId(currentOrgId).stream()
-                        .filter(p -> p.getExternalId().equals(recipientExternalId))
-                        .findFirst()
-                        .orElseThrow(() -> new RuntimeException("Recipient provider not found: " + recipientExternalId));
+                Long recipientId = Long.parseLong(recipientRef.replace("Provider/", ""));
+                Optional<Provider> providerOpt = providerRepository.findById(recipientId);
+                if (providerOpt.isEmpty()) {
+                    log.error("Recipient provider not found with ID: {}", recipientId);
+                    throw new RuntimeException("Recipient provider not found: " + recipientId);
+                }
+                Provider provider = providerOpt.get();
+                if (!currentOrgId.equals(provider.getOrgId())) {
+                    throw new SecurityException("Recipient provider does not belong to current org");
+                }
+                recipientExternalId = provider.getExternalId();
+                mappedRecipients.add("Provider/" + recipientExternalId);
             } else if (recipientRef.startsWith("Patient/")) {
-                String recipientExternalId = recipientRef.replace("Patient/", "");
-                patientRepository.findAllByOrgId(currentOrgId).stream()
-                        .filter(p -> p.getExternalId().equals(recipientExternalId))
-                        .findFirst()
-                        .orElseThrow(() -> new RuntimeException("Recipient patient not found: " + recipientExternalId));
+                Long recipientId = Long.parseLong(recipientRef.replace("Patient/", ""));
+                Optional<Patient> patientOpt = patientRepository.findById(recipientId);
+                if (patientOpt.isEmpty()) {
+                    log.error("Recipient patient not found with ID: {}", recipientId);
+                    throw new RuntimeException("Recipient patient not found: " + recipientId);
+                }
+                Patient patient = patientOpt.get();
+                if (!currentOrgId.equals(patient.getOrgId())) {
+                    throw new SecurityException("Recipient patient does not belong to current org");
+                }
+                recipientExternalId = patient.getExternalId();
+                mappedRecipients.add("Patient/" + recipientExternalId);
             } else {
                 throw new IllegalArgumentException("Invalid recipient reference: " + recipientRef);
             }
         }
+        dto.setRecipients(mappedRecipients);
 
+        // Validate and map subject
         if (dto.getSubject() != null && dto.getSubject().startsWith("Patient/")) {
-            String subjectExternalId = dto.getSubject().replace("Patient/", "");
-            patientRepository.findAllByOrgId(currentOrgId).stream()
-                    .filter(p -> p.getExternalId().equals(subjectExternalId))
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Subject patient not found: " + subjectExternalId));
+            Long subjectId = Long.parseLong(dto.getSubject().replace("Patient/", ""));
+            Optional<Patient> patientOpt = patientRepository.findById(subjectId);
+            if (patientOpt.isEmpty()) {
+                log.error("Subject patient not found with ID: {}", subjectId);
+                throw new RuntimeException("Subject patient not found: " + subjectId);
+            }
+            Patient patient = patientOpt.get();
+            if (!currentOrgId.equals(patient.getOrgId())) {
+                throw new SecurityException("Subject patient does not belong to current org");
+            }
+            String subjectExternalId = patient.getExternalId();
+            dto.setSubject("Patient/" + subjectExternalId);
         }
 
+        // Validate inResponseTo with optional UUID check
         if (dto.getInResponseTo() != null) {
-            String inResponseToExternalId = dto.getInResponseTo().replace("Communication/", "");
-            ExternalStorage<CommunicationDto> externalStorage = storageResolver.resolve(CommunicationDto.class);
-            CommunicationDto parent = externalStorage.get(inResponseToExternalId);
-            if (parent == null) {
-                throw new RuntimeException("Parent communication not found: " + inResponseToExternalId);
+            String inResponseToValue = dto.getInResponseTo();
+            if (!inResponseToValue.startsWith("Communication/")) {
+                throw new IllegalArgumentException("Invalid inResponseTo format: must start with 'Communication/'");
+            }
+            String inResponseToExternalId = inResponseToValue.replace("Communication/", "");
+            try {
+                UUID.fromString(inResponseToExternalId); // Validate UUID format
+            } catch (IllegalArgumentException e) {
+                log.error("Invalid UUID format for inResponseTo: {}, proceeding without validation", inResponseToExternalId);
+                dto.setInResponseTo(null); // Clear invalid inResponseTo
+            }
+
+            if (dto.getInResponseTo() != null) {
+                Optional<Communication> parentCommOpt = repository.findByExternalIdAndOrgId(inResponseToExternalId, currentOrgId);
+                if (parentCommOpt.isEmpty()) {
+                    log.warn("Parent communication with externalId {} not found in database, checking FHIR", inResponseToExternalId);
+                    ExternalStorage<CommunicationDto> externalStorage = storageResolver.resolve(CommunicationDto.class);
+                    CommunicationDto parent = externalStorage.get(inResponseToExternalId);
+                    if (parent == null) {
+                        log.warn("Parent communication not found in FHIR: {}, proceeding without validation", inResponseToExternalId);
+                        dto.setInResponseTo(null); // Clear if not found in FHIR
+                    }
+                }
             }
         }
 
@@ -136,6 +198,9 @@ public class CommunicationService {
                 ExternalStorage<CommunicationDto> externalStorage = storageResolver.resolve(CommunicationDto.class);
                 externalId = externalStorage.create(dto);
                 log.info("Successfully created communication in external storage with externalId: {} for orgId: {}", externalId, currentOrgId);
+                if (dto.getInResponseTo() == null && communication.getInResponseTo() != null) {
+                    dto.setInResponseTo("Communication/" + externalId); // Use new UUID if applicable
+                }
             } catch (Exception e) {
                 log.error("Failed to create communication in external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
                 throw new RuntimeException("Failed to sync with external storage", e);
@@ -209,52 +274,102 @@ public class CommunicationService {
         if (dto.getSender() != null) {
             String senderRef = dto.getSender();
             if (senderRef.startsWith("Provider/")) {
-                String senderExternalId = senderRef.replace("Provider/", "");
-                providerRepository.findAllByOrgId(currentOrgId).stream()
-                        .filter(p -> p.getExternalId().equals(senderExternalId))
-                        .findFirst()
-                        .orElseThrow(() -> new RuntimeException("Sender provider not found: " + senderExternalId));
+                Long senderId = Long.parseLong(senderRef.replace("Provider/", ""));
+                Optional<Provider> providerOpt = providerRepository.findById(senderId);
+                if (providerOpt.isEmpty()) {
+                    log.error("Sender provider not found with ID: {}", senderId);
+                    throw new RuntimeException("Sender provider not found: " + senderId);
+                }
+                Provider provider = providerOpt.get();
+                if (!currentOrgId.equals(provider.getOrgId())) {
+                    throw new SecurityException("Sender provider does not belong to current org");
+                }
+                dto.setSender("Provider/" + provider.getExternalId());
             } else if (senderRef.startsWith("Patient/")) {
-                String senderExternalId = senderRef.replace("Patient/", "");
-                patientRepository.findAllByOrgId(currentOrgId).stream()
-                        .filter(p -> p.getExternalId().equals(senderExternalId))
-                        .findFirst()
-                        .orElseThrow(() -> new RuntimeException("Sender patient not found: " + senderExternalId));
+                Long senderId = Long.parseLong(senderRef.replace("Patient/", ""));
+                Optional<Patient> patientOpt = patientRepository.findById(senderId);
+                if (patientOpt.isEmpty()) {
+                    log.error("Sender patient not found with ID: {}", senderId);
+                    throw new RuntimeException("Sender patient not found: " + senderId);
+                }
+                Patient patient = patientOpt.get();
+                if (!currentOrgId.equals(patient.getOrgId())) {
+                    throw new SecurityException("Sender patient does not belong to current org");
+                }
+                dto.setSender("Patient/" + patient.getExternalId());
             }
         }
 
         if (dto.getRecipients() != null) {
+            List<String> mappedRecipients = new ArrayList<>();
             for (String recipientRef : dto.getRecipients()) {
                 if (recipientRef.startsWith("Provider/")) {
-                    String recipientExternalId = recipientRef.replace("Provider/", "");
-                    providerRepository.findAllByOrgId(currentOrgId).stream()
-                            .filter(p -> p.getExternalId().equals(recipientExternalId))
-                            .findFirst()
-                            .orElseThrow(() -> new RuntimeException("Recipient provider not found: " + recipientExternalId));
+                    Long recipientId = Long.parseLong(recipientRef.replace("Provider/", ""));
+                    Optional<Provider> providerOpt = providerRepository.findById(recipientId);
+                    if (providerOpt.isEmpty()) {
+                        log.error("Recipient provider not found with ID: {}", recipientId);
+                        throw new RuntimeException("Recipient provider not found: " + recipientId);
+                    }
+                    Provider provider = providerOpt.get();
+                    if (!currentOrgId.equals(provider.getOrgId())) {
+                        throw new SecurityException("Recipient provider does not belong to current org");
+                    }
+                    mappedRecipients.add("Provider/" + provider.getExternalId());
                 } else if (recipientRef.startsWith("Patient/")) {
-                    String recipientExternalId = recipientRef.replace("Patient/", "");
-                    patientRepository.findAllByOrgId(currentOrgId).stream()
-                            .filter(p -> p.getExternalId().equals(recipientExternalId))
-                            .findFirst()
-                            .orElseThrow(() -> new RuntimeException("Recipient patient not found: " + recipientExternalId));
+                    Long recipientId = Long.parseLong(recipientRef.replace("Patient/", ""));
+                    Optional<Patient> patientOpt = patientRepository.findById(recipientId);
+                    if (patientOpt.isEmpty()) {
+                        log.error("Recipient patient not found with ID: {}", recipientId);
+                        throw new RuntimeException("Recipient patient not found: " + recipientId);
+                    }
+                    Patient patient = patientOpt.get();
+                    if (!currentOrgId.equals(patient.getOrgId())) {
+                        throw new SecurityException("Recipient patient does not belong to current org");
+                    }
+                    mappedRecipients.add("Patient/" + patient.getExternalId());
                 }
             }
+            dto.setRecipients(mappedRecipients);
         }
 
         if (dto.getSubject() != null && dto.getSubject().startsWith("Patient/")) {
-            String subjectExternalId = dto.getSubject().replace("Patient/", "");
-            patientRepository.findAllByOrgId(currentOrgId).stream()
-                    .filter(p -> p.getExternalId().equals(subjectExternalId))
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Subject patient not found: " + subjectExternalId));
+            Long subjectId = Long.parseLong(dto.getSubject().replace("Patient/", ""));
+            Optional<Patient> patientOpt = patientRepository.findById(subjectId);
+            if (patientOpt.isEmpty()) {
+                log.error("Subject patient not found with ID: {}", subjectId);
+                throw new RuntimeException("Subject patient not found: " + subjectId);
+            }
+            Patient patient = patientOpt.get();
+            if (!currentOrgId.equals(patient.getOrgId())) {
+                throw new SecurityException("Subject patient does not belong to current org");
+            }
+            dto.setSubject("Patient/" + patient.getExternalId());
         }
 
         if (dto.getInResponseTo() != null) {
-            String inResponseToExternalId = dto.getInResponseTo().replace("Communication/", "");
-            ExternalStorage<CommunicationDto> externalStorage = storageResolver.resolve(CommunicationDto.class);
-            CommunicationDto parent = externalStorage.get(inResponseToExternalId);
-            if (parent == null) {
-                throw new RuntimeException("Parent communication not found: " + inResponseToExternalId);
+            String inResponseToValue = dto.getInResponseTo();
+            if (!inResponseToValue.startsWith("Communication/")) {
+                throw new IllegalArgumentException("Invalid inResponseTo format: must start with 'Communication/'");
+            }
+            String inResponseToExternalId = inResponseToValue.replace("Communication/", "");
+            try {
+                UUID.fromString(inResponseToExternalId); // Validate UUID format
+            } catch (IllegalArgumentException e) {
+                log.error("Invalid UUID format for inResponseTo: {}, proceeding without validation", inResponseToExternalId);
+                dto.setInResponseTo(null); // Clear invalid inResponseTo
+            }
+
+            if (dto.getInResponseTo() != null) {
+                Optional<Communication> parentCommOpt = repository.findByExternalIdAndOrgId(inResponseToExternalId, currentOrgId);
+                if (parentCommOpt.isEmpty()) {
+                    log.warn("Parent communication with externalId {} not found in database, checking FHIR", inResponseToExternalId);
+                    ExternalStorage<CommunicationDto> externalStorage = storageResolver.resolve(CommunicationDto.class);
+                    CommunicationDto parent = externalStorage.get(inResponseToExternalId);
+                    if (parent == null) {
+                        log.warn("Parent communication not found in FHIR: {}, proceeding without validation", inResponseToExternalId);
+                        dto.setInResponseTo(null); // Clear if not found in FHIR
+                    }
+                }
             }
         }
 
@@ -475,6 +590,72 @@ public class CommunicationService {
             audit.setLastModifiedDate(communication.getLastModifiedDate());
             dto.setAudit(audit);
         }
+
+        // Map sender to internal ID and name with debugging
+        if (communication.getSender() != null) {
+            if (communication.getSender().startsWith("Provider/")) {
+                String externalId = communication.getSender().replace("Provider/", "");
+                log.debug("Looking up Provider with externalId: {} and orgId: {}", externalId, communication.getOrgId());
+                Optional<Provider> providerOpt = providerRepository.findByExternalIdAndOrgId(communication.getOrgId(), externalId);
+                if (providerOpt.isPresent()) {
+                    Provider provider = providerOpt.get();
+                    dto.setFromId(provider.getId());
+                    dto.setFromName(provider.getFirstName() + " " + (provider.getLastName() != null ? provider.getLastName() : ""));
+                    log.debug("Found Provider: id={}, name={}", provider.getId(), dto.getFromName());
+                } else {
+                    log.warn("Provider with externalId {} and orgId {} not found", externalId, communication.getOrgId());
+                }
+            } else if (communication.getSender().startsWith("Patient/")) {
+                String externalId = communication.getSender().replace("Patient/", "");
+                log.debug("Looking up Patient with externalId: {} and orgId: {}", externalId, communication.getOrgId());
+                Optional<Patient> patientOpt = patientRepository.findByExternalIdAndOrgId(communication.getOrgId(), externalId);
+                if (patientOpt.isPresent()) {
+                    Patient patient = patientOpt.get();
+                    dto.setFromId(patient.getId());
+                    dto.setFromName(patient.getFirstName() + " " + (patient.getLastName() != null ? patient.getLastName() : ""));
+                    log.debug("Found Patient: id={}, name={}", patient.getId(), dto.getFromName());
+                } else {
+                    log.warn("Patient with externalId {} and orgId {} not found", externalId, communication.getOrgId());
+                }
+            }
+        }
+
+        // Map recipients to internal IDs and names with debugging
+        if (communication.getRecipients() != null) {
+            List<Long> toIds = new ArrayList<>();
+            List<String> toNames = new ArrayList<>();
+            for (String recipient : communication.getRecipients().split(",")) {
+                recipient = recipient.trim();
+                if (recipient.startsWith("Provider/")) {
+                    String externalId = recipient.replace("Provider/", "");
+                    log.debug("Looking up Provider with externalId: {} and orgId: {}", externalId, communication.getOrgId());
+                    Optional<Provider> providerOpt = providerRepository.findByExternalIdAndOrgId(communication.getOrgId(), externalId);
+                    if (providerOpt.isPresent()) {
+                        Provider provider = providerOpt.get();
+                        toIds.add(provider.getId());
+                        toNames.add(provider.getFirstName() + " " + (provider.getLastName() != null ? provider.getLastName() : ""));
+                        log.debug("Found Provider: id={}, name={}", provider.getId(), toNames.get(toNames.size() - 1));
+                    } else {
+                        log.warn("Provider with externalId {} and orgId {} not found", externalId, communication.getOrgId());
+                    }
+                } else if (recipient.startsWith("Patient/")) {
+                    String externalId = recipient.replace("Patient/", "");
+                    log.debug("Looking up Patient with externalId: {} and orgId: {}", externalId, communication.getOrgId());
+                    Optional<Patient> patientOpt = patientRepository.findByExternalIdAndOrgId(communication.getOrgId(), externalId);
+                    if (patientOpt.isPresent()) {
+                        Patient patient = patientOpt.get();
+                        toIds.add(patient.getId());
+                        toNames.add(patient.getFirstName() + " " + (patient.getLastName() != null ? patient.getLastName() : ""));
+                        log.debug("Found Patient: id={}, name={}", patient.getId(), toNames.get(toNames.size() - 1));
+                    } else {
+                        log.warn("Patient with externalId {} and orgId {} not found", externalId, communication.getOrgId());
+                    }
+                }
+            }
+            dto.setToIds(toIds);
+            dto.setToNames(toNames);
+        }
+
         return dto;
     }
 

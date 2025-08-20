@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PatientRepository extends JpaRepository<Patient, Long> {
@@ -16,4 +17,7 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
 
     // Optionally, add other queries as needed
     List<Patient> findAllByOrgId(Long orgId);
+
+    @Query("SELECT p FROM Patient p WHERE p.orgId = :orgId AND p.externalId = :externalId")
+    Optional<Patient> findByExternalIdAndOrgId(Long orgId, String externalId);
 }

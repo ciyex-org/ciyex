@@ -19,4 +19,7 @@ public interface ProviderRepository extends JpaRepository<Provider, Long> {
 
     @Query("SELECT COUNT(p) FROM Provider p WHERE p.orgId = :orgId")
     long countByOrgId(@Param("orgId") Long orgId);
+
+    @Query("SELECT p FROM Provider p WHERE p.orgId = :orgId AND p.externalId = :externalId")
+    Optional<Provider> findByExternalIdAndOrgId(Long orgId, String externalId);
 }
