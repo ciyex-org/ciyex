@@ -18,6 +18,44 @@ public class PatientDto {
     private String medicalRecordNumber;
     private Audit audit;
 
+
+    // Extended Demographics Information (FHIR Extensions)
+    private String preferredName;  // Preferred Name
+    private String title;  // Title (e.g., Mr., Mrs., Dr.)
+    private String birthName;  // Birth Name (if different from current name)
+    private String licenseId;  // License/ID (for healthcare professionals)
+    private String sexualOrientation;  // Sexual Orientation (e.g., Heterosexual, Homosexual, etc.)
+    private String maritalStatus;  // Marital Status (e.g., Single, Married, Divorced)
+    private String emergencyContact;  // Emergency Contact (e.g., name and phone number)
+    private String race;  // Race (e.g., American Indian, Asian, etc.)
+    private String ethnicity;  // Ethnicity (e.g., Hispanic, Non-Hispanic)
+    private String nationality;  // Nationality (e.g., American, British, etc.)
+    private String guardianName;  // Guardian Name (if applicable)
+    private String guardianRelationship;  // Relationship to Guardian
+
+    // Contact Information
+    private String city;  // City (Optional)
+    private String postalCode;  // Postal Code (Optional)
+    private String country;  // Country (Optional)
+
+    // Employer Information
+    private String employerName;  // Employer Name (if applicable)
+    private String employerAddress;  // Employer Address
+    private String occupation;  // Occupation (e.g., Software Engineer, Doctor, etc.)
+
+    // Choices and Miscellaneous Information
+    private String provider;  // Provider Information (e.g., primary care provider)
+    private String referringProvider;  // Referring Provider (if applicable)
+    private String pharmacy;  // Pharmacy Information (if applicable)
+    private String hipaaNoticeReceived;  // HIPAA Notice Acknowledgement (True/False)
+
+    // Other Information
+    private String language;  // Preferred language for communication
+    private String billingNote;  // Any additional billing-related notes
+
+    // Optional - For Record-Keeping
+    private String previousNames;  // Any previous names the patient has used
+
     @Data
     public static class Identification {
         private String firstName; // Legal first name
