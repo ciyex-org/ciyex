@@ -8,7 +8,8 @@ public enum IntegrationKey {
     TWILIO("twilio", TwilioConfig.class),
     SMTP("smtp", SmtpConfig.class),
     TELEHEALTH("telehealth", TelehealthConfig.class),
-    AI("ai", AiConfig.class);
+    AI("ai", AiConfig.class),
+    DOCUMENT_STORAGE("document_storage", StorageConfig.class);
 
     private final String key;
     private final Class<?> clazz;
