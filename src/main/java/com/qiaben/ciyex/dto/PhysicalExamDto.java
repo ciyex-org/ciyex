@@ -1,36 +1,33 @@
 package com.qiaben.ciyex.dto;
 
 import lombok.Data;
+import java.util.List;
 
 @Data
 public class PhysicalExamDto {
-
     private Long id;
+    private String externalId;   // optional FHIR id
+    private Long orgId;
     private Long patientId;
     private Long encounterId;
-    private Long orgId;
 
-    private String general;
-    private String heent;
+    private List<SectionDto> sections;
 
-    public Long getOrgId() {
-        return orgId;
+    private Audit audit;
+
+    @Data
+    public static class SectionDto {
+        // GENERAL, HEENT, NECK, BREASTS, CARDIOVASCULAR, THORAX_BACK, GASTROINTESTINAL,
+        // GU_FEMALE, GU_MALE, MUSCULOSKELETAL, SKIN, LYMPHATIC, NEUROLOGIC, PSYCHIATRIC, OTHER
+        private String sectionKey;
+        private Boolean allNormal;      // true if “All Normal” selected for the section
+        private String normalText;      // the standard normal sentence shown in UI
+        private String findings;        // free-text findings (optional)
     }
 
-    public void setOrgId(Long orgId) {
-        this.orgId = orgId;
+    @Data
+    public static class Audit {
+        private String createdDate;      // yyyy-MM-dd
+        private String lastModifiedDate; // yyyy-MM-dd
     }
-
-    private String neck;
-    private String cardiovascular;
-    private String respiratory;
-    private String gastrointestinal;
-    private String musculoskeletal;
-    private String skin;
-    private String lymphatic;
-    private String neurological;
-    private String psychiatric;
-
-    private String createdDate;
-    private String lastModifiedDate;
 }

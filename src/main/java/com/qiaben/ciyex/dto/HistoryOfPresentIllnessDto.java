@@ -73,36 +73,24 @@
 
 package com.qiaben.ciyex.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
-/**
- * History of Present Illness (HPI) DTO
- * Date strings use yyyy-MM-dd to match project conventions.
- */
 @Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 public class HistoryOfPresentIllnessDto {
-    private Long id;                 // DB ID
-    private String externalId;       // External FHIR ID
-    private Long orgId;              // Tenant
-    private Long patientId;          // Internal patient id
-    private Long encounterId;        // Internal encounter id
+    private Long id;             // DB id
+    private String externalId;   // FHIR id (optional)
+    private Long orgId;          // tenant
+    private Long patientId;
+    private Long encounterId;
 
-    // HPI content
-    private String hpiText;          // Narrative text
-    private String onsetDate;        // yyyy-MM-dd (optional)
-    private String duration;         // e.g., "2 weeks"
-    private String severity;         // e.g., "mild", "moderate", "severe"
-    private String associatedSymptoms;// free text
-    private String modifyingFactors; // free text
-    private String notes;            // additional notes
+    private String description;  // HPI narrative
 
-    // Audit
-    private String createdDate;      // yyyy-MM-dd
-    private String lastModifiedDate; // yyyy-MM-dd
+    private Audit audit;
+
+    @Data
+    public static class Audit {
+        // keep string dates to match your yyyy-MM-dd preference
+        private String createdDate;
+        private String lastModifiedDate;
+    }
 }

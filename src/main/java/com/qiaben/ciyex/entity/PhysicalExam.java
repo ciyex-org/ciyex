@@ -1,63 +1,43 @@
 package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
-@Data
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
-@NoArgsConstructor
 @Table(name = "physical_exam")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class PhysicalExam {
-    public Long getOrgId() {
-        return orgId;
-    }
 
-    public void setOrgId(Long orgId) {
-        this.orgId = orgId;
-    }
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "external_id")
+    private String externalId;
+
+    @Column(name = "org_id", nullable = false)
+    private Long orgId;
+
+    @Column(name = "patient_id", nullable = false)
     private Long patientId;
+
+    @Column(name = "encounter_id", nullable = false)
     private Long encounterId;
-    private Long orgId; // Organization ID for multi-tenancy
 
-    @Lob
-    private String general; // General findings
+    @OneToMany(mappedBy = "physicalExam", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<PhysicalExamSection> sections = new ArrayList<>();
 
-    @Lob
-    private String heent; // HEENT findings
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
-    @Lob
-    private String neck; // Neck findings
-
-    @Lob
-    private String cardiovascular; // Cardiovascular findings
-
-    @Lob
-    private String respiratory; // Respiratory findings
-
-    @Lob
-    private String gastrointestinal; // Gastrointestinal findings
-
-    @Lob
-    private String musculoskeletal; // Musculoskeletal findings
-
-    @Lob
-    private String skin; // Skin findings
-
-    @Lob
-    private String lymphatic; // Lymphatic findings
-
-    @Lob
-    private String neurological; // Neurological findings
-
-    @Lob
-    private String psychiatric; // Psychiatric findings
-
-    private String createdDate;
-    private String lastModifiedDate;
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
 }

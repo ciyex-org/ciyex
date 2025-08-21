@@ -1,82 +1,84 @@
 package com.qiaben.ciyex.controller;
 
+import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.PhysicalExamDto;
 import com.qiaben.ciyex.service.PhysicalExamService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/physical-exams")
+@RequestMapping("/api/physical-exam")
+@RequiredArgsConstructor
+@Slf4j
 public class PhysicalExamController {
 
-    @Autowired
-    private PhysicalExamService service;
+    private final PhysicalExamService service;
 
-    // Get all physical exams by patientId
-    @GetMapping("/{patient_id}")
-    public ResponseEntity<List<PhysicalExamDto>> getAllByPatientId(@PathVariable Long patient_id) {
-        List<PhysicalExamDto> exams = service.getAllByPatientId(patient_id);
-        return ResponseEntity.ok(exams);
+    @GetMapping("/{patientId}")
+    public ResponseEntity<ApiResponse<List<PhysicalExamDto>>> getAllByPatient(
+            @PathVariable Long patientId,
+            @RequestHeader("orgId") Long orgId) {
+        var list = service.getAllByPatient(orgId, patientId);
+        return ResponseEntity.ok(ApiResponse.<List<PhysicalExamDto>>builder()
+                .success(true).message("Physical Exam fetched").data(list).build());
     }
 
-    // Get all physical exams by patientId and encounterId
-    @GetMapping("/{patient_id}/{encounter_id}")
-    public ResponseEntity<List<PhysicalExamDto>> getAllByPatientIdAndEncounterId(
-            @PathVariable Long patient_id, @PathVariable Long encounter_id) {
-        List<PhysicalExamDto> exams = service.getAllByPatientIdAndEncounterId(patient_id, encounter_id);
-        return ResponseEntity.ok(exams);
+    @GetMapping("/{patientId}/{encounterId}")
+    public ResponseEntity<ApiResponse<List<PhysicalExamDto>>> getAllByEncounter(
+            @PathVariable Long patientId,
+            @PathVariable Long encounterId,
+            @RequestHeader("orgId") Long orgId) {
+        var list = service.getAllByEncounter(orgId, patientId, encounterId);
+        return ResponseEntity.ok(ApiResponse.<List<PhysicalExamDto>>builder()
+                .success(true).message("Physical Exam fetched").data(list).build());
     }
 
-    // Get a specific physical exam by patientId, encounterId, and examId
-    @GetMapping("/{patient_id}/{encounter_id}/{exam_id}")
-    public ResponseEntity<PhysicalExamDto> getById(
-            @PathVariable Long patient_id, @PathVariable Long encounter_id, @PathVariable Long exam_id) {
-        PhysicalExamDto exam = service.getById(patient_id, encounter_id, exam_id);
-        if (exam == null) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(exam);
+    @GetMapping("/{patientId}/{encounterId}/{id}")
+    public ResponseEntity<ApiResponse<PhysicalExamDto>> getOne(
+            @PathVariable Long patientId,
+            @PathVariable Long encounterId,
+            @PathVariable Long id,
+            @RequestHeader("orgId") Long orgId) {
+        var dto = service.getOne(orgId, patientId, encounterId, id);
+        return ResponseEntity.ok(ApiResponse.<PhysicalExamDto>builder()
+                .success(true).message("Physical Exam fetched").data(dto).build());
     }
 
-    // Create a new physical exam
-    @PostMapping("/{patient_id}/{encounter_id}")
-    public ResponseEntity<PhysicalExamDto> createPhysicalExam(
-            @PathVariable Long patient_id,
-            @PathVariable Long encounter_id,
+    @PostMapping("/{patientId}/{encounterId}")
+    public ResponseEntity<ApiResponse<PhysicalExamDto>> create(
+            @PathVariable Long patientId,
+            @PathVariable Long encounterId,
             @RequestHeader("orgId") Long orgId,
             @RequestBody PhysicalExamDto dto) {
-
-        // Set orgId in the DTO
-        dto.setOrgId(orgId);
-        dto.setPatientId(patient_id);
-        dto.setEncounterId(encounter_id);
-
-        // Save the exam and return the saved DTO
-        PhysicalExamDto savedExam = service.save(dto);
-        return ResponseEntity.ok(savedExam);
+        var created = service.create(orgId, patientId, encounterId, dto);
+        return ResponseEntity.ok(ApiResponse.<PhysicalExamDto>builder()
+                .success(true).message("Physical Exam created").data(created).build());
     }
 
-
-
-
-
-    // Update a physical exam
-    @PutMapping("/{patient_id}/{encounter_id}/{exam_id}")
-    public ResponseEntity<PhysicalExamDto> update(
-            @PathVariable Long patient_id, @PathVariable Long encounter_id, @PathVariable Long exam_id, @RequestBody PhysicalExamDto dto) {
-        dto.setId(exam_id);
-        PhysicalExamDto updatedExam = service.save(dto);
-        return ResponseEntity.ok(updatedExam);
+    @PutMapping("/{patientId}/{encounterId}/{id}")
+    public ResponseEntity<ApiResponse<PhysicalExamDto>> update(
+            @PathVariable Long patientId,
+            @PathVariable Long encounterId,
+            @PathVariable Long id,
+            @RequestHeader("orgId") Long orgId,
+            @RequestBody PhysicalExamDto dto) {
+        var updated = service.update(orgId, patientId, encounterId, id, dto);
+        return ResponseEntity.ok(ApiResponse.<PhysicalExamDto>builder()
+                .success(true).message("Physical Exam updated").data(updated).build());
     }
 
-    // Delete a physical exam
-    @DeleteMapping("/{patient_id}/{encounter_id}/{exam_id}")
-    public ResponseEntity<Void> delete(
-            @PathVariable Long patient_id, @PathVariable Long encounter_id, @PathVariable Long exam_id) {
-        service.deleteById(patient_id, encounter_id, exam_id);
-        return ResponseEntity.noContent().build();
+    @DeleteMapping("/{patientId}/{encounterId}/{id}")
+    public ResponseEntity<ApiResponse<Void>> delete(
+            @PathVariable Long patientId,
+            @PathVariable Long encounterId,
+            @PathVariable Long id,
+            @RequestHeader("orgId") Long orgId) {
+        service.delete(orgId, patientId, encounterId, id);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .success(true).message("Physical Exam deleted").build());
     }
 }

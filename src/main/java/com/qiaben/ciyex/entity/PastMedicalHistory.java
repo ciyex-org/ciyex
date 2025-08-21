@@ -5,14 +5,12 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "past_medical_history")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor @Builder
 public class PastMedicalHistory {
 
     @Id
@@ -20,7 +18,7 @@ public class PastMedicalHistory {
     private Long id;
 
     @Column(name = "external_id")
-    private String externalId;
+    private String externalId; // FHIR id (nullable)
 
     @Column(name = "org_id", nullable = false)
     private Long orgId;
@@ -31,26 +29,14 @@ public class PastMedicalHistory {
     @Column(name = "encounter_id", nullable = false)
     private Long encounterId;
 
-    @Column(name = "condition", length = 256)
-    private String condition;
-
-    @Column(name = "notes", columnDefinition = "TEXT")
-    private String notes;
-
-    @Column(name = "status", length = 64)
-    private String status;
-
-    @Column(name = "onset_date", length = 20)
-    private String onsetDate;
-
-    @Column(name = "resolved_date", length = 20)
-    private String resolvedDate;
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
 
     @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
-    private OffsetDateTime createdAt;
+    @Column(name = "created_at", updatable = false, nullable = false)
+    private LocalDateTime createdAt;
 
     @UpdateTimestamp
-    @Column(name = "updated_at")
-    private OffsetDateTime updatedAt;
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
 }

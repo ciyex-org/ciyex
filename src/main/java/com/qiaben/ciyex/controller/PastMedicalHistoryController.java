@@ -23,32 +23,32 @@ public class PastMedicalHistoryController {
     public ResponseEntity<ApiResponse<List<PastMedicalHistoryDto>>> getAllByPatient(
             @PathVariable Long patientId,
             @RequestHeader("orgId") Long orgId) {
-        List<PastMedicalHistoryDto> list = service.getAllByPatient(orgId, patientId);
+        var list = service.getAllByPatient(orgId, patientId);
         return ResponseEntity.ok(ApiResponse.<List<PastMedicalHistoryDto>>builder()
                 .success(true).message("PMH fetched successfully").data(list).build());
     }
 
-    // READ ALL by encounter: /api/past-medical-history/{patientId}/{encounterId}
+    // READ ALL: /api/past-medical-history/{patientId}/{encounterId}
     @GetMapping("/{patientId}/{encounterId}")
-    public ResponseEntity<ApiResponse<List<PastMedicalHistoryDto>>> getAllByPatientAndEncounter(
+    public ResponseEntity<ApiResponse<List<PastMedicalHistoryDto>>> getAllByEncounter(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestHeader("orgId") Long orgId) {
-        List<PastMedicalHistoryDto> list = service.getAllByPatientAndEncounter(orgId, patientId, encounterId);
+        var list = service.getAllByEncounter(orgId, patientId, encounterId);
         return ResponseEntity.ok(ApiResponse.<List<PastMedicalHistoryDto>>builder()
-                .success(true).message("PMH by encounter fetched successfully").data(list).build());
+                .success(true).message("PMH fetched successfully").data(list).build());
     }
 
-    // READ EXACT: /api/past-medical-history/{patientId}/{encounterId}/{pastMedicalHistoryId}
-    @GetMapping("/{patientId}/{encounterId}/{pastMedicalHistoryId}")
-    public ResponseEntity<ApiResponse<PastMedicalHistoryDto>> getExact(
+    // READ ONE: /api/past-medical-history/{patientId}/{encounterId}/{id}
+    @GetMapping("/{patientId}/{encounterId}/{id}")
+    public ResponseEntity<ApiResponse<PastMedicalHistoryDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long pastMedicalHistoryId,
+            @PathVariable Long id,
             @RequestHeader("orgId") Long orgId) {
-        PastMedicalHistoryDto dto = service.getExact(orgId, patientId, encounterId, pastMedicalHistoryId);
+        var dto = service.getOne(orgId, patientId, encounterId, id);
         return ResponseEntity.ok(ApiResponse.<PastMedicalHistoryDto>builder()
-                .success(true).message("PMH item fetched successfully").data(dto).build());
+                .success(true).message("PMH fetched successfully").data(dto).build());
     }
 
     // CREATE: /api/past-medical-history/{patientId}/{encounterId}
@@ -58,33 +58,33 @@ public class PastMedicalHistoryController {
             @PathVariable Long encounterId,
             @RequestHeader("orgId") Long orgId,
             @RequestBody PastMedicalHistoryDto dto) {
-        PastMedicalHistoryDto created = service.create(orgId, patientId, encounterId, dto);
+        var created = service.create(orgId, patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<PastMedicalHistoryDto>builder()
-                .success(true).message("PMH created successfully").data(created).build());
+                .success(true).message("PMH created").data(created).build());
     }
 
-    // UPDATE: /api/past-medical-history/{patientId}/{encounterId}/{pastMedicalHistoryId}
-    @PutMapping("/{patientId}/{encounterId}/{pastMedicalHistoryId}")
+    // UPDATE: /api/past-medical-history/{patientId}/{encounterId}/{id}
+    @PutMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<ApiResponse<PastMedicalHistoryDto>> update(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long pastMedicalHistoryId,
+            @PathVariable Long id,
             @RequestHeader("orgId") Long orgId,
             @RequestBody PastMedicalHistoryDto dto) {
-        PastMedicalHistoryDto updated = service.update(orgId, patientId, encounterId, pastMedicalHistoryId, dto);
+        var updated = service.update(orgId, patientId, encounterId, id, dto);
         return ResponseEntity.ok(ApiResponse.<PastMedicalHistoryDto>builder()
-                .success(true).message("PMH updated successfully").data(updated).build());
+                .success(true).message("PMH updated").data(updated).build());
     }
 
-    // DELETE: /api/past-medical-history/{patientId}/{encounterId}/{pastMedicalHistoryId}
-    @DeleteMapping("/{patientId}/{encounterId}/{pastMedicalHistoryId}")
+    // DELETE: /api/past-medical-history/{patientId}/{encounterId}/{id}
+    @DeleteMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long pastMedicalHistoryId,
+            @PathVariable Long id,
             @RequestHeader("orgId") Long orgId) {
-        service.delete(orgId, patientId, encounterId, pastMedicalHistoryId);
+        service.delete(orgId, patientId, encounterId, id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .success(true).message("PMH deleted successfully").build());
+                .success(true).message("PMH deleted").build());
     }
 }

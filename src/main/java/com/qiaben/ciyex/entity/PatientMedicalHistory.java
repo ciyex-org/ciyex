@@ -2,15 +2,15 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "patient_medical_history")
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor @Builder
 public class PatientMedicalHistory {
 
     @Id
@@ -18,7 +18,7 @@ public class PatientMedicalHistory {
     private Long id;
 
     @Column(name = "external_id")
-    private String externalId; // FHIR Condition id
+    private String externalId; // FHIR id (nullable)
 
     @Column(name = "org_id", nullable = false)
     private Long orgId;
@@ -29,18 +29,14 @@ public class PatientMedicalHistory {
     @Column(name = "encounter_id", nullable = false)
     private Long encounterId;
 
-    @Column(name = "condition_name", length = 255)
-    private String condition;
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
 
-    @Column(name = "notes", columnDefinition = "TEXT")
-    private String notes;
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
-    @Column(name = "status", length = 50)
-    private String status; // active/resolved/etc
-
-    private LocalDate onsetDate;
-    private LocalDate resolvedDate;
-
-    private LocalDate createdDate;
-    private LocalDate lastModifiedDate;
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
 }

@@ -2,10 +2,15 @@ package com.qiaben.ciyex.storage;
 
 import com.qiaben.ciyex.dto.ReviewOfSystemDto;
 
-public interface ExternalReviewOfSystemStorage {
+import java.util.List;
+import java.util.Optional;
 
-    // Interface methods for interacting with external systems (e.g., FHIR)
-    ReviewOfSystemDto createExternalReviewOfSystem(ReviewOfSystemDto dto);
-    ReviewOfSystemDto updateExternalReviewOfSystem(Long patientId, Long encounterId, Long rosId, ReviewOfSystemDto dto);
-    void deleteExternalReviewOfSystem(Long patientId, Long encounterId, Long rosId);
+public interface ExternalReviewOfSystemStorage {
+    String create(ReviewOfSystemDto dto);
+    void update(String externalId, ReviewOfSystemDto dto);
+    Optional<ReviewOfSystemDto> get(String externalId);
+    void delete(String externalId);
+
+    List<ReviewOfSystemDto> searchAll(Long orgId, Long patientId);
+    List<ReviewOfSystemDto> searchAll(Long orgId, Long patientId, Long encounterId);
 }
