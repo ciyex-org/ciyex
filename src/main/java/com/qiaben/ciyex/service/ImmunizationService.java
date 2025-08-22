@@ -1,277 +1,117 @@
-//package com.qiaben.ciyex.service;
-//
-//
-//
-//import com.qiaben.ciyex.dto.ImmunizationDto;
-//import com.qiaben.ciyex.entity.Immunization;
-//import com.qiaben.ciyex.repository.ImmunizationRepository;
-//import org.springframework.stereotype.Service;
-//import org.springframework.transaction.annotation.Transactional;
-//
-//@Service
-//public class ImmunizationService {
-//
-//    private final ImmunizationRepository immunizationRepository;
-//
-//    public ImmunizationService(ImmunizationRepository immunizationRepository) {
-//        this.immunizationRepository = immunizationRepository;
-//    }
-//
-//    @Transactional
-//    public ImmunizationDto create(ImmunizationDto dto) {
-//        Immunization immunization = new Immunization();
-//        immunization.setVaccineName(dto.getVaccineName());
-//        immunization.setDateAdministered(dto.getDateAdministered());
-//        immunization.setPatientId(dto.getPatientId());
-//        immunization.setAdministeredBy(dto.getAdministeredBy());
-//        immunization = immunizationRepository.save(immunization);
-//        return mapToDto(immunization);
-//    }
-//
-//    @Transactional(readOnly = true)
-//    public ImmunizationDto getById(Long id) {
-//        Immunization immunization = immunizationRepository.findById(id).orElseThrow(() -> new RuntimeException("Immunization not found"));
-//        return mapToDto(immunization);
-//    }
-//
-//    @Transactional
-//    public ImmunizationDto update(Long id, ImmunizationDto dto) {
-//        Immunization immunization = immunizationRepository.findById(id).orElseThrow(() -> new RuntimeException("Immunization not found"));
-//        immunization.setVaccineName(dto.getVaccineName());
-//        immunization.setDateAdministered(dto.getDateAdministered());
-//        immunization.setAdministeredBy(dto.getAdministeredBy());
-//        immunization = immunizationRepository.save(immunization);
-//        return mapToDto(immunization);
-//    }
-//
-//    @Transactional
-//    public void delete(Long id) {
-//        Immunization immunization = immunizationRepository.findById(id).orElseThrow(() -> new RuntimeException("Immunization not found"));
-//        immunizationRepository.delete(immunization);
-//    }
-//
-//    private ImmunizationDto mapToDto(Immunization immunization) {
-//        ImmunizationDto dto = new ImmunizationDto();
-//        dto.setId(immunization.getId());
-//        dto.setVaccineName(immunization.getVaccineName());
-//        dto.setDateAdministered(immunization.getDateAdministered());
-//        dto.setPatientId(immunization.getPatientId());
-//        dto.setAdministeredBy(immunization.getAdministeredBy());
-//        return dto;
-//    }
-//}
-//
-
-
-
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.ImmunizationDto;
 import com.qiaben.ciyex.entity.Immunization;
-import com.qiaben.ciyex.entity.Encounter;
 import com.qiaben.ciyex.repository.ImmunizationRepository;
-import com.qiaben.ciyex.repository.EncounterRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
 public class ImmunizationService {
-    private final ImmunizationRepository immunizationRepository;
-    private final EncounterRepository encounterRepository;
 
-    public ImmunizationService(ImmunizationRepository immunizationRepository, EncounterRepository encounterRepository) {
-        this.immunizationRepository = immunizationRepository;
-        this.encounterRepository = encounterRepository;
+    private final ImmunizationRepository repository;
+
+    @Autowired
+    public ImmunizationService(ImmunizationRepository repository) {
+        this.repository = repository;
     }
 
-    @Transactional
-    public ImmunizationDto create(Long encounterId, ImmunizationDto dto) {
-        Encounter encounter = encounterRepository.findById(encounterId)
-                .orElseThrow(() -> new RuntimeException("Encounter not found with id: " + encounterId));
-        Immunization immunization = mapToEntity(dto);
-        immunization.setEncounter(encounter); // Set the encounter
-        immunization = immunizationRepository.save(immunization);
-        return mapToDto(immunization);
+    // Create Immunization
+    public ImmunizationDto create(ImmunizationDto dto, Long orgId) {
+        Immunization entity = mapToEntity(dto);
+        entity.setOrgId(orgId);
+        Immunization savedEntity = repository.save(entity);
+        return mapToDto(savedEntity);
     }
 
-    @Transactional(readOnly = true)
-    public List<ImmunizationDto> getByEncounterId(Long encounterId) {
-        List<Immunization> immunizations = immunizationRepository.findByEncounter_Id(encounterId);
+    // Read All Immunizations by orgId
+    public List<ImmunizationDto> getByOrgId(Long orgId) {
+        List<Immunization> immunizations = repository.findByOrgId(orgId);
         return immunizations.stream().map(this::mapToDto).collect(Collectors.toList());
     }
 
-    @Transactional
-    public ImmunizationDto update(Long encounterId, Long id, ImmunizationDto dto) {
-        Immunization immunization = immunizationRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Immunization not found"));
-        if (!immunization.getEncounter().getId().equals(encounterId)) {
-            throw new RuntimeException("Encounter ID mismatch");
-        }
-        immunization.setVaccineName(dto.getVaccineName());
-        immunization.setDateAdministered(dto.getDateAdministered());
-        immunization.setPatientId(dto.getPatientId());
-        immunization.setAdministeredBy(dto.getAdministeredBy());
-        immunization.setOrgId(dto.getOrgId());
-      //  immunization.setImmuid(dto.getImmuid());
-        immunization.setExternaleId(dto.getExternaleId());
-        immunization = immunizationRepository.save(immunization);
-        return mapToDto(immunization);
+    // Read Immunization by id
+    public ImmunizationDto getById(Long id) {
+        Optional<Immunization> immunization = repository.findById(id);
+        return immunization.map(this::mapToDto).orElse(null);
     }
 
-    @Transactional
-    public void delete(Long encounterId, Long id) {
-        Immunization immunization = immunizationRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Immunization not found"));
-        if (!immunization.getEncounter().getId().equals(encounterId)) {
-            throw new RuntimeException("Encounter ID mismatch");
+    // Update Immunization by id
+    public ImmunizationDto update(Long id, ImmunizationDto dto, Long orgId) {
+        Optional<Immunization> immunizationOptional = repository.findById(id);
+        if (immunizationOptional.isPresent()) {
+            Immunization existingImmunization = immunizationOptional.get();
+            existingImmunization = mapToEntity(dto);
+            existingImmunization.setId(id);
+            existingImmunization.setOrgId(orgId);
+            Immunization updatedEntity = repository.save(existingImmunization);
+            return mapToDto(updatedEntity);
+        } else {
+            return null; // Immunization not found
         }
-        immunizationRepository.delete(immunization);
+    }
+
+    // Delete Immunization by id
+    public boolean delete(Long id) {
+        Optional<Immunization> immunization = repository.findById(id);
+        if (immunization.isPresent()) {
+            repository.delete(immunization.get());
+            return true;
+        }
+        return false;
+    }
+
+    private ImmunizationDto mapToDto(Immunization entity) {
+        ImmunizationDto dto = new ImmunizationDto();
+        dto.setId(entity.getId());
+        dto.setVaccine(entity.getVaccine());
+        dto.setDose(entity.getDose());
+        dto.setDateAdministered(entity.getDateAdministered());
+        dto.setAmountAdministered(entity.getAmountAdministered());
+        dto.setImmunizationExpirationDate(entity.getImmunizationExpirationDate());
+        dto.setImmunizationManufacturer(entity.getImmunizationManufacturer());
+        dto.setImmunizationLotNumber(entity.getImmunizationLotNumber());
+        dto.setAdministratorName(entity.getAdministratorName());
+        dto.setDateInformationGiven(entity.getDateInformationGiven());
+        dto.setDateVISStatement(entity.getDateVISStatement());
+        dto.setRoute(entity.getRoute());
+        dto.setAdministrationSite(entity.getAdministrationSite());
+        dto.setNotes(entity.getNotes());
+        dto.setInformationSource(entity.getInformationSource());
+        dto.setCompletionStatus(entity.getCompletionStatus());
+        dto.setSubstanceRefusalReason(entity.getSubstanceRefusalReason());
+        dto.setReasonCode(entity.getReasonCode());
+        dto.setImmunizationOrderingProvider(entity.getImmunizationOrderingProvider());
+        dto.setPatientId(entity.getPatientId());
+        dto.setOrgId(entity.getOrgId());
+        return dto;
     }
 
     private Immunization mapToEntity(ImmunizationDto dto) {
-        Immunization immunization = new Immunization();
-        immunization.setId(dto.getId());
-        immunization.setVaccineName(dto.getVaccineName());
-        immunization.setDateAdministered(dto.getDateAdministered());
-        immunization.setPatientId(dto.getPatientId());
-        immunization.setAdministeredBy(dto.getAdministeredBy());
-        immunization.setOrgId(dto.getOrgId());
-       // immunization.setImmuid(dto.getImmuid());
-        immunization.setExternaleId(dto.getExternaleId());
-        // encounter is set in create method
-        return immunization;
-    }
-
-    private ImmunizationDto mapToDto(Immunization immunization) {
-        ImmunizationDto dto = new ImmunizationDto();
-        dto.setId(immunization.getId());
-        dto.setVaccineName(immunization.getVaccineName());
-        dto.setDateAdministered(immunization.getDateAdministered());
-        dto.setPatientId(immunization.getPatientId());
-        dto.setAdministeredBy(immunization.getAdministeredBy());
-        dto.setEncounterId(immunization.getEncounter() != null ? immunization.getEncounter().getId() : null);
-      dto.setOrgId(immunization.getOrgId());
-       // dto.setImmuid(immunization.getImmuid());
-        dto.setExternaleId(immunization.getExternaleId());
-        return dto;
+        Immunization entity = new Immunization();
+        entity.setVaccine(dto.getVaccine());
+        entity.setDose(dto.getDose());
+        entity.setDateAdministered(dto.getDateAdministered());
+        entity.setAmountAdministered(dto.getAmountAdministered());
+        entity.setImmunizationExpirationDate(dto.getImmunizationExpirationDate());
+        entity.setImmunizationManufacturer(dto.getImmunizationManufacturer());
+        entity.setImmunizationLotNumber(dto.getImmunizationLotNumber());
+        entity.setAdministratorName(dto.getAdministratorName());
+        entity.setDateInformationGiven(dto.getDateInformationGiven());
+        entity.setDateVISStatement(dto.getDateVISStatement());
+        entity.setRoute(dto.getRoute());
+        entity.setAdministrationSite(dto.getAdministrationSite());
+        entity.setNotes(dto.getNotes());
+        entity.setInformationSource(dto.getInformationSource());
+        entity.setCompletionStatus(dto.getCompletionStatus());
+        entity.setSubstanceRefusalReason(dto.getSubstanceRefusalReason());
+        entity.setReasonCode(dto.getReasonCode());
+        entity.setImmunizationOrderingProvider(dto.getImmunizationOrderingProvider());
+        entity.setPatientId(dto.getPatientId());
+        return entity;
     }
 }
-
-
-//package com.qiaben.ciyex.service;
-//
-//import com.qiaben.ciyex.dto.ImmunizationDto;
-//import com.qiaben.ciyex.entity.Immunization;
-//import com.qiaben.ciyex.entity.Encounter;
-//import com.qiaben.ciyex.repository.ImmunizationRepository;
-//import com.qiaben.ciyex.repository.EncounterRepository;
-//import org.springframework.stereotype.Service;
-//import org.springframework.transaction.annotation.Transactional;
-//
-//import java.util.List;
-//import java.util.stream.Collectors;
-//
-//@Service
-//public class ImmunizationService {
-//
-//    private final ImmunizationRepository immunizationRepository;
-//    private final EncounterRepository encounterRepository;
-//
-//    public ImmunizationService(ImmunizationRepository immunizationRepository, EncounterRepository encounterRepository) {
-//        this.immunizationRepository = immunizationRepository;
-//        this.encounterRepository = encounterRepository;
-//    }
-//
-//    @Transactional
-//    public ImmunizationDto create(Long orgId, Long encounterId, ImmunizationDto dto) {
-//        Encounter encounter = encounterRepository.findById(encounterId)
-//                .orElseThrow(() -> new RuntimeException("Encounter not found with id: " + encounterId));
-//
-//        // Ensure orgId is set in the DTO
-//        dto.setOrgId(orgId);
-//        System.out.println("Received orgId: " + orgId);
-//
-//
-//        Immunization immunization = mapToEntity(dto);
-//
-//        immunization.setEncounter(encounter); // Set the encounter
-//        immunization = immunizationRepository.save(immunization);
-//        return mapToDto(immunization);
-//    }
-//
-//
-//    @Transactional(readOnly = true)
-//    public List<ImmunizationDto> getByEncounterId(Long orgId, Long encounterId) {
-//        // Filter immunizations by orgId and encounterId
-//        List<Immunization> immunizations = immunizationRepository.findByEncounter_Id(encounterId);
-//
-//        // Optionally filter by orgId if required in your logic
-//        return immunizations.stream().map(this::mapToDto).collect(Collectors.toList());
-//    }
-//
-//    @Transactional
-//    public ImmunizationDto update(Long orgId, Long encounterId, Long id, ImmunizationDto dto) {
-//        Immunization immunization = immunizationRepository.findById(id)
-//                .orElseThrow(() -> new RuntimeException("Immunization not found"));
-//
-//        if (!immunization.getEncounter().getId().equals(encounterId)) {
-//            throw new RuntimeException("Encounter ID mismatch");
-//        }
-//
-//        // Ensure orgId is set properly
-//        immunization.setOrgId(orgId);
-//
-//        immunization.setVaccineName(dto.getVaccineName());
-//        immunization.setDateAdministered(dto.getDateAdministered());
-//        immunization.setPatientId(dto.getPatientId());
-//        immunization.setAdministeredBy(dto.getAdministeredBy());
-//        immunization.setExternaleId(dto.getExternaleId());
-//        immunization = immunizationRepository.save(immunization);
-//        return mapToDto(immunization);
-//    }
-//
-//    @Transactional
-//    public void delete(Long orgId, Long encounterId, Long id) {
-//        Immunization immunization = immunizationRepository.findById(id)
-//                .orElseThrow(() -> new RuntimeException("Immunization not found"));
-//
-//        if (!immunization.getEncounter().getId().equals(encounterId)) {
-//            throw new RuntimeException("Encounter ID mismatch");
-//        }
-//
-//        // You may want to ensure that the immunization belongs to the given orgId before deletion
-//        if (!immunization.getOrgId().equals(orgId)) {
-//            throw new RuntimeException("Organization ID mismatch");
-//        }
-//
-//        immunizationRepository.delete(immunization);
-//    }
-//
-//    private Immunization mapToEntity(ImmunizationDto dto) {
-//        Immunization immunization = new Immunization();
-//        immunization.setId(dto.getId());
-//        immunization.setVaccineName(dto.getVaccineName());
-//        immunization.setDateAdministered(dto.getDateAdministered());
-//        immunization.setPatientId(dto.getPatientId());
-//        immunization.setAdministeredBy(dto.getAdministeredBy());
-//        immunization.setOrgId(dto.getOrgId());
-//        immunization.setExternaleId(dto.getExternaleId());
-//        return immunization;
-//    }
-//
-//    private ImmunizationDto mapToDto(Immunization immunization) {
-//        ImmunizationDto dto = new ImmunizationDto();
-//        dto.setId(immunization.getId());
-//        dto.setVaccineName(immunization.getVaccineName());
-//        dto.setDateAdministered(immunization.getDateAdministered());
-//        dto.setPatientId(immunization.getPatientId());
-//        dto.setAdministeredBy(immunization.getAdministeredBy());
-//        dto.setEncounterId(immunization.getEncounter() != null ? immunization.getEncounter().getId() : null);
-//        dto.setOrgId(immunization.getOrgId());
-//        dto.setExternaleId(immunization.getExternaleId());
-//        return dto;
-//    }
-//}

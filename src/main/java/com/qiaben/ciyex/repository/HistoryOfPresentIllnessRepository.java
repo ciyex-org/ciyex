@@ -2,12 +2,17 @@ package com.qiaben.ciyex.repository;
 
 import com.qiaben.ciyex.entity.HistoryOfPresentIllness;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
-@Repository
 public interface HistoryOfPresentIllnessRepository extends JpaRepository<HistoryOfPresentIllness, Long> {
-    // Custom query to fetch HPI by encounter ID
-    List<HistoryOfPresentIllness> findByEncounterId(Long encounterId);
+
+    List<HistoryOfPresentIllness> findByOrgIdAndPatientId(Long orgId, Long patientId);
+
+    List<HistoryOfPresentIllness> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+
+    Optional<HistoryOfPresentIllness> findByOrgIdAndPatientIdAndEncounterIdAndId(
+            Long orgId, Long patientId, Long encounterId, Long id
+    );
 }

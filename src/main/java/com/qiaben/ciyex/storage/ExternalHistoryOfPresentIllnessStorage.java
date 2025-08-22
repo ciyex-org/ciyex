@@ -2,11 +2,20 @@ package com.qiaben.ciyex.storage;
 
 import com.qiaben.ciyex.dto.HistoryOfPresentIllnessDto;
 
+import java.util.List;
+import java.util.Optional;
+
 public interface ExternalHistoryOfPresentIllnessStorage {
 
-    // Save History of Present Illness to an external system (e.g., FHIR)
-    void saveHistoryOfPresentIllness(HistoryOfPresentIllnessDto historyOfPresentIllnessDto);
+    String create(HistoryOfPresentIllnessDto dto);
 
-    // Get History of Present Illness by ID from an external system (e.g., FHIR)
-    HistoryOfPresentIllnessDto getHistoryOfPresentIllnessById(Long id);
+    void update(String externalId, HistoryOfPresentIllnessDto dto);
+
+    Optional<HistoryOfPresentIllnessDto> get(String externalId);
+
+    void delete(String externalId);
+
+    List<HistoryOfPresentIllnessDto> searchAll(Long orgId, Long patientId);
+
+    List<HistoryOfPresentIllnessDto> searchAll(Long orgId, Long patientId, Long encounterId);
 }

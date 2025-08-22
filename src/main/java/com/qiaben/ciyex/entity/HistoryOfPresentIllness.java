@@ -1,83 +1,42 @@
 package com.qiaben.ciyex.entity;
 
-
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
 @Entity
-
+@Table(name = "history_of_present_illness")
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor @Builder
 public class HistoryOfPresentIllness {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String description;  // Description of the illness
-    private Long patientId;      // Patient ID
-    private Long encounterId;    // Encounter ID
-    private Long orgId;          // Organization ID
+    @Column(name = "external_id")
+    private String externalId; // FHIR id (nullable)
 
+    @Column(name = "org_id", nullable = false)
+    private Long orgId;
+
+    @Column(name = "patient_id", nullable = false)
+    private Long patientId;
+
+    @Column(name = "encounter_id", nullable = false)
+    private Long encounterId;
+
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-
-    // Getters and Setters
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public Long getPatientId() {
-        return patientId;
-    }
-
-    public void setPatientId(Long patientId) {
-        this.patientId = patientId;
-    }
-
-    public Long getEncounterId() {
-        return encounterId;
-    }
-
-    public void setEncounterId(Long encounterId) {
-        this.encounterId = encounterId;
-    }
-
-    public Long getOrgId() {
-        return orgId;
-    }
-
-    public void setOrgId(Long orgId) {
-        this.orgId = orgId;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

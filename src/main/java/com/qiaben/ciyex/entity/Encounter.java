@@ -49,6 +49,7 @@ public class Encounter {
     private String dischargeDisposition;
     private String reasonForVisit;
     private Boolean inCollection;
+    private Long orgId;
     @Column(nullable = false, updatable = false)
     private Long createdAt;
 
@@ -58,8 +59,8 @@ public class Encounter {
 //    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
 //    @JoinColumn(name = "encounter_id")
 //    private List<Immunization> immunizations; // Nested immunizations
-@OneToMany(mappedBy = "encounter", cascade = CascadeType.ALL, orphanRemoval = true)
-private List<Immunization> immunizations;
+//@OneToMany(mappedBy = "encounter", cascade = CascadeType.ALL, orphanRemoval = true)
+//private List<Immunization> immunizations;
 
 }
 
