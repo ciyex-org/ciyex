@@ -1,0 +1,49 @@
+package com.qiaben.ciyex.service.ai;
+
+import com.qiaben.ciyex.dto.integration.AiConfig;
+import com.qiaben.ciyex.dto.integration.IntegrationKey;
+import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import org.springframework.beans.BeansException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.stereotype.Component;
+
+import java.util.Map;
+
+@Component
+public class AiResolver implements ApplicationContextAware {
+
+    private ApplicationContext applicationContext;
+    private final OrgIntegrationConfigProvider configProvider;
+
+    public AiResolver(OrgIntegrationConfigProvider configProvider) {
+        this.configProvider = configProvider;
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
+    }
+
+    public AiService resolve() {
+        Long orgId = RequestContext.get().getOrgId();
+        if (orgId == null) {
+            throw new IllegalStateException("No orgId available in request context");
+        }
+
+        AiConfig config = configProvider.get(orgId, IntegrationKey.AI);
+        if (config == null || config.getVendor() == null) {
+            throw new IllegalArgumentException("No AI config or vendor found for orgId: " + orgId);
+        }
+
+        String vendor = config.getVendor();
+        Map<String, AiService> beans = applicationContext.getBeansOfType(AiService.class);
+        return beans.entrySet().stream()
+                .filter(entry -> entry.getValue().getClass().isAnnotationPresent(AiVendor.class))
+                .filter(entry -> vendor.equalsIgnoreCase(entry.getValue().getClass().getAnnotation(AiVendor.class).value()))
+                .findFirst()
+                .map(Map.Entry::getValue)
+                .orElseThrow(() -> new IllegalArgumentException("No AiService implementation found for vendor: " + vendor));
+    }
+}

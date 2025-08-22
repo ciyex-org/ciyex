@@ -34,18 +34,6 @@ public class TelnyxTelehealthService implements TelehealthService {
     }
 
     @Override
-    public void sendSMSReminder(String phoneNumber, String message) {
-        Long orgId = RequestContext.get().getOrgId();
-        TelehealthConfig config = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
-        String apiKey = config.getTelnyx().getApiKey();
-        String fromNumber = config.getTelnyx().getFromNumber();
-        //TODO: Implement actual SMS sending logic with Telnyx
-        /*MessagingApi messagingApi = new MessagingApi(apiKey);
-        messagingApi.sendMessage(new Message().to(phoneNumber).from(fromNumber).text(message));*/
-        log.info("Sent SMS reminder for orgId: {}", orgId);
-    }
-
-    @Override
     public String getCallStatus(String callId) {
         Long orgId = RequestContext.get().getOrgId();
         TelehealthConfig config = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
@@ -53,5 +41,10 @@ public class TelnyxTelehealthService implements TelehealthService {
         // Placeholder; Telnyx call status requires call control API integration
         log.info("Get call status for orgId: {}, callId: {}", orgId, callId);
         return "active"; // Example
+    }
+
+    @Override
+    public String createJoinToken(String roomName, String identity, Integer ttlSecs) {
+        return "";
     }
 }
