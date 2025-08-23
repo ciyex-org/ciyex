@@ -43,25 +43,20 @@ public class FhirExternalProviderStorage implements ExternalProviderStorage {
             throw new SecurityException("No orgId available in request context");
         }
         log.debug("Verifying access for orgId: {} to create new provider", currentOrgId);
-        providerDto.setOrgId(currentOrgId); // Set orgId for the new provider
+        providerDto.setOrgId(currentOrgId);  // Ensure orgId is set for provider
 
         Practitioner fhirProvider = mapToFhirPractitioner(providerDto);
         String externalId = null;
         try {
+            // Creating the provider in the external FHIR system and returning externalId
             externalId = fhirResourceStorage.create(fhirProvider);
             log.info("Successfully created provider in external storage with externalId: {} for orgId: {}", externalId, currentOrgId);
         } catch (Exception e) {
-            log.error("Failed to create provider in external storage for orgId: {}, error: {}, stacktrace: {}", currentOrgId, e.getMessage(), e);
-            throw new RuntimeException("Failed to sync with external storage", e); // Rollback transaction
+            log.error("Failed to create provider in external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
+            throw new RuntimeException("Failed to sync with external storage", e);  // Rollback transaction
         }
 
-        // Save to database only if external storage succeeded
-        Provider provider = new Provider();
-        provider.setExternalId(externalId);
-        provider.setOrgId(currentOrgId);
-        provider = providerRepository.save(provider);
-        log.info("Created provider with id: {} and externalId: {} in DB for orgId: {}", provider.getId(), externalId, currentOrgId);
-
+        // Only return the externalId without inserting into the database
         return externalId;
     }
 

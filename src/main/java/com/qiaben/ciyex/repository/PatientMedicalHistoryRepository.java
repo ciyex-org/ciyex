@@ -2,12 +2,17 @@ package com.qiaben.ciyex.repository;
 
 import com.qiaben.ciyex.entity.PatientMedicalHistory;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
-@Repository
 public interface PatientMedicalHistoryRepository extends JpaRepository<PatientMedicalHistory, Long> {
 
-    List<PatientMedicalHistory> findByPatientId(Long patientId);
+    List<PatientMedicalHistory> findByOrgIdAndPatientId(Long orgId, Long patientId);
+
+    List<PatientMedicalHistory> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+
+    Optional<PatientMedicalHistory> findByOrgIdAndPatientIdAndEncounterIdAndId(
+            Long orgId, Long patientId, Long encounterId, Long id
+    );
 }

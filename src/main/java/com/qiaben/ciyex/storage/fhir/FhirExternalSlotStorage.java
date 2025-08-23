@@ -1,150 +1,131 @@
 package com.qiaben.ciyex.storage.fhir;
 
-import ca.uhn.fhir.rest.client.api.IGenericClient;
-import ca.uhn.fhir.rest.client.exceptions.FhirClientConnectionException;
-import ca.uhn.fhir.rest.gclient.TokenClientParam;
 import com.qiaben.ciyex.dto.SlotDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
-import com.qiaben.ciyex.provider.FhirClientProvider;
-import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalSlotStorage;
 import com.qiaben.ciyex.storage.StorageType;
 import lombok.extern.slf4j.Slf4j;
-import org.hl7.fhir.r4.model.*;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.hl7.fhir.r4.model.Reference;
+import org.hl7.fhir.r4.model.Slot;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @StorageType("fhir")
 @Component("fhirExternalSlotStorage")
 @Slf4j
-public class FhirExternalSlotStorage implements ExternalStorage<SlotDto> {
+public class FhirExternalSlotStorage implements ExternalSlotStorage {
 
-    private final FhirClientProvider fhirClientProvider;
-    private static final SimpleDateFormat DATE_TIME_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX"); // ISO 8601 with offset
+    private final FhirResourceStorage fhirResourceStorage;
 
-    @Autowired
-    public FhirExternalSlotStorage(FhirClientProvider fhirClientProvider) {
-        this.fhirClientProvider = fhirClientProvider;
-        log.info("Initializing FhirExternalSlotStorage with FhirClientProvider");
-    }
-
-    private IGenericClient getClient() {
-        return fhirClientProvider.getForCurrentOrg();
+    public FhirExternalSlotStorage(FhirResourceStorage fhirResourceStorage) {
+        this.fhirResourceStorage = fhirResourceStorage;
+        log.info("Initializing FhirExternalSlotStorage with FhirResourceStorage");
     }
 
     @Override
-    public String create(SlotDto entityDto) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        log.info("Entering create for orgId: {}, slot startTime: {}", orgId, entityDto.getStartTime());
-        return executeWithRetry(() -> {
-            IGenericClient client = getClient();
-            log.debug("Fetched IGenericClient for orgId: {}", orgId);
-            Slot fhirSlot = mapToFhirSlot(entityDto);
-            log.debug("Mapped SlotDto to FHIR Slot: start={}, end={}, status={}", fhirSlot.getStart(), fhirSlot.getEnd(), fhirSlot.getStatus());
-            String externalId = client.create().resource(fhirSlot).execute().getId().getIdPart();
-            log.info("Created Slot with externalId: {} for orgId: {}", externalId, orgId);
-            return externalId;
-        });
+    public String createSlot(SlotDto dto) {
+        return create(dto);
     }
 
     @Override
-    public void update(SlotDto entityDto, String externalId) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        log.info("Entering update for orgId: {}, externalId: {}, slot startTime: {}", orgId, externalId, entityDto.getStartTime());
-        executeWithRetry(() -> {
-            IGenericClient client = getClient();
-            log.debug("Fetched IGenericClient for orgId: {}", orgId);
-            Slot fhirSlot = mapToFhirSlot(entityDto);
-            fhirSlot.setId(externalId);
-            log.debug("Updating FHIR Slot with id: {}, start={}, end={}, status={}", externalId, fhirSlot.getStart(), fhirSlot.getEnd(), fhirSlot.getStatus());
-            client.update().resource(fhirSlot).execute();
-            log.info("Updated Slot with externalId: {} for orgId: {}", externalId, orgId);
-            return null;
-        });
+    public void updateSlot(SlotDto dto, String externalId) {
+        update(dto, externalId);
     }
 
     @Override
-    public SlotDto get(String externalId) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        log.info("Entering get for orgId: {}, externalId: {}", orgId, externalId);
-        return executeWithRetry(() -> {
-            IGenericClient client = getClient();
-            log.debug("Fetched IGenericClient for orgId: {}", orgId);
-            Slot fhirSlot = client.read().resource(Slot.class).withId(externalId).execute();
-            log.debug("Retrieved FHIR Slot with id: {}, start={}, end={}, status={}", externalId, fhirSlot.getStart(), fhirSlot.getEnd(), fhirSlot.getStatus());
-            SlotDto slotDto = mapFromFhirSlot(fhirSlot, client);
-            log.info("Retrieved SlotDto with externalId: {} for orgId: {}", externalId, orgId);
-            log.debug("Mapped SlotDto: externalId={}, startTime={}, endTime={}, status={}", slotDto.getExternalId(), slotDto.getStartTime(), slotDto.getEndTime(), slotDto.getStatus());
-            return slotDto;
-        });
+    public SlotDto getSlot(String externalId) {
+        return get(externalId);
     }
 
     @Override
-    public void delete(String externalId) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        log.info("Entering delete for orgId: {}, externalId: {}", orgId, externalId);
-        executeWithRetry(() -> {
-            IGenericClient client = getClient();
-            log.debug("Fetched IGenericClient for orgId: {}", orgId);
-            log.info("Deleting Slot with externalId: {} for orgId: {}", externalId, orgId);
-            client.delete().resourceById("Slot", externalId).execute();
-            log.info("Deleted Slot with externalId: {} for orgId: {}", externalId, orgId);
-            return null;
-        });
+    public void deleteSlot(String externalId) {
+        delete(externalId);
     }
 
     @Override
-    public List<SlotDto> searchAll() {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        log.info("Entering searchAll for orgId: {}", orgId);
-        if (orgId == null) {
-            log.warn("orgId is null in RequestContext, defaulting to no filtering");
+    public List<SlotDto> searchAllSlots() {
+        return searchAll();
+    }
+
+    @Transactional
+    public String create(SlotDto dto) {
+        Long currentOrgId = requireOrg();
+        log.debug("Creating Slot for orgId={}, dto={}", currentOrgId, dto);
+
+        Slot slot = toFhir(dto);
+        String externalId;
+        try {
+            externalId = fhirResourceStorage.create(slot);
+            log.info("Successfully created Slot in external storage with externalId={} for orgId={}", externalId, currentOrgId);
+        } catch (Exception e) {
+            log.error("Failed to create Slot in external storage for orgId={}, error={}", currentOrgId, e.getMessage(), e);
+            throw new RuntimeException("Failed to sync with external storage", e);
         }
+        return externalId;
+    }
 
-        IGenericClient client = getClient();
-        Bundle bundle = client.search()
-                .forResource(org.hl7.fhir.r4.model.Slot.class)
-                .where(new TokenClientParam("_tag").exactly().systemAndCode("http://ciyex.com/tenant", orgId != null ? orgId.toString() : ""))
-                .returnBundle(Bundle.class)
-                .execute();
+    @Transactional
+    public void update(SlotDto dto, String externalId) {
+        Long currentOrgId = requireOrg();
+        log.debug("Updating Slot with externalId={} for orgId={}, dto={}", externalId, currentOrgId, dto);
 
-        log.debug("Received Bundle with {} entries for orgId: {}", bundle.getEntry().size(), orgId);
-        List<SlotDto> slotDtos = bundle.getEntry().stream()
-                .map(entry -> {
-                    Slot slot = (Slot) entry.getResource();
-                    log.debug("Processing Slot entry: id={}, start={}, end={}", slot.getIdElement().getIdPart(), slot.getStart(), slot.getEnd());
-                    SlotDto dto = new SlotDto();
-                    dto.setExternalId(slot.getIdElement().getIdPart());
-                    // Resolve Schedule to get actors
-                    if (slot.hasSchedule()) {
-                        String scheduleId = slot.getSchedule().getReference();
-                        Schedule schedule = (Schedule) client.read().resource(Schedule.class).withId(scheduleId.replace("Schedule/", "")).execute();
-                        if (schedule.hasActor()) {
-                            for (Reference actor : schedule.getActor()) {
-                                if (actor.getReference().contains("Practitioner")) {
-                                    dto.setProviderId(Long.parseLong(actor.getReference().replace("Practitioner/", "")));
-                                } else if (actor.getReference().contains("Location")) {
-                                    dto.setLocationId(Long.parseLong(actor.getReference().replace("Location/", "")));
-                                }
-                            }
-                        }
-                    }
-                    dto.setStartTime(slot.getStart().toString());
-                    dto.setEndTime(slot.getEnd().toString());
-                    dto.setStatus(slot.getStatus().toCode());
-                    dto.setOrgId(orgId);
-                    log.debug("Mapped SlotDto: externalId={}, startTime={}, endTime={}, status={}", dto.getExternalId(), dto.getStartTime(), dto.getEndTime(), dto.getStatus());
-                    return dto;
-                })
-                .collect(Collectors.toList());
+        Slot slot = toFhir(dto);
+        slot.setId(externalId);
+        try {
+            fhirResourceStorage.update(slot, externalId);
+            log.info("Successfully updated Slot in external storage with externalId={} for orgId={}", externalId, currentOrgId);
+        } catch (Exception e) {
+            log.error("Failed to update Slot in external storage for orgId={}, externalId={}, error={}", currentOrgId, externalId, e.getMessage(), e);
+            throw new RuntimeException("Failed to sync with external storage", e);
+        }
+    }
 
-        log.info("Retrieved {} slots for orgId: {} after mapping", slotDtos.size(), orgId);
-        return slotDtos;
+    @Transactional(readOnly = true)
+    public SlotDto get(String externalId) {
+        Long currentOrgId = requireOrg();
+        log.debug("Fetching Slot with externalId={} for orgId={}", externalId, currentOrgId);
+
+        Slot slot = fhirResourceStorage.get(Slot.class, externalId);
+        if (slot == null) {
+            log.warn("No FHIR Slot found with externalId={} for orgId={}", externalId, currentOrgId);
+            throw new RuntimeException("Slot not found with externalId: " + externalId);
+        }
+        SlotDto dto = fromFhir(slot);
+        log.info("Retrieved SlotDto with externalId={} for orgId={}", externalId, currentOrgId);
+        return dto;
+    }
+
+    @Transactional
+    public void delete(String externalId) {
+        Long currentOrgId = requireOrg();
+        log.debug("Deleting Slot with externalId={} for orgId={}", externalId, currentOrgId);
+
+        try {
+            fhirResourceStorage.delete("Slot", externalId);
+            log.info("Successfully deleted Slot in external storage with externalId={} for orgId={}", externalId, currentOrgId);
+        } catch (Exception e) {
+            log.error("Failed to delete Slot in external storage for orgId={}, externalId={}, error={}", currentOrgId, externalId, e.getMessage(), e);
+            throw new RuntimeException("Failed to sync with external storage", e);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<SlotDto> searchAll() {
+        Long currentOrgId = requireOrg();
+        log.debug("Searching all Slots for orgId={}", currentOrgId);
+
+        List<Slot> slots = fhirResourceStorage.searchAll(Slot.class);
+        log.debug("Retrieved {} Slots from external storage for orgId={}", slots.size(), currentOrgId);
+
+        List<SlotDto> dtos = slots.stream().map(this::fromFhir).collect(Collectors.toList());
+        log.info("Returning {} SlotDtos for orgId={}", dtos.size(), currentOrgId);
+        return dtos;
     }
 
     @Override
@@ -152,77 +133,114 @@ public class FhirExternalSlotStorage implements ExternalStorage<SlotDto> {
         return SlotDto.class.isAssignableFrom(entityType);
     }
 
-    private <T> T executeWithRetry(FhirOperation<T> operation) {
+    /* --- Mapping --- */
+
+    private Long requireOrg() {
         Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        log.debug("Entering executeWithRetry for orgId: {}", orgId);
-        try {
-            T result = operation.execute();
-            log.debug("executeWithRetry succeeded for orgId: {}", orgId);
-            return result;
-        } catch (FhirClientConnectionException e) {
-            log.error("FhirClientConnectionException for orgId: {} with status: {}, message: {}", orgId, e.getStatusCode(), e.getMessage());
-            if (e.getStatusCode() == 401) {
-                log.warn("Received 401, retrying with fresh FHIR client for orgId: {}", orgId);
-                return operation.execute();
+        if (orgId == null) {
+            log.warn("orgId is null in RequestContext");
+            throw new SecurityException("No orgId available in request context");
+        }
+        return orgId;
+    }
+
+    private Slot toFhir(SlotDto dto) {
+        log.debug("Mapping SlotDto to FHIR Slot: {}", dto);
+        Slot slot = new Slot();
+
+        if (dto.getProviderId() != null) {
+            slot.setSchedule(new Reference("Schedule/" + dto.getProviderId()));
+            log.debug("Mapped providerId={} to Schedule reference", dto.getProviderId());
+        }
+
+        if (dto.getStart() != null) {
+            slot.setStart(parseIsoInstant(dto.getStart()));
+            log.debug("Mapped start={}", dto.getStart());
+        }
+        if (dto.getEnd() != null) {
+            slot.setEnd(parseIsoInstant(dto.getEnd()));
+            log.debug("Mapped end={}", dto.getEnd());
+        }
+
+        if (dto.getStatus() != null) {
+            try {
+                slot.setStatus(Slot.SlotStatus.fromCode(dto.getStatus()));
+                log.debug("Mapped status={}", dto.getStatus());
+            } catch (Exception e) {
+                slot.setStatus(Slot.SlotStatus.BUSY);
+                log.warn("Invalid status={} in dto, defaulted to BUSY", dto.getStatus());
             }
-            throw e;
-        } catch (Exception e) {
-            log.error("Unexpected exception in executeWithRetry for orgId: {}, message: {}, stacktrace: {}", orgId, e.getMessage(), e);
-            throw e;
         }
-    }
 
-    @FunctionalInterface
-    private interface FhirOperation<T> {
-        T execute();
-    }
-
-    private Slot mapToFhirSlot(SlotDto slotDto) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        log.debug("Mapping SlotDto to FHIR Slot for orgId: {}, startTime: {}", orgId, slotDto.getStartTime());
-        Slot fhirSlot = new Slot();
-        try {
-            java.util.Date startDate = DATE_TIME_FORMAT.parse(slotDto.getStartTime());
-            java.util.Date endDate = DATE_TIME_FORMAT.parse(slotDto.getEndTime());
-            fhirSlot.setStart(startDate);
-            fhirSlot.setEnd(endDate);
-        } catch (ParseException e) {
-            log.error("Failed to parse startTime or endTime: {}, {}", slotDto.getStartTime(), slotDto.getEndTime(), e);
-            throw new RuntimeException("Invalid date/time format", e);
+        if (dto.getComment() != null) {
+            slot.setComment(dto.getComment());
+            log.debug("Mapped comment={}", dto.getComment());
         }
-        fhirSlot.setStatus(Slot.SlotStatus.fromCode(slotDto.getStatus()));
-        // Reference to an existing Schedule (assumed to be created separately)
-        Reference scheduleRef = new Reference("Schedule/schedule-1"); // Placeholder, replace with actual Schedule ID
-        fhirSlot.setSchedule(scheduleRef);
-        log.debug("Mapped FHIR Slot for orgId: {}, start={}, end={}, status={}", orgId, fhirSlot.getStart(), fhirSlot.getEnd(), fhirSlot.getStatus());
-        return fhirSlot;
+
+        // ⬇️ Add this block at the end of toFhir()
+        Long currentOrgId = requireOrg();
+        slot.getMeta().addTag()
+                .setSystem("http://ciyex.org/tenant")
+                .setCode(currentOrgId.toString())
+                .setDisplay("Tenant Org " + currentOrgId);
+        return slot;
     }
 
-    private SlotDto mapFromFhirSlot(Slot fhirSlot, IGenericClient client) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        log.debug("Mapping FHIR Slot to SlotDto for orgId: {}, id: {}, start: {}", orgId, fhirSlot.getIdElement().getIdPart(), fhirSlot.getStart());
+    private SlotDto fromFhir(Slot s) {
+        String externalId = s.getIdElement() != null ? s.getIdElement().getIdPart() : null;
+        log.debug("Mapping FHIR Slot to SlotDto, externalId={}", externalId);
+
         SlotDto dto = new SlotDto();
-        dto.setExternalId(fhirSlot.getIdElement().getIdPart());
-        dto.setStartTime(fhirSlot.getStart().toString());
-        dto.setEndTime(fhirSlot.getEnd().toString());
-        dto.setStatus(fhirSlot.getStatus().toCode());
-        // Resolve Schedule to get actors
-        if (fhirSlot.hasSchedule()) {
-            String scheduleId = fhirSlot.getSchedule().getReference();
-            Schedule schedule = (Schedule) client.read().resource(Schedule.class).withId(scheduleId.replace("Schedule/", "")).execute();
-            if (schedule.hasActor()) {
-                for (Reference actor : schedule.getActor()) {
-                    if (actor.getReference().contains("Practitioner")) {
-                        dto.setProviderId(Long.parseLong(actor.getReference().replace("Practitioner/", "")));
-                    } else if (actor.getReference().contains("Location")) {
-                        dto.setLocationId(Long.parseLong(actor.getReference().replace("Location/", "")));
-                    }
+        dto.setExternalId(externalId);
+        dto.setOrgId(RequestContext.get() != null ? RequestContext.get().getOrgId() : null);
+
+        if (s.hasStart()) {
+            String start = ZonedDateTime.ofInstant(s.getStart().toInstant(), ZoneId.systemDefault())
+                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+            dto.setStart(start);
+            log.debug("Mapped start={}", start);
+        }
+        if (s.hasEnd()) {
+            String end = ZonedDateTime.ofInstant(s.getEnd().toInstant(), ZoneId.systemDefault())
+                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+            dto.setEnd(end);
+            log.debug("Mapped end={}", end);
+        }
+
+        if (s.hasStatus()) {
+            dto.setStatus(s.getStatus().toCode());
+            log.debug("Mapped status={}", dto.getStatus());
+        }
+        if (s.hasComment()) {
+            dto.setComment(s.getComment());
+            log.debug("Mapped comment={}", dto.getComment());
+        }
+
+        if (s.hasSchedule() && s.getSchedule().getReference() != null) {
+            String ref = s.getSchedule().getReference();
+            if (ref.startsWith("Schedule/")) {
+                try {
+                    dto.setProviderId(Long.parseLong(ref.substring("Schedule/".length())));
+                    log.debug("Mapped schedule reference {} to providerId={}", ref, dto.getProviderId());
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid schedule reference format: {}", ref);
                 }
             }
         }
-        dto.setOrgId(orgId);
-        log.debug("Mapped SlotDto for orgId: {}, externalId: {}, startTime: {}, endTime: {}, status: {}",
-                orgId, dto.getExternalId(), dto.getStartTime(), dto.getEndTime(), dto.getStatus());
         return dto;
+    }
+
+    private Date parseIsoInstant(String iso) {
+        try {
+            Instant instant = Instant.from(DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(iso));
+            Date parsed = Date.from(instant);
+            log.debug("Parsed ISO instant={} to Date={}", iso, parsed);
+            return parsed;
+        } catch (Exception e) {
+            LocalDateTime ldt = LocalDateTime.parse(iso.replace("Z","").replaceFirst("\\+.*$",""));
+            Date fallback = Date.from(ldt.atZone(ZoneId.systemDefault()).toInstant());
+            log.warn("Fallback parsing for iso={} resulted in Date={}", iso, fallback);
+            return fallback;
+        }
     }
 }

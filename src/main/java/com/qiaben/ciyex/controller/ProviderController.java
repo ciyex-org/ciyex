@@ -2,7 +2,9 @@ package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.ProviderDto;
+import com.qiaben.ciyex.entity.ProviderStatus;
 import com.qiaben.ciyex.service.ProviderService;
+import lombok.Data;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -189,6 +191,43 @@ public class ProviderController {
                             .data(null)
                             .build());
         }
+    }
+
+    @PutMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<ProviderDto>> updateStatus(
+            @PathVariable Long id,
+            @RequestBody StatusUpdateRequest request
+    ) {
+        try {
+            ProviderDto updatedProvider = service.updateStatus(id, request.getStatus());
+            return ResponseEntity.ok(
+                    ApiResponse.<ProviderDto>builder()
+                            .success(true)
+                            .message("Provider status updated successfully")
+                            .data(updatedProvider)
+                            .build()
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<ProviderDto>builder()
+                            .success(false)
+                            .message("Provider not found")
+                            .data(null)
+                            .build());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<ProviderDto>builder()
+                            .success(false)
+                            .message("Failed to update provider status")
+                            .data(null)
+                            .build());
+        }
+    }
+
+    // DTO for status update request
+    @Data
+    public static class StatusUpdateRequest {
+        private ProviderStatus status;
     }
 
 }

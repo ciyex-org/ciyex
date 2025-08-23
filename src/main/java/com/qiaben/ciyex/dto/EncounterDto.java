@@ -13,6 +13,7 @@ public class EncounterDto {
     private String dischargeDisposition;
     private String reasonForVisit;
     private Long createdAt;
+    private Long orgId;
     private Long updatedAt;
     private Boolean inCollection;
 

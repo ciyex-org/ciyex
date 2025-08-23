@@ -2,7 +2,11 @@ package com.qiaben.ciyex.storage;
 
 import com.qiaben.ciyex.dto.HealthcareServiceDto;
 
+import java.util.List;
+
 public interface ExternalHealthcareServiceStorage {
-    void saveHealthcareService(HealthcareServiceDto healthcareServiceDto);
-    HealthcareServiceDto getHealthcareServiceById(Long id);
+
+    HealthcareServiceDto createHealthcareService(HealthcareServiceDto dto, Long orgId);
+
+    List<HealthcareServiceDto> getHealthcareServicesByOrgId(Long orgId);
 }
