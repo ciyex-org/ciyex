@@ -37,34 +37,28 @@ public class ReferralPracticeService {
 
     @Transactional
     public ReferralPracticeDto create(ReferralPracticeDto dto) {
-        String externalId = null;
-        ReferralPractice referralPractice = mapToEntity(dto);
+        ReferralPractice entity = mapToEntity(dto);
+        String now = LocalDateTime.now().format(DATE_FORMATTER);
+        entity.setCreatedDate(now);
+        entity.setLastModifiedDate(now);
 
-        // Set current timestamp for created and last modified date
-        String currentDate = LocalDateTime.now().format(DATE_FORMATTER);
-        referralPractice.setCreatedDate(currentDate);
-        referralPractice.setLastModifiedDate(currentDate);
+        // Save locally first
+        entity = repository.save(entity);
 
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null) {
             try {
-                ExternalStorage<ReferralPracticeDto> externalStorage = storageResolver.resolve(ReferralPracticeDto.class);
-                externalId = externalStorage.create(dto);
-                log.info("Successfully created referral practice in external storage with externalId: {}", externalId);
+                ExternalStorage<ReferralPracticeDto> external = storageResolver.resolve(ReferralPracticeDto.class);
+                String externalId = external.create(mapToDto(entity));
+                entity.setFhirId(externalId);
+                entity = repository.save(entity);
+                log.info("Practice external sync (create) OK, externalId={}", externalId);
             } catch (Exception e) {
-                log.error("Failed to create referral practice in external storage: {}", e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e);
+                log.warn("Practice external sync (create) failed and will be skipped: {}", e.toString());
             }
         }
 
-        referralPractice = repository.save(referralPractice);
-        if (externalId != null) {
-            referralPractice.setFhirId(externalId);
-            referralPractice = repository.save(referralPractice);
-            log.info("Created referral practice with id: {} and externalId: {}", referralPractice.getId(), externalId);
-        }
-
-        return mapToDto(referralPractice);
+        return mapToDto(entity);
     }
 
     @Transactional(readOnly = true)
@@ -78,21 +72,29 @@ public class ReferralPracticeService {
     public ReferralPracticeDto update(Long id, ReferralPracticeDto dto) {
         ReferralPractice entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Referral practice not found"));
+
         entity = updateEntityFromDto(entity, dto);
         entity.setLastModifiedDate(LocalDateTime.now().format(DATE_FORMATTER));
+        entity = repository.save(entity); // save first
 
-        String externalId = entity.getFhirId();
-        if (externalId != null) {
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        if (storageType != null) {
             try {
-                ExternalStorage<ReferralPracticeDto> externalStorage = storageResolver.resolve(ReferralPracticeDto.class);
-                externalStorage.update(dto, externalId);
+                ExternalStorage<ReferralPracticeDto> external = storageResolver.resolve(ReferralPracticeDto.class);
+                if (entity.getFhirId() == null) {
+                    String externalId = external.create(mapToDto(entity));
+                    entity.setFhirId(externalId);
+                    entity = repository.save(entity);
+                    log.info("Practice external sync (create-on-update) OK, externalId={}", externalId);
+                } else {
+                    external.update(mapToDto(entity), entity.getFhirId());
+                    log.info("Practice external sync (update) OK, externalId={}", entity.getFhirId());
+                }
             } catch (Exception e) {
-                log.error("Failed to update referral practice in external storage: {}", e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e);
+                log.warn("Practice external sync (update) failed and will be skipped: {}", e.toString());
             }
         }
 
-        entity = repository.save(entity);
         return mapToDto(entity);
     }
 
@@ -105,8 +107,7 @@ public class ReferralPracticeService {
 
     @Transactional(readOnly = true)
     public List<ReferralPracticeDto> getAll() {
-        List<ReferralPractice> entities = repository.findAll();
-        return entities.stream().map(this::mapToDto).collect(Collectors.toList());
+        return repository.findAll().stream().map(this::mapToDto).collect(Collectors.toList());
     }
 
     private ReferralPracticeDto mapToDto(ReferralPractice entity) {
@@ -122,7 +123,6 @@ public class ReferralPracticeService {
         dto.setEmail(entity.getEmail());
         dto.setFhirId(entity.getFhirId());
 
-        // Initialize and set audit dates
         ReferralPracticeDto.Audit audit = new ReferralPracticeDto.Audit();
         audit.setCreatedDate(entity.getCreatedDate());
         audit.setLastModifiedDate(entity.getLastModifiedDate());
