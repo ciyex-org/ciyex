@@ -10,6 +10,8 @@ import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,11 +28,14 @@ public class PatientService {
     private final OrgIntegrationConfigProvider configProvider;
 
     @Autowired
-    public PatientService(PatientRepository repository, ExternalStorageResolver storageResolver, OrgIntegrationConfigProvider configProvider) {
+    public PatientService(PatientRepository repository,
+                          ExternalStorageResolver storageResolver,
+                          OrgIntegrationConfigProvider configProvider) {
         this.repository = repository;
         this.storageResolver = storageResolver;
         this.configProvider = configProvider;
     }
+
     @Transactional(readOnly = true)
     public long countPatientsForCurrentOrg() {
         Long orgId = getCurrentOrgId();
@@ -42,7 +47,6 @@ public class PatientService {
         return repository.countByOrgId(orgId);
     }
 
-
     // Create a new patient
     @Transactional
     public PatientDto create(PatientDto dto) {
@@ -51,21 +55,18 @@ public class PatientService {
             log.error("No orgId found in RequestContext during create");
             throw new SecurityException("No orgId available in request context");
         }
-        log.debug("Verifying access for orgId: {} to create new patient", currentOrgId);
         dto.setOrgId(currentOrgId); // Set orgId for the new patient
 
         if (dto.getFirstName() == null || dto.getLastName() == null || dto.getMedicalRecordNumber() == null) {
             throw new IllegalArgumentException("First name, last name, and medical record number are required");
         }
 
-        // Create patient entity from DTO
         Patient patient = mapToEntity(dto);
         patient.setOrgId(currentOrgId);
         patient.setCreatedDate(LocalDateTime.now().toString());
         patient.setLastModifiedDate(LocalDateTime.now().toString());
-        String externalId = null;
 
-        // Attempt external storage creation first
+        String externalId = null;
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null) {
             try {
@@ -74,20 +75,19 @@ public class PatientService {
                 log.info("Successfully created patient in external storage with externalId: {} for orgId: {}", externalId, currentOrgId);
             } catch (Exception e) {
                 log.error("Failed to create patient in external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e); // Rollback transaction
+                throw new RuntimeException("Failed to sync with external storage", e);
             }
         }
 
-        // Save patient to database
         patient.setExternalId(externalId);
         patient = repository.save(patient);
-        log.debug("Saved patient to DB: id={}, externalId={}, orgId={}", patient.getId(), patient.getExternalId(), patient.getOrgId());
         if (patient.getId() == null) {
             log.error("Database save failed to generate id for patient with externalId: {} and orgId: {}", externalId, currentOrgId);
             throw new RuntimeException("Failed to generate id for new patient");
         }
-        dto.setId(patient.getId()); // Set database id in DTO
-        dto.setExternalId(externalId); // Set externalId in DTO
+
+        dto.setId(patient.getId());
+        dto.setExternalId(externalId);
         log.info("Created patient with id: {} and externalId: {} in DB for orgId: {}", patient.getId(), externalId, currentOrgId);
 
         return dto;
@@ -101,21 +101,18 @@ public class PatientService {
             log.error("No orgId found in RequestContext during getById for id: {}", id);
             throw new SecurityException("No orgId available in request context");
         }
-        log.debug("Verifying access for orgId: {} to patient with id: {}", currentOrgId, id);
 
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
-        log.debug("Fetched patient from DB: id={}, externalId={}, orgId={}", patient.getId(), patient.getExternalId(), patient.getOrgId());
+
         if (!currentOrgId.equals(patient.getOrgId())) {
             throw new SecurityException("Access denied: Patient id " + id + " does not belong to orgId " + currentOrgId);
         }
 
-        // Fetch extended demographics from FHIR if available
-        PatientDto patientDto = mapToDto(patient); // Default to DB data
+        PatientDto patientDto = mapToDto(patient);
         if (patient.getExternalId() != null) {
             PatientDto fhirPatientDto = getPatientFromFhir(patient.getExternalId());
             if (fhirPatientDto != null) {
-                log.info("Successfully fetched extended demographics from FHIR for patient id: {}", id);
                 patientDto.setPreferredName(fhirPatientDto.getPreferredName());
                 patientDto.setLicenseId(fhirPatientDto.getLicenseId());
                 patientDto.setSexualOrientation(fhirPatientDto.getSexualOrientation());
@@ -132,8 +129,7 @@ public class PatientService {
 
     // Fetch extended FHIR data for a patient
     public PatientDto getPatientFromFhir(String externalId) {
-        // Use externalId to get data from FHIR storage
-        log.debug("Fetching extended patient data from FHIR with externalId: {}", externalId);
+        if (externalId == null) return null;
         ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
         return externalStorage.get(externalId);
     }
@@ -146,11 +142,10 @@ public class PatientService {
             log.error("No orgId found in RequestContext during update for id: {}", id);
             throw new SecurityException("No orgId available in request context");
         }
-        log.debug("Verifying access for orgId: {} to patient with id: {}", currentOrgId, id);
 
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
-        log.debug("Fetched patient from DB: id={}, externalId={}, orgId={}", patient.getId(), patient.getExternalId(), patient.getOrgId());
+
         if (!currentOrgId.equals(patient.getOrgId())) {
             throw new SecurityException("Access denied: Patient id " + id + " does not belong to orgId " + currentOrgId);
         }
@@ -163,15 +158,16 @@ public class PatientService {
                 log.info("Successfully updated patient with id: {} and externalId: {} in external storage for orgId: {}", id, patient.getExternalId(), currentOrgId);
             } catch (Exception e) {
                 log.error("Failed to update patient in external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e); // Rollback transaction
+                throw new RuntimeException("Failed to sync with external storage", e);
             }
         }
 
         updateEntityFromDto(patient, dto);
         patient.setLastModifiedDate(LocalDateTime.now().toString());
         patient = repository.save(patient);
-        dto.setId(patient.getId()); // Set database id in DTO
-        dto.setExternalId(patient.getExternalId()); // Update externalId in DTO if changed
+
+        dto.setId(patient.getId());
+        dto.setExternalId(patient.getExternalId());
         log.info("Updated patient with id: {} and externalId: {} in DB for orgId: {}", id, patient.getExternalId(), currentOrgId);
 
         return dto;
@@ -185,15 +181,14 @@ public class PatientService {
             log.error("No orgId found in RequestContext during delete for id: {}", id);
             throw new SecurityException("No orgId available in request context");
         }
-        log.debug("Verifying access for orgId: {} to patient with id: {}", currentOrgId, id);
 
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
+
         if (!currentOrgId.equals(patient.getOrgId())) {
             throw new SecurityException("Access denied: Patient id " + id + " does not belong to orgId " + currentOrgId);
         }
 
-        // Delete from external storage
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && patient.getExternalId() != null) {
             try {
@@ -201,7 +196,7 @@ public class PatientService {
                 externalStorage.delete(patient.getExternalId());
             } catch (Exception e) {
                 log.error("Failed to delete patient from external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e); // Rollback transaction
+                throw new RuntimeException("Failed to sync with external storage", e);
             }
         }
 
@@ -209,7 +204,7 @@ public class PatientService {
         log.info("Deleted patient with id: {} from DB for orgId: {}", id, currentOrgId);
     }
 
-    // Fetch all patients for a specific org
+    // Fetch all patients for a specific org (non-paginated)
     @Transactional(readOnly = true)
     public ApiResponse<List<PatientDto>> getAllPatients() {
         Long currentOrgId = getCurrentOrgId();
@@ -219,11 +214,8 @@ public class PatientService {
                     .message("No orgId available in request context")
                     .build();
         }
-        log.debug("Verifying access for orgId: {} to retrieve all patients", currentOrgId);
 
-        // Fetch all patients directly from the database
         List<Patient> patients = repository.findAllByOrgId(currentOrgId);
-        log.info("Retrieved {} patients from DB for orgId: {}", patients.size(), currentOrgId);
         List<PatientDto> patientDtos = patients.stream().map(this::mapToDto).collect(Collectors.toList());
 
         return ApiResponse.<List<PatientDto>>builder()
@@ -233,7 +225,25 @@ public class PatientService {
                 .build();
     }
 
-    // Helper method to map a PatientDto to a Patient entity
+    // Server-side pagination: return Page<PatientDto> filtered by current org and optional search term
+    @Transactional(readOnly = true)
+    public Page<PatientDto> getAllPatients(Pageable pageable, String search) {
+        Long currentOrgId = getCurrentOrgId();
+        if (currentOrgId == null) {
+            log.error("No orgId found in RequestContext during paginated retrieval");
+            throw new SecurityException("No orgId available in request context");
+        }
+
+        Page<Patient> page;
+        if (search != null && !search.isBlank()) {
+            page = repository.searchByOrgId(search.toLowerCase(), currentOrgId, pageable);
+        } else {
+            page = repository.findAllByOrgId(currentOrgId, pageable);
+        }
+        return page.map(this::mapToDto);
+    }
+
+    // Helper methods (mapping)
     private Patient mapToEntity(PatientDto dto) {
         Patient patient = new Patient();
         patient.setFirstName(dto.getFirstName());
@@ -244,14 +254,14 @@ public class PatientService {
         patient.setPhoneNumber(dto.getPhoneNumber());
         patient.setEmail(dto.getEmail());
         patient.setAddress(dto.getAddress());
+        patient.setStatus(dto.getStatus() != null ? dto.getStatus() : "Active");
         patient.setMedicalRecordNumber(dto.getMedicalRecordNumber());
         return patient;
     }
 
-    // Helper method to map a Patient entity to a PatientDto
     private PatientDto mapToDto(Patient patient) {
         PatientDto dto = new PatientDto();
-        dto.setId(patient.getId()); // Always set id
+        dto.setId(patient.getId());
         dto.setExternalId(patient.getExternalId());
         dto.setFirstName(patient.getFirstName());
         dto.setLastName(patient.getLastName());
@@ -261,8 +271,9 @@ public class PatientService {
         dto.setPhoneNumber(patient.getPhoneNumber());
         dto.setEmail(patient.getEmail());
         dto.setAddress(patient.getAddress());
+        dto.setStatus(patient.getStatus());
         dto.setMedicalRecordNumber(patient.getMedicalRecordNumber());
-        dto.setOrgId(patient.getOrgId()); // Include orgId in DTO
+        dto.setOrgId(patient.getOrgId());
         if (patient.getCreatedDate() != null || patient.getLastModifiedDate() != null) {
             PatientDto.Audit audit = new PatientDto.Audit();
             audit.setCreatedDate(patient.getCreatedDate());
@@ -272,7 +283,6 @@ public class PatientService {
         return dto;
     }
 
-    // Helper method to update entity from DTO
     private void updateEntityFromDto(Patient patient, PatientDto dto) {
         if (dto.getFirstName() != null) patient.setFirstName(dto.getFirstName());
         if (dto.getLastName() != null) patient.setLastName(dto.getLastName());
@@ -282,6 +292,7 @@ public class PatientService {
         if (dto.getPhoneNumber() != null) patient.setPhoneNumber(dto.getPhoneNumber());
         if (dto.getEmail() != null) patient.setEmail(dto.getEmail());
         if (dto.getAddress() != null) patient.setAddress(dto.getAddress());
+        if (dto.getStatus() != null) patient.setStatus(dto.getStatus());
         if (dto.getMedicalRecordNumber() != null) patient.setMedicalRecordNumber(dto.getMedicalRecordNumber());
     }
 

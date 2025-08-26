@@ -18,63 +18,65 @@ public class PatientDto {
     private String medicalRecordNumber;
     private Audit audit;
 
+    // 🔹 Missing field — add this
+    private String status;
 
     // Extended Demographics Information (FHIR Extensions)
-    private String preferredName;  // Preferred Name
-    private String title;  // Title (e.g., Mr., Mrs., Dr.)
-    private String birthName;  // Birth Name (if different from current name)
-    private String licenseId;  // License/ID (for healthcare professionals)
-    private String sexualOrientation;  // Sexual Orientation (e.g., Heterosexual, Homosexual, etc.)
-    private String maritalStatus;  // Marital Status (e.g., Single, Married, Divorced)
-    private String emergencyContact;  // Emergency Contact (e.g., name and phone number)
-    private String race;  // Race (e.g., American Indian, Asian, etc.)
-    private String ethnicity;  // Ethnicity (e.g., Hispanic, Non-Hispanic)
-    private String nationality;  // Nationality (e.g., American, British, etc.)
-    private String guardianName;  // Guardian Name (if applicable)
-    private String guardianRelationship;  // Relationship to Guardian
+    private String preferredName;
+    private String title;
+    private String birthName;
+    private String licenseId;
+    private String sexualOrientation;
+    private String maritalStatus;
+    private String emergencyContact;
+    private String race;
+    private String ethnicity;
+    private String nationality;
+    private String guardianName;
+    private String guardianRelationship;
 
     // Contact Information
-    private String city;  // City (Optional)
-    private String postalCode;  // Postal Code (Optional)
-    private String country;  // Country (Optional)
+    private String city;
+    private String postalCode;
+    private String country;
 
     // Employer Information
-    private String employerName;  // Employer Name (if applicable)
-    private String employerAddress;  // Employer Address
-    private String occupation;  // Occupation (e.g., Software Engineer, Doctor, etc.)
+    private String employerName;
+    private String employerAddress;
+    private String occupation;
 
     // Choices and Miscellaneous Information
-    private String provider;  // Provider Information (e.g., primary care provider)
-    private String referringProvider;  // Referring Provider (if applicable)
-    private String pharmacy;  // Pharmacy Information (if applicable)
-    private String hipaaNoticeReceived;  // HIPAA Notice Acknowledgement (True/False)
+    private String provider;
+    private String referringProvider;
+    private String pharmacy;
+    private String hipaaNoticeReceived;
 
     // Other Information
-    private String language;  // Preferred language for communication
-    private String billingNote;  // Any additional billing-related notes
+    private String language;
+    private String billingNote;
 
     // Optional - For Record-Keeping
-    private String previousNames;  // Any previous names the patient has used
+    private String previousNames;
 
     @Data
     public static class Identification {
-        private String firstName; // Legal first name
-        private String lastName; // Legal last name
-        private String middleName; // Optional
-        private String prefix; // Optional
-        private String suffix; // Optional
-        private String gender; // Optional (FHIR/HL7 code)
-        private String dateOfBirth; // Optional
-        private String photo; // Optional (URL or file)
+        private String firstName;
+        private String lastName;
+        private String middleName;
+        private String prefix;
+        private String suffix;
+        private String gender;
+        private String dateOfBirth;
+        private String photo;
     }
 
     @Data
     public static class Contact {
-        private String email; // Optional
-        private String phoneNumber; // Optional
-        private String mobileNumber; // Optional
-        private String faxNumber; // Optional
-        private Address address; // Optional (Street, city, state, postal, country)
+        private String email;
+        private String phoneNumber;
+        private String mobileNumber;
+        private String faxNumber;
+        private Address address;
 
         @Data
         public static class Address {

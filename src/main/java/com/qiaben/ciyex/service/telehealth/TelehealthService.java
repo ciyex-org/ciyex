@@ -13,18 +13,12 @@ public interface TelehealthService {
     String startVideoCall(Long providerId, Long patientId, String roomName);
 
     /**
-     * Sends an SMS reminder to a patient for a scheduled slot.
-     *
-     * @param phoneNumber The patient's phone number
-     * @param message The reminder message
-     */
-    void sendSMSReminder(String phoneNumber, String message);
-
-    /**
      * Retrieves the status of an ongoing or completed call.
      *
      * @param callId The identifier of the call (e.g., room SID or credential ID)
      * @return The current status of the call (e.g., "active", "completed")
      */
     String getCallStatus(String callId);
+
+    String createJoinToken(String roomName, String identity, Integer ttlSecs);
 }

@@ -3,75 +3,115 @@ package com.qiaben.ciyex.service;
 import com.qiaben.ciyex.dto.HistoryOfPresentIllnessDto;
 import com.qiaben.ciyex.entity.HistoryOfPresentIllness;
 import com.qiaben.ciyex.repository.HistoryOfPresentIllnessRepository;
+import com.qiaben.ciyex.storage.ExternalHistoryOfPresentIllnessStorage;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class HistoryOfPresentIllnessService {
 
-    private final HistoryOfPresentIllnessRepository historyOfPresentIllnessRepository;
+    private final HistoryOfPresentIllnessRepository repo;
+    private final Optional<ExternalHistoryOfPresentIllnessStorage> external;
 
-    public HistoryOfPresentIllnessService(HistoryOfPresentIllnessRepository historyOfPresentIllnessRepository) {
-        this.historyOfPresentIllnessRepository = historyOfPresentIllnessRepository;
+    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    // CREATE
+    public HistoryOfPresentIllnessDto create(Long orgId, Long patientId, Long encounterId, HistoryOfPresentIllnessDto in) {
+        HistoryOfPresentIllness toSave = HistoryOfPresentIllness.builder()
+                .orgId(orgId)
+                .patientId(patientId)
+                .encounterId(encounterId)
+                .description(in.getDescription())
+                .build();
+
+        final HistoryOfPresentIllness saved = repo.save(toSave);
+
+        external.ifPresent(ext -> {
+            final HistoryOfPresentIllness ref = saved;
+            String externalId = ext.create(mapToDto(ref));
+            ref.setExternalId(externalId);
+            repo.save(ref);
+        });
+
+        return mapToDto(saved);
     }
 
-    // Create a new History of Present Illness entry
-    @Transactional
-    public HistoryOfPresentIllnessDto create(HistoryOfPresentIllnessDto dto) {
-        HistoryOfPresentIllness hpi = new HistoryOfPresentIllness();
-        hpi.setDescription(dto.getDescription());
-        hpi.setPatientId(dto.getPatientId());
-        hpi.setEncounterId(dto.getEncounterId());
-        hpi.setOrgId(dto.getOrgId());  // Set orgId
-        hpi = historyOfPresentIllnessRepository.save(hpi);
-        return mapToDto(hpi);
+    // UPDATE
+    public HistoryOfPresentIllnessDto update(Long orgId, Long patientId, Long encounterId, Long id, HistoryOfPresentIllnessDto in) {
+        HistoryOfPresentIllness entity = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+                .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
+
+        entity.setDescription(in.getDescription());
+        final HistoryOfPresentIllness updated = repo.save(entity);
+
+        external.ifPresent(ext -> {
+            final HistoryOfPresentIllness e = updated;
+            if (e.getExternalId() != null) {
+                ext.update(e.getExternalId(), mapToDto(e));
+            }
+        });
+
+        return mapToDto(updated);
     }
 
-    // Get all History of Present Illness entries for a specific encounter
-    @Transactional(readOnly = true)
-    public List<HistoryOfPresentIllnessDto> getByEncounterId(Long encounterId) {
-        List<HistoryOfPresentIllness> hpis = historyOfPresentIllnessRepository.findByEncounterId(encounterId);
-        return hpis.stream().map(this::mapToDto).collect(Collectors.toList());
+    // DELETE
+    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+        HistoryOfPresentIllness entity = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+                .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
+
+        final HistoryOfPresentIllness toDelete = entity;
+        external.ifPresent(ext -> {
+            if (toDelete.getExternalId() != null) {
+                ext.delete(toDelete.getExternalId());
+            }
+        });
+
+        repo.delete(toDelete);
     }
 
-    // Update a specific History of Present Illness entry
-    @Transactional
-    public HistoryOfPresentIllnessDto update(Long encounterId, Long id, HistoryOfPresentIllnessDto dto) {
-        HistoryOfPresentIllness hpi = historyOfPresentIllnessRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("History of Present Illness not found"));
-        if (!hpi.getEncounterId().equals(encounterId)) {
-            throw new RuntimeException("Encounter ID mismatch");
-        }
-        hpi.setDescription(dto.getDescription());
-        hpi.setPatientId(dto.getPatientId());
-        hpi.setOrgId(dto.getOrgId());  // Update orgId
-        hpi = historyOfPresentIllnessRepository.save(hpi);
-        return mapToDto(hpi);
+    // GET ONE
+    public HistoryOfPresentIllnessDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+        HistoryOfPresentIllness entity = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+                .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
+        return mapToDto(entity);
     }
 
-    // Delete a specific History of Present Illness entry
-    @Transactional
-    public void delete(Long encounterId, Long id) {
-        HistoryOfPresentIllness hpi = historyOfPresentIllnessRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("History of Present Illness not found"));
-        if (!hpi.getEncounterId().equals(encounterId)) {
-            throw new RuntimeException("Encounter ID mismatch");
-        }
-        historyOfPresentIllnessRepository.delete(hpi);
+    // GET ALL by patient
+    public List<HistoryOfPresentIllnessDto> getAllByPatient(Long orgId, Long patientId) {
+        return repo.findByOrgIdAndPatientId(orgId, patientId).stream().map(this::mapToDto).toList();
     }
 
-    private HistoryOfPresentIllnessDto mapToDto(HistoryOfPresentIllness hpi) {
+    // GET ALL by patient + encounter
+    public List<HistoryOfPresentIllnessDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream().map(this::mapToDto).toList();
+    }
+
+    // Mapping
+    private HistoryOfPresentIllnessDto mapToDto(HistoryOfPresentIllness e) {
         HistoryOfPresentIllnessDto dto = new HistoryOfPresentIllnessDto();
-        dto.setId(hpi.getId());
-        dto.setDescription(hpi.getDescription());
-        dto.setPatientId(hpi.getPatientId());
-        dto.setEncounterId(hpi.getEncounterId());
-        dto.setOrgId(hpi.getOrgId());
-        dto.setCreatedAt(hpi.getCreatedAt());
-        dto.setUpdatedAt(hpi.getUpdatedAt());
+        dto.setId(e.getId());
+        dto.setExternalId(e.getExternalId());
+        dto.setOrgId(e.getOrgId());
+        dto.setPatientId(e.getPatientId());
+        dto.setEncounterId(e.getEncounterId());
+        dto.setDescription(e.getDescription());
+
+        HistoryOfPresentIllnessDto.Audit a = new HistoryOfPresentIllnessDto.Audit();
+        if (e.getCreatedAt() != null) {
+            a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
+        }
+        if (e.getUpdatedAt() != null) {
+            a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
+        }
+        dto.setAudit(a);
         return dto;
     }
 }

@@ -4,14 +4,16 @@ import lombok.Data;
 
 @Data
 public class SlotDto {
-    private Long id; // Database ID
-    private String externalId; // ID from external storage (e.g., FHIR Slot ID)
-    private Long orgId; // Tenant identifier
-    private Long providerId;
-    private Long locationId;
-    private String startTime;
-    private String endTime;
-    private String status;
+    private Long id;          // local DB id
+    private Long orgId;       // tenant/org
+    private Long providerId;  // practitioner
+    private String externalId;// FHIR Slot id
+
+    private String start;     // ISO-8601 datetime
+    private String end;       // ISO-8601 datetime
+    private String status;    // free | busy | busy-unavailable | busy-tentative
+    private String comment;   // optional notes
+
     private Audit audit;
 
     @Data

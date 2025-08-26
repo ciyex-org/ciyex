@@ -1,78 +1,90 @@
 package com.qiaben.ciyex.controller;
 
+import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.HistoryOfPresentIllnessDto;
 import com.qiaben.ciyex.service.HistoryOfPresentIllnessService;
-import com.qiaben.ciyex.dto.ApiResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/{encounterId}/history-of-present-illness")  // Dynamic encounterId in the URL path
+@RequestMapping("/api/history-of-present-illness")
+@RequiredArgsConstructor
+@Slf4j
 public class HistoryOfPresentIllnessController {
 
-    private final HistoryOfPresentIllnessService historyOfPresentIllnessService;
+    private final HistoryOfPresentIllnessService service;
 
-    public HistoryOfPresentIllnessController(HistoryOfPresentIllnessService historyOfPresentIllnessService) {
-        this.historyOfPresentIllnessService = historyOfPresentIllnessService;
+    // READ ALL: /api/history-of-present-illness/{patientId}
+    @GetMapping("/{patientId}")
+    public ResponseEntity<ApiResponse<List<HistoryOfPresentIllnessDto>>> getAllByPatient(
+            @PathVariable Long patientId,
+            @RequestHeader("orgId") Long orgId) {
+        var list = service.getAllByPatient(orgId, patientId);
+        return ResponseEntity.ok(ApiResponse.<List<HistoryOfPresentIllnessDto>>builder()
+                .success(true).message("HPI fetched successfully").data(list).build());
     }
 
-    // Create a new History of Present Illness entry
-    @PostMapping
-    public ResponseEntity<ApiResponse<HistoryOfPresentIllnessDto>> create(
+    // READ ALL: /api/history-of-present-illness/{patientId}/{encounterId}
+    @GetMapping("/{patientId}/{encounterId}")
+    public ResponseEntity<ApiResponse<List<HistoryOfPresentIllnessDto>>> getAllByEncounter(
+            @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @RequestBody HistoryOfPresentIllnessDto dto,
-            @RequestHeader("orgid") Long orgId  // Pass orgId in the header
-    ) {
-        dto.setOrgId(orgId);  // Set orgId from header
-        dto.setEncounterId(encounterId);  // Set encounterId from URL path
-        HistoryOfPresentIllnessDto createdHPI = historyOfPresentIllnessService.create(dto);
-        ApiResponse<HistoryOfPresentIllnessDto> response = new ApiResponse.Builder<HistoryOfPresentIllnessDto>()
-                .success(true)
-                .message("History of Present Illness created successfully")
-                .data(createdHPI)
-                .build();
-        return ResponseEntity.ok(response);
+            @RequestHeader("orgId") Long orgId) {
+        var list = service.getAllByEncounter(orgId, patientId, encounterId);
+        return ResponseEntity.ok(ApiResponse.<List<HistoryOfPresentIllnessDto>>builder()
+                .success(true).message("HPI fetched successfully").data(list).build());
     }
 
-    // Get all History of Present Illness entries for a specific encounter
-    @GetMapping
-    public ResponseEntity<ApiResponse<List<HistoryOfPresentIllnessDto>>> getAll(@PathVariable Long encounterId) {
-        List<HistoryOfPresentIllnessDto> hpis = historyOfPresentIllnessService.getByEncounterId(encounterId);
-        ApiResponse<List<HistoryOfPresentIllnessDto>> response = new ApiResponse.Builder<List<HistoryOfPresentIllnessDto>>()
-                .success(true)
-                .message("History of Present Illness entries fetched successfully")
-                .data(hpis)
-                .build();
-        return ResponseEntity.ok(response);
-    }
-
-    // Update a specific History of Present Illness entry
-    @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<HistoryOfPresentIllnessDto>> update(
+    // READ ONE: /api/history-of-present-illness/{patientId}/{encounterId}/{id}
+    @GetMapping("/{patientId}/{encounterId}/{id}")
+    public ResponseEntity<ApiResponse<HistoryOfPresentIllnessDto>> getOne(
+            @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
-            @RequestBody HistoryOfPresentIllnessDto dto
-    ) {
-        HistoryOfPresentIllnessDto updatedHPI = historyOfPresentIllnessService.update(encounterId, id, dto);
-        ApiResponse<HistoryOfPresentIllnessDto> response = new ApiResponse.Builder<HistoryOfPresentIllnessDto>()
-                .success(true)
-                .message("History of Present Illness updated successfully")
-                .data(updatedHPI)
-                .build();
-        return ResponseEntity.ok(response);
+            @RequestHeader("orgId") Long orgId) {
+        var dto = service.getOne(orgId, patientId, encounterId, id);
+        return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
+                .success(true).message("HPI fetched successfully").data(dto).build());
     }
 
-    // Delete a specific History of Present Illness entry
-    @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long encounterId, @PathVariable Long id) {
-        historyOfPresentIllnessService.delete(encounterId, id);
-        ApiResponse<Void> response = new ApiResponse.Builder<Void>()
-                .success(true)
-                .message("History of Present Illness deleted successfully")
-                .data(null)
-                .build();
-        return ResponseEntity.ok(response);
+    // CREATE: /api/history-of-present-illness/{patientId}/{encounterId}
+    @PostMapping("/{patientId}/{encounterId}")
+    public ResponseEntity<ApiResponse<HistoryOfPresentIllnessDto>> create(
+            @PathVariable Long patientId,
+            @PathVariable Long encounterId,
+            @RequestHeader("orgId") Long orgId,
+            @RequestBody HistoryOfPresentIllnessDto dto) {
+        var created = service.create(orgId, patientId, encounterId, dto);
+        return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
+                .success(true).message("HPI created").data(created).build());
+    }
+
+    // UPDATE: /api/history-of-present-illness/{patientId}/{encounterId}/{id}
+    @PutMapping("/{patientId}/{encounterId}/{id}")
+    public ResponseEntity<ApiResponse<HistoryOfPresentIllnessDto>> update(
+            @PathVariable Long patientId,
+            @PathVariable Long encounterId,
+            @PathVariable Long id,
+            @RequestHeader("orgId") Long orgId,
+            @RequestBody HistoryOfPresentIllnessDto dto) {
+        var updated = service.update(orgId, patientId, encounterId, id, dto);
+        return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
+                .success(true).message("HPI updated").data(updated).build());
+    }
+
+    // DELETE: /api/history-of-present-illness/{patientId}/{encounterId}/{id}
+    @DeleteMapping("/{patientId}/{encounterId}/{id}")
+    public ResponseEntity<ApiResponse<Void>> delete(
+            @PathVariable Long patientId,
+            @PathVariable Long encounterId,
+            @PathVariable Long id,
+            @RequestHeader("orgId") Long orgId) {
+        service.delete(orgId, patientId, encounterId, id);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .success(true).message("HPI deleted").build());
     }
 }

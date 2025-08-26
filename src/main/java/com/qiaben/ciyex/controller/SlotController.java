@@ -2,10 +2,8 @@ package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.SlotDto;
-import com.qiaben.ciyex.dto.SlotScheduleDto;
 import com.qiaben.ciyex.service.SlotService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,7 +16,6 @@ public class SlotController {
 
     private final SlotService service;
 
-    @Autowired
     public SlotController(SlotService service) {
         this.service = service;
     }
@@ -26,17 +23,17 @@ public class SlotController {
     @PostMapping
     public ResponseEntity<ApiResponse<SlotDto>> create(@RequestBody SlotDto dto) {
         try {
-            SlotDto createdSlot = service.create(dto);
+            SlotDto created = service.create(dto);
             return ResponseEntity.ok(ApiResponse.<SlotDto>builder()
                     .success(true)
                     .message("Slot created successfully")
-                    .data(createdSlot)
+                    .data(created)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to create slot: {}", e.getMessage());
+            log.error("Create slot failed: {}", e.getMessage());
             return ResponseEntity.ok(ApiResponse.<SlotDto>builder()
                     .success(false)
-                    .message("Failed to create slot: " + e.getMessage())
+                    .message("Create slot failed: " + e.getMessage())
                     .build());
         }
     }
@@ -44,23 +41,15 @@ public class SlotController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<SlotDto>> get(@PathVariable Long id) {
         try {
-            SlotDto slot = service.getById(id);
-            if (slot == null) {
-                return ResponseEntity.ok(ApiResponse.<SlotDto>builder()
-                        .success(false)
-                        .message("Slot not found with id: " + id)
-                        .build());
-            }
             return ResponseEntity.ok(ApiResponse.<SlotDto>builder()
                     .success(true)
                     .message("Slot retrieved successfully")
-                    .data(slot)
+                    .data(service.getById(id))
                     .build());
         } catch (Exception e) {
-            log.error("Failed to retrieve slot with id {}: {}", id, e.getMessage());
             return ResponseEntity.ok(ApiResponse.<SlotDto>builder()
                     .success(false)
-                    .message("Failed to retrieve slot: " + e.getMessage())
+                    .message("Get slot failed: " + e.getMessage())
                     .build());
         }
     }
@@ -68,23 +57,15 @@ public class SlotController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<SlotDto>> update(@PathVariable Long id, @RequestBody SlotDto dto) {
         try {
-            SlotDto updatedSlot = service.update(id, dto);
-            if (updatedSlot == null) {
-                return ResponseEntity.ok(ApiResponse.<SlotDto>builder()
-                        .success(false)
-                        .message("Slot not found with id: " + id)
-                        .build());
-            }
             return ResponseEntity.ok(ApiResponse.<SlotDto>builder()
                     .success(true)
                     .message("Slot updated successfully")
-                    .data(updatedSlot)
+                    .data(service.update(id, dto))
                     .build());
         } catch (Exception e) {
-            log.error("Failed to update slot with id {}: {}", id, e.getMessage());
             return ResponseEntity.ok(ApiResponse.<SlotDto>builder()
                     .success(false)
-                    .message("Failed to update slot: " + e.getMessage())
+                    .message("Update slot failed: " + e.getMessage())
                     .build());
         }
     }
@@ -98,41 +79,37 @@ public class SlotController {
                     .message("Slot deleted successfully")
                     .build());
         } catch (Exception e) {
-            log.error("Failed to delete slot with id {}: {}", id, e.getMessage());
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(false)
-                    .message("Failed to delete slot: " + e.getMessage())
+                    .message("Delete slot failed: " + e.getMessage())
                     .build());
         }
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<SlotDto>>> getAllSlots() {
+    public ResponseEntity<ApiResponse<List<SlotDto>>> getAll() {
         try {
-            ApiResponse<List<SlotDto>> response = service.getAllSlots();
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(service.getAllSlots());
         } catch (Exception e) {
-            log.error("Failed to retrieve all slots: {}", e.getMessage());
             return ResponseEntity.ok(ApiResponse.<List<SlotDto>>builder()
                     .success(false)
-                    .message("Failed to retrieve slots: " + e.getMessage())
+                    .message("Get all slots failed: " + e.getMessage())
                     .build());
         }
     }
 
-    @PostMapping("/generate")
-    public ResponseEntity<ApiResponse<Void>> generateSlots(@RequestBody SlotScheduleDto scheduleDto) {
+    @GetMapping("/count")
+    public ResponseEntity<ApiResponse<Long>> count() {
         try {
-            service.generateProviderSlots(scheduleDto);
-            return ResponseEntity.ok(ApiResponse.<Void>builder()
+            return ResponseEntity.ok(ApiResponse.<Long>builder()
                     .success(true)
-                    .message("Slots generated successfully")
+                    .message("Slot count retrieved successfully")
+                    .data(service.countSlotsForCurrentOrg())
                     .build());
         } catch (Exception e) {
-            log.error("Failed to generate slots: {}", e.getMessage());
-            return ResponseEntity.ok(ApiResponse.<Void>builder()
+            return ResponseEntity.ok(ApiResponse.<Long>builder()
                     .success(false)
-                    .message("Failed to generate slots: " + e.getMessage())
+                    .message("Count slots failed: " + e.getMessage())
                     .build());
         }
     }
