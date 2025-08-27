@@ -54,6 +54,18 @@ public class FhirExternalScheduleStorage implements ExternalScheduleStorage {
         return searchAll();
     }
 
+    @Override
+    public List<ScheduleDto> getSchedulesByIds(List<String> externalIds) {
+        requireOrg();
+        if (externalIds == null || externalIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        // Assuming FhirResourceStorage supports a bulk get/search by IDs
+        List<Appointment> appts = fhirResourceStorage.getByIds(Appointment.class, externalIds);
+        return appts.stream().map(this::fromFhir).toList();
+    }
+
+
     // Recurrence extension namespace + child keys (maps to ScheduleDto.Recurrence)
     private static final String EXT_URL_RECURRENCE = "http://ciyex.com/fhir/StructureDefinition/schedule-recurrence";
     private static final String EXT_FREQ = "frequency";
