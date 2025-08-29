@@ -10,8 +10,11 @@ public class InsuranceCompanyDto {
     private String city;
     private String state;
     private String postalCode;
+    private String payerId;
+
     private String country;
-    private String fhirId;  // For external FHIR integration
+    private String fhirId;
+    private String status;  // ACTIVE or ARCHIVED
 
     @Data
     public static class Audit {
