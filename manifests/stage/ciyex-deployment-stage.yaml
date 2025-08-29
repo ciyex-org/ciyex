@@ -24,14 +24,14 @@ spec:
             - name: SPRING_PROFILES_ACTIVE
               value: "stage"
             - name: SPRING_DATASOURCE_URL
-              value: "jdbc:mysql://mysql:3306/ciyexdb"
+              value: "jdbc:postgresql://postgres:5432/ciyexdb"
             - name: SPRING_DATASOURCE_USERNAME
-              value: "root"
+              value: "postgres"
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: ciyex-mysql-secret
-                  key: mysql-root-password
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
             - name: NEXT_PUBLIC_API_URL
               value: "https://stg.ciyex.com/api"
 

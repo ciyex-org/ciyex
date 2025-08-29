@@ -17,8 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 
 @Service
@@ -54,6 +53,7 @@ public class ScheduleService {
             throw new IllegalArgumentException("providerId is required");
         }
         dto.setOrgId(orgId);
+        validateScheduleDto(dto);
 
 
 // Create in external storage and capture externalId
@@ -97,16 +97,46 @@ public class ScheduleService {
     public ApiResponse<List<ScheduleDto>> getAllSchedules() {
         Long orgId = getCurrentOrgIdOrThrow();
         List<Schedule> entities = repository.findAllByOrgId(orgId);
+
+        // collect all externalIds
+        List<String> externalIds = entities.stream()
+                .map(Schedule::getExternalId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        // fetch external schedules in bulk
+        ExternalScheduleStorage external =
+                (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
+        Map<String, ScheduleDto> externalMap = new HashMap<>();
+        if (!externalIds.isEmpty()) {
+            List<ScheduleDto> extDtos = external.getSchedulesByIds(externalIds);
+            for (ScheduleDto ext : extDtos) {
+                externalMap.put(ext.getExternalId(), ext);
+            }
+        }
+
+        // merge local + external
         List<ScheduleDto> out = new ArrayList<>();
         for (Schedule s : entities) {
-            out.add(mergeLocalAndExternal(s, fetchExternal(s.getExternalId())));
+            ScheduleDto merged = mergeLocalAndExternal(
+                    s,
+                    externalMap.getOrDefault(s.getExternalId(), fetchExternal(s.getExternalId()))
+            );
+            if (merged.getStatus() == null) {
+                merged.setStatus("active");
+            }
+            out.add(merged);
         }
+
         return ApiResponse.<List<ScheduleDto>>builder()
                 .success(true)
                 .message("Schedules retrieved successfully")
                 .data(out)
                 .build();
     }
+
+
+
     // imports you likely already have:
 // import org.springframework.transaction.annotation.Transactional;
 // import com.qiaben.ciyex.dto.ScheduleDto;
@@ -200,4 +230,23 @@ public class ScheduleService {
         if (orgId == null) throw new SecurityException("No orgId available in request context");
         return orgId;
     }
+    private void validateScheduleDto(ScheduleDto dto) {
+        if (dto.getRecurrence() == null) {
+            // One-time schedule
+            if (dto.getStart() == null || dto.getEnd() == null || dto.getTimezone() == null) {
+                throw new IllegalArgumentException("One-time schedule requires start, end, and timezone");
+            }
+        } else {
+            // Recurring schedule
+            ScheduleDto.Recurrence r = dto.getRecurrence();
+            if (r.getFrequency() == null || r.getStartDate() == null ||
+                    r.getStartTime() == null || r.getEndTime() == null) {
+                throw new IllegalArgumentException("Recurring schedule requires frequency, startDate, startTime, and endTime");
+            }
+            if (r.getEndDate() != null && r.getStartDate().compareTo(r.getEndDate()) > 0) {
+                throw new IllegalArgumentException("recurrence.endDate cannot be before startDate");
+            }
+        }
+    }
+
 }

@@ -1,30 +1,28 @@
 package com.qiaben.ciyex.dto;
 
-import jakarta.validation.constraints.*;
-import lombok.*;
+import lombok.Data;
 
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class AppointmentDTO {
+    private Long id;
+    private String visitType;
+    private Long patientId;
+    private Long providerId;
+    private String appointmentStartDate;
+    private String appointmentEndDate;
+    private String appointmentStartTime;
+    private String appointmentEndTime;
+    private String priority;
+    private Long locationId;   // Changed from String location → Long locationId
+    private String status;
+    private String reason;
+    private Long orgId;
 
-    @NotBlank(message = "Select physician")
-    private String doctorId;
+    private Audit audit;
 
-    @NotBlank(message = "Select type of appointment")
-    private String type;
-
-    @NotBlank(message = "Select appointment date")
-    private String appointmentDate;
-
-    @NotBlank(message = "Select appointment time")
-    private String time;
-
-    @NotBlank(message = "Select appointment mode")
-    private String mode;
-
-    // Optional
-    private String note;
+    @Data
+    public static class Audit {
+        private String createdDate;
+        private String lastModifiedDate;
+    }
 }
-
