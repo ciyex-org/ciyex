@@ -17,12 +17,14 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
     @Query("SELECT COUNT(p) FROM Patient p WHERE p.orgId = :orgId")
     long countByOrgId(Long orgId);
 
-    // Search within an org (server-side search + pagination)
+    // ✅ Enhanced search within an org (now supports MRN + Gender as well)
     @Query("SELECT p FROM Patient p WHERE p.orgId = :orgId AND (" +
             "LOWER(p.firstName) LIKE %:search% OR " +
             "LOWER(p.lastName) LIKE %:search% OR " +
             "LOWER(p.email) LIKE %:search% OR " +
-            "LOWER(p.phoneNumber) LIKE %:search%)")
+            "LOWER(p.phoneNumber) LIKE %:search% OR " +
+//            "LOWER(p.mrn) LIKE %:search% OR " +
+            "LOWER(p.gender) LIKE %:search%)")
     Page<Patient> searchByOrgId(String search, Long orgId, Pageable pageable);
 
     // Fallback: findAll for a specific organization (paginated)
@@ -31,8 +33,6 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
     // Non-paginated helper
     List<Patient> findAllByOrgId(Long orgId);
 
-
     @Query("SELECT p FROM Patient p WHERE p.orgId = :orgId AND p.externalId = :externalId")
     Optional<Patient> findByExternalIdAndOrgId(Long orgId, String externalId);
 }
-

@@ -19,7 +19,7 @@ public class PatientController {
 
     private final PatientService service;
 
-    // Create a new Patient
+    // ✅ Create a new Patient
     @PostMapping
     public ResponseEntity<ApiResponse<PatientDto>> create(@RequestBody PatientDto dto) {
         try {
@@ -38,7 +38,7 @@ public class PatientController {
         }
     }
 
-    // Retrieve a patient by ID
+    // ✅ Retrieve a patient by ID
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<PatientDto>> get(@PathVariable Long id) {
         try {
@@ -63,7 +63,7 @@ public class PatientController {
         }
     }
 
-    // Update an existing patient
+    // ✅ Update an existing patient
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<PatientDto>> update(@PathVariable Long id, @RequestBody PatientDto dto) {
         try {
@@ -88,7 +88,7 @@ public class PatientController {
         }
     }
 
-    // Delete a patient by ID
+    // ✅ Delete a patient by ID
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         try {
@@ -106,6 +106,7 @@ public class PatientController {
         }
     }
 
+    // ✅ Count all patients in the current org
     @GetMapping("/count")
     public ResponseEntity<ApiResponse<Long>> getPatientCount() {
         try {
@@ -124,6 +125,7 @@ public class PatientController {
         }
     }
 
+    // ✅ Get all patients with optional search
     @GetMapping
     public ResponseEntity<ApiResponse<Page<PatientDto>>> getAllPatients(
             @PageableDefault(sort = "id") Pageable pageable,
@@ -141,6 +143,28 @@ public class PatientController {
             return ResponseEntity.ok(ApiResponse.<Page<PatientDto>>builder()
                     .success(false)
                     .message("Failed to retrieve patients: " + e.getMessage())
+                    .build());
+        }
+    }
+
+    // ✅ Dedicated search endpoint (MRN, name, email, gender, etc.)
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<Page<PatientDto>>> searchPatients(
+            @RequestParam String query,
+            @PageableDefault(sort = "id") Pageable pageable
+    ) {
+        try {
+            Page<PatientDto> patients = service.searchPatients(query, pageable);
+            return ResponseEntity.ok(ApiResponse.<Page<PatientDto>>builder()
+                    .success(true)
+                    .message("Patients search successful")
+                    .data(patients)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to search patients with query {}", query, e);
+            return ResponseEntity.ok(ApiResponse.<Page<PatientDto>>builder()
+                    .success(false)
+                    .message("Failed to search patients: " + e.getMessage())
                     .build());
         }
     }
