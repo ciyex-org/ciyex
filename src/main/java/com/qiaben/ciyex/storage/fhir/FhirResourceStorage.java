@@ -87,6 +87,41 @@ public class FhirResourceStorage {
         });
     }
 
+    // 👉 Add your new method right here
+    @SuppressWarnings("unchecked")
+    public <R extends IBaseResource> List<R> getByIds(Class<R> resourceType, List<String> externalIds) {
+        return executeWithRetry(() -> {
+            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            Long orgId = RequestContext.get().getOrgId();
+            if (orgId == null) {
+                log.error("No orgId in RequestContext during getByIds");
+                throw new IllegalStateException("No orgId in request context");
+            }
+
+            String[] idsArray = externalIds.toArray(new String[0]);
+
+            Bundle bundle = client.search()
+                    .forResource(resourceType)
+                    .where(new TokenClientParam("_id").exactly().codes(idsArray))
+                    .and(new TokenClientParam("_tag").exactly()
+                            .systemAndCode("http://ciyex.com/tenant", orgId.toString()))
+                    .returnBundle(Bundle.class)
+                    .execute();
+
+            List<R> resources = new ArrayList<>();
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                IBaseResource resource = entry.getResource();
+                if (resource != null && resourceType.isInstance(resource)) {
+                    resources.add((R) resource);
+                } else {
+                    log.warn("Unexpected resource type or null in Bundle entry: {}",
+                            resource != null ? resource.getClass().getName() : "null");
+                }
+            }
+            return resources;
+        });
+    }
+
     private <T> T executeWithRetry(FhirOperation<T> operation) {
         try {
             return operation.execute();

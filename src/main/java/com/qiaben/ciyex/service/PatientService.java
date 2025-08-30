@@ -225,6 +225,24 @@ public class PatientService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public Page<PatientDto> searchPatients(String query, Pageable pageable) {
+        Long currentOrgId = getCurrentOrgId();
+        if (currentOrgId == null) {
+            log.error("No orgId found in RequestContext during patient search");
+            throw new SecurityException("No orgId available in request context");
+        }
+
+        if (query == null || query.isBlank()) {
+            log.info("Empty search query provided, returning all patients for orgId: {}", currentOrgId);
+            return repository.findAllByOrgId(currentOrgId, pageable).map(this::mapToDto);
+        }
+
+        log.info("Searching patients for orgId: {} with query: {}", currentOrgId, query);
+        return repository.searchByOrgId(query.toLowerCase(), currentOrgId, pageable)
+                .map(this::mapToDto);
+    }
+
     // Server-side pagination: return Page<PatientDto> filtered by current org and optional search term
     @Transactional(readOnly = true)
     public Page<PatientDto> getAllPatients(Pageable pageable, String search) {

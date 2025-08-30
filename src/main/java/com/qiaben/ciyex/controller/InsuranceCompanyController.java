@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.InsuranceCompanyDto;
+import com.qiaben.ciyex.entity.InsuranceStatus;
 import com.qiaben.ciyex.service.InsuranceCompanyService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -39,6 +40,17 @@ public class InsuranceCompanyController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // 🔹 New endpoints for status toggle
+    @PostMapping("/{id}/archive")
+    public ResponseEntity<InsuranceCompanyDto> archive(@PathVariable Long id) {
+        return ResponseEntity.ok(service.updateStatus(id, InsuranceStatus.ARCHIVED));
+    }
+
+    @PostMapping("/{id}/activate")
+    public ResponseEntity<InsuranceCompanyDto> activate(@PathVariable Long id) {
+        return ResponseEntity.ok(service.updateStatus(id, InsuranceStatus.ACTIVE));
     }
 
     @GetMapping

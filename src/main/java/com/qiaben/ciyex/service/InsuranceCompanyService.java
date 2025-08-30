@@ -2,6 +2,7 @@ package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.InsuranceCompanyDto;
 import com.qiaben.ciyex.entity.InsuranceCompany;
+import com.qiaben.ciyex.entity.InsuranceStatus;
 import com.qiaben.ciyex.repository.InsuranceCompanyRepository;
 import com.qiaben.ciyex.storage.ExternalStorage;
 import com.qiaben.ciyex.storage.ExternalStorageResolver;
@@ -65,6 +66,17 @@ public class InsuranceCompanyService {
         return mapToDto(insuranceCompany);
     }
 
+    @Transactional
+    public InsuranceCompanyDto updateStatus(Long id, InsuranceStatus status) {
+        InsuranceCompany entity = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Insurance company not found"));
+        entity.setStatus(status);
+        entity.setLastModifiedDate(LocalDateTime.now().format(DATE_FORMATTER));
+        entity = repository.save(entity);
+        return mapToDto(entity);
+    }
+
+
     @Transactional(readOnly = true)
     public InsuranceCompanyDto getById(Long id) {
         InsuranceCompany entity = repository.findById(id).orElseThrow(() -> new RuntimeException("Insurance company not found"));
@@ -116,6 +128,8 @@ public class InsuranceCompanyService {
         dto.setPostalCode(entity.getPostalCode());
         dto.setCountry(entity.getCountry());
         dto.setFhirId(entity.getFhirId());
+        dto.setPayerId(entity.getPayerId());
+        dto.setStatus(entity.getStatus().name());
 
         // Initialize and set audit dates
         InsuranceCompanyDto.Audit audit = new InsuranceCompanyDto.Audit();
@@ -134,6 +148,8 @@ public class InsuranceCompanyService {
                 .state(dto.getState())
                 .postalCode(dto.getPostalCode())
                 .country(dto.getCountry())
+                .payerId(dto.getPayerId())
+                .status(InsuranceStatus.ACTIVE)
                 .build();
     }
 
@@ -144,6 +160,7 @@ public class InsuranceCompanyService {
         if (dto.getState() != null) entity.setState(dto.getState());
         if (dto.getPostalCode() != null) entity.setPostalCode(dto.getPostalCode());
         if (dto.getCountry() != null) entity.setCountry(dto.getCountry());
+        if (dto.getPayerId() != null) entity.setPayerId(dto.getPayerId()); //
         return entity;
     }
 }

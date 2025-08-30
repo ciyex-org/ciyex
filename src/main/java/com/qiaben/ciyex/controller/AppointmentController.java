@@ -1,0 +1,135 @@
+package com.qiaben.ciyex.controller;
+
+import com.qiaben.ciyex.dto.ApiResponse;
+import com.qiaben.ciyex.dto.AppointmentDTO;
+import com.qiaben.ciyex.service.AppointmentService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/appointments")
+@RequiredArgsConstructor
+@Slf4j
+public class AppointmentController {
+
+    private final AppointmentService service;
+
+    // Create a new Appointment
+    @PostMapping
+    public ResponseEntity<ApiResponse<AppointmentDTO>> create(@RequestBody AppointmentDTO dto) {
+        try {
+            AppointmentDTO created = service.create(dto);
+            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+                    .success(true)
+                    .message("Appointment created successfully")
+                    .data(created)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to create appointment", e);
+            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+                    .success(false)
+                    .message("Failed to create appointment: " + e.getMessage())
+                    .build());
+        }
+    }
+
+    // Retrieve an appointment by ID
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<AppointmentDTO>> get(@PathVariable Long id) {
+        try {
+            AppointmentDTO appointment = service.getById(id);
+            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+                    .success(true)
+                    .message("Appointment retrieved successfully")
+                    .data(appointment)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve appointment with id {}", id, e);
+            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+                    .success(false)
+                    .message("Failed to retrieve appointment: " + e.getMessage())
+                    .build());
+        }
+    }
+
+    // Update an appointment
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<AppointmentDTO>> update(@PathVariable Long id, @RequestBody AppointmentDTO dto) {
+        try {
+            AppointmentDTO updated = service.update(id, dto);
+            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+                    .success(true)
+                    .message("Appointment updated successfully")
+                    .data(updated)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to update appointment with id {}", id, e);
+            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+                    .success(false)
+                    .message("Failed to update appointment: " + e.getMessage())
+                    .build());
+        }
+    }
+
+    // Delete an appointment
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+        try {
+            service.delete(id);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(true)
+                    .message("Appointment deleted successfully")
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to delete appointment with id {}", id, e);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(false)
+                    .message("Failed to delete appointment: " + e.getMessage())
+                    .build());
+        }
+    }
+
+    // List appointments (paginated)
+    @GetMapping
+    public ResponseEntity<ApiResponse<Page<AppointmentDTO>>> getAll(@PageableDefault Pageable pageable) {
+        try {
+            Page<AppointmentDTO> appointments = service.getAll(pageable);
+            return ResponseEntity.ok(ApiResponse.<Page<AppointmentDTO>>builder()
+                    .success(true)
+                    .message("Appointments retrieved successfully")
+                    .data(appointments)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve appointments", e);
+            return ResponseEntity.ok(ApiResponse.<Page<AppointmentDTO>>builder()
+                    .success(false)
+                    .message("Failed to retrieve appointments: " + e.getMessage())
+                    .build());
+        }
+    }
+
+    @GetMapping("/patient/{patientId}")
+    public ResponseEntity<ApiResponse<Page<AppointmentDTO>>> getByPatient(
+            @PathVariable Long patientId,
+            @PageableDefault Pageable pageable) {
+        try {
+            Page<AppointmentDTO> appointments = service.getByPatientId(patientId, pageable);
+            return ResponseEntity.ok(ApiResponse.<Page<AppointmentDTO>>builder()
+                    .success(true)
+                    .message("Appointments retrieved successfully for patient " + patientId)
+                    .data(appointments)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve appointments for patient {}", patientId, e);
+            return ResponseEntity.ok(ApiResponse.<Page<AppointmentDTO>>builder()
+                    .success(false)
+                    .message("Failed to retrieve appointments: " + e.getMessage())
+                    .build());
+        }
+    }
+}
