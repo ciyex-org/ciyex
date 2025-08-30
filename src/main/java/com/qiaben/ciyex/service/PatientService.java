@@ -57,8 +57,13 @@ public class PatientService {
         }
         dto.setOrgId(currentOrgId); // Set orgId for the new patient
 
-        if (dto.getFirstName() == null || dto.getLastName() == null || dto.getMedicalRecordNumber() == null) {
-            throw new IllegalArgumentException("First name, last name, and medical record number are required");
+        if (dto.getFirstName() == null || dto.getLastName() == null) {
+            throw new IllegalArgumentException("First name and last name are required");
+        }
+
+        // ✅ Auto-generate MRN if missing
+        if (dto.getMedicalRecordNumber() == null || dto.getMedicalRecordNumber().isBlank()) {
+            dto.setMedicalRecordNumber(generateMrn());
         }
 
         Patient patient = mapToEntity(dto);
@@ -204,7 +209,6 @@ public class PatientService {
         log.info("Deleted patient with id: {} from DB for orgId: {}", id, currentOrgId);
     }
 
-    // Fetch all patients for a specific org (non-paginated)
     @Transactional(readOnly = true)
     public ApiResponse<List<PatientDto>> getAllPatients() {
         Long currentOrgId = getCurrentOrgId();
@@ -243,7 +247,6 @@ public class PatientService {
                 .map(this::mapToDto);
     }
 
-    // Server-side pagination: return Page<PatientDto> filtered by current org and optional search term
     @Transactional(readOnly = true)
     public Page<PatientDto> getAllPatients(Pageable pageable, String search) {
         Long currentOrgId = getCurrentOrgId();
@@ -261,7 +264,8 @@ public class PatientService {
         return page.map(this::mapToDto);
     }
 
-    // Helper methods (mapping)
+    // --- Helper methods ---
+
     private Patient mapToEntity(PatientDto dto) {
         Patient patient = new Patient();
         patient.setFirstName(dto.getFirstName());
@@ -273,7 +277,13 @@ public class PatientService {
         patient.setEmail(dto.getEmail());
         patient.setAddress(dto.getAddress());
         patient.setStatus(dto.getStatus() != null ? dto.getStatus() : "Active");
-        patient.setMedicalRecordNumber(dto.getMedicalRecordNumber());
+
+        // ✅ Ensure MRN is always set
+        patient.setMedicalRecordNumber(
+                dto.getMedicalRecordNumber() != null && !dto.getMedicalRecordNumber().isBlank()
+                        ? dto.getMedicalRecordNumber()
+                        : generateMrn()
+        );
         return patient;
     }
 
@@ -311,7 +321,8 @@ public class PatientService {
         if (dto.getEmail() != null) patient.setEmail(dto.getEmail());
         if (dto.getAddress() != null) patient.setAddress(dto.getAddress());
         if (dto.getStatus() != null) patient.setStatus(dto.getStatus());
-        if (dto.getMedicalRecordNumber() != null) patient.setMedicalRecordNumber(dto.getMedicalRecordNumber());
+
+        // ❌ Do NOT allow MRN updates once created
     }
 
     private Long getCurrentOrgId() {
@@ -320,5 +331,9 @@ public class PatientService {
             log.warn("orgId is null in RequestContext");
         }
         return orgId;
+    }
+
+    private String generateMrn() {
+        return "PAT" + System.currentTimeMillis();
     }
 }
