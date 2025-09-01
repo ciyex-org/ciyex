@@ -56,6 +56,8 @@ public class Encounter {
     @Column(nullable = false)
     private Long updatedAt;
 
+    @Column(nullable = false)
+    private Long patientId;
 //    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
 //    @JoinColumn(name = "encounter_id")
 //    private List<Immunization> immunizations; // Nested immunizations
