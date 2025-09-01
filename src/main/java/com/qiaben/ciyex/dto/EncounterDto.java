@@ -6,6 +6,7 @@ import lombok.Data;
 public class EncounterDto {
 
     private Long id;
+    private Long patientId;
     private String visitCategory;
     private String encounterProvider;
     private String type;
