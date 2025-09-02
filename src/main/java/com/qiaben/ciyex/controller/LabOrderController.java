@@ -2,7 +2,7 @@ package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.LabOrderDto;
-import com.qiaben.ciyex.dto.core.integration.RequestContext;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.service.LabOrderService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
