@@ -36,6 +36,15 @@ public interface ExternalScheduleStorage extends ExternalStorage<ScheduleDto> {
     ScheduleDto getSchedule(String externalId);
 
     /**
+     * Retrieves multiple schedules from the external storage by their external IDs
+     * in a single batch request (if supported by the implementation).
+     *
+     * @param externalIds List of external IDs of schedules
+     * @return A list of schedule DTOs found for the given IDs
+     */
+    List<ScheduleDto> getSchedulesByIds(List<String> externalIds);
+
+    /**
      * Deletes a schedule from the external storage by its external ID.
      *
      * @param externalId The external ID of the schedule to delete

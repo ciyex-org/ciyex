@@ -30,6 +30,10 @@ public class InsuranceCompany {
     @Column(name = "state")
     private String state;
 
+    @Column(name = "payer_id")
+    private String payerId;
+
+
     @Column(name = "postal_code")
     private String postalCode;
 
@@ -44,4 +48,8 @@ public class InsuranceCompany {
 
     @Column(name = "last_modified_date", nullable = false)
     private String lastModifiedDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private InsuranceStatus status;  // <-- Added column
 }
