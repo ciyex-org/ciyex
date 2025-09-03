@@ -11,7 +11,7 @@ import java.util.List;
 
 public interface AllergyIntoleranceRepository extends JpaRepository<AllergyIntolerance, Long> {
 
-    /* Get all rows for a patient in an org (ordered by id for stability) */
+    /* Get all rows for a patient in an org  */
     @Query(value = """
         SELECT *
         FROM allergy_intolerances

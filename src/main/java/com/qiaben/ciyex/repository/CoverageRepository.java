@@ -10,7 +10,7 @@ import java.util.Optional;
 
 public interface CoverageRepository extends JpaRepository<Coverage, Long> {
 
-    // Keep if policy number column is truly text in DB
+    // Keep if policy number column is text in DB
     Optional<Coverage> findByPolicyNumber(String policyNumber);
 
     // -------- Native queries with CAST(... AS TEXT) to avoid bigint/text mismatch --------
