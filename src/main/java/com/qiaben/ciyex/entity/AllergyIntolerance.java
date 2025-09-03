@@ -17,7 +17,7 @@ public class AllergyIntolerance {
     private Long id;
 
     @Column(name = "external_id")
-    private String externalId; // (FHIR List id shared by the patient's set, optional)
+    private String externalId;
 
     @Column(name = "org_id", nullable = false)
     private Long orgId;

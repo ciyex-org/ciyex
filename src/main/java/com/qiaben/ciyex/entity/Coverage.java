@@ -44,7 +44,7 @@ public class Coverage {
 
     @ManyToOne
     @JoinColumn(name = "insurance_company_id")
-    private InsuranceCompany insuranceCompany;  // Added relationship to InsuranceCompany
+    private InsuranceCompany insuranceCompany;
 
     // Additional fields from the screenshot
     @Column(name = "provider")

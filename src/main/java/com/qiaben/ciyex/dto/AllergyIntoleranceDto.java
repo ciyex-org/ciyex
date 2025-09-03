@@ -10,7 +10,7 @@ import java.util.List;
 @Data
 public class AllergyIntoleranceDto {
 
-    private String externalId;    // FHIR List id (optional)
+    private String externalId;
     private Long orgId;           // tenant
     private Long patientId;       // EHR patient id
     private List<AllergyItem> allergiesList;
