@@ -2,7 +2,7 @@ package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.CoverageDto;
 import com.qiaben.ciyex.dto.InsuranceCompanyDto;
-import com.qiaben.ciyex.dto.core.integration.RequestContext;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.entity.Coverage;
 import com.qiaben.ciyex.entity.InsuranceCompany;
 import com.qiaben.ciyex.repository.CoverageRepository;

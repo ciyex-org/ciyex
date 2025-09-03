@@ -3,7 +3,7 @@ package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.AllergyIntoleranceDto;
-import com.qiaben.ciyex.dto.core.integration.RequestContext;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.entity.AllergyIntolerance;
 import com.qiaben.ciyex.repository.AllergyIntoleranceRepository;
 import com.qiaben.ciyex.storage.ExternalStorage;
