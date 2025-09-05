@@ -1,10 +1,7 @@
 package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 @Entity
 @Table(name = "communications")
@@ -24,14 +21,40 @@ public class Communication {
     @Column(name = "org_id", nullable = false)
     private Long orgId;
 
-    private String status;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private CommunicationStatus status;
+
+    @Column(name = "category")
     private String category;
+
+    @Column(name = "sent_date")
     private String sentDate;
+
+    @Column(name = "created_date")
     private String createdDate;
+
+    @Column(name = "last_modified_date")
     private String lastModifiedDate;
 
+    @Column(name = "payload", columnDefinition = "TEXT")
+    private String payload;
+
+    @Column(name = "sender")
     private String sender;
-    private String recipients;
+
+    @Column(name = "recipients")
+    private String recipients; // comma-separated values
+
+    @Column(name = "subject")
     private String subject;
+
+    @Column(name = "in_response_to")
     private String inResponseTo;
+
+    @Column(name = "patient_id")
+    private Long patientId;
+
+    @Column(name = "provider_id")
+    private Long providerId;
 }

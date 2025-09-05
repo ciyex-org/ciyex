@@ -2,12 +2,9 @@ package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.CommunicationDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.service.CommunicationService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,177 +22,160 @@ public class CommunicationController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<CommunicationDto>> create(@RequestBody CommunicationDto dto) {
+    public ResponseEntity<ApiResponse<CommunicationDto>> create(
+            @RequestBody CommunicationDto dto,
+            @RequestHeader("orgId") Long orgId) {
         try {
-            CommunicationDto createdCommunication = service.create(dto);
+            RequestContext ctx = new RequestContext();
+            ctx.setOrgId(orgId);
+            RequestContext.set(ctx);
+
+            CommunicationDto created = service.create(dto);
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
                     .success(true)
                     .message("Communication created successfully")
-                    .data(createdCommunication)
+                    .data(created)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to create communication: {}", e.getMessage());
+            log.error("Failed to create Communication: {}", e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
                     .success(false)
-                    .message("Failed to create communication: " + e.getMessage())
+                    .message("Failed to create Communication: " + e.getMessage())
                     .build());
+        } finally {
+            RequestContext.clear();
         }
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<CommunicationDto>> get(@PathVariable Long id) {
+    @GetMapping("/{patientId}")
+    public ResponseEntity<ApiResponse<List<CommunicationDto>>> getByPatient(
+            @PathVariable Long patientId,
+            @RequestHeader("orgId") Long orgId) {
         try {
-            CommunicationDto communication = service.getById(id);
-            if (communication == null) {
-                return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
-                        .success(false)
-                        .message("Communication not found with id: " + id)
-                        .build());
-            }
+            RequestContext ctx = new RequestContext();
+            ctx.setOrgId(orgId);
+            RequestContext.set(ctx);
+
+            List<CommunicationDto> list = service.getByPatientId(patientId);
+            return ResponseEntity.ok(ApiResponse.<List<CommunicationDto>>builder()
+                    .success(true)
+                    .message("Communications retrieved successfully")
+                    .data(list)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve Communications for patientId {}: {}", patientId, e.getMessage(), e);
+            return ResponseEntity.ok(ApiResponse.<List<CommunicationDto>>builder()
+                    .success(false)
+                    .message("Failed to retrieve Communications: " + e.getMessage())
+                    .build());
+        } finally {
+            RequestContext.clear();
+        }
+    }
+
+    @GetMapping("/{patientId}/{id}")
+    public ResponseEntity<ApiResponse<CommunicationDto>> getOne(
+            @PathVariable Long patientId,
+            @PathVariable Long id,
+            @RequestHeader("orgId") Long orgId) {
+        try {
+            RequestContext ctx = new RequestContext();
+            ctx.setOrgId(orgId);
+            RequestContext.set(ctx);
+
+            CommunicationDto dto = service.getItem(patientId, id);
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
                     .success(true)
                     .message("Communication retrieved successfully")
-                    .data(communication)
+                    .data(dto)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to retrieve communication with id {}: {}", id, e.getMessage());
+            log.error("Failed to retrieve Communication id {} for patientId {}: {}", id, patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
                     .success(false)
-                    .message("Failed to retrieve communication: " + e.getMessage())
+                    .message("Failed to retrieve Communication: " + e.getMessage())
                     .build());
+        } finally {
+            RequestContext.clear();
         }
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<CommunicationDto>> update(@PathVariable Long id, @RequestBody CommunicationDto dto) {
+    @PutMapping("/{patientId}/{id}")
+    public ResponseEntity<ApiResponse<CommunicationDto>> update(
+            @PathVariable Long patientId,
+            @PathVariable Long id,
+            @RequestBody CommunicationDto dto,
+            @RequestHeader("orgId") Long orgId) {
         try {
-            CommunicationDto updatedCommunication = service.update(id, dto);
-            if (updatedCommunication == null) {
-                return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
-                        .success(false)
-                        .message("Communication not found with id: " + id)
-                        .build());
-            }
+            RequestContext ctx = new RequestContext();
+            ctx.setOrgId(orgId);
+            RequestContext.set(ctx);
+
+            CommunicationDto updated = service.updateItem(patientId, id, dto);
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
                     .success(true)
                     .message("Communication updated successfully")
-                    .data(updatedCommunication)
+                    .data(updated)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to update communication with id {}: {}", id, e.getMessage());
+            log.error("Failed to update Communication id {} for patientId {}: {}", id, patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
                     .success(false)
-                    .message("Failed to update communication: " + e.getMessage())
+                    .message("Failed to update Communication: " + e.getMessage())
                     .build());
+        } finally {
+            RequestContext.clear();
         }
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    @DeleteMapping("/{patientId}/{id}")
+    public ResponseEntity<ApiResponse<Void>> delete(
+            @PathVariable Long patientId,
+            @PathVariable Long id,
+            @RequestHeader("orgId") Long orgId) {
         try {
-            service.delete(id);
+            RequestContext ctx = new RequestContext();
+            ctx.setOrgId(orgId);
+            RequestContext.set(ctx);
+
+            service.deleteItem(patientId, id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)
                     .message("Communication deleted successfully")
                     .build());
         } catch (Exception e) {
-            log.error("Failed to delete communication with id {}: {}", id, e.getMessage());
+            log.error("Failed to delete Communication id {} for patientId {}: {}", id, patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(false)
-                    .message("Failed to delete communication: " + e.getMessage())
+                    .message("Failed to delete Communication: " + e.getMessage())
                     .build());
+        } finally {
+            RequestContext.clear();
         }
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<Page<CommunicationDto>>> getAllCommunications(
-            @PageableDefault(sort = "sentDate", direction = Sort.Direction.DESC) Pageable pageable) {
+    public ResponseEntity<ApiResponse<List<CommunicationDto>>> getAllByOrg(
+            @RequestHeader("orgId") Long orgId) {
         try {
-            ApiResponse<Page<CommunicationDto>> response = service.getAllCommunications(pageable);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Failed to retrieve all communications: {}", e.getMessage());
-            return ResponseEntity.ok(ApiResponse.<Page<CommunicationDto>>builder()
-                    .success(false)
-                    .message("Failed to retrieve communications: " + e.getMessage())
-                    .build());
-        }
-    }
+            RequestContext ctx = new RequestContext();
+            ctx.setOrgId(orgId);
+            RequestContext.set(ctx);
 
-    @PostMapping("/patient")
-    public ResponseEntity<ApiResponse<Page<CommunicationDto>>> getForPatient(
-            @RequestBody CommunicationDto dto,
-            @PageableDefault(sort = "sentDate", direction = Sort.Direction.DESC) Pageable pageable) {
-        try {
-            Page<CommunicationDto> page = service.getCommunicationsForPatient(dto.getPatientId(), pageable);
-            return ResponseEntity.ok(ApiResponse.<Page<CommunicationDto>>builder()
-                    .success(true)
-                    .message("Patient communications retrieved successfully")
-                    .data(page)
-                    .build());
-        } catch (Exception e) {
-            log.error("Failed to retrieve patient communications: {}", e.getMessage());
-            return ResponseEntity.ok(ApiResponse.<Page<CommunicationDto>>builder()
-                    .success(false)
-                    .message("Failed to retrieve patient communications: " + e.getMessage())
-                    .build());
-        }
-    }
-
-    @PostMapping("/provider")
-    public ResponseEntity<ApiResponse<Page<CommunicationDto>>> getForProvider(
-            @RequestBody CommunicationDto dto,
-            @PageableDefault(sort = "sentDate", direction = Sort.Direction.DESC) Pageable pageable) {
-        try {
-            Page<CommunicationDto> page = service.getCommunicationsForProvider(dto.getProviderId(), pageable);
-            return ResponseEntity.ok(ApiResponse.<Page<CommunicationDto>>builder()
-                    .success(true)
-                    .message("Provider communications retrieved successfully")
-                    .data(page)
-                    .build());
-        } catch (Exception e) {
-            log.error("Failed to retrieve provider communications: {}", e.getMessage());
-            return ResponseEntity.ok(ApiResponse.<Page<CommunicationDto>>builder()
-                    .success(false)
-                    .message("Failed to retrieve provider communications: " + e.getMessage())
-                    .build());
-        }
-    }
-
-    @GetMapping("/{id}/thread")
-    public ResponseEntity<ApiResponse<List<CommunicationDto>>> getThread(@PathVariable Long id) {
-        try {
-            CommunicationDto comm = service.getById(id);
-            List<CommunicationDto> thread = service.getThread(comm.getExternalId());
+            List<CommunicationDto> all = service.searchAll();
             return ResponseEntity.ok(ApiResponse.<List<CommunicationDto>>builder()
                     .success(true)
-                    .message("Thread retrieved successfully")
-                    .data(thread)
+                    .message("Communications retrieved successfully")
+                    .data(all)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to retrieve thread for communication id {}: {}", id, e.getMessage());
+            log.error("Failed to retrieve all Communications: {}", e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<List<CommunicationDto>>builder()
                     .success(false)
-                    .message("Failed to retrieve thread: " + e.getMessage())
+                    .message("Failed to retrieve Communications: " + e.getMessage())
                     .build());
-        }
-    }
-
-    @GetMapping("/count")
-    public ResponseEntity<ApiResponse<Long>> getCommunicationCount() {
-        try {
-            long count = service.countCommunicationsForCurrentOrg();
-            return ResponseEntity.ok(ApiResponse.<Long>builder()
-                    .success(true)
-                    .message("Communication count retrieved successfully")
-                    .data(count)
-                    .build());
-        } catch (Exception e) {
-            log.error("Failed to count communications: {}", e.getMessage());
-            return ResponseEntity.ok(ApiResponse.<Long>builder()
-                    .success(false)
-                    .message("Failed to count communications: " + e.getMessage())
-                    .build());
+        } finally {
+            RequestContext.clear();
         }
     }
 }
