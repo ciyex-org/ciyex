@@ -76,8 +76,16 @@ public class AppointmentService {
     @Transactional(readOnly = true)
     public Page<AppointmentDTO> getAll(Pageable pageable) {
         Long orgId = getCurrentOrgId();
+        log.info("Fetching appointments for orgId: {}", orgId); // Log orgId to debug
+
+        if (orgId == null) {
+            log.warn("orgId is null! This might be why no appointments are returned.");
+        }
+
+        // Fetch the appointments with orgId filter
         return repository.findAllByOrgId(orgId, pageable).map(this::mapToDto);
     }
+
 
     // -------- Update --------
     @Transactional
@@ -194,6 +202,10 @@ public class AppointmentService {
     }
 
     private Long getCurrentOrgId() {
-        return RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        // Log to ensure orgId is coming through correctly
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        log.info("Current orgId from RequestContext: {}", orgId); // Debugging log
+        return orgId;
     }
+
 }

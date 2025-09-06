@@ -1,34 +1,48 @@
 package com.qiaben.ciyex.repository;
 
 import com.qiaben.ciyex.entity.Communication;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.stereotype.Repository;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
-import java.util.Optional;
 
-@Repository
 public interface CommunicationRepository extends JpaRepository<Communication, Long> {
 
-    @Query("SELECT COUNT(c) FROM Communication c WHERE c.orgId = :orgId")
-    long countByOrgId(Long orgId);
+    @Query(value = """
+        SELECT * FROM communications
+        WHERE CAST(org_id AS TEXT) = :orgIdTxt
+        ORDER BY id DESC
+        """, nativeQuery = true)
+    List<Communication> findByOrgIdText(@Param("orgIdTxt") String orgIdTxt);
 
-    List<Communication> findAllByOrgId(Long orgId);
+    @Query(value = """
+        SELECT * FROM communications
+        WHERE CAST(patient_id AS TEXT) = :patientIdTxt
+          AND CAST(org_id     AS TEXT) = :orgIdTxt
+        ORDER BY id DESC
+        """, nativeQuery = true)
+    List<Communication> findAllByPatientIdAndOrgIdText(@Param("patientIdTxt") String patientIdTxt,
+                                                       @Param("orgIdTxt") String orgIdTxt);
 
-    Page<Communication> findByOrgId(Long orgId, Pageable pageable);
+    @Modifying
+    @Query(value = """
+        DELETE FROM communications
+        WHERE CAST(id AS TEXT) = :idTxt
+          AND CAST(patient_id AS TEXT) = :patientIdTxt
+          AND CAST(org_id AS TEXT) = :orgIdTxt
+        """, nativeQuery = true)
+    int deleteOneByIdAndPatientIdAndOrgIdText(@Param("idTxt") String idTxt,
+                                              @Param("patientIdTxt") String patientIdTxt,
+                                              @Param("orgIdTxt") String orgIdTxt);
 
-    @Query("SELECT c FROM Communication c WHERE c.orgId = :orgId AND c.externalId = :externalId")
-    Optional<Communication> findByExternalIdAndOrgId(String externalId, Long orgId);
-
-    @Query("SELECT c FROM Communication c WHERE c.orgId = :orgId AND c.inResponseTo = :inResponseTo")
-    List<Communication> findByInResponseToAndOrgId(String inResponseTo, Long orgId);
-
-    @Query("SELECT c FROM Communication c WHERE c.orgId = :orgId AND (c.subject = :ref OR c.recipients LIKE CONCAT('%', :ref, '%'))")
-    Page<Communication> findCommunicationsForPatientRef(Long orgId, String ref, Pageable pageable);
-
-    @Query("SELECT c FROM Communication c WHERE c.orgId = :orgId AND (c.sender = :ref OR c.recipients LIKE CONCAT('%', :ref, '%'))")
-    Page<Communication> findCommunicationsForProviderRef(Long orgId, String ref, Pageable pageable);
+    @Modifying
+    @Query(value = """
+        DELETE FROM communications
+        WHERE CAST(patient_id AS TEXT) = :patientIdTxt
+          AND CAST(org_id     AS TEXT) = :orgIdTxt
+        """, nativeQuery = true)
+    int deleteAllByPatientIdAndOrgIdText(@Param("patientIdTxt") String patientIdTxt,
+                                         @Param("orgIdTxt") String orgIdTxt);
 }
