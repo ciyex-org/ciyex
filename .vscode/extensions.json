@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "bradlc.vscode-tailwindcss",
+    "esbenp.prettier-vscode",
+    "ms-vscode.vscode-typescript-next",
+    "vscjava.vscode-java-pack",
+    "ms-ossdata.vscode-postgresql",
+    "mtxr.sqltools",
+    "mtxr.sqltools-driver-pg"
+  ]
+}

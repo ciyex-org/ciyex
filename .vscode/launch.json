@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/launch.json",
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Spring Boot: Run",
+      "type": "java",
+      "request": "launch",
+      "mainClass": "com.qiaben.ciyex.CiyexApplication",
+      "projectName": "ciyex"
+    },
+    {
+      "name": "Next.js: Dev",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm run dev",
+      "cwd": "${workspaceFolder}/ciyex-ehr-ui"
+    },
+    {
+      "name": "Next.js: Prod",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm run start",
+      "cwd": "${workspaceFolder}/ciyex-ehr-ui",
+      "preLaunchTask": "UI: Build"
+    }
+  ]
+}

@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json.schemastore.org/tasks.json",
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "envTarget",
+      "type": "pickString",
+      "description": "Select Next.js environment file",
+      "options": [
+        { "label": "local (.env.local)", "value": "local" },
+        { "label": "stage (.env.stage)", "value": "stage" },
+        { "label": "prod (.env)", "value": "prod" }
+      ],
+      "default": "local"
+    }
+  ],
+  "tasks": [
+    {
+      "label": "Backend: BootRun",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "command": "./gradlew bootRun",
+      "windows": {
+        "command": ".\\gradlew.bat bootRun"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Backend: BootJar",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "command": "./gradlew bootJar",
+      "windows": {
+        "command": ".\\gradlew.bat bootJar"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Backend: Run Jar",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "command": "bash -lc 'JAR=\"$(ls build/libs/*.jar | head -n1)\"; echo Running $JAR; java -jar \"$JAR\"'",
+      "windows": {
+        "command": "powershell -NoProfile -Command \"$jar = Get-ChildItem build/libs/*.jar | Select-Object -First 1; Write-Host \"Running $($jar.Name)\"; java -jar \"$($jar.FullName)\"\""
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "DB: Postgres Up",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "command": "docker compose up -d postgres",
+      "problemMatcher": []
+    },
+    {
+      "label": "DB: Postgres Down",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "command": "docker compose stop postgres",
+      "problemMatcher": []
+    },
+    {
+      "label": "UI: Select env",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-ehr-ui"
+      },
+      "command": "bash -lc 'if [ \"${input:envTarget}\" = local ]; then cp -f .env.local .env; elif [ \"${input:envTarget}\" = stage ]; then cp -f .env.stage .env; else cp -f .env .env; fi'",
+      "problemMatcher": []
+    },
+    {
+      "label": "UI: Install (pnpm)",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-ehr-ui"
+      },
+      "command": "bash -lc 'if command -v pnpm >/dev/null 2>&1; then pnpm install --frozen-lockfile; elif command -v corepack >/dev/null 2>&1; then corepack enable >/dev/null 2>&1 && corepack prepare pnpm@9 --activate && pnpm install --frozen-lockfile; else npx --yes pnpm@9 install --frozen-lockfile; fi'",
+      "windows": {
+        "command": "powershell -NoProfile -Command \"if (Get-Command pnpm -ErrorAction SilentlyContinue) { pnpm install --frozen-lockfile } elseif (Get-Command corepack -ErrorAction SilentlyContinue) { corepack enable; corepack prepare pnpm@9 --activate; pnpm install --frozen-lockfile } else { npx --yes pnpm@9 install --frozen-lockfile }\""
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "UI: Build",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-ehr-ui"
+      },
+      "command": "bash -lc 'if command -v pnpm >/dev/null 2>&1; then pnpm run build; else npx --yes pnpm@9 run build; fi'",
+      "windows": {
+        "command": "powershell -NoProfile -Command \"if (Get-Command pnpm -ErrorAction SilentlyContinue) { pnpm run build } else { npx --yes pnpm@9 run build }\""
+      },
+      "dependsOn": [
+        "UI: Install (pnpm)",
+        "UI: Select env"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "UI: Dev",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-ehr-ui"
+      },
+      "command": "bash -lc 'if command -v pnpm >/dev/null 2>&1; then pnpm run dev; else npx --yes pnpm@9 run dev; fi'",
+      "windows": {
+        "command": "powershell -NoProfile -Command \"if (Get-Command pnpm -ErrorAction SilentlyContinue) { pnpm run dev } else { npx --yes pnpm@9 run dev }\""
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": [
+          {
+            "regexp": ".*",
+            "file": 1,
+            "location": 2,
+            "message": 0
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "ready - started server"
+        }
+      }
+    },
+    {
+      "label": "UI: Start (prod)",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-ehr-ui"
+      },
+      "command": "bash -lc 'if command -v pnpm >/dev/null 2>&1; then pnpm run start; else npx --yes pnpm@9 run start; fi'",
+      "windows": {
+        "command": "powershell -NoProfile -Command \"if (Get-Command pnpm -ErrorAction SilentlyContinue) { pnpm run start } else { npx --yes pnpm@9 run start }\""
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Build (ENV=local)",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "command": "docker build -t ciyex:latest --build-arg ENVIRONMENT=local .",
+      "problemMatcher": []
+    }
+  ]
+}
