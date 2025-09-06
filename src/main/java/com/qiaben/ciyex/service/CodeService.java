@@ -23,9 +23,9 @@ public class CodeService {
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    public CodeDto create(Long orgId, Long patientId, Long encounterId, CodeDto in) {
+    public CodeDto create(Long orgId, CodeDto in) {
         Code e = Code.builder()
-                .orgId(orgId).patientId(patientId).encounterId(encounterId)
+                .orgId(orgId)
                 .codeType(in.getCodeType()).code(in.getCode()).modifier(in.getModifier())
                 .active(in.getActive())
                 .description(in.getDescription()).shortDescription(in.getShortDescription())
@@ -39,20 +39,18 @@ public class CodeService {
         final Code saved = repo.save(e);
 
         external.ifPresent(ext -> {
-            final Code ref = saved;
-            String extId = ext.create(mapToDto(ref));
-            ref.setExternalId(extId);
-            repo.save(ref);
+            String extId = ext.create(mapToDto(saved));
+            saved.setExternalId(extId);
+            repo.save(saved);
         });
 
         return mapToDto(saved);
     }
 
-    public CodeDto update(Long orgId, Long patientId, Long encounterId, Long id, CodeDto in) {
-        Code e = repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream()
-                .filter(c -> c.getId().equals(id))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Code not found in this encounter"));
+    public CodeDto update(Long orgId, Long id, CodeDto in) {
+        Code e = repo.findById(id)
+                .filter(c -> c.getOrgId().equals(orgId))
+                .orElseThrow(() -> new IllegalArgumentException("Code not found"));
 
         e.setCodeType(in.getCodeType());
         e.setCode(in.getCode());
@@ -69,42 +67,38 @@ public class CodeService {
         final Code updated = repo.save(e);
 
         external.ifPresent(ext -> {
-            final Code ref = updated;
-            if (ref.getExternalId() != null) ext.update(ref.getExternalId(), mapToDto(ref));
+            if (updated.getExternalId() != null) {
+                ext.update(updated.getExternalId(), mapToDto(updated));
+            }
         });
 
         return mapToDto(updated);
     }
 
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-        Code e = repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream()
-                .filter(c -> c.getId().equals(id))
-                .findFirst().orElseThrow(() -> new IllegalArgumentException("Code not found"));
-        external.ifPresent(ext -> { if (e.getExternalId() != null) ext.delete(e.getExternalId()); });
+    public void delete(Long orgId, Long id) {
+        Code e = repo.findById(id)
+                .filter(c -> c.getOrgId().equals(orgId))
+                .orElseThrow(() -> new IllegalArgumentException("Code not found"));
+
+        external.ifPresent(ext -> {
+            if (e.getExternalId() != null) ext.delete(e.getExternalId());
+        });
         repo.delete(e);
     }
 
-    public CodeDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream()
-                .filter(c -> c.getId().equals(id))
-                .findFirst()
+    public CodeDto getOne(Long orgId, Long id) {
+        return repo.findById(id)
+                .filter(c -> c.getOrgId().equals(orgId))
                 .map(this::mapToDto)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
     }
 
-    public List<CodeDto> getAllByPatient(Long orgId, Long patientId) {
-        return repo.findByOrgIdAndPatientId(orgId, patientId).stream().map(this::mapToDto).toList();
+    public List<CodeDto> getAll(Long orgId) {
+        return repo.findByOrgId(orgId).stream().map(this::mapToDto).toList();
     }
 
-    public List<CodeDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
-        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
-                .stream().map(this::mapToDto).toList();
-    }
-
-    public List<CodeDto> searchInEncounter(Long orgId, Long patientId, Long encounterId,
-                                           String codeType, Boolean active, String q) {
-        return repo.searchInEncounter(orgId, patientId, encounterId, codeType, active, q)
-                .stream().map(this::mapToDto).toList();
+    public List<CodeDto> search(Long orgId, String codeType, Boolean active, String q) {
+        return repo.search(orgId, codeType, active, q).stream().map(this::mapToDto).toList();
     }
 
     private CodeDto mapToDto(Code e) {
@@ -112,8 +106,6 @@ public class CodeService {
         dto.setId(e.getId());
         dto.setExternalId(e.getExternalId());
         dto.setOrgId(e.getOrgId());
-        dto.setPatientId(e.getPatientId());
-        dto.setEncounterId(e.getEncounterId());
         dto.setCodeType(e.getCodeType());
         dto.setCode(e.getCode());
         dto.setModifier(e.getModifier());
