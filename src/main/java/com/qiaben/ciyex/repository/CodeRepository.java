@@ -8,13 +8,11 @@ import java.util.List;
 
 public interface CodeRepository extends JpaRepository<Code, Long> {
 
-    List<Code> findByOrgIdAndPatientId(Long orgId, Long patientId);
-
-    List<Code> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+    List<Code> findByOrgId(Long orgId);
 
     @Query("""
       select c from Code c
-       where c.orgId = :orgId and c.patientId = :patientId and c.encounterId = :encounterId
+       where c.orgId = :orgId
          and (:codeType is null or c.codeType = :codeType)
          and (:active is null or c.active = :active)
          and (
@@ -26,5 +24,5 @@ public interface CodeRepository extends JpaRepository<Code, Long> {
          )
        order by c.codeType, c.code
     """)
-    List<Code> searchInEncounter(Long orgId, Long patientId, Long encounterId, String codeType, Boolean active, String q);
+    List<Code> search(Long orgId, String codeType, Boolean active, String q);
 }
