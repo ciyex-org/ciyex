@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.qiaben.ciyex.util.JsonNodeConverter;
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "org_config")
@@ -17,7 +19,8 @@ public class OrgConfig {
     @Column(name = "org_id", nullable = false, unique = true)
     private Long orgId; // FK to orgs table, but not a relation object
 
-    @Column(columnDefinition = "json")
+//    @Column(columnDefinition = "json")
+    @JdbcTypeCode(SqlTypes.JSON)
     @Convert(converter = JsonNodeConverter.class)
     private JsonNode integrations;
 }
