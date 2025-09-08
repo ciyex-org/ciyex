@@ -1,3 +1,4 @@
+
 package com.qiaben.ciyex.filter;
 
 import com.qiaben.ciyex.service.CiyexUserDetailsService;
@@ -6,8 +7,12 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -15,9 +20,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 public class JwtRequestFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtRequestFilter.class);
 
     @Autowired
     private JwtTokenUtil jwtTokenUtil;
@@ -26,39 +36,81 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     private CiyexUserDetailsService userDetailsService;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws ServletException, IOException {
+    protected void doFilterInternal(@NonNull HttpServletRequest request,
+                                    @NonNull HttpServletResponse response,
+                                    @NonNull FilterChain chain) throws ServletException, IOException {
 
-        final String requestTokenHeader = request.getHeader("Authorization");
+        // 1) Allow CORS preflight without auth
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            chain.doFilter(request, response);
+            return;
+        }
 
+        final String authHeader = request.getHeader("Authorization");
+
+        String token = null;
         String username = null;
-        String jwtToken = null;
 
-        // JWT Token is in the form "Bearer token". Remove Bearer and get only the Token
-        if (requestTokenHeader != null && requestTokenHeader.startsWith("Bearer ")) {
-            jwtToken = requestTokenHeader.substring(7);
-            try {
-                username = jwtTokenUtil.getEmailFromToken(jwtToken);
-            } catch (Exception e) {
-                logger.error("Unable to get JWT Token");
+        // 2) Extract Bearer token if present
+        if (authHeader != null) {
+            if (authHeader.startsWith("Bearer ")) {
+                token = authHeader.substring(7);
+                try {
+                    // Adjust to your util method name: getEmailFromToken / getUsernameFromToken
+                    username = jwtTokenUtil.getEmailFromToken(token);
+                } catch (Exception e) {
+                    log.debug("JWT parse error", e);
+                }
+            } else {
+                // Header present but not Bearer ⇒ don't spam WARN; just debug
+                log.debug("Authorization header present but not Bearer");
             }
-        } else {
-            logger.warn("JWT Token does not begin with Bearer String");
         }
 
-        // Once we get the token, validate it.
+        // 3) Validate + set Authentication only if not already set
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+            try {
+                UserDetails user = userDetailsService.loadUserByUsername(username);
 
-            // If token is valid, configure Spring Security to manually set authentication
-            if (jwtTokenUtil.validateToken(jwtToken, userDetails.getUsername())) {
-                UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                usernamePasswordAuthenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                // If your util validates with username string (current behavior)
+                boolean valid = jwtTokenUtil.validateToken(token, user.getUsername());
 
-                SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
+                // If you have/choose to add an overload: validateToken(token, user)
+                // boolean valid = jwtTokenUtil.validateToken(token, user);
+
+                if (valid) {
+                    // Prefer authorities from DB; if you put roles in the token, you could merge them here.
+                    Collection<? extends GrantedAuthority> normalized =
+                            ensureRolePrefix(user.getAuthorities());
+
+                    UsernamePasswordAuthenticationToken auth =
+                            new UsernamePasswordAuthenticationToken(user, null, normalized);
+
+                    auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                } else {
+                    log.debug("JWT validation failed for user {}", username);
+                }
+            } catch (Exception e) {
+                log.debug("Authentication setup failed", e);
             }
         }
+
         chain.doFilter(request, response);
+    }
+
+    /**
+     * Ensure authorities have ROLE_ prefix so hasRole('X') checks succeed.
+     * If your UserDetails already returns ROLE_* authorities, this is a no-op.
+     */
+    private Collection<? extends GrantedAuthority> ensureRolePrefix(Collection<? extends GrantedAuthority> authorities) {
+        if (authorities == null) return List.of();
+        return authorities.stream()
+                .map(a -> {
+                    String name = a.getAuthority();
+                    String withPrefix = name.startsWith("ROLE_") ? name : "ROLE_" + name;
+                    return (GrantedAuthority) () -> withPrefix;
+                })
+                .collect(Collectors.toList());
     }
 }
