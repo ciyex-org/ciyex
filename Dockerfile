@@ -43,6 +43,21 @@ RUN npm install
 # Copy rest of the Portal UI code
 COPY ciyex-portal-ui .
 
+# Select environment: ENVIRONMENT=stage or ENVIRONMENT=prod
+ARG ENVIRONMENT=prod
+
+# Remove any previous .env files to avoid ambiguity
+RUN rm -f .env .env.local
+
+# Choose the correct env file and copy as .env
+RUN if [ "$ENVIRONMENT" = "stage" ]; then \
+      cp .env.stage .env; \
+    elif [ "$ENVIRONMENT" = "local" ]; then \
+      cp .env.local .env; \
+    else \
+      cp .env .env; \
+    fi
+
 # Build Next.js Portal app
 RUN npm run build
 
@@ -57,6 +72,21 @@ RUN npm install
 
 # Copy rest of the Admin UI code
 COPY ciyex-admin-ui .
+
+# Select environment: ENVIRONMENT=stage or ENVIRONMENT=prod
+ARG ENVIRONMENT=prod
+
+# Remove any previous .env files to avoid ambiguity
+RUN rm -f .env .env.local
+
+# Choose the correct env file and copy as .env
+RUN if [ "$ENVIRONMENT" = "stage" ]; then \
+      cp .env.stage .env; \
+    elif [ "$ENVIRONMENT" = "local" ]; then \
+      cp .env.local .env; \
+    else \
+      cp .env .env; \
+    fi
 
 # Build Next.js Admin app
 RUN npm run build
