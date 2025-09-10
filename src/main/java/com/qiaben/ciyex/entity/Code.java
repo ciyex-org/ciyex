@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @Table(
         name = "codes",
         indexes = {
-                @Index(name = "idx_codes_scope", columnList = "org_id, patient_id, encounter_id"),
+                @Index(name = "idx_codes_scope", columnList = "org_id"),
                 @Index(name = "idx_codes_type_code", columnList = "code_type, code")
         }
 )
@@ -27,12 +27,6 @@ public class Code {
 
     @Column(name = "org_id", nullable = false)
     private Long orgId;
-
-    @Column(name = "patient_id", nullable = false)
-    private Long patientId;
-
-    @Column(name = "encounter_id", nullable = false)
-    private Long encounterId;
 
     @Column(name = "code_type", length = 16, nullable = false)
     private String codeType; // ICD9 | ICD10 | CPT4 | HCPCS | CUSTOM

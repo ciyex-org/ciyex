@@ -18,19 +18,34 @@ public class FhirExternalCodeStorage implements ExternalCodeStorage {
 
     @Override
     public String create(CodeDto dto) {
-        log.info("FHIR Code create at encounter: org={}, patient={}, encounter={}, type={}, code={}",
-                dto.getOrgId(), dto.getPatientId(), dto.getEncounterId(), dto.getCodeType(), dto.getCode());
-        // Map to FHIR CodeSystem/ValueSet/ConceptMap as appropriate
+        log.info("FHIR Code create: org={}, type={}, code={}",
+                dto.getOrgId(), dto.getCodeType(), dto.getCode());
         return null;
     }
 
-    @Override public void update(String externalId, CodeDto dto) { }
-    @Override public Optional<CodeDto> get(String externalId) { return Optional.empty(); }
-    @Override public void delete(String externalId) { }
+    @Override
+    public void update(String externalId, CodeDto dto) {
+        log.info("FHIR Code update: id={}, org={}, type={}, code={}",
+                externalId, dto.getOrgId(), dto.getCodeType(), dto.getCode());
+    }
 
+    @Override
+    public Optional<CodeDto> get(String externalId) {
+        log.info("FHIR Code get: id={}", externalId);
+        return Optional.empty();
+    }
+
+    @Override
+    public void delete(String externalId) {
+        log.info("FHIR Code delete: id={}", externalId);
+    }
+
+    // ✅ Match the interface signature exactly
     @Override
     public List<CodeDto> searchAll(Long orgId, Long patientId, Long encounterId,
                                    String codeType, Boolean active, String q) {
+        log.info("FHIR Code search: org={}, patient={}, encounter={}, type={}, active={}, q={}",
+                orgId, patientId, encounterId, codeType, active, q);
         return Collections.emptyList();
     }
 }
