@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.InventoryDto;
+import com.qiaben.ciyex.dto.OrderDto;
 import com.qiaben.ciyex.entity.Inventory;
 import com.qiaben.ciyex.repository.InventoryRepository;
 import com.qiaben.ciyex.storage.ExternalInventoryStorage;
@@ -25,14 +26,18 @@ public class InventoryService {
     private final InventoryRepository repository;
     private final ExternalStorageResolver storageResolver;
     private final OrgIntegrationConfigProvider configProvider;
+    private final OrderService orderService;
 
     public InventoryService(InventoryRepository repository,
                             ExternalStorageResolver storageResolver,
-                            OrgIntegrationConfigProvider configProvider) {
+                            OrgIntegrationConfigProvider configProvider,
+                            OrderService orderService) {
         this.repository = repository;
         this.storageResolver = storageResolver;
         this.configProvider = configProvider;
+        this.orderService = orderService;
     }
+
 
     @Transactional
     public InventoryDto create(InventoryDto dto) {
@@ -116,6 +121,20 @@ public class InventoryService {
         return repository.findAllByOrgId(orgId, pageable).map(this::mapToDto);
     }
 
+    @Transactional
+    public OrderDto createReorder(Long inventoryId, OrderDto dto) {
+        Inventory entity = repository.findById(inventoryId)
+                .orElseThrow(() -> new RuntimeException("Inventory item not found"));
+
+        // use dto.getStock() instead of getQuantity()
+        return orderService.createOrder(entity, dto.getStock(), dto.getSupplier());
+    }
+
+
+
+
+
+
     private Inventory mapToEntity(InventoryDto dto) {
         return Inventory.builder()
                 .id(dto.getId())
@@ -126,6 +145,7 @@ public class InventoryService {
                 .expiry(dto.getExpiry())
                 .sku(dto.getSku())
                 .stock(dto.getStock())
+                .supplier(dto.getSupplier())
                 .unit(dto.getUnit())
                 .minStock(dto.getMinStock())
                 .location(dto.getLocation())
@@ -147,6 +167,7 @@ public class InventoryService {
         dto.setMinStock(e.getMinStock());
         dto.setLocation(e.getLocation());
         dto.setStatus(e.getStatus());
+        dto.setSupplier(e.getSupplier());
         dto.setFhirId(e.getExternalId());
 
         InventoryDto.Audit audit = new InventoryDto.Audit();

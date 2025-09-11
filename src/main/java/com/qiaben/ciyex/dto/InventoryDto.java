@@ -17,6 +17,8 @@ public class InventoryDto {
     private Integer minStock;  // reorder threshold
     private String location;   // clinic/location name
     private String status;     // "Active" | "Inactive"
+    private String supplier;  // supplier name
+
 
     private Audit audit;
     private String fhirId;     // externalId
