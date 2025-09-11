@@ -2,6 +2,7 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -21,14 +22,20 @@ public class Inventory {
     private String lot;
     private String expiry;
     private String sku;
-    private Integer stock;
+    private Integer stock;       // current stock on hand
     private String unit;
-    private Integer minStock;
+    private Integer minStock;    // minimum required stock
     private String location;
-    private String status;
+    private String status;       // e.g., OK, LOW, CRITICAL, EXPIRED
+    private String supplier;  // supplier name
+
 
     private String createdDate;
     private String lastModifiedDate;
 
-    private String externalId; // FHIR / external system id
+    private String externalId;   // FHIR / external system id
+
+    // 🔗 Orders placed for this inventory item
+    @OneToMany(mappedBy = "inventory", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Order> orders;
 }

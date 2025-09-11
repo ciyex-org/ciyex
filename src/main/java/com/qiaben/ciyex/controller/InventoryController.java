@@ -2,6 +2,7 @@ package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.InventoryDto;
+import com.qiaben.ciyex.dto.OrderDto;
 import com.qiaben.ciyex.service.InventoryService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -91,6 +92,20 @@ public class InventoryController {
                         .success(true)
                         .message("Inventory items retrieved successfully")
                         .data(list)
+                        .build()
+        );
+    }
+
+    @PostMapping("/{id}/reorder")
+    public ResponseEntity<ApiResponse<OrderDto>> reorder(
+            @PathVariable Long id,
+            @RequestBody OrderDto dto) {
+        OrderDto createdOrder = service.createReorder(id, dto);
+        return ResponseEntity.ok(
+                ApiResponse.<OrderDto>builder()
+                        .success(true)
+                        .message("Reorder created successfully (pending receipt)")
+                        .data(createdOrder)
                         .build()
         );
     }
