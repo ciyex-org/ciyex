@@ -1,126 +1,336 @@
+//package com.qiaben.ciyex.service;
+//
+//import com.qiaben.ciyex.dto.PlanDto;
+//import com.qiaben.ciyex.entity.Plan;
+//import com.qiaben.ciyex.repository.PlanRepository;
+//import com.qiaben.ciyex.storage.ExternalPlanStorage;
+//import lombok.RequiredArgsConstructor;
+//import lombok.extern.slf4j.Slf4j;
+//import org.springframework.stereotype.Service;
+//
+//import java.time.ZoneId;
+//import java.time.format.DateTimeFormatter;
+//import java.util.List;
+//import java.util.Optional;
+//
+//@Service
+//@RequiredArgsConstructor
+//@Slf4j
+//public class PlanService {
+//
+//    private final PlanRepository repo;
+//    // wire later if needed; left as Optional to match your original stub
+//    private final Optional<ExternalPlanStorage> external = Optional.empty();
+//
+//    private static final DateTimeFormatter DTF = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
+//
+//    public PlanDto create(Long orgId, Long patientId, Long encounterId, PlanDto in) {
+//        Plan p = new Plan();
+//        p.setOrgId(orgId);
+//        p.setPatientId(patientId);
+//        p.setEncounterId(encounterId);
+//        p.setDiagnosticPlan(in.getDiagnosticPlan());
+//        p.setPlan(in.getPlan());
+//        p.setNotes(in.getNotes());
+//        p.setFollowUpVisit(in.getFollowUpVisit());
+//        p.setReturnWorkSchool(in.getReturnWorkSchool());
+//        // ✅ direct JsonNode -> jsonb
+//        p.setSectionsJson(in.getSectionsJson());
+//
+//        final Plan saved = repo.save(p);
+//
+//        external.ifPresent(ext -> {
+//            String extId = ext.create(mapToDto(saved));
+//            saved.setExternalId(extId);
+//            repo.save(saved);
+//        });
+//
+//        return mapToDto(saved);
+//    }
+//
+//    public PlanDto update(Long orgId, Long patientId, Long encounterId, Long id, PlanDto in) {
+//        Plan p = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
+//
+//        p.setDiagnosticPlan(in.getDiagnosticPlan());
+//        p.setPlan(in.getPlan());
+//        p.setNotes(in.getNotes());
+//        p.setFollowUpVisit(in.getFollowUpVisit());
+//        p.setReturnWorkSchool(in.getReturnWorkSchool());
+//        // ✅ direct JsonNode -> jsonb
+//        p.setSectionsJson(in.getSectionsJson());
+//
+//        final Plan updated = repo.save(p);
+//
+//        external.ifPresent(ext -> {
+//            if (updated.getExternalId() != null) {
+//                ext.update(updated.getExternalId(), mapToDto(updated));
+//            }
+//        });
+//
+//        return mapToDto(updated);
+//    }
+//
+//    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+//        Plan p = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
+//        repo.delete(p);
+//        external.ifPresent(ext -> {
+//            if (p.getExternalId() != null) {
+//                ext.delete(p.getExternalId());
+//            }
+//        });
+//    }
+//
+//    public PlanDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+//        Plan p = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
+//        return mapToDto(p);
+//    }
+//
+//    public List<PlanDto> getAllByPatient(Long orgId, Long patientId) {
+//        return repo.findByOrgIdAndPatientId(orgId, patientId)
+//                .stream().map(this::mapToDto).toList();
+//    }
+//
+//    public List<PlanDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+//        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
+//                .stream().map(this::mapToDto).toList();
+//    }
+//
+//    private PlanDto mapToDto(Plan e) {
+//        PlanDto dto = new PlanDto();
+//        dto.setId(e.getId());
+//        dto.setExternalId(e.getExternalId());
+//        dto.setOrgId(e.getOrgId());
+//        dto.setPatientId(e.getPatientId());
+//        dto.setEncounterId(e.getEncounterId());
+//        dto.setDiagnosticPlan(e.getDiagnosticPlan());
+//        dto.setPlan(e.getPlan());
+//        dto.setNotes(e.getNotes());
+//        dto.setFollowUpVisit(e.getFollowUpVisit());
+//        dto.setReturnWorkSchool(e.getReturnWorkSchool());
+//        // ✅ JsonNode passes straight through
+//        dto.setSectionsJson(e.getSectionsJson());
+//
+//        PlanDto.Audit a = new PlanDto.Audit();
+//        if (e.getCreatedAt() != null) {
+//            a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
+//        }
+//        if (e.getUpdatedAt() != null) {
+//            a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
+//        }
+//        dto.setAudit(a);
+//        return dto;
+//    }
+//}
+
+
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.PlanDto;
 import com.qiaben.ciyex.entity.Plan;
 import com.qiaben.ciyex.repository.PlanRepository;
-import com.qiaben.ciyex.storage.ExternalPlanStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
-import java.time.ZoneId;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Optional;
 
-@Service
-@RequiredArgsConstructor
-@Slf4j
+@Service @RequiredArgsConstructor @Slf4j
 public class PlanService {
 
     private final PlanRepository repo;
-    // wire later if needed; left as Optional to match your original stub
-    private final Optional<ExternalPlanStorage> external = Optional.empty();
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
-    private static final DateTimeFormatter DTF = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
-
-    public PlanDto create(Long orgId, Long patientId, Long encounterId, PlanDto in) {
-        Plan p = new Plan();
-        p.setOrgId(orgId);
-        p.setPatientId(patientId);
-        p.setEncounterId(encounterId);
-        p.setDiagnosticPlan(in.getDiagnosticPlan());
-        p.setPlan(in.getPlan());
-        p.setNotes(in.getNotes());
-        p.setFollowUpVisit(in.getFollowUpVisit());
-        p.setReturnWorkSchool(in.getReturnWorkSchool());
-        // ✅ direct JsonNode -> jsonb
-        p.setSectionsJson(in.getSectionsJson());
-
-        final Plan saved = repo.save(p);
-
-        external.ifPresent(ext -> {
-            String extId = ext.create(mapToDto(saved));
-            saved.setExternalId(extId);
-            repo.save(saved);
-        });
-
-        return mapToDto(saved);
+    public PlanDto create(Long orgId, Long patientId, Long encounterId, PlanDto dto) {
+        Plan e = new Plan();
+        e.setOrgId(orgId); e.setPatientId(patientId); e.setEncounterId(encounterId);
+        applyEditable(e, dto);
+        return toDto(repo.save(e));
     }
 
-    public PlanDto update(Long orgId, Long patientId, Long encounterId, Long id, PlanDto in) {
-        Plan p = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
-
-        p.setDiagnosticPlan(in.getDiagnosticPlan());
-        p.setPlan(in.getPlan());
-        p.setNotes(in.getNotes());
-        p.setFollowUpVisit(in.getFollowUpVisit());
-        p.setReturnWorkSchool(in.getReturnWorkSchool());
-        // ✅ direct JsonNode -> jsonb
-        p.setSectionsJson(in.getSectionsJson());
-
-        final Plan updated = repo.save(p);
-
-        external.ifPresent(ext -> {
-            if (updated.getExternalId() != null) {
-                ext.update(updated.getExternalId(), mapToDto(updated));
-            }
-        });
-
-        return mapToDto(updated);
-    }
-
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-        Plan p = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
-        repo.delete(p);
-        external.ifPresent(ext -> {
-            if (p.getExternalId() != null) {
-                ext.delete(p.getExternalId());
-            }
-        });
+    public List<PlanDto> list(Long orgId, Long patientId, Long encounterId) {
+        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
+                .stream().map(this::toDto).toList();
     }
 
     public PlanDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-        Plan p = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        Plan e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
-        return mapToDto(p);
+        return toDto(e);
     }
 
-    public List<PlanDto> getAllByPatient(Long orgId, Long patientId) {
-        return repo.findByOrgIdAndPatientId(orgId, patientId)
-                .stream().map(this::mapToDto).toList();
+    public PlanDto update(Long orgId, Long patientId, Long encounterId, Long id, PlanDto dto) {
+        Plan e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
+        if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed plan is read-only.");
+        applyEditable(e, dto);
+        return toDto(repo.save(e));
     }
 
-    public List<PlanDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
-        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
-                .stream().map(this::mapToDto).toList();
+    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+        Plan e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
+        if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed plan cannot be deleted.");
+        repo.delete(e);
     }
 
-    private PlanDto mapToDto(Plan e) {
-        PlanDto dto = new PlanDto();
-        dto.setId(e.getId());
-        dto.setExternalId(e.getExternalId());
-        dto.setOrgId(e.getOrgId());
-        dto.setPatientId(e.getPatientId());
-        dto.setEncounterId(e.getEncounterId());
-        dto.setDiagnosticPlan(e.getDiagnosticPlan());
-        dto.setPlan(e.getPlan());
-        dto.setNotes(e.getNotes());
-        dto.setFollowUpVisit(e.getFollowUpVisit());
-        dto.setReturnWorkSchool(e.getReturnWorkSchool());
-        // ✅ JsonNode passes straight through
-        dto.setSectionsJson(e.getSectionsJson());
+    public PlanDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
+        Plan e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
+        if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
+
+        e.setESigned(true);
+        e.setSignedBy(StringUtils.hasText(signedBy) ? signedBy : "system");
+        e.setSignedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        return toDto(repo.save(e));
+    }
+
+    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+        Plan e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
+        e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        repo.save(e);
+
+        try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            PDPage page = new PDPage(PDRectangle.LETTER);
+            doc.addPage(page);
+
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                float x = 64, y = 740;
+
+                // Title + meta
+                title(cs, x, y, "Encounter Plan"); y -= 26;
+                row(cs, x, y, "Patient ID:", String.valueOf(patientId));     y -= 16;
+                row(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 16;
+                row(cs, x, y, "Plan ID:", String.valueOf(id));               y -= 20;
+
+                // FREE-TEXT BLOCKS – each returns updated y (no extra y-= after the call)
+                y = block(cs, x, y, "Diagnostic Plan", e.getDiagnosticPlan());
+                y = block(cs, x, y, "Plan",            e.getPlan());
+                y = block(cs, x, y, "Notes",           e.getNotes());
+
+                // Rows
+                if (StringUtils.hasText(e.getFollowUpVisit())) {
+                    row(cs, x, y, "Follow-Up Visit:", e.getFollowUpVisit()); y -= 16;
+                }
+                if (StringUtils.hasText(e.getReturnWorkSchool())) {
+                    row(cs, x, y, "Return Work/School:", e.getReturnWorkSchool()); y -= 16;
+                }
+
+                // Sections (render as wrapped block)
+                if (StringUtils.hasText(e.getSectionsJson())) {
+                    y = block(cs, x, y, "Sections", e.getSectionsJson());
+                }
+
+                y -= 10;
+                row(cs, x, y, "eSigned:", Boolean.TRUE.equals(e.getESigned()) ? "Yes" : "No"); y -= 16;
+                if (e.getSignedAt() != null) { row(cs, x, y, "Signed At:", e.getSignedAt().format(ISO)); y -= 16; }
+                if (StringUtils.hasText(e.getSignedBy())) { row(cs, x, y, "Signed By:", e.getSignedBy()); y -= 16; }
+
+                y -= 10;
+                if (e.getCreatedAt() != null) { row(cs, x, y, "Created:", DAY.format(e.getCreatedAt())); y -= 16; }
+                if (e.getUpdatedAt() != null) { row(cs, x, y, "Updated:", DAY.format(e.getUpdatedAt())); y -= 16; }
+            }
+
+            doc.save(baos);
+            return baos.toByteArray();
+        } catch (IOException ex) {
+            throw new RuntimeException("Failed to generate Plan PDF", ex);
+        }
+    }
+
+    // ---- mapping / drawing helpers
+    private void applyEditable(Plan e, PlanDto d) {
+        e.setDiagnosticPlan(d.getDiagnosticPlan());
+        e.setPlan(d.getPlan());
+        e.setNotes(d.getNotes());
+        e.setFollowUpVisit(d.getFollowUpVisit());
+        e.setReturnWorkSchool(d.getReturnWorkSchool());
+        e.setSectionsJson(d.getSectionsJson()); // keep as string
+    }
+
+    private PlanDto toDto(Plan e) {
+        PlanDto d = new PlanDto();
+        d.setId(e.getId()); d.setOrgId(e.getOrgId()); d.setPatientId(e.getPatientId()); d.setEncounterId(e.getEncounterId());
+        d.setDiagnosticPlan(e.getDiagnosticPlan()); d.setPlan(e.getPlan()); d.setNotes(e.getNotes());
+        d.setFollowUpVisit(e.getFollowUpVisit()); d.setReturnWorkSchool(e.getReturnWorkSchool());
+        d.setSectionsJson(e.getSectionsJson());
+        d.setESigned(e.getESigned());
+        d.setSignedAt(e.getSignedAt() != null ? e.getSignedAt().format(ISO) : null);
+        d.setSignedBy(e.getSignedBy());
+        d.setPrintedAt(e.getPrintedAt() != null ? e.getPrintedAt().format(ISO) : null);
 
         PlanDto.Audit a = new PlanDto.Audit();
-        if (e.getCreatedAt() != null) {
-            a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
+        if (e.getCreatedAt() != null) a.setCreatedDate(DAY.format(e.getCreatedAt()));
+        if (e.getUpdatedAt() != null) a.setLastModifiedDate(DAY.format(e.getUpdatedAt()));
+        d.setAudit(a);
+        return d;
+    }
+
+    private static void title(PDPageContentStream cs, float x, float y, String t) throws IOException {
+        cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 18); cs.newLineAtOffset(x, y); cs.showText(t); cs.endText();
+    }
+    private static void row(PDPageContentStream cs, float x, float y, String k, String v) throws IOException {
+        cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(k); cs.endText();
+        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(v != null ? v : "-"); cs.endText();
+    }
+    private static void text(PDPageContentStream cs, float x, float y, String s) throws IOException {
+        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x, y); cs.showText(s); cs.endText();
+    }
+    private static float block(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
+        if (!StringUtils.hasText(value)) return y;
+
+        // Label
+        cs.beginText();
+        cs.setFont(PDType1Font.HELVETICA_BOLD, 12);
+        cs.newLineAtOffset(x, y);
+        cs.showText(label + ":");
+        cs.endText();
+        y -= 16;
+
+        // Content (indented + wrapped)
+        final float maxWidth = 612f - (64f * 2) - 16f; // pageWidth - margins - indent
+        for (String line : wrap(PDType1Font.HELVETICA, 12, value, maxWidth)) {
+            text(cs, x + 16, y, line);
+            y -= 14;
         }
-        if (e.getUpdatedAt() != null) {
-            a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
+        return y - 6; // padding after block
+    }
+
+    /** Simple word-wrap for PDFBox (no hyphenation). */
+    private static java.util.List<String> wrap(PDType1Font font, int fontSize, String text, float maxWidth) throws IOException {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String para : text.split("\\R")) {
+            if (!StringUtils.hasText(para)) { out.add(""); continue; }
+            String[] words = para.split("\\s+");
+            StringBuilder line = new StringBuilder();
+            for (String w : words) {
+                String candidate = line.length() == 0 ? w : line + " " + w;
+                float width = font.getStringWidth(candidate) / 1000f * fontSize;
+                if (width <= maxWidth) {
+                    line.setLength(0);
+                    line.append(candidate);
+                } else {
+                    out.add(line.toString());
+                    line.setLength(0);
+                    line.append(w);
+                }
+            }
+            out.add(line.toString());
         }
-        dto.setAudit(a);
-        return dto;
+        return out;
     }
 }

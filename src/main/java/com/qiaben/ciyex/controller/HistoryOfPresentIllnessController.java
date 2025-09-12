@@ -1,3 +1,94 @@
+//package com.qiaben.ciyex.controller;
+//
+//import com.qiaben.ciyex.dto.ApiResponse;
+//import com.qiaben.ciyex.dto.HistoryOfPresentIllnessDto;
+//import com.qiaben.ciyex.service.HistoryOfPresentIllnessService;
+//import lombok.RequiredArgsConstructor;
+//import lombok.extern.slf4j.Slf4j;
+//import org.springframework.http.ResponseEntity;
+//import org.springframework.web.bind.annotation.*;
+//
+//import java.util.List;
+//
+//@RestController
+//@RequestMapping("/api/history-of-present-illness")
+//@RequiredArgsConstructor
+//@Slf4j
+//public class HistoryOfPresentIllnessController {
+//
+//    private final HistoryOfPresentIllnessService service;
+//
+//    // READ ALL: /api/history-of-present-illness/{patientId}
+//    @GetMapping("/{patientId}")
+//    public ResponseEntity<ApiResponse<List<HistoryOfPresentIllnessDto>>> getAllByPatient(
+//            @PathVariable Long patientId,
+//            @RequestHeader("orgId") Long orgId) {
+//        var list = service.getAllByPatient(orgId, patientId);
+//        return ResponseEntity.ok(ApiResponse.<List<HistoryOfPresentIllnessDto>>builder()
+//                .success(true).message("HPI fetched successfully").data(list).build());
+//    }
+//
+//    // READ ALL: /api/history-of-present-illness/{patientId}/{encounterId}
+//    @GetMapping("/{patientId}/{encounterId}")
+//    public ResponseEntity<ApiResponse<List<HistoryOfPresentIllnessDto>>> getAllByEncounter(
+//            @PathVariable Long patientId,
+//            @PathVariable Long encounterId,
+//            @RequestHeader("orgId") Long orgId) {
+//        var list = service.getAllByEncounter(orgId, patientId, encounterId);
+//        return ResponseEntity.ok(ApiResponse.<List<HistoryOfPresentIllnessDto>>builder()
+//                .success(true).message("HPI fetched successfully").data(list).build());
+//    }
+//
+//    // READ ONE: /api/history-of-present-illness/{patientId}/{encounterId}/{id}
+//    @GetMapping("/{patientId}/{encounterId}/{id}")
+//    public ResponseEntity<ApiResponse<HistoryOfPresentIllnessDto>> getOne(
+//            @PathVariable Long patientId,
+//            @PathVariable Long encounterId,
+//            @PathVariable Long id,
+//            @RequestHeader("orgId") Long orgId) {
+//        var dto = service.getOne(orgId, patientId, encounterId, id);
+//        return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
+//                .success(true).message("HPI fetched successfully").data(dto).build());
+//    }
+//
+//    // CREATE: /api/history-of-present-illness/{patientId}/{encounterId}
+//    @PostMapping("/{patientId}/{encounterId}")
+//    public ResponseEntity<ApiResponse<HistoryOfPresentIllnessDto>> create(
+//            @PathVariable Long patientId,
+//            @PathVariable Long encounterId,
+//            @RequestHeader("orgId") Long orgId,
+//            @RequestBody HistoryOfPresentIllnessDto dto) {
+//        var created = service.create(orgId, patientId, encounterId, dto);
+//        return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
+//                .success(true).message("HPI created").data(created).build());
+//    }
+//
+//    // UPDATE: /api/history-of-present-illness/{patientId}/{encounterId}/{id}
+//    @PutMapping("/{patientId}/{encounterId}/{id}")
+//    public ResponseEntity<ApiResponse<HistoryOfPresentIllnessDto>> update(
+//            @PathVariable Long patientId,
+//            @PathVariable Long encounterId,
+//            @PathVariable Long id,
+//            @RequestHeader("orgId") Long orgId,
+//            @RequestBody HistoryOfPresentIllnessDto dto) {
+//        var updated = service.update(orgId, patientId, encounterId, id, dto);
+//        return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
+//                .success(true).message("HPI updated").data(updated).build());
+//    }
+//
+//    // DELETE: /api/history-of-present-illness/{patientId}/{encounterId}/{id}
+//    @DeleteMapping("/{patientId}/{encounterId}/{id}")
+//    public ResponseEntity<ApiResponse<Void>> delete(
+//            @PathVariable Long patientId,
+//            @PathVariable Long encounterId,
+//            @PathVariable Long id,
+//            @RequestHeader("orgId") Long orgId) {
+//        service.delete(orgId, patientId, encounterId, id);
+//        return ResponseEntity.ok(ApiResponse.<Void>builder()
+//                .success(true).message("HPI deleted").build());
+//    }
+//}
+
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
@@ -5,9 +96,13 @@ import com.qiaben.ciyex.dto.HistoryOfPresentIllnessDto;
 import com.qiaben.ciyex.service.HistoryOfPresentIllnessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 @RestController
@@ -18,52 +113,47 @@ public class HistoryOfPresentIllnessController {
 
     private final HistoryOfPresentIllnessService service;
 
-    // READ ALL: /api/history-of-present-illness/{patientId}
-    @GetMapping("/{patientId}")
-    public ResponseEntity<ApiResponse<List<HistoryOfPresentIllnessDto>>> getAllByPatient(
-            @PathVariable Long patientId,
-            @RequestHeader("orgId") Long orgId) {
-        var list = service.getAllByPatient(orgId, patientId);
-        return ResponseEntity.ok(ApiResponse.<List<HistoryOfPresentIllnessDto>>builder()
-                .success(true).message("HPI fetched successfully").data(list).build());
-    }
-
-    // READ ALL: /api/history-of-present-illness/{patientId}/{encounterId}
+    // LIST
     @GetMapping("/{patientId}/{encounterId}")
-    public ResponseEntity<ApiResponse<List<HistoryOfPresentIllnessDto>>> getAllByEncounter(
+    public ResponseEntity<ApiResponse<List<HistoryOfPresentIllnessDto>>> list(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestHeader("orgId") Long orgId) {
-        var list = service.getAllByEncounter(orgId, patientId, encounterId);
+        var items = service.list(orgId, patientId, encounterId);
         return ResponseEntity.ok(ApiResponse.<List<HistoryOfPresentIllnessDto>>builder()
-                .success(true).message("HPI fetched successfully").data(list).build());
+                .success(true).message("HPI list fetched").data(items).build());
     }
 
-    // READ ONE: /api/history-of-present-illness/{patientId}/{encounterId}/{id}
+    // GET ONE
     @GetMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<ApiResponse<HistoryOfPresentIllnessDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
             @RequestHeader("orgId") Long orgId) {
-        var dto = service.getOne(orgId, patientId, encounterId, id);
-        return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
-                .success(true).message("HPI fetched successfully").data(dto).build());
+        try {
+            var dto = service.getOne(orgId, patientId, encounterId, id);
+            return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
+                    .success(true).message("HPI fetched").data(dto).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<HistoryOfPresentIllnessDto>builder().success(false).message(ex.getMessage()).build());
+        }
     }
 
-    // CREATE: /api/history-of-present-illness/{patientId}/{encounterId}
+    // CREATE
     @PostMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<HistoryOfPresentIllnessDto>> create(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestHeader("orgId") Long orgId,
             @RequestBody HistoryOfPresentIllnessDto dto) {
-        var created = service.create(orgId, patientId, encounterId, dto);
+        var saved = service.create(orgId, patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
-                .success(true).message("HPI created").data(created).build());
+                .success(true).message("HPI created").data(saved).build());
     }
 
-    // UPDATE: /api/history-of-present-illness/{patientId}/{encounterId}/{id}
+    // UPDATE (423 if signed)
     @PutMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<ApiResponse<HistoryOfPresentIllnessDto>> update(
             @PathVariable Long patientId,
@@ -71,20 +161,74 @@ public class HistoryOfPresentIllnessController {
             @PathVariable Long id,
             @RequestHeader("orgId") Long orgId,
             @RequestBody HistoryOfPresentIllnessDto dto) {
-        var updated = service.update(orgId, patientId, encounterId, id, dto);
-        return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
-                .success(true).message("HPI updated").data(updated).build());
+        try {
+            var saved = service.update(orgId, patientId, encounterId, id, dto);
+            return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
+                    .success(true).message("HPI updated").data(saved).build());
+        } catch (IllegalStateException ex) {
+            return ResponseEntity.status(423)
+                    .body(ApiResponse.<HistoryOfPresentIllnessDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<HistoryOfPresentIllnessDto>builder().success(false).message(ex.getMessage()).build());
+        }
     }
 
-    // DELETE: /api/history-of-present-illness/{patientId}/{encounterId}/{id}
+    // DELETE (423 if signed)
     @DeleteMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
             @RequestHeader("orgId") Long orgId) {
-        service.delete(orgId, patientId, encounterId, id);
-        return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .success(true).message("HPI deleted").build());
+        try {
+            service.delete(orgId, patientId, encounterId, id);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(true).message("HPI deleted").build());
+        } catch (IllegalStateException ex) {
+            return ResponseEntity.status(423)
+                    .body(ApiResponse.<Void>builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<Void>builder().success(false).message(ex.getMessage()).build());
+        }
+    }
+
+    // ESIGN
+    @PostMapping("/{patientId}/{encounterId}/{id}/esign")
+    public ResponseEntity<ApiResponse<HistoryOfPresentIllnessDto>> eSign(
+            @PathVariable Long patientId,
+            @PathVariable Long encounterId,
+            @PathVariable Long id,
+            @RequestHeader("orgId") Long orgId,
+            Principal principal) {
+        try {
+            String user = (principal != null) ? principal.getName() : "system";
+            var dto = service.eSign(orgId, patientId, encounterId, id, user);
+            return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
+                    .success(true).message("HPI e-signed").data(dto).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<HistoryOfPresentIllnessDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("HPI eSign failed", ex);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<HistoryOfPresentIllnessDto>builder().success(false).message(ex.getMessage()).build());
+        }
+    }
+
+    // PRINT
+    @GetMapping("/{patientId}/{encounterId}/{id}/print")
+    public ResponseEntity<byte[]> print(
+            @PathVariable Long patientId,
+            @PathVariable Long encounterId,
+            @PathVariable Long id,
+            @RequestHeader("orgId") Long orgId) {
+        byte[] pdf = service.renderPdf(orgId, patientId, encounterId, id);
+        String filename = "hpi-" + id + ".pdf";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 }

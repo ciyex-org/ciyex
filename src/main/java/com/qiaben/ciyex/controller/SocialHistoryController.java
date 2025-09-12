@@ -1,3 +1,89 @@
+//package com.qiaben.ciyex.controller;
+//
+//import com.qiaben.ciyex.dto.ApiResponse;
+//import com.qiaben.ciyex.dto.SocialHistoryDto;
+//import com.qiaben.ciyex.service.SocialHistoryService;
+//import lombok.RequiredArgsConstructor;
+//import lombok.extern.slf4j.Slf4j;
+//import org.springframework.http.ResponseEntity;
+//import org.springframework.web.bind.annotation.*;
+//
+//import java.util.List;
+//
+//@RestController
+//@RequestMapping("/api/social-history")
+//@RequiredArgsConstructor
+//@Slf4j
+//public class SocialHistoryController {
+//
+//    private final SocialHistoryService service;
+//
+//    @GetMapping("/{patientId}")
+//    public ResponseEntity<ApiResponse<List<SocialHistoryDto>>> getAllByPatient(
+//            @PathVariable Long patientId,
+//            @RequestHeader("orgId") Long orgId) {
+//        var list = service.getAllByPatient(orgId, patientId);
+//        return ResponseEntity.ok(ApiResponse.<List<SocialHistoryDto>>builder()
+//                .success(true).message("Social History fetched").data(list).build());
+//    }
+//
+//    @GetMapping("/{patientId}/{encounterId}")
+//    public ResponseEntity<ApiResponse<List<SocialHistoryDto>>> getAllByEncounter(
+//            @PathVariable Long patientId,
+//            @PathVariable Long encounterId,
+//            @RequestHeader("orgId") Long orgId) {
+//        var list = service.getAllByEncounter(orgId, patientId, encounterId);
+//        return ResponseEntity.ok(ApiResponse.<List<SocialHistoryDto>>builder()
+//                .success(true).message("Social History fetched").data(list).build());
+//    }
+//
+//    @GetMapping("/{patientId}/{encounterId}/{id}")
+//    public ResponseEntity<ApiResponse<SocialHistoryDto>> getOne(
+//            @PathVariable Long patientId,
+//            @PathVariable Long encounterId,
+//            @PathVariable Long id,
+//            @RequestHeader("orgId") Long orgId) {
+//        var dto = service.getOne(orgId, patientId, encounterId, id);
+//        return ResponseEntity.ok(ApiResponse.<SocialHistoryDto>builder()
+//                .success(true).message("Social History fetched").data(dto).build());
+//    }
+//
+//    @PostMapping("/{patientId}/{encounterId}")
+//    public ResponseEntity<ApiResponse<SocialHistoryDto>> create(
+//            @PathVariable Long patientId,
+//            @PathVariable Long encounterId,
+//            @RequestHeader("orgId") Long orgId,
+//            @RequestBody SocialHistoryDto dto) {
+//        var created = service.create(orgId, patientId, encounterId, dto);
+//        return ResponseEntity.ok(ApiResponse.<SocialHistoryDto>builder()
+//                .success(true).message("Social History created").data(created).build());
+//    }
+//
+//    @PutMapping("/{patientId}/{encounterId}/{id}")
+//    public ResponseEntity<ApiResponse<SocialHistoryDto>> update(
+//            @PathVariable Long patientId,
+//            @PathVariable Long encounterId,
+//            @PathVariable Long id,
+//            @RequestHeader("orgId") Long orgId,
+//            @RequestBody SocialHistoryDto dto) {
+//        var updated = service.update(orgId, patientId, encounterId, id, dto);
+//        return ResponseEntity.ok(ApiResponse.<SocialHistoryDto>builder()
+//                .success(true).message("Social History updated").data(updated).build());
+//    }
+//
+//    @DeleteMapping("/{patientId}/{encounterId}/{id}")
+//    public ResponseEntity<ApiResponse<Void>> delete(
+//            @PathVariable Long patientId,
+//            @PathVariable Long encounterId,
+//            @PathVariable Long id,
+//            @RequestHeader("orgId") Long orgId) {
+//        service.delete(orgId, patientId, encounterId, id);
+//        return ResponseEntity.ok(ApiResponse.<Void>builder()
+//                .success(true).message("Social History deleted").build());
+//    }
+//}
+
+
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
@@ -5,10 +91,10 @@ import com.qiaben.ciyex.dto.SocialHistoryDto;
 import com.qiaben.ciyex.service.SocialHistoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.security.Principal;
 
 @RestController
 @RequestMapping("/api/social-history")
@@ -18,47 +104,35 @@ public class SocialHistoryController {
 
     private final SocialHistoryService service;
 
-    @GetMapping("/{patientId}")
-    public ResponseEntity<ApiResponse<List<SocialHistoryDto>>> getAllByPatient(
-            @PathVariable Long patientId,
-            @RequestHeader("orgId") Long orgId) {
-        var list = service.getAllByPatient(orgId, patientId);
-        return ResponseEntity.ok(ApiResponse.<List<SocialHistoryDto>>builder()
-                .success(true).message("Social History fetched").data(list).build());
-    }
-
+    // READ (container) — your UI calls this URL to load SH for an encounter. :contentReference[oaicite:1]{index=1}
     @GetMapping("/{patientId}/{encounterId}")
-    public ResponseEntity<ApiResponse<List<SocialHistoryDto>>> getAllByEncounter(
+    public ResponseEntity<ApiResponse<SocialHistoryDto>> get(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestHeader("orgId") Long orgId) {
-        var list = service.getAllByEncounter(orgId, patientId, encounterId);
-        return ResponseEntity.ok(ApiResponse.<List<SocialHistoryDto>>builder()
-                .success(true).message("Social History fetched").data(list).build());
+        try {
+            var dto = service.getOne(orgId, patientId, encounterId);
+            return ResponseEntity.ok(ApiResponse.<SocialHistoryDto>builder()
+                    .success(true).message("Social History fetched").data(dto).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<SocialHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        }
     }
 
-    @GetMapping("/{patientId}/{encounterId}/{id}")
-    public ResponseEntity<ApiResponse<SocialHistoryDto>> getOne(
-            @PathVariable Long patientId,
-            @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
-        var dto = service.getOne(orgId, patientId, encounterId, id);
-        return ResponseEntity.ok(ApiResponse.<SocialHistoryDto>builder()
-                .success(true).message("Social History fetched").data(dto).build());
-    }
-
+    // CREATE container (+entries)
     @PostMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<SocialHistoryDto>> create(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestHeader("orgId") Long orgId,
             @RequestBody SocialHistoryDto dto) {
-        var created = service.create(orgId, patientId, encounterId, dto);
+        var saved = service.create(orgId, patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<SocialHistoryDto>builder()
-                .success(true).message("Social History created").data(created).build());
+                .success(true).message("Social History created").data(saved).build());
     }
 
+    // UPDATE container (423 if signed)
     @PutMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<ApiResponse<SocialHistoryDto>> update(
             @PathVariable Long patientId,
@@ -66,19 +140,75 @@ public class SocialHistoryController {
             @PathVariable Long id,
             @RequestHeader("orgId") Long orgId,
             @RequestBody SocialHistoryDto dto) {
-        var updated = service.update(orgId, patientId, encounterId, id, dto);
-        return ResponseEntity.ok(ApiResponse.<SocialHistoryDto>builder()
-                .success(true).message("Social History updated").data(updated).build());
+        try {
+            var saved = service.update(orgId, patientId, encounterId, id, dto);
+            return ResponseEntity.ok(ApiResponse.<SocialHistoryDto>builder()
+                    .success(true).message("Social History updated").data(saved).build());
+        } catch (IllegalStateException ex) {
+            return ResponseEntity.status(423)
+                    .body(ApiResponse.<SocialHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<SocialHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        }
     }
 
+    // DELETE container (423 if signed)
     @DeleteMapping("/{patientId}/{encounterId}/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(
+    public ResponseEntity<?> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
             @RequestHeader("orgId") Long orgId) {
-        service.delete(orgId, patientId, encounterId, id);
-        return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .success(true).message("Social History deleted").build());
+        try {
+            service.delete(orgId, patientId, encounterId, id);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalStateException ex) {
+            return ResponseEntity.status(423)
+                    .body(ApiResponse.builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.builder().success(false).message(ex.getMessage()).build());
+        }
+    }
+
+    // ESIGN — optional index/id can be passed via query-string if you prefer "string" inputs
+    //   Example: POST .../{id}/esign?index=0
+    @PostMapping("/{patientId}/{encounterId}/{id}/esign")
+    public ResponseEntity<ApiResponse<SocialHistoryDto>> eSign(
+            @PathVariable Long patientId,
+            @PathVariable Long encounterId,
+            @PathVariable Long id,
+            @RequestHeader("orgId") Long orgId,
+            @RequestParam(value = "index", required = false) Integer index, // string-friendly
+            Principal principal) {
+        try {
+            String user = (principal != null) ? principal.getName() : "system";
+            var dto = service.eSign(orgId, patientId, encounterId, id, user);
+            return ResponseEntity.ok(ApiResponse.<SocialHistoryDto>builder()
+                    .success(true).message("Social History e-signed").data(dto).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<SocialHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("eSign failed", ex);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<SocialHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        }
+    }
+
+    // PRINT (PDF)
+    @GetMapping("/{patientId}/{encounterId}/{id}/print")
+    public ResponseEntity<byte[]> print(
+            @PathVariable Long patientId,
+            @PathVariable Long encounterId,
+            @PathVariable Long id,
+            @RequestHeader("orgId") Long orgId) {
+        byte[] pdf = service.renderPdf(orgId, patientId, encounterId, id);
+        String filename = "social-history-" + id + ".pdf";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 }

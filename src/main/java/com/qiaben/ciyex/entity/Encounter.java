@@ -1,38 +1,10 @@
-//package com.qiaben.ciyex.entity;
-//
-//
-//
-//import jakarta.persistence.*;
-//import lombok.Data;
-//
-//
-//@Entity
-//@Data
-//public class Encounter {
-//
-//    @Id
-//    @GeneratedValue(strategy = GenerationType.IDENTITY)
-//    private Long id;
-//
-//    private String visitCategory;  // Visit category (e.g., Outpatient, Inpatient)
-//    private String encounterProvider; // Provider for the encounter
-//    private String type;            // Type of encounter (e.g., Routine, Emergency)
-//    private String sensitivity;     // Sensitivity (e.g., normal, urgent)
-//    private String dischargeDisposition; // Discharge disposition (e.g., Admitted, Discharged)
-//    private String reasonForVisit;  // Reason for the visit
-//    private Boolean inCollection;
-//    @Column(nullable = false, updatable = false)
-//    private Long createdAt;
-//
-//    @Column(nullable = false)
-//    private Long updatedAt;
-//}
-//
+
 package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.time.Instant;
 import java.util.List;
 
 @Entity
@@ -52,6 +24,9 @@ public class Encounter {
     private Long orgId;
     @Column(nullable = false, updatable = false)
     private Long createdAt;
+    @Column(name = "encounter_date")
+    private Instant encounterDate;   // or LocalDateTime if you prefer
+
 
     @Column(nullable = false)
     private Long updatedAt;
@@ -69,3 +44,48 @@ public class Encounter {
 
 
 
+
+//package com.qiaben.ciyex.entity;
+//
+//import jakarta.persistence.*;
+//import lombok.*;
+//import java.time.Instant;
+//
+//@Entity
+//@Table(name = "encounters")
+//@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+//public class Encounter {
+//
+//    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+//    private Long id;
+//
+//    @Column(nullable = false)  // org scoping
+//    private Long orgId;
+//
+//    @Column(nullable = false)
+//    private Long patientId;
+//
+//    @Column(length = 50)
+//    private String visitCategory;          // OPD / ER / IPD …
+//
+//    @Column(length = 200)
+//    private String encounterProvider;      // physician name or id string
+//
+//    @Column(length = 100)
+//    private String type;                   // Consultation / Follow-up / Telehealth …
+//
+//    @Column(length = 50)
+//    private String sensitivity;            // Normal / Restricted
+//
+//    @Column(length = 200)
+//    private String dischargeDisposition;   // Home, …
+//
+//    @Column(length = 2000)
+//    private String reasonForVisit;
+//
+//    private Instant encounterDate;         // nullable if not set
+//
+//    @Enumerated(EnumType.STRING)
+//    @Column(nullable = false, length = 20)
+//    private EncounterStatus status = EncounterStatus.UNSIGNED;
+//}
