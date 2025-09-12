@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
+import static org.apache.jena.vocabulary.VCARD4.role;
+
 @RestController
 @RequestMapping("/api/auth")
 @Slf4j
@@ -112,26 +114,37 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<User>> register(
             @RequestBody User user,
-            @RequestParam Long orgId
+            @RequestParam Long orgId,
+            @RequestParam RoleName role   // 👈 take role from URL/query
     ) {
         try {
-            user.setPassword(passwordEncoder.encode(user.getPassword()));
-            User savedUser = ciyexUserDetailsService.assignUserToOrg(user, orgId, RoleName.PATIENT);
-            log.info("User registered successfully with email/org: " + savedUser.getEmail() + "/" + orgId);
+            Optional<User> existingUserOpt = ciyexUserDetailsService.getUserByEmail(user.getEmail());
+            User savedUser;
+
+            if (existingUserOpt.isPresent()) {
+                // Assign additional role/org
+                savedUser = ciyexUserDetailsService.assignUserToOrg(existingUserOpt.get(), orgId, role);
+                log.info("Existing user assigned role {} with email/org: {}/{}", role, user.getEmail(), orgId);
+            } else {
+                user.setPassword(passwordEncoder.encode(user.getPassword()));
+                savedUser = ciyexUserDetailsService.assignUserToOrg(user, orgId, role);
+                log.info("New user registered with role {} and email/org: {}/{}", role, user.getEmail(), orgId);
+            }
+
             savedUser.setPassword(null);
             return ResponseEntity.ok(
                     ApiResponse.<User>builder()
                             .success(true)
-                            .message("User registered and assigned to org.")
+                            .message("User registered and assigned to org as " + role)
                             .data(savedUser)
                             .build()
             );
         } catch (Exception e) {
-            log.error("An error occurred while registering user: " + user.getEmail() + ". Exception: " + e.getMessage());
+            log.error("Error while registering user: " + user.getEmail(), e);
             return ResponseEntity.status(500).body(
                     ApiResponse.<User>builder()
                             .success(false)
-                            .message("An error occurred while processing the registration request.")
+                            .message("Registration failed")
                             .data(null)
                             .build()
             );
