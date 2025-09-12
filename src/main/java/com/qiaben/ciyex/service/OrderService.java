@@ -1,5 +1,6 @@
 package com.qiaben.ciyex.service;
 
+import com.qiaben.ciyex.dto.MonthlyOrderCountDto;
 import com.qiaben.ciyex.dto.OrderDto;
 import com.qiaben.ciyex.entity.Inventory;
 import com.qiaben.ciyex.entity.Order;
@@ -183,6 +184,23 @@ public class OrderService {
 
         return mapToDto(repository.save(entity));
     }
+
+    @Transactional(readOnly = true)
+    public List<MonthlyOrderCountDto> countOrdersByMonth(Long orgId) {
+        return repository.countOrdersByMonth(orgId).stream()
+                .map(r -> new MonthlyOrderCountDto(((Number) r[0]).intValue(), ((Number) r[1]).longValue()))
+                .toList();
+    }
+
+
+    @Transactional(readOnly = true)
+    public long countPending() {
+        Long orgId = getCurrentOrgId();
+        return repository.countByOrgIdAndStatus(orgId, "Pending");
+    }
+
+
+
 
 
 

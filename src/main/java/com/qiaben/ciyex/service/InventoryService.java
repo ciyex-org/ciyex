@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.InventoryDto;
+import com.qiaben.ciyex.dto.MonthlyOrderCountDto;
 import com.qiaben.ciyex.dto.OrderDto;
 import com.qiaben.ciyex.entity.Inventory;
 import com.qiaben.ciyex.repository.InventoryRepository;
@@ -16,8 +17,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import java.time.LocalDate;
+import java.time.format.TextStyle;
+import java.util.*;
 
 @Service
 @Slf4j
@@ -27,6 +33,7 @@ public class InventoryService {
     private final ExternalStorageResolver storageResolver;
     private final OrgIntegrationConfigProvider configProvider;
     private final OrderService orderService;
+
 
     public InventoryService(InventoryRepository repository,
                             ExternalStorageResolver storageResolver,
@@ -71,6 +78,7 @@ public class InventoryService {
         Inventory entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Inventory item not found"));
 
+        entity.setSupplier(dto.getSupplier());
         entity.setName(dto.getName());
         entity.setCategory(dto.getCategory());
         entity.setLot(dto.getLot());
@@ -130,6 +138,72 @@ public class InventoryService {
         return orderService.createOrder(entity, dto.getStock(), dto.getSupplier());
     }
 
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getWeeklyConsumption() {
+        Long orgId = getCurrentOrgId();
+        List<Inventory> items = repository.findByOrgId(orgId);
+
+        Map<String, Integer> grouped = items.stream()
+                .filter(i -> i.getLastModifiedDate() != null)  // use entity field, not audit
+                .collect(Collectors.groupingBy(
+                        i -> {
+                            LocalDate date = LocalDate.parse(i.getLastModifiedDate().substring(0, 10));
+                            return date.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
+                        },
+                        Collectors.summingInt(Inventory::getStock)
+                ));
+
+        List<String> order = Arrays.asList("Mon","Tue","Wed","Thu","Fri","Sat","Sun");
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (String d : order) {
+            result.add(Map.of(
+                    "day", d,
+                    "stock", grouped.getOrDefault(d, 0)
+            ));
+        }
+        return result;
+    }
+
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getMonthlyOrders() {
+        Long orgId = getCurrentOrgId();
+        List<MonthlyOrderCountDto> counts = orderService.countOrdersByMonth(orgId);
+
+        return counts.stream()
+                .map(c -> {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("month", Month.of(c.getMonth()).getDisplayName(TextStyle.SHORT, Locale.ENGLISH));
+                    row.put("value", c.getCount());
+                    return row;
+                })
+                .collect(Collectors.toList());
+
+    }
+
+
+    @Transactional(readOnly = true)
+    public long countAll() {
+        return repository.countByOrgId(getCurrentOrgId());
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Long> countLowAndCritical() {
+        Long orgId = getCurrentOrgId();
+        List<Inventory> items = repository.findByOrgId(orgId);
+
+        long low = items.stream()
+                .filter(i -> i.getStock() != null && i.getMinStock() != null
+                        && i.getStock() <= i.getMinStock() && i.getStock() > 0)
+                .count();
+
+        long critical = items.stream()
+                .filter(i -> i.getStock() != null && i.getStock() <= 0)
+                .count();
+
+        return Map.of("low", low, "critical", critical);
+    }
 
 
 

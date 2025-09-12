@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/inventory")
@@ -109,4 +110,50 @@ public class InventoryController {
                         .build()
         );
     }
+
+    @GetMapping("/records/weekly-consumption")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getWeeklyConsumption() {
+        List<Map<String, Object>> data = service.getWeeklyConsumption();
+        return ResponseEntity.ok(
+                ApiResponse.<List<Map<String, Object>>>builder()
+                        .success(true)
+                        .message("Weekly stock consumption retrieved successfully")
+                        .data(data)
+                        .build()
+        );
+    }
+
+    @GetMapping("/records/monthly-orders")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getMonthlyOrders() {
+        List<Map<String, Object>> data = service.getMonthlyOrders();
+        return ResponseEntity.ok(
+                ApiResponse.<List<Map<String, Object>>>builder()
+                        .success(true)
+                        .message("Monthly orders retrieved successfully")
+                        .data(data)
+                        .build()
+        );
+    }
+
+    // InventoryController.java
+    @GetMapping("/count")
+    public ResponseEntity<ApiResponse<Long>> getCount() {
+        long count = service.countAll();
+        return ResponseEntity.ok(ApiResponse.<Long>builder()
+                .success(true)
+                .message("Total SKUs count retrieved successfully")
+                .data(count)
+                .build());
+    }
+
+    @GetMapping("/low-critical")
+    public ResponseEntity<ApiResponse<Map<String, Long>>> getLowAndCritical() {
+        Map<String, Long> counts = service.countLowAndCritical();
+        return ResponseEntity.ok(ApiResponse.<Map<String, Long>>builder()
+                .success(true)
+                .message("Low and critical counts retrieved successfully")
+                .data(counts)
+                .build());
+    }
+
 }
