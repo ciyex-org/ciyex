@@ -89,4 +89,15 @@ public class OrdersController {
                 .build());
     }
 
+    @GetMapping("/pending/count")
+    public ResponseEntity<ApiResponse<Long>> getPendingCount() {
+        long count = service.countPending();
+        return ResponseEntity.ok(ApiResponse.<Long>builder()
+                .success(true)
+                .message("Pending orders count retrieved successfully")
+                .data(count)
+                .build());
+    }
+
+
 }
