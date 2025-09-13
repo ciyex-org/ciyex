@@ -115,6 +115,22 @@ public class TenantSchemaInitializer {
             throw new RuntimeException("Failed to initialize tenant schema: " + schemaName, e);
         }
     }
+
+    // Run post-creation migrations for an existing tenant schema (safe, idempotent)
+    @Transactional
+    public void runTenantMigrations(Long orgId) {
+        if (orgId == null) return;
+        String schemaName = "practice_" + orgId;
+        try {
+            // Use only the tenant schema in search_path
+            entityManager.createNativeQuery("SET search_path TO " + schemaName).executeUpdate();
+            ensureJsonbColumn(schemaName, "org_config", "integrations");
+        } catch (Exception e) {
+            log.warn("Tenant migration failed for schema {}: {}", schemaName, e.getMessage());
+        } finally {
+            try { entityManager.createNativeQuery("SET search_path TO public").executeUpdate(); } catch (Exception ignore) {}
+        }
+    }
     
     private void createSchemaIfNotExists(String schemaName) {
         entityManager.createNativeQuery("CREATE SCHEMA IF NOT EXISTS " + schemaName).executeUpdate();
@@ -146,6 +162,9 @@ public class TenantSchemaInitializer {
                 }
             });
             
+            // Ensure known JSON columns use JSONB type (avoid 255-char limit)
+            ensureJsonbColumn(schemaName, "org_config", "integrations");
+
             log.info("Created all tenant tables from JPA entities in schema: {}", schemaName);
             
         } catch (Exception e) {
@@ -159,6 +178,29 @@ public class TenantSchemaInitializer {
             } catch (Exception e) {
                 log.warn("Failed to reset search path: {}", e.getMessage());
             }
+        }
+    }
+    
+    private void ensureJsonbColumn(String schemaName, String tableName, String columnName) {
+        try {
+            String columnTypeQuery = "SELECT data_type FROM information_schema.columns " +
+                    "WHERE table_schema = ? AND table_name = ? AND column_name = ?";
+            Object dataTypeObj = entityManager.createNativeQuery(columnTypeQuery)
+                    .setParameter(1, schemaName)
+                    .setParameter(2, tableName)
+                    .setParameter(3, columnName)
+                    .getSingleResult();
+
+            String dataType = dataTypeObj != null ? dataTypeObj.toString() : null;
+            if (dataType != null && !dataType.equalsIgnoreCase("jsonb")) {
+                String alter = String.format(
+                        "ALTER TABLE %s.%s ALTER COLUMN %s TYPE JSONB USING %s::jsonb",
+                        schemaName, tableName, columnName, columnName);
+                entityManager.createNativeQuery(alter).executeUpdate();
+                log.info("Altered column {}.{}.{} to JSONB", schemaName, tableName, columnName);
+            }
+        } catch (Exception e) {
+            log.warn("Could not ensure JSONB type for {}.{}.{}: {}", schemaName, tableName, columnName, e.getMessage());
         }
     }
     
@@ -262,6 +304,7 @@ public class TenantSchemaInitializer {
     }
     
     private String getColumnType(Class<?> fieldType) {
+        // Common simple types
         if (fieldType == String.class) {
             return "VARCHAR(255)";
         } else if (fieldType == Long.class || fieldType == long.class) {
@@ -278,9 +321,15 @@ public class TenantSchemaInitializer {
             return "DECIMAL(19,2)";
         } else if (fieldType.isEnum()) {
             return "VARCHAR(50)";
-        } else {
-            // Default for complex types
-            return "VARCHAR(255)";
         }
+
+        // JSON payloads (e.g., OrgConfig.integrations) should not be limited to 255 chars
+        // Map Jackson JsonNode to PostgreSQL JSONB for efficient storage and querying
+        if ("com.fasterxml.jackson.databind.JsonNode".equals(fieldType.getName())) {
+            return "JSONB";
+        }
+
+        // Default for other complex types
+        return "VARCHAR(255)";
     }
 }

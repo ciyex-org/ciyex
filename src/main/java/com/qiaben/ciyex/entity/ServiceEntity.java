@@ -1,4 +1,4 @@
-package com.qiaben.ciyex.model;
+package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
