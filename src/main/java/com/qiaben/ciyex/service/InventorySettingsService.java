@@ -32,6 +32,19 @@ public class InventorySettingsService {
         return toDto(entity);
     }
 
+    @Transactional
+    public InventorySettingsDto updateSettings(Long orgId, InventorySettingsDto dto) {
+        InventorySettings entity = repository.findByOrgId(orgId)
+                .orElse(InventorySettings.builder().orgId(orgId).build());
+
+        entity.setLowStockAlerts(dto.isLowStockAlerts());
+        entity.setAutoReorderSuggestions(dto.isAutoReorderSuggestions());
+        entity.setCriticalLowPercentage(dto.getCriticalLowPercentage());
+        entity.setLastModifiedDate(LocalDateTime.now().toString());
+
+        return toDto(repository.save(entity));
+    }
+
     private InventorySettingsDto toDto(InventorySettings entity) {
         return InventorySettingsDto.builder()
                 .id(entity.getId())
