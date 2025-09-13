@@ -26,4 +26,19 @@ public class InventorySettingsController {
                         .build()
         );
     }
+
+    /** ✅ Update settings for an org */
+    @PutMapping("/{orgId}")
+    public ResponseEntity<ApiResponse<InventorySettingsDto>> update(
+            @PathVariable Long orgId,
+            @RequestBody InventorySettingsDto dto) {
+        InventorySettingsDto updated = service.updateSettings(orgId, dto);
+        return ResponseEntity.ok(
+                ApiResponse.<InventorySettingsDto>builder()
+                        .success(true)
+                        .message("Inventory settings updated successfully")
+                        .data(updated)
+                        .build()
+        );
+    }
 }
