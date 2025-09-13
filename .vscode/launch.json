@@ -55,7 +55,7 @@
       "name": "Launch Spring Boot Backend",
       "type": "java",
       "request": "launch",
-      "mainClass": "com.ciyex.CiyexApplication",
+      "mainClass": "com.qiaben.ciyex.CiyexApplication",
       "projectName": "ciyex",
       "cwd": "${workspaceFolder}",
       "env": {
