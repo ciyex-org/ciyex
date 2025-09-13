@@ -1,5 +1,6 @@
 package com.qiaben.ciyex.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.entity.RoleName;
 import com.qiaben.ciyex.entity.User;
@@ -14,6 +15,14 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static org.apache.jena.vocabulary.VCARD4.role;
@@ -34,6 +43,9 @@ public class AuthController {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+    private static final String RECAPTCHA_SECRET = "6Lc_DccrAAAAAHZoUYbMtwphxkj8objBewMTjEiR"; // v2 secret
+    private static final String RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify";
+
 
     // LOGIN
     @PostMapping("/login")
@@ -111,46 +123,107 @@ public class AuthController {
     }
 
 
+    // ========== REGISTER ==========
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<User>> register(
-            @RequestBody User user,
-            @RequestParam Long orgId,
-            @RequestParam RoleName role   // 👈 take role from URL/query
-    ) {
+            @RequestBody Map<String, Object> payload,
+            @RequestParam(defaultValue = "1") Long orgId,
+            @RequestParam(defaultValue = "PATIENT") RoleName role) {
         try {
+            String captchaToken = (String) payload.get("captcha");
+            if (!verifyCaptcha(captchaToken)) {
+                return ResponseEntity.badRequest().body(ApiResponse.<User>builder()
+                        .success(false)
+                        .message("Captcha verification failed")
+                        .data(null)
+                        .build());
+            }
+
+            User user = new User();
+            user.setFirstName((String) payload.get("firstName"));
+            user.setMiddleName((String) payload.get("middleName"));
+            user.setLastName((String) payload.get("lastName"));
+            user.setDateOfBirth(java.time.LocalDate.parse((String) payload.get("dateOfBirth")));
+            user.setEmail((String) payload.get("email"));
+            user.setPassword((String) payload.get("password"));
+            user.setPhoneNumber((String) payload.get("phoneNumber"));
+            user.setStreet((String) payload.get("street"));
+            user.setCity((String) payload.get("city"));
+            user.setState((String) payload.get("state"));
+            user.setPostalCode((String) payload.get("postalCode"));
+            user.setCountry((String) payload.get("country"));
+
             Optional<User> existingUserOpt = ciyexUserDetailsService.getUserByEmail(user.getEmail());
             User savedUser;
 
             if (existingUserOpt.isPresent()) {
-                // Assign additional role/org
                 savedUser = ciyexUserDetailsService.assignUserToOrg(existingUserOpt.get(), orgId, role);
-                log.info("Existing user assigned role {} with email/org: {}/{}", role, user.getEmail(), orgId);
+                log.info("Existing user assigned role {} for org {}", role, orgId);
             } else {
                 user.setPassword(passwordEncoder.encode(user.getPassword()));
                 savedUser = ciyexUserDetailsService.assignUserToOrg(user, orgId, role);
-                log.info("New user registered with role {} and email/org: {}/{}", role, user.getEmail(), orgId);
+                log.info("New user registered with role {} for org {}", role, orgId);
             }
 
             savedUser.setPassword(null);
             return ResponseEntity.ok(
                     ApiResponse.<User>builder()
                             .success(true)
-                            .message("User registered and assigned to org as " + role)
+                            .message("User registered successfully as " + role)
                             .data(savedUser)
                             .build()
             );
+
         } catch (Exception e) {
-            log.error("Error while registering user: " + user.getEmail(), e);
-            return ResponseEntity.status(500).body(
-                    ApiResponse.<User>builder()
-                            .success(false)
-                            .message("Registration failed")
-                            .data(null)
-                            .build()
-            );
+            log.error("Error while registering user", e);
+            return ResponseEntity.status(500).body(ApiResponse.<User>builder()
+                    .success(false)
+                    .message("Registration failed")
+                    .data(null)
+                    .build());
         }
     }
 
+    private boolean verifyCaptcha(String captchaToken) {
+        try {
+            String url = RECAPTCHA_VERIFY_URL;
+            URL obj = new URL(url);
+            HttpURLConnection conn = (HttpURLConnection) obj.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+            conn.setDoOutput(true);
+
+            String postData = "secret=" + URLEncoder.encode(RECAPTCHA_SECRET, StandardCharsets.UTF_8) +
+                    "&response=" + URLEncoder.encode(captchaToken, StandardCharsets.UTF_8);
+            byte[] postDataBytes = postData.getBytes(StandardCharsets.UTF_8);
+            conn.setRequestProperty("Content-Length", String.valueOf(postDataBytes.length));
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(postDataBytes);
+                os.flush();
+            }
+
+            int responseCode = conn.getResponseCode();
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                throw new IOException("Failed : HTTP error code : " + responseCode);
+            }
+
+            BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+            StringBuilder response = new StringBuilder();
+            String inputLine;
+            while ((inputLine = in.readLine()) != null) {
+                response.append(inputLine);
+            }
+            in.close();
+
+            ObjectMapper mapper = new ObjectMapper();
+            Map<String, Object> json = mapper.readValue(response.toString(), Map.class);
+            return Boolean.TRUE.equals(json.get("success"));
+        } catch (Exception e) {
+            log.error("Captcha verification failed", e);
+            return false;
+        }
+    }
 
     @GetMapping("/encode-password/{rawPassword}")
     public ResponseEntity<ApiResponse<String>> encodePassword(@PathVariable String rawPassword) {
