@@ -25,6 +25,7 @@
 //    @JoinColumn(name = "social_history_id", nullable = false)
 //    private SocialHistory socialHistory;
 //}
+
 package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;

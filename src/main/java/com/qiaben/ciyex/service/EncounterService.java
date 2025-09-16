@@ -4,6 +4,7 @@ package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.EncounterDto;
 import com.qiaben.ciyex.entity.Encounter;
+import com.qiaben.ciyex.entity.EncounterStatus;
 import com.qiaben.ciyex.repository.EncounterRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -77,6 +78,31 @@ public class EncounterService {
             throw new RuntimeException("Encounter not found");
         }
     }
+    @Transactional
+    public EncounterDto signEncounter(Long id, Long patientId, Long orgId) {
+        return updateStatus(id, patientId, orgId, EncounterStatus.SIGNED);
+    }
+
+    @Transactional
+    public EncounterDto unsignEncounter(Long id, Long patientId, Long orgId) {
+        return updateStatus(id, patientId, orgId, EncounterStatus.UNSIGNED);
+    }
+
+    @Transactional
+    public EncounterDto markIncomplete(Long id, Long patientId, Long orgId) {
+        return updateStatus(id, patientId, orgId, EncounterStatus.INCOMPLETE);
+    }
+
+    private EncounterDto updateStatus(Long id, Long patientId, Long orgId, EncounterStatus status) {
+        Encounter encounter = encounterRepository
+                .findByIdAndPatientIdAndOrgId(id, patientId, orgId)
+                .orElseThrow(() -> new RuntimeException("Encounter not found"));
+        encounter.setStatus(status);
+        encounter.setUpdatedAt(System.currentTimeMillis());
+        encounter = encounterRepository.save(encounter);
+        return mapToDto(encounter);
+    }
+
 
     // ----- Mappers -----
 
@@ -94,6 +120,7 @@ public class EncounterService {
         e.setEncounterDate(dto.getEncounterDate());
         e.setCreatedAt(dto.getCreatedAt() != null ? dto.getCreatedAt() : 0L);
         e.setUpdatedAt(dto.getUpdatedAt() != null ? dto.getUpdatedAt() : 0L);
+        e.setStatus(dto.getStatus());
         return e;
     }
 
@@ -112,6 +139,7 @@ public class EncounterService {
 
         dto.setCreatedAt(e.getCreatedAt());
         dto.setUpdatedAt(e.getUpdatedAt());
+        dto.setStatus(e.getStatus());
         return dto;
     }
 }

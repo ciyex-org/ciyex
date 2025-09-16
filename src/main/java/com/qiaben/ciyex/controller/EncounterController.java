@@ -134,6 +134,70 @@ public class EncounterController {
                     .build());
         }
     }
+    @PostMapping("/{id}/sign")
+    public ResponseEntity<ApiResponse<EncounterDto>> signEncounter(
+            @PathVariable Long patientId,
+            @PathVariable Long id,
+            @RequestHeader("orgId") Long orgId
+    ) {
+        try {
+            EncounterDto dto = encounterService.signEncounter(id, patientId, orgId);
+            return ResponseEntity.ok(ApiResponse.<EncounterDto>builder()
+                    .success(true)
+                    .message("Encounter signed")
+                    .data(dto)
+                    .build());
+        } catch (Exception e) {
+            return ResponseEntity.status(400).body(ApiResponse.<EncounterDto>builder()
+                    .success(false)
+                    .message("Failed to sign encounter: " + e.getMessage())
+                    .build());
+        }
+    }
+
+    @PostMapping("/{id}/unsign")
+    public ResponseEntity<ApiResponse<EncounterDto>> unsignEncounter(
+            @PathVariable Long patientId,
+            @PathVariable Long id,
+            @RequestHeader("orgId") Long orgId
+    ) {
+        try {
+            EncounterDto dto = encounterService.unsignEncounter(id, patientId, orgId);
+            return ResponseEntity.ok(ApiResponse.<EncounterDto>builder()
+                    .success(true)
+                    .message("Encounter unsigned")
+                    .data(dto)
+                    .build());
+        } catch (Exception e) {
+            return ResponseEntity.status(400).body(ApiResponse.<EncounterDto>builder()
+                    .success(false)
+                    .message("Failed to unsign encounter: " + e.getMessage())
+                    .build());
+        }
+    }
+
+    @PostMapping("/{id}/incomplete")
+    public ResponseEntity<ApiResponse<EncounterDto>> markIncomplete(
+            @PathVariable Long patientId,
+            @PathVariable Long id,
+            @RequestHeader("orgId") Long orgId
+    ) {
+        try {
+            EncounterDto dto = encounterService.markIncomplete(id, patientId, orgId);
+            return ResponseEntity.ok(ApiResponse.<EncounterDto>builder()
+                    .success(true)
+                    .message("Encounter marked incomplete")
+                    .data(dto)
+                    .build());
+        } catch (Exception e) {
+            return ResponseEntity.status(400).body(ApiResponse.<EncounterDto>builder()
+                    .success(false)
+                    .message("Failed to mark encounter incomplete: " + e.getMessage())
+                    .build());
+        }
+    }
+
+
 }
 
 

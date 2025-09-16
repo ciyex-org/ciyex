@@ -24,7 +24,6 @@
 //    private String lastModifiedDate;   // yyyy-MM-dd
 //}
 
-
 package com.qiaben.ciyex.dto;
 
 import lombok.Data;

@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.storage;
 
 
+
 import com.qiaben.ciyex.entity.Vitals;
 
 public interface ExternalVitalsStorage {

@@ -22,6 +22,10 @@ public class Encounter {
     private String reasonForVisit;
     private Boolean inCollection;
     private Long orgId;
+
+    @Enumerated(EnumType.STRING)
+    private EncounterStatus status = EncounterStatus.UNSIGNED; // default
+
     @Column(nullable = false, updatable = false)
     private Long createdAt;
     @Column(name = "encounter_date")

@@ -1,5 +1,8 @@
+
+
 package com.qiaben.ciyex.dto;
 
+import com.qiaben.ciyex.entity.EncounterStatus;
 import lombok.Data;
 
 import java.time.Instant;
@@ -20,7 +23,7 @@ public class EncounterDto {
     private Long updatedAt;
     private Boolean inCollection;
     private Instant encounterDate;
-
+    private EncounterStatus status;
 
 
 }
