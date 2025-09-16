@@ -1,0 +1,14 @@
+{
+  "dependencies": {
+    "framer-motion": "^12.23.12",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.2",
+    "lucide-react": "^0.542.0",
+    "zod": "^4.1.4"
+  },
+  "devDependencies": {
+    "@types/next": "^8.0.7",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9"
+  }
+}
