@@ -138,6 +138,15 @@ public class AppointmentService {
         repository.delete(entity);
     }
 
+    @Transactional(readOnly = true)
+    public long count() {
+        Long orgId = getCurrentOrgId();
+        if (orgId == null) {
+            throw new SecurityException("No orgId available in request context");
+        }
+        return repository.countByOrgId(orgId);
+    }
+
     // -------- Mapping Helpers --------
     private Appointment mapToEntity(AppointmentDTO dto) {
         Appointment entity = new Appointment();

@@ -12,6 +12,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Service
 @Slf4j
 public class OrgService {
@@ -188,6 +191,29 @@ public class OrgService {
         repository.delete(org);
         log.info("Deleted org with id: {} from DB for orgId: {}", id, currentOrgId);
     }
+
+    @Transactional(readOnly = true)
+    public List<OrgDto> getAll() {
+        Long currentOrgId = getCurrentOrgId();
+
+        // If no orgId (like during signup), allow returning all
+        if (currentOrgId == null) {
+            log.info("No orgId in context, returning all orgs for signup/public view");
+            return repository.findAll()
+                    .stream()
+                    .map(this::mapToDto)
+                    .collect(Collectors.toList());
+        }
+
+        // Otherwise, return only the current org
+        return repository.findAll().stream()
+                .filter(org -> currentOrgId.equals(org.getId()))
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
+    }
+
+
+
 
     private Org mapToEntity(OrgDto dto) {
         return Org.builder()
