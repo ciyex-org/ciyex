@@ -1,6 +1,5 @@
 
 
-
 package com.qiaben.ciyex.dto;
 
 import com.qiaben.ciyex.entity.EncounterStatus;

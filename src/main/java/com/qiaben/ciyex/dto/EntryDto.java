@@ -1,5 +1,4 @@
 
-
 package com.qiaben.ciyex.dto;
 
 public class EntryDto {

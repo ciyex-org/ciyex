@@ -2,7 +2,8 @@
 
 package com.qiaben.ciyex.entity;
 
-import jakarta.persistence.*;
+import
+        jakarta.persistence.*;
 import lombok.Data;
 
 import java.time.Instant;
