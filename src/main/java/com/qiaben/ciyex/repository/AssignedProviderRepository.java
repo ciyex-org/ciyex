@@ -17,6 +17,7 @@
 //            Long orgId, Long patientId, Long encounterId, Long id);
 //}
 
+
 package com.qiaben.ciyex.repository;
 
 import com.qiaben.ciyex.entity.AssignedProvider;

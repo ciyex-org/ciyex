@@ -43,6 +43,7 @@
 //    private LocalDateTime updatedAt;
 //}
 
+
 package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
