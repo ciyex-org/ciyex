@@ -29,6 +29,7 @@
 //    List<Code> searchInEncounter(Long orgId, Long patientId, Long encounterId, String codeType, Boolean active, String q);
 //}
 
+
 package com.qiaben.ciyex.repository;
 
 import com.qiaben.ciyex.entity.Code;
