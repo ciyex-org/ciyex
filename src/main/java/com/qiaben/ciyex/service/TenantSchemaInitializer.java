@@ -6,12 +6,18 @@ import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.boot.Metadata;
+import org.hibernate.boot.MetadataSources;
+import org.hibernate.boot.registry.StandardServiceRegistry;
+import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
+import java.util.ArrayList;
 
 @Slf4j
 @Service
@@ -141,26 +147,14 @@ public class TenantSchemaInitializer {
             // Set search path to tenant schema only (not including public)
             entityManager.createNativeQuery("SET search_path TO " + schemaName).executeUpdate();
             
-            // Get the current SessionFactory to access Hibernate metadata
-            SessionFactoryImplementor sessionFactory = entityManagerFactory.unwrap(SessionFactoryImplementor.class);
+            // Get all tenant entities
+            List<Class<?>> tenantEntities = getAllTenantEntities();
+            log.info("Found {} tenant entities to create in schema: {}", tenantEntities.size(), schemaName);
             
-            // Get all entity metadata from the current session factory
-            sessionFactory.getMetamodel().getManagedTypes().forEach(managedType -> {
-                Class<?> entityClass = managedType.getJavaType();
-                log.info("Processing entity: {} ({})", entityClass.getSimpleName(), entityClass.getName());
-                
-                if (isTenantEntity(entityClass)) {
-                    try {
-                        log.info("Creating table for TENANT entity: {}", entityClass.getSimpleName());
-                        createTableForEntity(entityClass, schemaName);
-                        log.debug("Created table for entity: {}", entityClass.getSimpleName());
-                    } catch (Exception e) {
-                        log.warn("Failed to create table for entity {}: {}", entityClass.getSimpleName(), e.getMessage());
-                    }
-                } else {
-                    log.info("Skipping MASTER entity: {} ({})", entityClass.getSimpleName(), entityClass.getName());
-                }
-            });
+            if (!tenantEntities.isEmpty()) {
+                // Create all tenant tables using Hibernate schema generation
+                createAllTenantTablesWithHibernate(tenantEntities, schemaName);
+            }
             
             // Ensure known JSON columns use JSONB type (avoid 255-char limit)
             ensureJsonbColumn(schemaName, "org_config", "integrations");
@@ -177,6 +171,76 @@ public class TenantSchemaInitializer {
                 log.debug("Reset search path to public schema");
             } catch (Exception e) {
                 log.warn("Failed to reset search path: {}", e.getMessage());
+            }
+        }
+    }
+    
+    private List<Class<?>> getAllTenantEntities() {
+        List<Class<?>> tenantEntities = new ArrayList<>();
+        
+        // Get the current SessionFactory to access Hibernate metadata
+        SessionFactoryImplementor sessionFactory = entityManagerFactory.unwrap(SessionFactoryImplementor.class);
+        
+        // Get all entity metadata from the current session factory
+        sessionFactory.getMetamodel().getManagedTypes().forEach(managedType -> {
+            Class<?> entityClass = managedType.getJavaType();
+            log.debug("Processing entity: {} ({})", entityClass.getSimpleName(), entityClass.getName());
+            
+            if (isTenantEntity(entityClass)) {
+                log.info("Adding TENANT entity: {}", entityClass.getSimpleName());
+                tenantEntities.add(entityClass);
+            } else {
+                log.debug("Skipping MASTER entity: {} ({})", entityClass.getSimpleName(), entityClass.getName());
+            }
+        });
+        
+        return tenantEntities;
+    }
+    
+    private void createAllTenantTablesWithHibernate(List<Class<?>> tenantEntities, String schemaName) {
+        try {
+            log.info("Creating {} tenant tables using Hibernate schema generation in schema: {}", 
+                    tenantEntities.size(), schemaName);
+            
+            // Create a temporary Hibernate configuration for tenant schema generation
+            StandardServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder()
+                    .applySetting("hibernate.connection.url", "jdbc:postgresql://localhost:5432/ciyexdb")
+                    .applySetting("hibernate.connection.username", "postgres")
+                    .applySetting("hibernate.connection.password", "postgres")
+                    .applySetting("hibernate.connection.driver_class", "org.postgresql.Driver")
+                    .applySetting("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect")
+                    .applySetting("hibernate.hbm2ddl.auto", "create")
+                    .applySetting("hibernate.default_schema", schemaName)
+                    .applySetting("hibernate.show_sql", "true")
+                    .build();
+
+            // Build metadata from tenant entities only
+            MetadataSources metadataSources = new MetadataSources(serviceRegistry);
+            for (Class<?> entityClass : tenantEntities) {
+                log.debug("Adding entity to metadata: {}", entityClass.getSimpleName());
+                metadataSources.addAnnotatedClass(entityClass);
+            }
+            
+            Metadata metadata = metadataSources.buildMetadata();
+
+            // Create the schema using Hibernate's schema management tool
+            org.hibernate.SessionFactory sessionFactory = metadata.getSessionFactoryBuilder().build();
+            
+            log.info("Successfully created {} tenant tables using Hibernate schema generation", tenantEntities.size());
+            
+            sessionFactory.close();
+            serviceRegistry.close();
+            
+        } catch (Exception e) {
+            log.error("Failed to create tenant tables using Hibernate schema generation", e);
+            // Fallback to individual table creation
+            log.info("Falling back to individual table creation...");
+            for (Class<?> entityClass : tenantEntities) {
+                try {
+                    createTableForEntity(entityClass, schemaName);
+                } catch (Exception ex) {
+                    log.warn("Failed to create table for entity {}: {}", entityClass.getSimpleName(), ex.getMessage());
+                }
             }
         }
     }
