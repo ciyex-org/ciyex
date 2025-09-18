@@ -4,7 +4,6 @@ import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.PatientDto;
 import com.qiaben.ciyex.entity.Patient;
 import com.qiaben.ciyex.repository.PatientRepository;
-import com.qiaben.ciyex.repository.TenantAwarePatientRepository;
 import com.qiaben.ciyex.storage.ExternalStorage;
 import com.qiaben.ciyex.storage.ExternalStorageResolver;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
@@ -27,17 +26,17 @@ public class PatientService {
     private final PatientRepository repository;
     private final ExternalStorageResolver storageResolver;
     private final OrgIntegrationConfigProvider configProvider;
-    private final TenantAwarePatientRepository tenantAwareRepository;
+    private final TenantSchemaInitializer tenantSchemaInitializer;
 
     @Autowired
     public PatientService(PatientRepository repository,
                           ExternalStorageResolver storageResolver,
                           OrgIntegrationConfigProvider configProvider,
-                          TenantAwarePatientRepository tenantAwareRepository) {
+                          TenantSchemaInitializer tenantSchemaInitializer) {
         this.repository = repository;
         this.storageResolver = storageResolver;
         this.configProvider = configProvider;
-        this.tenantAwareRepository = tenantAwareRepository;
+        this.tenantSchemaInitializer = tenantSchemaInitializer;
     }
 
     @Transactional(readOnly = true)
@@ -89,9 +88,10 @@ public class PatientService {
         }
 
         patient.setExternalId(externalId);
-        
-        // Execute database save with tenant schema context
-        patient = tenantAwareRepository.saveWithTenantSchema(patient);
+        tenantSchemaInitializer.initializeTenantSchema(currentOrgId);
+
+        // Save within tenant schema (AutoSchemaAspect sets search_path)
+        patient = repository.save(patient);
         
         if (patient.getId() == null) {
             log.error("Database save failed to generate id for patient with externalId: {} and orgId: {}", externalId, currentOrgId);
@@ -114,7 +114,7 @@ public class PatientService {
             throw new SecurityException("No orgId available in request context");
         }
 
-        Patient patient = tenantAwareRepository.findByIdWithTenantSchema(id)
+        Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
 
         if (!currentOrgId.equals(patient.getOrgId())) {
@@ -226,7 +226,7 @@ public class PatientService {
                     .build();
         }
 
-        List<Patient> patients = tenantAwareRepository.findAllWithTenantSchema();
+        List<Patient> patients = repository.findAllByOrgId(currentOrgId);
         List<PatientDto> patientDtos = patients.stream().map(this::mapToDto).collect(Collectors.toList());
 
         return ApiResponse.<List<PatientDto>>builder()
@@ -267,7 +267,7 @@ public class PatientService {
             // TODO: Add tenant-aware search method
             page = repository.searchByOrgId(search.toLowerCase(), currentOrgId, pageable);
         } else {
-            page = tenantAwareRepository.findAllWithTenantSchema(pageable);
+            page = repository.findAllByOrgId(currentOrgId, pageable);
         }
         return page.map(this::mapToDto);
     }
