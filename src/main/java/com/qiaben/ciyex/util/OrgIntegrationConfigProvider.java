@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Objects;
+
 @Component
 public class OrgIntegrationConfigProvider {
 
@@ -26,10 +28,20 @@ public class OrgIntegrationConfigProvider {
     @SuppressWarnings("unchecked")
     @Transactional
     public <T> T get(Long orgId, IntegrationKey integrationKey) {
-        // Set tenant context before accessing org_config
-        RequestContext context = new RequestContext();
-        context.setOrgId(orgId);
-        RequestContext.set(context);
+        // Ensure RequestContext carries the target orgId for the duration of the lookup
+        RequestContext previousContext = RequestContext.get();
+        boolean contextAdjusted = false;
+        if (previousContext == null || !Objects.equals(previousContext.getOrgId(), orgId)) {
+            RequestContext context = new RequestContext();
+            if (previousContext != null) {
+                context.setAuthToken(previousContext.getAuthToken());
+                context.setFacilityId(previousContext.getFacilityId());
+                context.setRole(previousContext.getRole());
+            }
+            context.setOrgId(orgId);
+            RequestContext.set(context);
+            contextAdjusted = true;
+        }
         try {
             OrgConfig orgConfig = orgConfigRepository.findByOrgId(orgId)
                     .orElseThrow(() -> new RuntimeException("OrgConfig not found for orgId: " + orgId));
@@ -42,7 +54,13 @@ public class OrgIntegrationConfigProvider {
                 throw new RuntimeException("Failed to map integration config for " + integrationKey.key(), e);
             }
         } finally {
-            RequestContext.clear();
+            if (contextAdjusted) {
+                if (previousContext != null) {
+                    RequestContext.set(previousContext);
+                } else {
+                    RequestContext.clear();
+                }
+            }
         }
     }
 
@@ -54,10 +72,20 @@ public class OrgIntegrationConfigProvider {
 
     @Transactional
     public String getStorageType(Long orgId) {
-        // Set tenant context before accessing org_config
-        RequestContext context = new RequestContext();
-        context.setOrgId(orgId);
-        RequestContext.set(context);
+        // Ensure RequestContext carries the target orgId for the duration of the lookup
+        RequestContext previousContext = RequestContext.get();
+        boolean contextAdjusted = false;
+        if (previousContext == null || !Objects.equals(previousContext.getOrgId(), orgId)) {
+            RequestContext context = new RequestContext();
+            if (previousContext != null) {
+                context.setAuthToken(previousContext.getAuthToken());
+                context.setFacilityId(previousContext.getFacilityId());
+                context.setRole(previousContext.getRole());
+            }
+            context.setOrgId(orgId);
+            RequestContext.set(context);
+            contextAdjusted = true;
+        }
         try {
             OrgConfig orgConfig = orgConfigRepository.findByOrgId(orgId)
                     .orElseThrow(() -> new RuntimeException("OrgConfig not found for orgId: " + orgId));
@@ -78,7 +106,13 @@ public class OrgIntegrationConfigProvider {
 
             return null; // No storage type detected
         } finally {
-            RequestContext.clear();
+            if (contextAdjusted) {
+                if (previousContext != null) {
+                    RequestContext.set(previousContext);
+                } else {
+                    RequestContext.clear();
+                }
+            }
         }
     }
 
