@@ -75,5 +75,21 @@
       "vscjava.vscode-java-pack",
       "ms-kubernetes-tools.vscode-kubernetes-tools"
     ]
-  }
+  },
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.debug.settings.onBuildFailureProceed": true,
+  "sqltools.connections": [
+    {
+      "ssh": "Disabled",
+      "previewLimit": 50,
+      "server": "localhost",
+      "port": 5432,
+      "driver": "PostgreSQL",
+      "name": "localhost",
+      "database": "ciyexdb",
+      "username": "postgres",
+      "password": "postgres"
+    }
+  ]
 }

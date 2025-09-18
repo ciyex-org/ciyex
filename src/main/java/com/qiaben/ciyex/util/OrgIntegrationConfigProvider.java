@@ -8,6 +8,9 @@ import com.qiaben.ciyex.entity.OrgConfig;
 import com.qiaben.ciyex.repository.OrgConfigRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Objects;
 
 @Component
 public class OrgIntegrationConfigProvider {
@@ -23,16 +26,41 @@ public class OrgIntegrationConfigProvider {
 
     // Core method: Always use IntegrationKey (which knows both key and class)
     @SuppressWarnings("unchecked")
+    @Transactional
     public <T> T get(Long orgId, IntegrationKey integrationKey) {
-        OrgConfig orgConfig = orgConfigRepository.findByOrgId(orgId)
-                .orElseThrow(() -> new RuntimeException("OrgConfig not found for orgId: " + orgId));
-        if (orgConfig.getIntegrations() == null) return null;
-        JsonNode section = orgConfig.getIntegrations().get(integrationKey.key());
-        if (section == null || section.isNull()) return null;
+        // Ensure RequestContext carries the target orgId for the duration of the lookup
+        RequestContext previousContext = RequestContext.get();
+        boolean contextAdjusted = false;
+        if (previousContext == null || !Objects.equals(previousContext.getOrgId(), orgId)) {
+            RequestContext context = new RequestContext();
+            if (previousContext != null) {
+                context.setAuthToken(previousContext.getAuthToken());
+                context.setFacilityId(previousContext.getFacilityId());
+                context.setRole(previousContext.getRole());
+            }
+            context.setOrgId(orgId);
+            RequestContext.set(context);
+            contextAdjusted = true;
+        }
         try {
-            return (T) objectMapper.treeToValue(section, integrationKey.clazz());
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to map integration config for " + integrationKey.key(), e);
+            OrgConfig orgConfig = orgConfigRepository.findByOrgId(orgId)
+                    .orElseThrow(() -> new RuntimeException("OrgConfig not found for orgId: " + orgId));
+            if (orgConfig.getIntegrations() == null) return null;
+            JsonNode section = orgConfig.getIntegrations().get(integrationKey.key());
+            if (section == null || section.isNull()) return null;
+            try {
+                return (T) objectMapper.treeToValue(section, integrationKey.clazz());
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to map integration config for " + integrationKey.key(), e);
+            }
+        } finally {
+            if (contextAdjusted) {
+                if (previousContext != null) {
+                    RequestContext.set(previousContext);
+                } else {
+                    RequestContext.clear();
+                }
+            }
         }
     }
 
@@ -42,25 +70,50 @@ public class OrgIntegrationConfigProvider {
         return get(orgId, integrationKey);
     }
 
+    @Transactional
     public String getStorageType(Long orgId) {
-        OrgConfig orgConfig = orgConfigRepository.findByOrgId(orgId)
-                .orElseThrow(() -> new RuntimeException("OrgConfig not found for orgId: " + orgId));
-        if (orgConfig.getIntegrations() == null) return null;
-        JsonNode integrations = orgConfig.getIntegrations();
-
-        // Check for explicit 'storage_type' field
-        if (integrations.has("storage_type")) {
-            return integrations.get("storage_type").asText(null);
+        // Ensure RequestContext carries the target orgId for the duration of the lookup
+        RequestContext previousContext = RequestContext.get();
+        boolean contextAdjusted = false;
+        if (previousContext == null || !Objects.equals(previousContext.getOrgId(), orgId)) {
+            RequestContext context = new RequestContext();
+            if (previousContext != null) {
+                context.setAuthToken(previousContext.getAuthToken());
+                context.setFacilityId(previousContext.getFacilityId());
+                context.setRole(previousContext.getRole());
+            }
+            context.setOrgId(orgId);
+            RequestContext.set(context);
+            contextAdjusted = true;
         }
+        try {
+            OrgConfig orgConfig = orgConfigRepository.findByOrgId(orgId)
+                    .orElseThrow(() -> new RuntimeException("OrgConfig not found for orgId: " + orgId));
+            if (orgConfig.getIntegrations() == null) return null;
+            JsonNode integrations = orgConfig.getIntegrations();
 
-        // Infer based on present integration keys (prioritize FHIR, then PRACTICE_DB, etc.)
-        if (integrations.has(IntegrationKey.FHIR.key())) {
-            return "fhir";
-        } else if (integrations.has(IntegrationKey.PRACTICE_DB.key())) {
-            return "practice_db";
-        } // Add more inferences as needed for other potential storage types
+            // Check for explicit 'storage_type' field
+            if (integrations.has("storage_type")) {
+                return integrations.get("storage_type").asText(null);
+            }
 
-        return null; // No storage type detected
+            // Infer based on present integration keys (prioritize FHIR, then PRACTICE_DB, etc.)
+            if (integrations.has(IntegrationKey.FHIR.key())) {
+                return "fhir";
+            } else if (integrations.has(IntegrationKey.PRACTICE_DB.key())) {
+                return "practice_db";
+            } // Add more inferences as needed for other potential storage types
+
+            return null; // No storage type detected
+        } finally {
+            if (contextAdjusted) {
+                if (previousContext != null) {
+                    RequestContext.set(previousContext);
+                } else {
+                    RequestContext.clear();
+                }
+            }
+        }
     }
 
     public String getStorageTypeForCurrentOrg() {
