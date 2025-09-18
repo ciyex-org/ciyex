@@ -7,6 +7,7 @@ import com.qiaben.ciyex.repository.OrgRepository;
 import com.qiaben.ciyex.service.TenantSchemaInitializer;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import org.flywaydb.core.Flyway;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.Metadata;
@@ -19,7 +20,9 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Service to initialize master schema tables during startup.
@@ -39,6 +42,9 @@ public class MasterSchemaInitializer {
     @Autowired
     private TenantSchemaInitializer tenantSchemaInitializer;
 
+    @Autowired
+    private Flyway masterFlyway;
+
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void initializeMasterSchema() {
@@ -48,13 +54,21 @@ public class MasterSchemaInitializer {
             // Ensure we're in the public schema
             entityManager.createNativeQuery("SET search_path TO public").executeUpdate();
 
+            Set<Long> existingOrgIds = fetchExistingOrgIds();
+
             // Create master schema tables using JPA entities
             createMasterSchemaTables();
+
+            // Apply master schema Flyway migrations (data, seed scripts, etc.)
+            masterFlyway.migrate();
+
+            // Clear persistence context to ensure we see fresh data post-migration
+            entityManager.clear();
 
             log.info("Master schema initialization completed successfully");
             
             // After master schema is initialized, check and initialize tenant schemas
-            initializeTenantSchemasForExistingOrgs();
+            initializeTenantSchemasForExistingOrgs(existingOrgIds);
             
         } catch (Exception e) {
             log.error("Failed to initialize master schema", e);
@@ -119,7 +133,7 @@ public class MasterSchemaInitializer {
         }
     }
     
-    private void initializeTenantSchemasForExistingOrgs() {
+    private void initializeTenantSchemasForExistingOrgs(Set<Long> orgIdsBeforeMigration) {
         log.info("Scanning orgs table to initialize missing tenant schemas...");
         
         try {
@@ -135,18 +149,33 @@ public class MasterSchemaInitializer {
             // Get all organizations from the master schema
             List<Org> allOrgs = orgRepository.findAll();
             log.info("Found {} organizations in master schema", allOrgs.size());
-            
+
+            Set<Long> newOrgIds = new HashSet<>();
+            if (orgIdsBeforeMigration != null && !orgIdsBeforeMigration.isEmpty()) {
+                for (Org org : allOrgs) {
+                    if (!orgIdsBeforeMigration.contains(org.getId())) {
+                        newOrgIds.add(org.getId());
+                    }
+                }
+            } else {
+                allOrgs.forEach(org -> newOrgIds.add(org.getId()));
+            }
+
             for (Org org : allOrgs) {
                 Long orgId = org.getId();
                 String tenantSchemaName = "practice_" + orgId;
-                
+
                 // Check if tenant schema exists
                 if (!tenantSchemaExists(tenantSchemaName)) {
                     log.info("Tenant schema {} not found for org ID {}. Initializing...", tenantSchemaName, orgId);
                     tenantSchemaInitializer.initializeTenantSchema(orgId);
                     log.info("Successfully initialized tenant schema for org ID {}", orgId);
                 } else {
-                    log.debug("Tenant schema {} already exists for org ID {}", tenantSchemaName, orgId);
+                    if (newOrgIds.contains(orgId)) {
+                        log.info("Schema {} already existed but org {} is new this run. Ensuring migrations are applied.", tenantSchemaName, orgId);
+                    } else {
+                        log.debug("Tenant schema {} already exists for org ID {}", tenantSchemaName, orgId);
+                    }
                     // Run idempotent migrations to keep schema up to date (e.g., JSONB columns)
                     tenantSchemaInitializer.runTenantMigrations(orgId);
                 }
@@ -171,6 +200,26 @@ public class MasterSchemaInitializer {
             log.warn("Failed to check if schema {} exists: {}", schemaName, e.getMessage());
             return false;
         }
+    }
+
+    private Set<Long> fetchExistingOrgIds() {
+        Set<Long> orgIds = new HashSet<>();
+        try {
+            if (!tableExists("orgs")) {
+                return orgIds;
+            }
+
+            @SuppressWarnings("unchecked")
+            List<Object> results = entityManager.createNativeQuery("SELECT id FROM orgs").getResultList();
+            for (Object result : results) {
+                if (result instanceof Number number) {
+                    orgIds.add(number.longValue());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch existing org IDs: {}", e.getMessage());
+        }
+        return orgIds;
     }
     
     private boolean tableExists(String tableName) {

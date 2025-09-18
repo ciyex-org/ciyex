@@ -102,6 +102,12 @@ New entities will automatically be created in tenant schemas when:
 2. The package is included in `@EntityScan` or `packagesToScan`
 3. Hibernate DDL is enabled
 
+### Flyway Migrations
+- Master (public schema) migrations live in `db/migration/master/<env>` with shared scripts in `db/migration/master/base`
+- Tenant migrations are stored in `db/migration/tenant/<env>` with shared scripts in `db/migration/tenant/base`
+- Control which environment-specific folder runs by setting the `CIYEX_ENV` environment variable (defaults to `local`)
+- Flyway executes after the schema initializers finish building tables, so scripts should remain idempotent and focus on data or post-DDL adjustments
+
 ### Testing Multi-Tenancy
 1. Create test organizations in `ciyexdb`
 2. Assign users to organizations via `user_org_roles`

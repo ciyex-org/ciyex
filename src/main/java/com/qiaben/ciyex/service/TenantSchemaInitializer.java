@@ -1,10 +1,10 @@
 package com.qiaben.ciyex.service;
 
+import com.qiaben.ciyex.migration.TenantFlywayMigrator;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.PersistenceContext;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.boot.Metadata;
 import org.hibernate.boot.MetadataSources;
@@ -14,6 +14,10 @@ import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
@@ -28,6 +32,12 @@ public class TenantSchemaInitializer {
     
     @Autowired
     private EntityManagerFactory entityManagerFactory;
+
+    @Autowired
+    private TenantFlywayMigrator tenantFlywayMigrator;
+
+    @Autowired
+    private DataSource dataSource;
     
     // Cache to track initialized schemas
     private final ConcurrentHashMap<Long, Boolean> initializedSchemas = new ConcurrentHashMap<>();
@@ -38,36 +48,6 @@ public class TenantSchemaInitializer {
         log.info("Testing tenant schema creation for orgId: 1");
         initializeTenantSchema(1L);
         log.info("Test tenant schema creation completed");
-    }
-    
-    // Method to test enhanced entity scanning with detailed logging
-    @Transactional
-    public void testEnhancedEntityScanning() {
-        Long testOrgId = 99L;
-        log.info("Testing enhanced entity scanning for orgId: {}", testOrgId);
-        
-        try {
-            // Clear cache to ensure fresh creation
-            initializedSchemas.remove(testOrgId);
-            
-            // Get all managed types and log them
-            SessionFactoryImplementor sessionFactory = entityManagerFactory.unwrap(SessionFactoryImplementor.class);
-            log.info("Scanning all JPA entities...");
-            
-            sessionFactory.getMetamodel().getManagedTypes().forEach(managedType -> {
-                Class<?> entityClass = managedType.getJavaType();
-                boolean isTenant = isTenantEntity(entityClass);
-                log.info("Entity: {} - Is Tenant Entity: {} - Full Class Name: {}", 
-                    entityClass.getSimpleName(), isTenant, entityClass.getName());
-            });
-            
-            // Create tenant schema
-            initializeTenantSchema(testOrgId);
-            
-            log.info("Enhanced entity scanning test completed for orgId: {}", testOrgId);
-        } catch (Exception e) {
-            log.error("Enhanced entity scanning test failed", e);
-        }
     }
     
     @Transactional
@@ -97,13 +77,14 @@ public class TenantSchemaInitializer {
         if (orgId == null) {
             return;
         }
-        
-        if (initializedSchemas.containsKey(orgId)) {
-            log.debug("Tenant schema already initialized for orgId: {}", orgId);
-            return;
-        }
 
         String schemaName = "practice_" + orgId;
+
+        if (initializedSchemas.containsKey(orgId)) {
+            log.debug("Tenant schema already initialized for orgId: {}. Running pending Flyway migrations.", orgId);
+            tenantFlywayMigrator.migrate(schemaName, orgId);
+            return;
+        }
         
         try {
             // Create schema if it doesn't exist
@@ -111,6 +92,9 @@ public class TenantSchemaInitializer {
             
             // Create all tenant tables using Hibernate metadata
             createTenantTablesFromEntities(schemaName);
+
+            // Apply tenant-specific Flyway migrations after tables exist
+            tenantFlywayMigrator.migrate(schemaName, orgId);
             
             // Mark as initialized
             initializedSchemas.put(orgId, true);
@@ -131,6 +115,7 @@ public class TenantSchemaInitializer {
             // Use only the tenant schema in search_path
             entityManager.createNativeQuery("SET search_path TO " + schemaName).executeUpdate();
             ensureJsonbColumn(schemaName, "org_config", "integrations");
+            tenantFlywayMigrator.migrate(schemaName, orgId);
         } catch (Exception e) {
             log.warn("Tenant migration failed for schema {}: {}", schemaName, e.getMessage());
         } finally {
@@ -139,7 +124,12 @@ public class TenantSchemaInitializer {
     }
     
     private void createSchemaIfNotExists(String schemaName) {
-        entityManager.createNativeQuery("CREATE SCHEMA IF NOT EXISTS " + schemaName).executeUpdate();
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement()) {
+            statement.executeUpdate("CREATE SCHEMA IF NOT EXISTS " + schemaName);
+        } catch (SQLException ex) {
+            throw new RuntimeException("Failed to create schema: " + schemaName, ex);
+        }
     }
     
     private void createTenantTablesFromEntities(String schemaName) {

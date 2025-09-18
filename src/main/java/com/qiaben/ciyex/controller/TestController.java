@@ -45,23 +45,4 @@ public class TestController {
             "message", "Use database client to check schemas: SELECT schema_name FROM information_schema.schemata;"
         ));
     }
-    
-    @PostMapping("/enhanced-entity-scan")
-    public ResponseEntity<Map<String, String>> testEnhancedEntityScanning() {
-        try {
-            log.info("Testing enhanced entity scanning via API");
-            tenantSchemaInitializer.testEnhancedEntityScanning();
-            
-            return ResponseEntity.ok(Map.of(
-                "status", "success",
-                "message", "Enhanced entity scanning test completed - check logs for details"
-            ));
-        } catch (Exception e) {
-            log.error("Enhanced entity scanning test failed", e);
-            return ResponseEntity.internalServerError().body(Map.of(
-                "status", "error",
-                "message", "Enhanced entity scanning test failed: " + e.getMessage()
-            ));
-        }
-    }
 }
