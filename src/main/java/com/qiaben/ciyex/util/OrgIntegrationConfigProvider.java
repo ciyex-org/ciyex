@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.integration.IntegrationKey;
 import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.dto.integration.StripeConfig;
 import com.qiaben.ciyex.entity.OrgConfig;
 import com.qiaben.ciyex.repository.OrgConfigRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,6 +71,11 @@ public class OrgIntegrationConfigProvider {
         return get(orgId, integrationKey);
     }
 
+    /** ✅ Shortcut for Stripe */
+    public StripeConfig getStripeForCurrentOrg() {
+        return getForCurrentOrg(IntegrationKey.STRIPE);
+    }
+
     @Transactional
     public String getStorageType(Long orgId) {
         // Ensure RequestContext carries the target orgId for the duration of the lookup
@@ -121,7 +127,6 @@ public class OrgIntegrationConfigProvider {
         if (orgId == null) throw new IllegalStateException("No orgId in request context");
         return getStorageType(orgId);
     }
-
 }
 
 /*
