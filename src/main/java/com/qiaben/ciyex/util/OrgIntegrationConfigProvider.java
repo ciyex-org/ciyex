@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.integration.IntegrationKey;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.dto.integration.StripeConfig;
+import com.qiaben.ciyex.dto.integration.GpsConfig;
 import com.qiaben.ciyex.entity.OrgConfig;
 import com.qiaben.ciyex.repository.OrgConfigRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,6 +75,11 @@ public class OrgIntegrationConfigProvider {
     /** ✅ Shortcut for Stripe */
     public StripeConfig getStripeForCurrentOrg() {
         return getForCurrentOrg(IntegrationKey.STRIPE);
+    }
+
+    /** ✅ Shortcut for GPS */
+    public GpsConfig getGpsForCurrentOrg() {
+        return getForCurrentOrg(IntegrationKey.GPS);
     }
 
     @Transactional
