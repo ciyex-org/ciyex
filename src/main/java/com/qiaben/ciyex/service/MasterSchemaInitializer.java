@@ -93,10 +93,15 @@ public class MasterSchemaInitializer {
             log.info("Some master schema tables missing. Creating tables from JPA entities...");
             
             // Create a temporary Hibernate configuration for schema generation
-            StandardServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder()
-                    .applySetting("hibernate.connection.url", "jdbc:postgresql://localhost:5432/ciyexdb")
-                    .applySetting("hibernate.connection.username", "postgres")
-                    .applySetting("hibernate.connection.password", "postgres")
+        // Prefer datasource settings from environment / Spring properties so we don't default to localhost inside Kubernetes
+        String jdbcUrl = System.getenv().getOrDefault("SPRING_DATASOURCE_URL", "jdbc:postgresql://localhost:5432/ciyexdb");
+        String dbUser = System.getenv().getOrDefault("SPRING_DATASOURCE_USERNAME", "postgres");
+        String dbPass = System.getenv().getOrDefault("SPRING_DATASOURCE_PASSWORD", "postgres");
+
+        StandardServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder()
+            .applySetting("hibernate.connection.url", jdbcUrl)
+            .applySetting("hibernate.connection.username", dbUser)
+            .applySetting("hibernate.connection.password", dbPass)
                     .applySetting("hibernate.connection.driver_class", "org.postgresql.Driver")
                     .applySetting("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect")
                     .applySetting("hibernate.hbm2ddl.auto", "create")
