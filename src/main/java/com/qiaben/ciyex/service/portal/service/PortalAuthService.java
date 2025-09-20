@@ -1,10 +1,15 @@
 package com.qiaben.ciyex.service.portal.service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.Key;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -14,14 +19,15 @@ import com.qiaben.ciyex.dto.portal.dto.PortalLoginResponse;
 import com.qiaben.ciyex.dto.portal.dto.PortalRegisterRequest;
 import com.qiaben.ciyex.dto.portal.dto.PortalUserDto;
 import com.qiaben.ciyex.entity.Org;
-import com.qiaben.ciyex.entity.portal.entity.PortalOrg;
 import com.qiaben.ciyex.entity.portal.entity.PortalPatient;
 import com.qiaben.ciyex.entity.portal.entity.PortalUser;
 import com.qiaben.ciyex.repository.OrgRepository;
-
 import com.qiaben.ciyex.repository.portal.repository.PortalPatientRepository;
 import com.qiaben.ciyex.repository.portal.repository.PortalUserRepository;
 import com.qiaben.ciyex.util.JwtTokenUtil;   // ✅ using main JwtTokenUtil
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 
 @Service
 public class PortalAuthService {
@@ -32,6 +38,12 @@ public class PortalAuthService {
     private final OrgRepository orgRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenUtil jwtTokenUtil;   // ✅ reuse main util
+
+    @Value("${jwt.secret}")
+    private String secretKey;
+
+    @Value("${jwt.expiration}")
+    private long jwtExpirationInMs;
 
     public PortalAuthService(
             AuthenticationManager authenticationManager,
@@ -65,8 +77,8 @@ public class PortalAuthService {
                 .build();
     }
 
-    // 3️⃣ Generate JWT using your unified JwtTokenUtil
-    String token = jwtTokenUtil.generateToken(user);
+    // 3️⃣ Generate JWT for portal user manually
+    String token = generatePortalUserToken(user);
 
     // 4️⃣ Prepare response
     PortalLoginResponse response = PortalLoginResponse.fromEntity(user);
@@ -153,5 +165,48 @@ public class PortalAuthService {
                 .message("User registered successfully")
                 .data(dto)
                 .build();
+    }
+
+    /**
+     * 🔹 Generate JWT token specifically for PortalUser entities
+     */
+    private String generatePortalUserToken(PortalUser user) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", user.getId());
+        claims.put("email", user.getEmail());
+        claims.put("sub", user.getEmail());
+        claims.put("firstName", user.getFirstName());
+        claims.put("lastName", user.getLastName());
+        claims.put("uuid", user.getUuid());
+
+        // For portal users, create a simple org structure
+        Map<String, Object> orgEntry = new HashMap<>();
+        orgEntry.put("orgId", user.getOrgId());
+        orgEntry.put("roles", List.of(user.getRole()));
+
+        // Get org name if available
+        Org org = orgRepository.findById(user.getOrgId()).orElse(null);
+        if (org != null) {
+            orgEntry.put("orgName", org.getOrgName());
+        }
+
+        List<Map<String, Object>> orgList = List.of(orgEntry);
+        claims.put("orgs", orgList);
+        claims.put("orgIds", List.of(user.getOrgId()));
+
+        long nowSec = System.currentTimeMillis() / 1000;
+        long expSec = nowSec + (jwtExpirationInMs / 1000);
+        claims.put("iat", nowSec);
+        claims.put("exp", expSec);
+
+        Key signingKey = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
+
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject(user.getEmail())
+                .setIssuedAt(new Date(nowSec * 1000))
+                .setExpiration(new Date(expSec * 1000))
+                .signWith(signingKey)
+                .compact();
     }
 }
