@@ -1,163 +1,379 @@
 {
-  "$schema": "https://json.schemastore.org/tasks.json",
   "version": "2.0.0",
-  "inputs": [
-    {
-      "id": "envTarget",
-      "type": "pickString",
-      "description": "Select Next.js environment file",
-      "options": [
-        { "label": "local (.env.local)", "value": "local" },
-        { "label": "stage (.env.stage)", "value": "stage" },
-        { "label": "prod (.env)", "value": "prod" }
-      ],
-      "default": "local"
-    }
-  ],
   "tasks": [
     {
-      "label": "Backend: BootRun",
+      "label": "Install EHR UI Dependencies",
       "type": "shell",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "command": "./gradlew bootRun",
-      "windows": {
-        "command": ".\\gradlew.bat bootRun"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Backend: BootJar",
-      "type": "shell",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "command": "./gradlew bootJar",
-      "windows": {
-        "command": ".\\gradlew.bat bootJar"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Backend: Run Jar",
-      "type": "shell",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "command": "bash -lc 'JAR=\"$(ls build/libs/*.jar | head -n1)\"; echo Running $JAR; java -jar \"$JAR\"'",
-      "windows": {
-        "command": "powershell -NoProfile -Command \"$jar = Get-ChildItem build/libs/*.jar | Select-Object -First 1; Write-Host \"Running $($jar.Name)\"; java -jar \"$($jar.FullName)\"\""
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "DB: Postgres Up",
-      "type": "shell",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "command": "docker compose up -d postgres",
-      "problemMatcher": []
-    },
-    {
-      "label": "DB: Postgres Down",
-      "type": "shell",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "command": "docker compose stop postgres",
-      "problemMatcher": []
-    },
-    {
-      "label": "UI: Select env",
-      "type": "shell",
+      "command": "pnpm",
+      "args": ["install"],
       "options": {
         "cwd": "${workspaceFolder}/ciyex-ehr-ui"
       },
-      "command": "bash -lc 'if [ \"${input:envTarget}\" = local ]; then cp -f .env.local .env; elif [ \"${input:envTarget}\" = stage ]; then cp -f .env.stage .env; else cp -f .env .env; fi'",
-      "problemMatcher": []
-    },
-    {
-      "label": "UI: Install (pnpm)",
-      "type": "shell",
-      "options": {
-        "cwd": "${workspaceFolder}/ciyex-ehr-ui"
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
       },
-      "command": "bash -lc 'if command -v pnpm >/dev/null 2>&1; then pnpm install --frozen-lockfile; elif command -v corepack >/dev/null 2>&1; then corepack enable >/dev/null 2>&1 && corepack prepare pnpm@9 --activate && pnpm install --frozen-lockfile; else npx --yes pnpm@9 install --frozen-lockfile; fi'",
+      "problemMatcher": [],
       "windows": {
-        "command": "powershell -NoProfile -Command \"if (Get-Command pnpm -ErrorAction SilentlyContinue) { pnpm install --frozen-lockfile } elseif (Get-Command corepack -ErrorAction SilentlyContinue) { corepack enable; corepack prepare pnpm@9 --activate; pnpm install --frozen-lockfile } else { npx --yes pnpm@9 install --frozen-lockfile }\""
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "UI: Build",
-      "type": "shell",
-      "options": {
-        "cwd": "${workspaceFolder}/ciyex-ehr-ui"
-      },
-      "command": "bash -lc 'if command -v pnpm >/dev/null 2>&1; then pnpm run build; else npx --yes pnpm@9 run build; fi'",
-      "windows": {
-        "command": "powershell -NoProfile -Command \"if (Get-Command pnpm -ErrorAction SilentlyContinue) { pnpm run build } else { npx --yes pnpm@9 run build }\""
-      },
-      "dependsOn": [
-        "UI: Install (pnpm)",
-        "UI: Select env"
-      ],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "UI: Dev",
-      "type": "shell",
-      "options": {
-        "cwd": "${workspaceFolder}/ciyex-ehr-ui"
-      },
-      "command": "bash -lc 'if command -v pnpm >/dev/null 2>&1; then pnpm run dev; else npx --yes pnpm@9 run dev; fi'",
-      "windows": {
-        "command": "powershell -NoProfile -Command \"if (Get-Command pnpm -ErrorAction SilentlyContinue) { pnpm run dev } else { npx --yes pnpm@9 run dev }\""
-      },
-      "isBackground": true,
-      "problemMatcher": {
-        "owner": "custom",
-        "pattern": [
-          {
-            "regexp": ".*",
-            "file": 1,
-            "location": 2,
-            "message": 0
-          }
-        ],
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": ".*",
-          "endsPattern": "ready - started server"
-        }
+        "command": "pnpm.cmd"
       }
     },
     {
-      "label": "UI: Start (prod)",
+      "label": "Install Portal UI Dependencies",
       "type": "shell",
+      "command": "npm",
+      "args": ["install"],
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-portal-ui"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": [],
+      "windows": {
+        "command": "npm.cmd"
+      }
+    },
+    {
+      "label": "Install Admin UI Dependencies",
+      "type": "shell",
+      "command": "npm",
+      "args": ["install"],
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-admin-ui"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": [],
+      "windows": {
+        "command": "npm.cmd"
+      }
+    },
+    {
+      "label": "Build EHR UI",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["run", "build"],
       "options": {
         "cwd": "${workspaceFolder}/ciyex-ehr-ui"
       },
-      "command": "bash -lc 'if command -v pnpm >/dev/null 2>&1; then pnpm run start; else npx --yes pnpm@9 run start; fi'",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": ["$tsc"],
       "windows": {
-        "command": "powershell -NoProfile -Command \"if (Get-Command pnpm -ErrorAction SilentlyContinue) { pnpm run start } else { npx --yes pnpm@9 run start }\""
+        "command": "pnpm.cmd"
+      }
+    },
+    {
+      "label": "Build Portal UI",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "build"],
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-portal-ui"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": ["$tsc"],
+      "windows": {
+        "command": "npm.cmd"
+      }
+    },
+    {
+      "label": "Build Admin UI",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "build"],
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-admin-ui"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": ["$tsc"],
+      "windows": {
+        "command": "npm.cmd"
+      }
+    },
+    {
+      "label": "Dev EHR UI",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["run", "dev"],
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-ehr-ui"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "isBackground": true,
+      "windows": {
+        "command": "pnpm.cmd"
+      }
+    },
+    {
+      "label": "Dev Portal UI",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-portal-ui",
+        "env": {
+          "PORT": "3001"
+        }
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "isBackground": true,
+      "windows": {
+        "command": "npm.cmd"
+      }
+    },
+    {
+      "label": "Dev Admin UI",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-admin-ui",
+        "env": {
+          "PORT": "3002"
+        }
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "isBackground": true,
+      "windows": {
+        "command": "npm.cmd"
+      }
+    },
+    {
+      "label": "Start EHR UI Production",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["run", "start"],
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-ehr-ui"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "isBackground": true,
+      "windows": {
+        "command": "pnpm.cmd"
+      }
+    },
+    {
+      "label": "Start Portal UI Production",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "start"],
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-portal-ui",
+        "env": {
+          "PORT": "3001"
+        }
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "isBackground": true,
+      "windows": {
+        "command": "npm.cmd"
+      }
+    },
+    {
+      "label": "Start Admin UI Production",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "start"],
+      "options": {
+        "cwd": "${workspaceFolder}/ciyex-admin-ui",
+        "env": {
+          "PORT": "3002"
+        }
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "isBackground": true,
+      "windows": {
+        "command": "npm.cmd"
+      }
+    },
+    {
+      "label": "Build Spring Boot",
+      "type": "shell",
+      "command": "./gradlew",
+      "args": ["build", "-x", "test"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": [],
+      "windows": {
+        "command": "gradlew.bat"
+      }
+    },
+    {
+      "label": "Run Spring Boot",
+      "type": "shell",
+      "command": "./gradlew",
+      "args": ["bootRun"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "isBackground": true,
+      "windows": {
+        "command": "gradlew.bat"
+      }
+    },
+    {
+      "label": "Install All Dependencies",
+      "dependsOrder": "parallel",
+      "dependsOn": [
+        "Install EHR UI Dependencies",
+        "Install Portal UI Dependencies",
+        "Install Admin UI Dependencies"
+      ],
+      "group": "build"
+    },
+    {
+      "label": "Build All UIs",
+      "dependsOrder": "parallel",
+      "dependsOn": [
+        "Build EHR UI",
+        "Build Portal UI",
+        "Build Admin UI"
+      ],
+      "group": "build"
+    },
+    {
+      "label": "Start All Development",
+      "dependsOrder": "parallel",
+      "dependsOn": [
+        "Run Spring Boot",
+        "Dev EHR UI",
+        "Dev Portal UI",
+        "Dev Admin UI"
+      ],
+      "group": "build"
+    },
+    {
+      "label": "Start All Production",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Build All UIs",
+        "Build Spring Boot"
+      ],
+      "group": "build"
+    },
+    {
+      "label": "Docker Build",
+      "type": "shell",
+      "command": "docker",
+      "args": ["build", "-t", "ciyex-app", "."],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
       },
       "problemMatcher": []
     },
     {
-      "label": "Docker: Build (ENV=local)",
+      "label": "Docker Run",
       "type": "shell",
+      "command": "docker",
+      "args": ["run", "-p", "8080:8080", "-p", "3000:3000", "-p", "3001:3001", "-p", "3002:3002", "ciyex-app"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
-      "command": "docker build -t ciyex:latest --build-arg ENVIRONMENT=local .",
-      "problemMatcher": []
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "isBackground": true
     }
   ]
 }

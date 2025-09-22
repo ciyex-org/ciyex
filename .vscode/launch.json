@@ -1,28 +1,89 @@
 {
-  "$schema": "https://json.schemastore.org/launch.json",
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Spring Boot: Run",
+      "name": "Launch EHR UI (Next.js)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/ciyex-ehr-ui",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 9229,
+      "console": "integratedTerminal",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "windows": {
+        "runtimeExecutable": "pnpm.cmd"
+      }
+    },
+    {
+      "name": "Launch Portal UI (Next.js)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/ciyex-portal-ui",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 9230,
+      "console": "integratedTerminal",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "3001"
+      },
+      "windows": {
+        "runtimeExecutable": "npm.cmd"
+      }
+    },
+    {
+      "name": "Launch Admin UI (Next.js)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/ciyex-admin-ui",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 9231,
+      "console": "integratedTerminal",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "3002"
+      },
+      "windows": {
+        "runtimeExecutable": "npm.cmd"
+      }
+    },
+    {
+      "name": "Launch Spring Boot Backend",
       "type": "java",
       "request": "launch",
       "mainClass": "com.qiaben.ciyex.CiyexApplication",
-      "projectName": "ciyex"
+      "projectName": "ciyex",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "SPRING_PROFILES_ACTIVE": "local"
+      }
     },
     {
-      "name": "Next.js: Dev",
-      "type": "node-terminal",
+      "name": "Launch All Services (Node.js)",
+      "type": "node",
       "request": "launch",
-      "command": "pnpm run dev",
-      "cwd": "${workspaceFolder}/ciyex-ehr-ui"
-    },
+      "program": "${workspaceFolder}/scripts/start-all.js",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "windows": {
+        "program": "${workspaceFolder}\\scripts\\start-all.js"
+      }
+    }
+  ],
+  "compounds": [
     {
-      "name": "Next.js: Prod",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "pnpm run start",
-      "cwd": "${workspaceFolder}/ciyex-ehr-ui",
-      "preLaunchTask": "UI: Build"
+      "name": "Launch Full Stack",
+      "configurations": [
+        "Launch Spring Boot Backend",
+        "Launch EHR UI (Next.js)",
+        "Launch Portal UI (Next.js)",
+        "Launch Admin UI (Next.js)"
+      ],
+      "stopAll": true
     }
   ]
 }

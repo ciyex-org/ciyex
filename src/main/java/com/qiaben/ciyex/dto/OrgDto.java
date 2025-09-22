@@ -1,5 +1,6 @@
 package com.qiaben.ciyex.dto;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 
 @Data
@@ -12,4 +13,7 @@ public class OrgDto {
     private String postalCode;
     private String country;
     private String fhirId; // Included for response
+
+    // <-- NEW FIELD
+    private JsonNode integrations;
 }
