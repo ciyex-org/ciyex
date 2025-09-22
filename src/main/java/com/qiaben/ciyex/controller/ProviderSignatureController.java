@@ -141,8 +141,8 @@ public class ProviderSignatureController {
         }
     }
 
-    // CREATE (also used as eSign)
-    @PostMapping("/{patientId}/{encounterId}/")
+    
+    @PostMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<ProviderSignatureDto>> create(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
