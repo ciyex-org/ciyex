@@ -80,6 +80,8 @@ public class TenantSchemaInitializer {
 
         String schemaName = "practice_" + orgId;
 
+        log.debug("initializeTenantSchema called for orgId: {} schema: {}", orgId, schemaName);
+
         if (initializedSchemas.containsKey(orgId)) {
             log.debug("Tenant schema already initialized for orgId: {}. Running pending Flyway migrations.", orgId);
             tenantFlywayMigrator.migrate(schemaName, orgId);
@@ -117,7 +119,7 @@ public class TenantSchemaInitializer {
         String schemaName = "practice_" + orgId;
         try {
             // Use only the tenant schema in search_path
-            entityManager.createNativeQuery("SET search_path TO " + schemaName).executeUpdate();
+            entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName)).executeUpdate();
             ensureJsonbColumn(schemaName, "org_config", "integrations");
             tenantFlywayMigrator.migrate(schemaName, orgId);
         } catch (Exception e) {
@@ -130,7 +132,7 @@ public class TenantSchemaInitializer {
     private void createSchemaIfNotExists(String schemaName) {
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
-            statement.executeUpdate("CREATE SCHEMA IF NOT EXISTS " + schemaName);
+            statement.executeUpdate("CREATE SCHEMA IF NOT EXISTS " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
         } catch (SQLException ex) {
             throw new RuntimeException("Failed to create schema: " + schemaName, ex);
         }
@@ -139,7 +141,7 @@ public class TenantSchemaInitializer {
     private void createTenantTablesFromEntities(String schemaName) {
         try {
             // Set search path to tenant schema only (not including public)
-            entityManager.createNativeQuery("SET search_path TO " + schemaName).executeUpdate();
+            entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName)).executeUpdate();
             
             // Get all tenant entities
             List<Class<?>> tenantEntities = getAllTenantEntities();
@@ -256,10 +258,13 @@ public class TenantSchemaInitializer {
 
             String dataType = dataTypeObj != null ? dataTypeObj.toString() : null;
             if (dataType != null && !dataType.equalsIgnoreCase("jsonb")) {
-                String alter = String.format(
-                        "ALTER TABLE %s.%s ALTER COLUMN %s TYPE JSONB USING %s::jsonb",
-                        schemaName, tableName, columnName, columnName);
-                entityManager.createNativeQuery(alter).executeUpdate();
+        String alter = String.format(
+            "ALTER TABLE %s.%s ALTER COLUMN %s TYPE JSONB USING %s::jsonb",
+            com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
+            com.qiaben.ciyex.util.SqlIdentifier.quote(tableName),
+            com.qiaben.ciyex.util.SqlIdentifier.quote(columnName),
+            com.qiaben.ciyex.util.SqlIdentifier.quote(columnName));
+        entityManager.createNativeQuery(alter).executeUpdate();
                 log.info("Altered column {}.{}.{} to JSONB", schemaName, tableName, columnName);
             }
         } catch (Exception e) {
@@ -335,8 +340,10 @@ public class TenantSchemaInitializer {
             // Use Hibernate's SchemaExport to generate DDL for this specific entity
             
             // Create a simple table structure dynamically based on entity fields
-            StringBuilder ddl = new StringBuilder();
-            ddl.append(String.format("CREATE TABLE IF NOT EXISTS %s.%s (", schemaName, tableName));
+        StringBuilder ddl = new StringBuilder();
+        ddl.append(String.format("CREATE TABLE IF NOT EXISTS %s.%s (",
+            com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
+            com.qiaben.ciyex.util.SqlIdentifier.quote(tableName)));
             
             // Always add an ID column
             ddl.append("id BIGSERIAL PRIMARY KEY");
@@ -359,8 +366,10 @@ public class TenantSchemaInitializer {
         } catch (Exception e) {
             log.warn("Failed to create table for entity {}: {}", entityClass.getSimpleName(), e.getMessage());
             // Fallback: create a basic table with just ID
-            String fallbackDDL = String.format("CREATE TABLE IF NOT EXISTS %s.%s (id BIGSERIAL PRIMARY KEY)", schemaName, tableName);
-            entityManager.createNativeQuery(fallbackDDL).executeUpdate();
+        String fallbackDDL = String.format("CREATE TABLE IF NOT EXISTS %s.%s (id BIGSERIAL PRIMARY KEY)",
+            com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
+            com.qiaben.ciyex.util.SqlIdentifier.quote(tableName));
+        entityManager.createNativeQuery(fallbackDDL).executeUpdate();
             log.debug("Created fallback table: {}.{}", schemaName, tableName);
         }
     }
@@ -376,7 +385,7 @@ public class TenantSchemaInitializer {
 
         try {
             // Ensure search_path to tenant schema
-            entityManager.createNativeQuery("SET search_path TO " + schemaName).executeUpdate();
+            entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName)).executeUpdate();
 
             List<Class<?>> tenantEntities = getAllTenantEntities();
             log.info("Ensuring {} tenant entities exist in schema {}", tenantEntities.size(), schemaName);

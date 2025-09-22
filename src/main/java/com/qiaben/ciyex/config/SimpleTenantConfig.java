@@ -23,10 +23,10 @@ public class SimpleTenantConfig {
                  Statement statement = connection.createStatement()) {
                 
                 // Create schema if it doesn't exist
-                statement.execute("CREATE SCHEMA IF NOT EXISTS " + schemaName);
+                statement.execute("CREATE SCHEMA IF NOT EXISTS " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
                 
                 // Set search path to use the tenant schema
-                statement.execute("SET search_path TO " + schemaName + ", public");
+                statement.execute("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public");
                 
                 log.debug("Set schema to: {}", schemaName);
                 

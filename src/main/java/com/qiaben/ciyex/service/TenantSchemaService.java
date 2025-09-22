@@ -33,12 +33,12 @@ public class TenantSchemaService {
             
             // Create schema if it doesn't exist
             if (!"public".equals(schemaName)) {
-                statement.execute("CREATE SCHEMA IF NOT EXISTS " + schemaName);
+                statement.execute("CREATE SCHEMA IF NOT EXISTS " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
                 log.debug("Ensured schema exists: {}", schemaName);
             }
             
             // Set search path to use the tenant schema first, then public
-            String searchPath = "public".equals(schemaName) ? "public" : schemaName + ", public";
+            String searchPath = "public".equals(schemaName) ? "public" : com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public";
             statement.execute("SET search_path TO " + searchPath);
             
             log.debug("Set search_path to: {}", searchPath);
