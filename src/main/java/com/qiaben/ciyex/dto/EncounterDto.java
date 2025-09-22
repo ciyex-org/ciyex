@@ -1,12 +1,14 @@
 
 
 
+
 package com.qiaben.ciyex.dto;
 
-import com.qiaben.ciyex.entity.EncounterStatus;
-import lombok.Data;
+import java.time.LocalDateTime;
 
-import java.time.Instant;
+import com.qiaben.ciyex.entity.EncounterStatus;
+
+import lombok.Data;
 
 @Data
 public class EncounterDto {
@@ -23,7 +25,8 @@ public class EncounterDto {
     private Long orgId;
     private Long updatedAt;
     private Boolean inCollection;
-    private Instant encounterDate;
+  private LocalDateTime encounterDate;
+
     private EncounterStatus status;
 
 

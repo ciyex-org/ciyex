@@ -107,6 +107,7 @@
 
 
 
+
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
@@ -121,6 +122,7 @@ import java.security.Principal;
 import java.util.List;
 
 
+
 @RestController
 @RequestMapping("/api/codes")
 @RequiredArgsConstructor
@@ -129,6 +131,7 @@ public class CodeController {
 
     private final CodeService service;
 
+    
     // LIST
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<CodeDto>>> list(

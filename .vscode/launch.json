@@ -2,12 +2,22 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "type": "java",
+      "name": "CiyexApplication",
+      "request": "launch",
+      "mainClass": "com.qiaben.ciyex.CiyexApplication",
+      "projectName": "ciyex"
+    },
+    {
       "name": "Launch EHR UI (Next.js)",
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceFolder}/ciyex-ehr-ui",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 9229,
       "console": "integratedTerminal",
       "env": {
@@ -23,7 +33,10 @@
       "request": "launch",
       "cwd": "${workspaceFolder}/ciyex-portal-ui",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 9230,
       "console": "integratedTerminal",
       "env": {
@@ -40,7 +53,10 @@
       "request": "launch",
       "cwd": "${workspaceFolder}/ciyex-admin-ui",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 9231,
       "console": "integratedTerminal",
       "env": {
