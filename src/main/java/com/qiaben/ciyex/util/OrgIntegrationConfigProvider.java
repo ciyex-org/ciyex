@@ -6,6 +6,7 @@ import com.qiaben.ciyex.dto.integration.IntegrationKey;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.entity.OrgConfig;
 import com.qiaben.ciyex.repository.OrgConfigRepository;
+import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -69,19 +70,29 @@ public class OrgIntegrationConfigProvider {
         return getStorageType(orgId);
     }
 
+    // ✅ NEW: Helper for S3 Document Storage
+    public S3Config getS3DocumentStorage(Long orgId) {
+        OrgConfig orgConfig = orgConfigRepository.findByOrgId(orgId)
+                .orElseThrow(() -> new RuntimeException("OrgConfig not found for orgId: " + orgId));
+
+        JsonNode integrations = orgConfig.getIntegrations();
+        if (integrations == null || !integrations.has("document_storage") || !integrations.get("document_storage").has("s3")) {
+            throw new RuntimeException("No S3 document storage config found for orgId=" + orgId);
+        }
+
+        JsonNode s3Node = integrations.get("document_storage").get("s3");
+        try {
+            return objectMapper.treeToValue(s3Node, S3Config.class);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to map S3 config for orgId=" + orgId, e);
+        }
+    }
+
+    @Data
+    public static class S3Config {
+        private String bucket;
+        private String region;
+        private String accessKey;
+        private String secretKey;
+    }
 }
-
-/*
-
-@Autowired
-private OrgIntegrationConfigProvider integrationConfigProvider;
-
-public void someServiceMethod(Long orgId) {
-    OpenEmrConfig openEmrConfig = integrationConfigProvider.get(orgId, IntegrationKey.OPENEMR);
-    StripeConfig stripeConfig = integrationConfigProvider.get(orgId, IntegrationKey.STRIPE);
-    TwilioConfig twilioConfig = integrationConfigProvider.get(orgId, IntegrationKey.TWILIO);
-    // ...and so on
-
-    String storageType = integrationConfigProvider.getStorageType(orgId);
-    // Use storageType to resolve the appropriate ExternalOrgStorage
-}*/
