@@ -1,6 +1,5 @@
 // src/main/java/com/qiaben/ciyex/dto/encounter/EncounterSummaryDto.java
 
-
 package com.qiaben.ciyex.dto;
 
 import lombok.*;
