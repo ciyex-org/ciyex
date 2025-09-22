@@ -176,6 +176,13 @@ public class MasterSchemaInitializer {
                     } else {
                         log.debug("Tenant schema {} already exists for org ID {}", tenantSchemaName, orgId);
                     }
+                    // Ensure any missing tables are created (compare entities with information_schema)
+                    try {
+                        tenantSchemaInitializer.ensureTenantTablesExist(orgId);
+                    } catch (Exception e) {
+                        log.warn("Failed to ensure tenant tables for org {}: {}", orgId, e.getMessage());
+                    }
+
                     // Run idempotent migrations to keep schema up to date (e.g., JSONB columns)
                     tenantSchemaInitializer.runTenantMigrations(orgId);
                 }
