@@ -80,6 +80,7 @@ public class EncounterBrowserService {
         dto.setUpdatedAt(e.getUpdatedAt());
         dto.setEncounterDate(e.getEncounterDate());
 
+        
         // Status (enum/string) — make sure entity has @Enumerated(EnumType.STRING) if DB stores text
         dto.setStatus(e.getStatus());
 
