@@ -301,6 +301,56 @@
       }
     },
     {
+      "label": "Run Spring Boot (Run JAR)",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "./gradlew bootJar && java -jar build/libs/ciyex-0.0.1-SNAPSHOT.jar"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "none",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Run Spring Boot (Debug JAR)",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "./.vscode/start-spring-debug.sh"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "owner": "spring-debug",
+          "pattern": {
+            "regexp": "^(.*)$",
+            "message": 1
+          },
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": ".",
+            "endsPattern": "Listening for transport dt_socket at address|JVM is listening on port 5005|Started .*Application"
+          }
+        }
+      ],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
       "label": "Install All Dependencies",
       "dependsOrder": "parallel",
       "dependsOn": [

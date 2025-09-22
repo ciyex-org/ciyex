@@ -338,38 +338,40 @@ public class TenantSchemaInitializer {
     private void createTableUsingHibernateDDL(Class<?> entityClass, String schemaName, String tableName) {
         try {
             // Use Hibernate's SchemaExport to generate DDL for this specific entity
-            
+
             // Create a simple table structure dynamically based on entity fields
-        StringBuilder ddl = new StringBuilder();
-        ddl.append(String.format("CREATE TABLE IF NOT EXISTS %s.%s (",
-            com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
-            com.qiaben.ciyex.util.SqlIdentifier.quote(tableName)));
-            
-            // Always add an ID column
-            ddl.append("id BIGSERIAL PRIMARY KEY");
-            
+            StringBuilder ddl = new StringBuilder();
+            ddl.append(String.format("CREATE TABLE IF NOT EXISTS %s.%s (",
+                com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
+                com.qiaben.ciyex.util.SqlIdentifier.quote(tableName)));
+
+            // Always add an ID column (quote the identifier to avoid reserved-word issues)
+            ddl.append(String.format("%s BIGSERIAL PRIMARY KEY", com.qiaben.ciyex.util.SqlIdentifier.quote("id")));
+
             // Add other columns based on entity fields (simplified approach)
             java.lang.reflect.Field[] fields = entityClass.getDeclaredFields();
             for (java.lang.reflect.Field field : fields) {
                 if (!field.getName().equals("id") && !java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
                     String columnName = camelToSnakeCase(field.getName());
                     String columnType = getColumnType(field.getType());
-                    ddl.append(String.format(", %s %s", columnName, columnType));
+                    // Quote column names to handle reserved words (e.g., user) and special characters
+                    ddl.append(String.format(", %s %s", com.qiaben.ciyex.util.SqlIdentifier.quote(columnName), columnType));
                 }
             }
-            
+
             ddl.append(")");
-            
+
             entityManager.createNativeQuery(ddl.toString()).executeUpdate();
             log.debug("Created table: {}.{} for entity: {}", schemaName, tableName, entityClass.getSimpleName());
-            
+
         } catch (Exception e) {
             log.warn("Failed to create table for entity {}: {}", entityClass.getSimpleName(), e.getMessage());
             // Fallback: create a basic table with just ID
-        String fallbackDDL = String.format("CREATE TABLE IF NOT EXISTS %s.%s (id BIGSERIAL PRIMARY KEY)",
-            com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
-            com.qiaben.ciyex.util.SqlIdentifier.quote(tableName));
-        entityManager.createNativeQuery(fallbackDDL).executeUpdate();
+            String fallbackDDL = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s BIGSERIAL PRIMARY KEY)",
+                com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
+                com.qiaben.ciyex.util.SqlIdentifier.quote(tableName),
+                com.qiaben.ciyex.util.SqlIdentifier.quote("id"));
+            entityManager.createNativeQuery(fallbackDDL).executeUpdate();
             log.debug("Created fallback table: {}.{}", schemaName, tableName);
         }
     }

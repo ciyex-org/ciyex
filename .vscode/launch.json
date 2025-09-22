@@ -3,6 +3,13 @@
   "configurations": [
     {
       "type": "java",
+      "name": "Attach to Spring Boot (5005)",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5005
+    },
+    {
+      "type": "java",
       "name": "CiyexApplication",
       "request": "launch",
       "mainClass": "com.qiaben.ciyex.CiyexApplication",
@@ -18,7 +25,6 @@
         "run",
         "dev"
       ],
-      "port": 9229,
       "console": "integratedTerminal",
       "env": {
         "NODE_ENV": "development"
@@ -37,7 +43,6 @@
         "run",
         "dev"
       ],
-      "port": 9230,
       "console": "integratedTerminal",
       "env": {
         "NODE_ENV": "development",
@@ -57,7 +62,6 @@
         "run",
         "dev"
       ],
-      "port": 9231,
       "console": "integratedTerminal",
       "env": {
         "NODE_ENV": "development",
@@ -91,6 +95,11 @@
     }
   ],
   "compounds": [
+    {
+      "name": "Run Spring Boot (Debug and Attach)",
+      "configurations": ["Attach to Spring Boot (5005)"],
+      "preLaunchTask": "Run Spring Boot (Debug JAR)"
+    },
     {
       "name": "Launch Full Stack",
       "configurations": [
