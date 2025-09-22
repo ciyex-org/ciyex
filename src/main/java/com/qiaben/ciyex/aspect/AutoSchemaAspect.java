@@ -108,7 +108,7 @@ public class AutoSchemaAspect {
                 }
 
                 // Set search_path to tenant schema first, then public as fallback
-                entityManager.createNativeQuery("SET search_path TO " + schemaName + ", public").executeUpdate();
+                entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public").executeUpdate();
             } else {
                 entityManager.createNativeQuery("SET search_path TO public").executeUpdate();
             }

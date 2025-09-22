@@ -33,14 +33,14 @@ public class TenantSchemaManager {
                 // Create schema using a separate connection so it doesn't participate in caller's txn
                 try (Connection conn = dataSource.getConnection()) {
                     try (Statement stmt = conn.createStatement()) {
-                        stmt.execute("CREATE SCHEMA IF NOT EXISTS " + schemaName);
+                        stmt.execute("CREATE SCHEMA IF NOT EXISTS " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
                     }
                 } catch (Exception ignore) {
                     log.debug("CREATE SCHEMA for {} failed on separate connection: {}", schemaName, ignore.getMessage());
                 }
 
                 // Set search_path via EntityManager (affects current session)
-                entityManager.createNativeQuery("SET search_path TO " + schemaName + ", public").executeUpdate();
+                entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public").executeUpdate();
                 log.debug("Set search_path to: {}, public via EntityManager", schemaName);
 
                 // Execute the operation
@@ -70,7 +70,7 @@ public class TenantSchemaManager {
                     log.debug("CREATE SCHEMA for {} failed on separate connection: {}", schemaName, ignore.getMessage());
                 }
 
-                entityManager.createNativeQuery("SET search_path TO " + schemaName + ", public").executeUpdate();
+                entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public").executeUpdate();
                 log.debug("Set search_path to: {}, public via EntityManager", schemaName);
 
                 return operation.get();

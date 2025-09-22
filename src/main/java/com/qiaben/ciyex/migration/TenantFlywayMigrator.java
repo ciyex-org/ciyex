@@ -21,8 +21,9 @@ public class TenantFlywayMigrator {
             throw new IllegalArgumentException("orgId must not be null when running tenant migrations");
         }
 
-        Map<String, String> placeholders = new HashMap<>();
-        placeholders.put("schema", schemaName);
+    Map<String, String> placeholders = new HashMap<>();
+    // Provide a quoted schema placeholder so SQL like SET search_path TO ${schema} is safe
+    placeholders.put("schema", com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
         placeholders.put("orgId", orgId.toString());
 
         Flyway.configure()
