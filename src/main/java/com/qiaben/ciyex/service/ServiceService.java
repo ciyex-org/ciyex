@@ -1,7 +1,7 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.ServicebillDto;
-import com.qiaben.ciyex.model.ServiceEntity;
+import com.qiaben.ciyex.entity.ServiceEntity;
 import com.qiaben.ciyex.repository.ServiceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
