@@ -154,6 +154,8 @@ public class EncounterSummaryService {
                         new TypeReference<List<EncounterSummaryDto.Procedure>>() {}
                 );
 
+                
+
         // Codes
         List<EncounterSummaryDto.Code> codes =
                 firstNonNullDataList(

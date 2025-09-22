@@ -129,6 +129,7 @@ public class CodeController {
 
     private final CodeService service;
 
+    
     // LIST
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<CodeDto>>> list(

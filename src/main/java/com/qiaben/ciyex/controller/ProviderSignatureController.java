@@ -142,6 +142,7 @@ public class ProviderSignatureController {
     }
 
     
+    
     @PostMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<ProviderSignatureDto>> create(
             @PathVariable Long patientId,

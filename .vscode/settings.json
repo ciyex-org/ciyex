@@ -75,5 +75,6 @@
       "vscjava.vscode-java-pack",
       "ms-kubernetes-tools.vscode-kubernetes-tools"
     ]
-  }
+  },
+  "java.configuration.updateBuildConfiguration": "interactive"
 }
