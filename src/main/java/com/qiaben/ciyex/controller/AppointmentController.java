@@ -132,4 +132,23 @@ public class AppointmentController {
                     .build());
         }
     }
+    // Count all appointments
+    @GetMapping("/count")
+    public ResponseEntity<ApiResponse<Long>> count() {
+        try {
+            long count = service.count();
+            return ResponseEntity.ok(ApiResponse.<Long>builder()
+                    .success(true)
+                    .message("Appointment count retrieved successfully")
+                    .data(count)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve appointment count", e);
+            return ResponseEntity.ok(ApiResponse.<Long>builder()
+                    .success(false)
+                    .message("Failed to retrieve appointment count: " + e.getMessage())
+                    .build());
+        }
+    }
+
 }

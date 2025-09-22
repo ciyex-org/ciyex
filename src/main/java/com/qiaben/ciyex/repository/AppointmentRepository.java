@@ -27,4 +27,6 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
 
     Page<Appointment> findAllByPatientIdAndOrgId(Long patientId, Long orgId, Pageable pageable);
 
+    long countByOrgId(Long orgId);
+
 }
