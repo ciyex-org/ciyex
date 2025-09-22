@@ -93,6 +93,10 @@ public class TenantSchemaInitializer {
             // Create all tenant tables using Hibernate metadata
             createTenantTablesFromEntities(schemaName);
 
+            // Ensure that if some tables are missing (schema existed previously) we create any missing ones
+            // This helps when entity set changed between deployments — compare and create missing tables
+            ensureTenantTablesExist(orgId);
+
             // Apply tenant-specific Flyway migrations after tables exist
             tenantFlywayMigrator.migrate(schemaName, orgId);
             
@@ -329,7 +333,6 @@ public class TenantSchemaInitializer {
     private void createTableUsingHibernateDDL(Class<?> entityClass, String schemaName, String tableName) {
         try {
             // Use Hibernate's SchemaExport to generate DDL for this specific entity
-            SessionFactoryImplementor sessionFactory = entityManagerFactory.unwrap(SessionFactoryImplementor.class);
             
             // Create a simple table structure dynamically based on entity fields
             StringBuilder ddl = new StringBuilder();
@@ -359,6 +362,60 @@ public class TenantSchemaInitializer {
             String fallbackDDL = String.format("CREATE TABLE IF NOT EXISTS %s.%s (id BIGSERIAL PRIMARY KEY)", schemaName, tableName);
             entityManager.createNativeQuery(fallbackDDL).executeUpdate();
             log.debug("Created fallback table: {}.{}", schemaName, tableName);
+        }
+    }
+
+    /**
+     * Ensure all tenant tables exist for the given org schema. This compares the JPA tenant entities
+     * to information_schema and creates any missing tables using existing helpers.
+     */
+    @Transactional
+    public void ensureTenantTablesExist(Long orgId) {
+        if (orgId == null) return;
+        String schemaName = "practice_" + orgId;
+
+        try {
+            // Ensure search_path to tenant schema
+            entityManager.createNativeQuery("SET search_path TO " + schemaName).executeUpdate();
+
+            List<Class<?>> tenantEntities = getAllTenantEntities();
+            log.info("Ensuring {} tenant entities exist in schema {}", tenantEntities.size(), schemaName);
+
+            for (Class<?> entityClass : tenantEntities) {
+                try {
+                    String tableName = getTableName(entityClass);
+                    String checkTableQuery = String.format(
+                            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s')",
+                            schemaName, tableName
+                    );
+                    Object result = entityManager.createNativeQuery(checkTableQuery).getSingleResult();
+                    boolean exists = false;
+                    if (result instanceof Boolean) {
+                        exists = (Boolean) result;
+                    } else if (result instanceof Number) {
+                        exists = ((Number) result).intValue() == 1;
+                    } else if (result != null) {
+                        exists = Boolean.parseBoolean(result.toString());
+                    }
+
+                    if (!exists) {
+                        log.info("Table {}.{} missing - creating", schemaName, tableName);
+                        createTableForEntity(entityClass, schemaName);
+                    } else {
+                        log.debug("Table {}.{} already exists", schemaName, tableName);
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to verify/create table for entity {}: {}", entityClass.getSimpleName(), e.getMessage());
+                }
+            }
+
+            // Ensure known JSON columns
+            ensureJsonbColumn(schemaName, "org_config", "integrations");
+
+        } catch (Exception e) {
+            log.warn("Failed to ensure tenant tables exist for schema {}: {}", schemaName, e.getMessage());
+        } finally {
+            try { entityManager.createNativeQuery("SET search_path TO public").executeUpdate(); } catch (Exception ignore) {}
         }
     }
     
