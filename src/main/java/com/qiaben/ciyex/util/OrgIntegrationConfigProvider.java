@@ -76,7 +76,9 @@ public class OrgIntegrationConfigProvider {
                 .orElseThrow(() -> new RuntimeException("OrgConfig not found for orgId: " + orgId));
 
         JsonNode integrations = orgConfig.getIntegrations();
-        if (integrations == null || !integrations.has("document_storage") || !integrations.get("document_storage").has("s3")) {
+        if (integrations == null
+                || !integrations.has("document_storage")
+                || !integrations.get("document_storage").has("s3")) {
             throw new RuntimeException("No S3 document storage config found for orgId=" + orgId);
         }
 
