@@ -11,7 +11,11 @@ public class DocumentDto {
     private String fileName;
     private String contentType;
     private String description;
-    private byte[] content; // Transient: For create (file bytes)
-    private String s3Bucket; // Transient: For download
-    private String s3Key; // Transient: For download
+
+    private byte[] content; // transient, only for upload
+    private String s3Bucket; // transient
+    private String s3Key;    // transient
+
+    // NEW
+    private boolean encrypted;
 }

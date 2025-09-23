@@ -18,6 +18,11 @@ spring:
   flyway:
     enabled: false
 
+  servlet:
+    multipart:
+      max-file-size: 1GB        # ⬅️ individual file size
+      max-request-size: 1GB     # ⬅️ total request size
+
 jwt:
   secret: Um7I76bdvjLLGMWPPYYZr4jYXSNKpHOtIQS8Ktg8C4w=
   expiration: 31557600000

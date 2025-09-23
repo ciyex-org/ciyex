@@ -127,6 +127,96 @@ public class OrgIntegrationConfigProvider {
         if (orgId == null) throw new IllegalStateException("No orgId in request context");
         return getStorageType(orgId);
     }
+
+    /** ✅ NEW: Helper for S3 Document Storage */
+    @Transactional
+    public S3Config getS3DocumentStorage(Long orgId) {
+        // Ensure RequestContext carries the target orgId for the duration of the lookup
+        RequestContext previousContext = RequestContext.get();
+        boolean contextAdjusted = false;
+        if (previousContext == null || !Objects.equals(previousContext.getOrgId(), orgId)) {
+            RequestContext context = new RequestContext();
+            if (previousContext != null) {
+                context.setAuthToken(previousContext.getAuthToken());
+                context.setFacilityId(previousContext.getFacilityId());
+                context.setRole(previousContext.getRole());
+            }
+            context.setOrgId(orgId);
+            RequestContext.set(context);
+            contextAdjusted = true;
+        }
+        try {
+            OrgConfig orgConfig = orgConfigRepository.findByOrgId(orgId)
+                    .orElseThrow(() -> new RuntimeException("OrgConfig not found for orgId: " + orgId));
+
+            JsonNode integrations = orgConfig.getIntegrations();
+            if (integrations == null
+                    || !integrations.has("document_storage")
+                    || !integrations.get("document_storage").has("s3")) {
+                throw new RuntimeException("No S3 document storage config found for orgId=" + orgId);
+            }
+
+            JsonNode s3Node = integrations.get("document_storage").get("s3");
+            try {
+                return objectMapper.treeToValue(s3Node, S3Config.class);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to map S3 config for orgId=" + orgId, e);
+            }
+        } finally {
+            if (contextAdjusted) {
+                if (previousContext != null) {
+                    RequestContext.set(previousContext);
+                } else {
+                    RequestContext.clear();
+                }
+            }
+        }
+    }
+
+    public S3Config getS3DocumentStorageForCurrentOrg() {
+        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        if (orgId == null) throw new IllegalStateException("No orgId in request context");
+        return getS3DocumentStorage(orgId);
+    }
+
+    public static class S3Config {
+        private String bucket;
+        private String region;
+        private String accessKey;
+        private String secretKey;
+
+        public String getBucket() {
+            return bucket;
+        }
+
+        public void setBucket(String bucket) {
+            this.bucket = bucket;
+        }
+
+        public String getRegion() {
+            return region;
+        }
+
+        public void setRegion(String region) {
+            this.region = region;
+        }
+
+        public String getAccessKey() {
+            return accessKey;
+        }
+
+        public void setAccessKey(String accessKey) {
+            this.accessKey = accessKey;
+        }
+
+        public String getSecretKey() {
+            return secretKey;
+        }
+
+        public void setSecretKey(String secretKey) {
+            this.secretKey = secretKey;
+        }
+    }
 }
 
 /*
@@ -141,5 +231,8 @@ public void someServiceMethod(Long orgId) {
     // ...and so on
 
     String storageType = integrationConfigProvider.getStorageType(orgId);
-    // Use storageType to resolve the appropriate ExternalOrgStorage
+    S3Config s3Config = integrationConfigProvider.getS3DocumentStorage(orgId);
+    // Or from context:
+    // S3Config s3Config = integrationConfigProvider.getS3DocumentStorageForCurrentOrg();
+    // Use storageType and s3Config to resolve the appropriate ExternalOrgStorage
 }*/
