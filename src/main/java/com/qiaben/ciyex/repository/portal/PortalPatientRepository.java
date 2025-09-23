@@ -11,7 +11,7 @@ import com.qiaben.ciyex.entity.portal.PortalPatient;
 public interface PortalPatientRepository extends JpaRepository<PortalPatient, Long> {
 
     /**
-     * Find a patient by the linked PortalUser.id
+     * ind a patient by the linked PortalUser.id
      */
     Optional<PortalPatient> findByUser_Id(Long userId);
 

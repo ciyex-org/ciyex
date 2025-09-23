@@ -71,3 +71,4 @@ public class PortalProfile {
         updatedAt = LocalDateTime.now();
     }
 }
+

@@ -6,7 +6,7 @@ import java.util.List;
 import com.qiaben.ciyex.entity.portal.PortalUser;
 
 import lombok.Data;
-
+//
 @Data
 public class PortalLoginResponse {
     private String token;

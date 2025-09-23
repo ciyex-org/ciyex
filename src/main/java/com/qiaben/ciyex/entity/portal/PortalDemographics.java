@@ -44,3 +44,4 @@ public class PortalDemographics {
     @JoinColumn(name = "patient_id", referencedColumnName = "id")
     private PortalPatient patient;
 }
+

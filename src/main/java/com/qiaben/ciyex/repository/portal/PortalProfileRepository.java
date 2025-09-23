@@ -9,3 +9,4 @@ import java.util.Optional;
 public interface PortalProfileRepository extends JpaRepository<PortalProfile, Long> {
     Optional<PortalProfile> findByUserId(Long userId);
 }
+//s

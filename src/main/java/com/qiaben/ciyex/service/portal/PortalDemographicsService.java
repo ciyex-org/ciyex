@@ -19,3 +19,4 @@ public interface PortalDemographicsService {
      */
     PortalDemographicsDto updateMyDemographics(Long userId, PortalDemographicsDto dto);
 }
+//
