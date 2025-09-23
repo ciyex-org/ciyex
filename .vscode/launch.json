@@ -2,13 +2,29 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "type": "java",
+      "name": "Attach to Spring Boot (5005)",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5005
+    },
+    {
+      "type": "java",
+      "name": "CiyexApplication",
+      "request": "launch",
+      "mainClass": "com.qiaben.ciyex.CiyexApplication",
+      "projectName": "ciyex"
+    },
+    {
       "name": "Launch EHR UI (Next.js)",
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceFolder}/ciyex-ehr-ui",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 9229,
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "console": "integratedTerminal",
       "env": {
         "NODE_ENV": "development"
@@ -23,8 +39,10 @@
       "request": "launch",
       "cwd": "${workspaceFolder}/ciyex-portal-ui",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 9230,
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "console": "integratedTerminal",
       "env": {
         "NODE_ENV": "development",
@@ -40,8 +58,10 @@
       "request": "launch",
       "cwd": "${workspaceFolder}/ciyex-admin-ui",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 9231,
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "console": "integratedTerminal",
       "env": {
         "NODE_ENV": "development",
@@ -75,6 +95,11 @@
     }
   ],
   "compounds": [
+    {
+      "name": "Run Spring Boot (Debug and Attach)",
+      "configurations": ["Attach to Spring Boot (5005)"],
+      "preLaunchTask": "Run Spring Boot (Debug JAR)"
+    },
     {
       "name": "Launch Full Stack",
       "configurations": [

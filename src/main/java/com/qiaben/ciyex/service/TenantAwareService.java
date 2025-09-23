@@ -98,7 +98,7 @@ public class TenantAwareService {
      */
     private void setSchema(String schemaName) {
         try {
-            entityManager.createNativeQuery("SET search_path TO " + schemaName)
+            entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName))
                     .executeUpdate();
             entityManager.flush(); // Ensure the schema change is applied
         } catch (Exception e) {

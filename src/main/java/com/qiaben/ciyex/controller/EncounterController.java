@@ -2,21 +2,30 @@
 
 
 
-
-
 package com.qiaben.ciyex.controller;
-
-import com.qiaben.ciyex.dto.EncounterDto;
-import com.qiaben.ciyex.dto.ApiResponse;
-import com.qiaben.ciyex.service.EncounterService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.qiaben.ciyex.dto.ApiResponse;
+import com.qiaben.ciyex.dto.EncounterDto;
+import com.qiaben.ciyex.service.EncounterService;
+
 @RestController
 @RequestMapping("/api/{patientId}/encounters")
+
 public class EncounterController {
 
     private final EncounterService encounterService;
@@ -25,6 +34,9 @@ public class EncounterController {
     public EncounterController(EncounterService encounterService) {
         this.encounterService = encounterService;
     }
+
+
+
 
     // CREATE
     @PostMapping
@@ -199,100 +211,10 @@ public class EncounterController {
                     .build());
         }
     }
-
+    
+    
 
 }
 
 
 
-//package com.qiaben.ciyex.controller;
-//
-//import com.qiaben.ciyex.dto.EncounterDto;
-//import com.qiaben.ciyex.entity.EncounterStatus;
-//import com.qiaben.ciyex.service.EncounterService;
-//import com.qiaben.ciyex.util.ApiResponse;
-//import lombok.RequiredArgsConstructor;
-//import org.springframework.http.ResponseEntity;
-//import org.springframework.web.bind.annotation.*;
-//
-//import java.util.List;
-//
-//@RestController
-//@RequestMapping("/api/{patientId}/encounters")
-//@RequiredArgsConstructor
-//public class EncounterController {
-//
-//    private final EncounterService service;
-//
-//    private Long orgIdFromHeader(String orgHeader) {
-//        if (orgHeader == null || orgHeader.isBlank()) throw new IllegalArgumentException("X-Org-Id header required");
-//        return Long.parseLong(orgHeader);
-//    }
-//
-//    @GetMapping
-//    public ResponseEntity<ApiResponse<List<EncounterDto>>> list(
-//            @RequestHeader("X-Org-Id") String orgHeader,
-//            @PathVariable Long patientId,
-//            @RequestParam(required = false) EncounterStatus status
-//    ) {
-//        Long orgId = orgIdFromHeader(orgHeader);
-//        return ResponseEntity.ok(ApiResponse.ok(service.list(orgId, patientId, status)));
-//    }
-//
-//    @PostMapping
-//    public ResponseEntity<ApiResponse<EncounterDto>> create(
-//            @RequestHeader("X-Org-Id") String orgHeader,
-//            @PathVariable Long patientId,
-//            @RequestBody EncounterDto dto
-//    ) {
-//        Long orgId = orgIdFromHeader(orgHeader);
-//        return ResponseEntity.ok(ApiResponse.ok(service.create(orgId, patientId, dto)));
-//    }
-//
-//    @PutMapping("/{id}")
-//    public ResponseEntity<ApiResponse<EncounterDto>> update(
-//            @RequestHeader("X-Org-Id") String orgHeader,
-//            @PathVariable Long patientId,
-//            @PathVariable Long id,
-//            @RequestBody EncounterDto dto
-//    ) {
-//        Long orgId = orgIdFromHeader(orgHeader);
-//        return ResponseEntity.ok(ApiResponse.ok(service.update(orgId, patientId, id, dto)));
-//    }
-//
-//    @DeleteMapping("/{id}")
-//    public ResponseEntity<ApiResponse<Void>> delete(
-//            @RequestHeader("X-Org-Id") String orgHeader,
-//            @PathVariable Long patientId,
-//            @PathVariable Long id
-//    ) {
-//        Long orgId = orgIdFromHeader(orgHeader);
-//        service.delete(orgId, patientId, id);
-//        return ResponseEntity.ok(ApiResponse.ok(null, "Deleted"));
-//    }
-//
-//    // ---- Status actions ----
-//    @PutMapping("/{id}/sign")
-//    public ResponseEntity<ApiResponse<EncounterDto>> sign(
-//            @RequestHeader("X-Org-Id") String orgHeader,
-//            @PathVariable Long patientId, @PathVariable Long id) {
-//        Long orgId = orgIdFromHeader(orgHeader);
-//        return ResponseEntity.ok(ApiResponse.ok(service.mark(orgId, patientId, id, EncounterStatus.SIGNED)));
-//    }
-//
-//    @PutMapping("/{id}/incomplete")
-//    public ResponseEntity<ApiResponse<EncounterDto>> incomplete(
-//            @RequestHeader("X-Org-Id") String orgHeader,
-//            @PathVariable Long patientId, @PathVariable Long id) {
-//        Long orgId = orgIdFromHeader(orgHeader);
-//        return ResponseEntity.ok(ApiResponse.ok(service.mark(orgId, patientId, id, EncounterStatus.INCOMPLETE)));
-//    }
-//
-//    @PutMapping("/{id}/unsign")
-//    public ResponseEntity<ApiResponse<EncounterDto>> unsign(
-//            @RequestHeader("X-Org-Id") String orgHeader,
-//            @PathVariable Long patientId, @PathVariable Long id) {
-//        Long orgId = orgIdFromHeader(orgHeader);
-//        return ResponseEntity.ok(ApiResponse.ok(service.mark(orgId, patientId, id, EncounterStatus.UNSIGNED)));
-//    }
-//}

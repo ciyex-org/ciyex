@@ -4,11 +4,16 @@
 package com.qiaben.ciyex.entity;
 
 import
-        jakarta.persistence.*;
-import lombok.Data;
+        java.time.LocalDateTime;
 
-import java.time.Instant;
-import java.util.List;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import lombok.Data;
 
 @Entity
 @Data
@@ -31,9 +36,8 @@ public class Encounter {
 
     @Column(nullable = false, updatable = false)
     private Long createdAt;
-    @Column(name = "encounter_date")
-    private Instant encounterDate;   // or LocalDateTime if you prefer
-
+  @Column(name = "encounter_date")
+private LocalDateTime encounterDate;
 
     @Column(nullable = false)
     private Long updatedAt;

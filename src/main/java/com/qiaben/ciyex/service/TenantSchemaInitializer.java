@@ -80,6 +80,8 @@ public class TenantSchemaInitializer {
 
         String schemaName = "practice_" + orgId;
 
+        log.debug("initializeTenantSchema called for orgId: {} schema: {}", orgId, schemaName);
+
         if (initializedSchemas.containsKey(orgId)) {
             log.debug("Tenant schema already initialized for orgId: {}. Running pending Flyway migrations.", orgId);
             tenantFlywayMigrator.migrate(schemaName, orgId);
@@ -92,6 +94,10 @@ public class TenantSchemaInitializer {
             
             // Create all tenant tables using Hibernate metadata
             createTenantTablesFromEntities(schemaName);
+
+            // Ensure that if some tables are missing (schema existed previously) we create any missing ones
+            // This helps when entity set changed between deployments — compare and create missing tables
+            ensureTenantTablesExist(orgId);
 
             // Apply tenant-specific Flyway migrations after tables exist
             tenantFlywayMigrator.migrate(schemaName, orgId);
@@ -113,7 +119,7 @@ public class TenantSchemaInitializer {
         String schemaName = "practice_" + orgId;
         try {
             // Use only the tenant schema in search_path
-            entityManager.createNativeQuery("SET search_path TO " + schemaName).executeUpdate();
+            entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName)).executeUpdate();
             ensureJsonbColumn(schemaName, "org_config", "integrations");
             tenantFlywayMigrator.migrate(schemaName, orgId);
         } catch (Exception e) {
@@ -126,7 +132,7 @@ public class TenantSchemaInitializer {
     private void createSchemaIfNotExists(String schemaName) {
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
-            statement.executeUpdate("CREATE SCHEMA IF NOT EXISTS " + schemaName);
+            statement.executeUpdate("CREATE SCHEMA IF NOT EXISTS " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
         } catch (SQLException ex) {
             throw new RuntimeException("Failed to create schema: " + schemaName, ex);
         }
@@ -135,7 +141,7 @@ public class TenantSchemaInitializer {
     private void createTenantTablesFromEntities(String schemaName) {
         try {
             // Set search path to tenant schema only (not including public)
-            entityManager.createNativeQuery("SET search_path TO " + schemaName).executeUpdate();
+            entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName)).executeUpdate();
             
             // Get all tenant entities
             List<Class<?>> tenantEntities = getAllTenantEntities();
@@ -252,10 +258,13 @@ public class TenantSchemaInitializer {
 
             String dataType = dataTypeObj != null ? dataTypeObj.toString() : null;
             if (dataType != null && !dataType.equalsIgnoreCase("jsonb")) {
-                String alter = String.format(
-                        "ALTER TABLE %s.%s ALTER COLUMN %s TYPE JSONB USING %s::jsonb",
-                        schemaName, tableName, columnName, columnName);
-                entityManager.createNativeQuery(alter).executeUpdate();
+        String alter = String.format(
+            "ALTER TABLE %s.%s ALTER COLUMN %s TYPE JSONB USING %s::jsonb",
+            com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
+            com.qiaben.ciyex.util.SqlIdentifier.quote(tableName),
+            com.qiaben.ciyex.util.SqlIdentifier.quote(columnName),
+            com.qiaben.ciyex.util.SqlIdentifier.quote(columnName));
+        entityManager.createNativeQuery(alter).executeUpdate();
                 log.info("Altered column {}.{}.{} to JSONB", schemaName, tableName, columnName);
             }
         } catch (Exception e) {
@@ -329,36 +338,95 @@ public class TenantSchemaInitializer {
     private void createTableUsingHibernateDDL(Class<?> entityClass, String schemaName, String tableName) {
         try {
             // Use Hibernate's SchemaExport to generate DDL for this specific entity
-            SessionFactoryImplementor sessionFactory = entityManagerFactory.unwrap(SessionFactoryImplementor.class);
-            
+
             // Create a simple table structure dynamically based on entity fields
             StringBuilder ddl = new StringBuilder();
-            ddl.append(String.format("CREATE TABLE IF NOT EXISTS %s.%s (", schemaName, tableName));
-            
-            // Always add an ID column
-            ddl.append("id BIGSERIAL PRIMARY KEY");
-            
+            ddl.append(String.format("CREATE TABLE IF NOT EXISTS %s.%s (",
+                com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
+                com.qiaben.ciyex.util.SqlIdentifier.quote(tableName)));
+
+            // Always add an ID column (quote the identifier to avoid reserved-word issues)
+            ddl.append(String.format("%s BIGSERIAL PRIMARY KEY", com.qiaben.ciyex.util.SqlIdentifier.quote("id")));
+
             // Add other columns based on entity fields (simplified approach)
             java.lang.reflect.Field[] fields = entityClass.getDeclaredFields();
             for (java.lang.reflect.Field field : fields) {
                 if (!field.getName().equals("id") && !java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
                     String columnName = camelToSnakeCase(field.getName());
                     String columnType = getColumnType(field.getType());
-                    ddl.append(String.format(", %s %s", columnName, columnType));
+                    // Quote column names to handle reserved words (e.g., user) and special characters
+                    ddl.append(String.format(", %s %s", com.qiaben.ciyex.util.SqlIdentifier.quote(columnName), columnType));
                 }
             }
-            
+
             ddl.append(")");
-            
+
             entityManager.createNativeQuery(ddl.toString()).executeUpdate();
             log.debug("Created table: {}.{} for entity: {}", schemaName, tableName, entityClass.getSimpleName());
-            
+
         } catch (Exception e) {
             log.warn("Failed to create table for entity {}: {}", entityClass.getSimpleName(), e.getMessage());
             // Fallback: create a basic table with just ID
-            String fallbackDDL = String.format("CREATE TABLE IF NOT EXISTS %s.%s (id BIGSERIAL PRIMARY KEY)", schemaName, tableName);
+            String fallbackDDL = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s BIGSERIAL PRIMARY KEY)",
+                com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
+                com.qiaben.ciyex.util.SqlIdentifier.quote(tableName),
+                com.qiaben.ciyex.util.SqlIdentifier.quote("id"));
             entityManager.createNativeQuery(fallbackDDL).executeUpdate();
             log.debug("Created fallback table: {}.{}", schemaName, tableName);
+        }
+    }
+
+    /**
+     * Ensure all tenant tables exist for the given org schema. This compares the JPA tenant entities
+     * to information_schema and creates any missing tables using existing helpers.
+     */
+    @Transactional
+    public void ensureTenantTablesExist(Long orgId) {
+        if (orgId == null) return;
+        String schemaName = "practice_" + orgId;
+
+        try {
+            // Ensure search_path to tenant schema
+            entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName)).executeUpdate();
+
+            List<Class<?>> tenantEntities = getAllTenantEntities();
+            log.info("Ensuring {} tenant entities exist in schema {}", tenantEntities.size(), schemaName);
+
+            for (Class<?> entityClass : tenantEntities) {
+                try {
+                    String tableName = getTableName(entityClass);
+                    String checkTableQuery = String.format(
+                            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s')",
+                            schemaName, tableName
+                    );
+                    Object result = entityManager.createNativeQuery(checkTableQuery).getSingleResult();
+                    boolean exists = false;
+                    if (result instanceof Boolean) {
+                        exists = (Boolean) result;
+                    } else if (result instanceof Number) {
+                        exists = ((Number) result).intValue() == 1;
+                    } else if (result != null) {
+                        exists = Boolean.parseBoolean(result.toString());
+                    }
+
+                    if (!exists) {
+                        log.info("Table {}.{} missing - creating", schemaName, tableName);
+                        createTableForEntity(entityClass, schemaName);
+                    } else {
+                        log.debug("Table {}.{} already exists", schemaName, tableName);
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to verify/create table for entity {}: {}", entityClass.getSimpleName(), e.getMessage());
+                }
+            }
+
+            // Ensure known JSON columns
+            ensureJsonbColumn(schemaName, "org_config", "integrations");
+
+        } catch (Exception e) {
+            log.warn("Failed to ensure tenant tables exist for schema {}: {}", schemaName, e.getMessage());
+        } finally {
+            try { entityManager.createNativeQuery("SET search_path TO public").executeUpdate(); } catch (Exception ignore) {}
         }
     }
     
