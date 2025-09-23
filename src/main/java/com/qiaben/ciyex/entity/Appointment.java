@@ -16,39 +16,49 @@ public class Appointment {
     private Long id;
 
     // Org reference
-    @Column(nullable = false)
-    private Long orgId; // Foreign key to organizations table
+    @Column(name = "org_id", nullable = false)
+    private Long orgId;
 
     // Visit details
-    @Column(nullable = false)
+    @Column(name = "visit_type", nullable = false)
     private String visitType;  // e.g., Consultation, Follow-up
 
     // Patient reference
-    @Column(nullable = false)
-    private Long patientId; // Foreign key to patients table
+    @Column(name = "patient_id", nullable = false)
+    private Long patientId;
 
     // Provider reference
-    @Column(nullable = false)
-    private Long providerId; // Foreign key to providers table
+    @Column(name = "provider_id", nullable = false)
+    private Long providerId;
 
     // Dates & times
+    @Column(name = "appointment_start_date")
     private String appointmentStartDate;
+
+    @Column(name = "appointment_end_date")
     private String appointmentEndDate;
+
+    @Column(name = "appointment_start_time")
     private String appointmentStartTime;
+
+    @Column(name = "appointment_end_time")
     private String appointmentEndTime;
 
     // Meta
     private String priority;   // Routine, Urgent, etc.
 
-    @Column(nullable = true)
-    private Long locationId;   // Foreign key to locations table
+    @Column(name = "location_id")
+    private Long locationId;
 
     private String status;     // Scheduled, Completed, Cancelled, etc.
 
     @Column(length = 2000)
-    private String reason;     // Reason / Chief Complaint
+    private String reason;
 
     // Audit
+    @Column(name = "created_date")
     private String createdDate;
+
+    @Column(name = "last_modified_date")
     private String lastModifiedDate;
 }

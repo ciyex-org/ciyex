@@ -1,4 +1,4 @@
-package com.qiaben.ciyex.controller.portal.controller;
+package com.qiaben.ciyex.controller.portal;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -7,8 +7,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.qiaben.ciyex.dto.portal.dto.PortalPatientDto;
-import com.qiaben.ciyex.service.portal.service.PortalPatientService;
+import com.qiaben.ciyex.dto.portal.PortalPatientDto;
+import com.qiaben.ciyex.service.portal.PortalPatientService;
 import com.qiaben.ciyex.util.JwtTokenUtil;
 
 import jakarta.servlet.http.HttpServletRequest;

@@ -1,7 +1,10 @@
-package com.qiaben.ciyex.entity.portal.entity;
+package com.qiaben.ciyex.entity.portal;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -18,13 +21,15 @@ public class PortalUser {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** 🔹 Unique email for login */
     @Column(nullable = false, unique = true)
     private String email;
 
-    /** 🔹 Encrypted password */
     @Column(nullable = false)
     private String password;
+
+    /** 🔹 One-to-one link to PortalPatient */
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private PortalPatient patient;
 
     private String firstName;
     private String lastName;
@@ -43,26 +48,18 @@ public class PortalUser {
     private String securityQuestion;
     private String securityAnswer;
 
-    /** 🔹 Unique identifier for external integrations */
     @Column(nullable = false, unique = true, updatable = false)
     private UUID uuid;
 
-    /** 🔹 Associated organization (patient chooses on signup) */
     @Column(name = "org_id", nullable = false)
     private Long orgId;
 
-    /** 🔹 Always PATIENT role inside portal */
     @Column(nullable = false, length = 50)
     private String role;
 
-    /** 🔹 Default handling */
     @PrePersist
     public void prePersist() {
-        if (this.role == null) {
-            this.role = "PATIENT";
-        }
-        if (this.uuid == null) {
-            this.uuid = UUID.randomUUID();
-        }
+        if (this.role == null) this.role = "PATIENT";
+        if (this.uuid == null) this.uuid = UUID.randomUUID();
     }
 }

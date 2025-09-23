@@ -207,12 +207,14 @@ public class FhirExternalAppointmentStorage implements ExternalAppointmentStorag
             dto.setReason(fhir.getReasonCodeFirstRep().getText());
         }
         if (fhir.hasStart()) {
-            dto.setAppointmentStartDate(DATE_FORMAT.format(fhir.getStart()));
-            dto.setAppointmentStartTime(new SimpleDateFormat("HH:mm").format(fhir.getStart()));
+            LocalDateTime startDateTime = fhir.getStart().toInstant().atZone(ZoneOffset.UTC).toLocalDateTime();
+            dto.setAppointmentStartDate(startDateTime.toLocalDate());
+            dto.setAppointmentStartTime(startDateTime.toLocalTime());
         }
         if (fhir.hasEnd()) {
-            dto.setAppointmentEndDate(DATE_FORMAT.format(fhir.getEnd()));
-            dto.setAppointmentEndTime(new SimpleDateFormat("HH:mm").format(fhir.getEnd()));
+            LocalDateTime endDateTime = fhir.getEnd().toInstant().atZone(ZoneOffset.UTC).toLocalDateTime();
+            dto.setAppointmentEndDate(endDateTime.toLocalDate());
+            dto.setAppointmentEndTime(endDateTime.toLocalTime());
         }
 
         fhir.getParticipant().forEach(p -> {

@@ -1,14 +1,14 @@
-package com.qiaben.ciyex.service.portal.service;
+package com.qiaben.ciyex.service.portal;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.qiaben.ciyex.dto.portal.dto.PortalPatientDto;
-import com.qiaben.ciyex.entity.portal.entity.PortalPatient;
-import com.qiaben.ciyex.entity.portal.entity.PortalUser;
+import com.qiaben.ciyex.dto.portal.PortalPatientDto;
+import com.qiaben.ciyex.entity.portal.PortalPatient;
+import com.qiaben.ciyex.entity.portal.PortalUser;
 import com.qiaben.ciyex.mapper.portal.PortalPatientMapper;
-import com.qiaben.ciyex.repository.portal.repository.PortalPatientRepository;
-import com.qiaben.ciyex.repository.portal.repository.PortalUserRepository;
+import com.qiaben.ciyex.repository.portal.PortalPatientRepository;
+import com.qiaben.ciyex.repository.portal.PortalUserRepository;
 
 @Service
 public class PortalPatientService {

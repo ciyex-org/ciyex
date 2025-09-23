@@ -1,4 +1,4 @@
-package com.qiaben.ciyex.dto.portal.dto;
+package com.qiaben.ciyex.dto.portal;
 
 public class ApiResponse<T> {
     private boolean success;

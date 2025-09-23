@@ -1,6 +1,6 @@
-package com.qiaben.ciyex.service.portal.service;
+package com.qiaben.ciyex.service.portal;
 
-import com.qiaben.ciyex.dto.portal.dto.PortalDemographicsDto;
+import com.qiaben.ciyex.dto.portal.PortalDemographicsDto;
 
 public interface PortalDemographicsService {
 

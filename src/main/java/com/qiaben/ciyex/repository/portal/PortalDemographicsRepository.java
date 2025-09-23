@@ -1,6 +1,6 @@
-package com.qiaben.ciyex.repository.portal.repository;
+package com.qiaben.ciyex.repository.portal;
 
-import com.qiaben.ciyex.entity.portal.entity.PortalDemographics;
+import com.qiaben.ciyex.entity.portal.PortalDemographics;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
