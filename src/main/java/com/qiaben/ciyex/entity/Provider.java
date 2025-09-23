@@ -1,5 +1,3 @@
-package com.qiaben.ciyex.entity;
-
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,88 +9,81 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "provider") // make sure it matches your table name
+@Table(name = "provider")
 public class Provider {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id; // System-generated unique identifier
+    private Long id;
 
     @Column(name = "org_id")
-    private Long orgId; // Added for multi-tenancy
-
+    private Long orgId;
 
     @Column(name = "npi")
-    private String npi; // National Provider Identifier
+    private String npi;
 
-    @Column(name = "firstname")
-    private String firstName; // Legal first name
+    @Column(name = "first_name")
+    private String firstName;
 
-    @Column(name = "lastname")
-    private String lastName; // Legal last name
+    @Column(name = "last_name")
+    private String lastName;
 
-    @Column(name = "middlename")
-    private String middleName; // Optional
+    @Column(name = "middle_name")
+    private String middleName;
 
     @Column(name = "prefix")
-
-    private String prefix; // Optional
+    private String prefix;
 
     @Column(name = "suffix")
-    private String suffix; // Optional
+    private String suffix;
 
     @Column(name = "gender")
-    private String gender; // Optional (FHIR/HL7 code)
+    private String gender;
 
-
-    @Column(name = "dateofbirth")
-    private String dateOfBirth; // Optional
+    @Column(name = "date_of_birth")
+    private String dateOfBirth;
 
     @Column(name = "photo")
-    private String photo; // Optional (URL or file)
+    private String photo;
 
     @Column(name = "email")
-    private String email; // Optional
+    private String email;
 
-    @Column(name = "phonenumber")
-    private String phoneNumber; // Optional
+    @Column(name = "phone_number")
+    private String phoneNumber;
 
-    @Column(name = "mobilenumber")
-    private String mobileNumber; // Optional
+    @Column(name = "mobile_number")
+    private String mobileNumber;
 
-    @Column(name = "faxnumber")
-    private String faxNumber; // Optional
+    @Column(name = "fax_number")
+    private String faxNumber;
 
     @Column(name = "address")
-    private String address; // Optional
+    private String address;
 
     @Column(name = "specialty")
-    private String specialty; // Optional
+    private String specialty;
 
-    @Column(name = "providertype")
-    private String providerType; // Optional
+    @Column(name = "provider_type")
+    private String providerType;
 
-    @Column(name = "licensenumber")
-    private String licenseNumber; // Yes (State medical license)
+    @Column(name = "license_number")
+    private String licenseNumber;
 
-    @Column(name = "licensestate")
-    private String licenseState; // Optional
+    @Column(name = "license_state")
+    private String licenseState;
 
-    @Column(name = "licenseexpiry")
-    private String licenseExpiry; // Optional
+    @Column(name = "license_expiry")
+    private String licenseExpiry;
 
-    @Column(name = "externalid")
+    @Column(name = "external_id")
     private String externalId;
 
-    @Column(name = "createddate")
-    private String createdDate; // Yes
+    @Column(name = "created_date")
+    private String createdDate;
 
-    @Column(name = "lastmodifieddate")
-    private String lastModifiedDate; // Yes
-
-
-  
-
-
+    @Column(name = "last_modified_date")
+    private String lastModifiedDate;
 
     @Enumerated(EnumType.STRING)
     private ProviderStatus status;
@@ -100,6 +91,7 @@ public class Provider {
     @PrePersist
     public void prePersist() {
         if (status == null) {
-            status = ProviderStatus.ACTIVE; // default on create
+            status = ProviderStatus.ACTIVE;
         }
-
+    }
+}
