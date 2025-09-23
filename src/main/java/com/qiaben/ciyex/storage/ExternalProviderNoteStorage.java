@@ -1,15 +1,17 @@
+
+
+
+
 package com.qiaben.ciyex.storage;
 
-import com.qiaben.ciyex.dto.ProviderNoteDto;
+import com.qiaben.ciyex.entity.ProviderNote;
 
-import java.util.List;
-import java.util.Optional;
-
+/**
+ * Abstraction to persist/sync provider notes to an external system (e.g., FHIR server).
+ * A no-op implementation is provided so the app runs even without integration.
+ */
 public interface ExternalProviderNoteStorage {
-    String create(ProviderNoteDto dto);                    // return Composition id
-    void update(String externalId, ProviderNoteDto dto);   // update Composition
-    Optional<ProviderNoteDto> get(String externalId);      // read Composition -> DTO
-    void delete(String externalId);                        // delete Composition
-    List<ProviderNoteDto> searchAll(Long orgId, Long patientId);
-    List<ProviderNoteDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    void onCreated(ProviderNote note);
+    void onUpdated(ProviderNote note);
+    void onDeleted(ProviderNote note);
 }

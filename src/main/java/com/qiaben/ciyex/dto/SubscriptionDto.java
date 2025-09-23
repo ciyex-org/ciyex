@@ -8,6 +8,9 @@ import lombok.*;
 @Builder
 public class SubscriptionDto {
     private Long id;
+    private Long orgId;
+    private Long userId;
+
     private String service;
     private String billingCycle;
     private String scope;

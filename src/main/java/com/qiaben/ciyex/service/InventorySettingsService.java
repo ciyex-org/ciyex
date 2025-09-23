@@ -15,7 +15,7 @@ public class InventorySettingsService {
 
     private final InventorySettingsRepository repository;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public InventorySettingsDto getSettings(Long orgId) {
         InventorySettings entity = repository.findByOrgId(orgId)
                 .orElseGet(() -> {

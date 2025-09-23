@@ -1,8 +1,10 @@
 package com.qiaben.ciyex.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.DocumentDto;
 import com.qiaben.ciyex.service.DocumentService;
+import com.qiaben.ciyex.service.DocumentService.DownloadResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
@@ -14,11 +16,12 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/patients/{patientId}/documents")
+@RequestMapping("/api/{orgId}/patients/{patientId}/documents")
 @Slf4j
 public class DocumentController {
 
     private final DocumentService service;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public DocumentController(DocumentService service) {
         this.service = service;
@@ -26,94 +29,86 @@ public class DocumentController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<DocumentDto>> upload(
+            @PathVariable Long orgId,
             @PathVariable Long patientId,
-            @RequestPart("dto") DocumentDto dto,
-            @RequestPart(value = "file", required = true) MultipartFile file) {
+            @RequestPart("dto") String dtoJson,
+            @RequestPart("file") MultipartFile file) {
         try {
-            // Infer MIME type if application/octet-stream
-            String contentType = file.getContentType();
-            if ("application/octet-stream".equals(contentType) || contentType == null) {
-                contentType = inferContentType(file.getOriginalFilename());
-                log.debug("Inferred contentType: {} for file: {}", contentType, file.getOriginalFilename());
-            }
-            dto.setContentType(contentType);
-            DocumentDto created = service.create(patientId, dto, file);
+            DocumentDto dto = objectMapper.readValue(dtoJson, DocumentDto.class);
+            DocumentDto created = service.create(orgId, patientId, dto, file);
+
             return ResponseEntity.ok(ApiResponse.<DocumentDto>builder()
                     .success(true)
                     .message("Document uploaded successfully")
                     .data(created)
                     .build());
-        } catch (Exception e) {
-            log.error("Failed to upload document: {}", e.getMessage());
-            return ResponseEntity.ok(ApiResponse.<DocumentDto>builder()
+        } catch (IllegalArgumentException e) {
+            // invalid input, file too large, wrong type
+            return ResponseEntity.badRequest().body(ApiResponse.<DocumentDto>builder()
                     .success(false)
-                    .message("Failed to upload document: " + e.getMessage())
-                    .build());
-        }
-    }
-
-    private String inferContentType(String fileName) {
-        if (fileName == null) {
-            return "application/octet-stream";
-        }
-        String lowerCaseFileName = fileName.toLowerCase();
-        if (lowerCaseFileName.endsWith(".pdf")) {
-            return "application/pdf";
-        } else if (lowerCaseFileName.endsWith(".jpg") || lowerCaseFileName.endsWith(".jpeg")) {
-            return "image/jpeg";
-        } else if (lowerCaseFileName.endsWith(".png")) {
-            return "image/png";
-        } else if (lowerCaseFileName.endsWith(".txt")) {
-            return "text/plain";
-        }
-        return "application/octet-stream"; // Fallback
-    }
-
-    @DeleteMapping("/{documentId}")
-    public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long patientId,
-            @PathVariable Long documentId) {
-        try {
-            service.delete(documentId);
-            return ResponseEntity.ok(ApiResponse.<Void>builder()
-                    .success(true)
-                    .message("Document deleted successfully")
+                    .message(e.getMessage())
                     .build());
         } catch (Exception e) {
-            log.error("Failed to delete document: {}", e.getMessage());
-            return ResponseEntity.ok(ApiResponse.<Void>builder()
+            log.error("Upload failed", e);
+            return ResponseEntity.internalServerError().body(ApiResponse.<DocumentDto>builder()
                     .success(false)
-                    .message("Failed to delete document: " + e.getMessage())
+                    .message("Server error: " + e.getMessage())
                     .build());
         }
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<DocumentDto>>> list(@PathVariable Long patientId) {
-        try {
-            return ResponseEntity.ok(service.getAllForPatient(patientId));
-        } catch (Exception e) {
-            log.error("Failed to list documents: {}", e.getMessage());
-            return ResponseEntity.ok(ApiResponse.<List<DocumentDto>>builder()
-                    .success(false)
-                    .message("Failed to list documents: " + e.getMessage())
-                    .build());
-        }
+    public ResponseEntity<ApiResponse<List<DocumentDto>>> list(
+            @PathVariable Long orgId,
+            @PathVariable Long patientId) {
+        return ResponseEntity.ok(service.getAllForPatient(orgId, patientId));
     }
 
     @GetMapping("/{documentId}/download")
     public ResponseEntity<InputStreamResource> download(
+            @PathVariable Long orgId,
             @PathVariable Long patientId,
             @PathVariable Long documentId) {
         try {
-            DocumentService.DownloadResult result = service.download(documentId);
+            DownloadResult result = service.download(orgId, documentId);
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(result.getContentType()))
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + result.getFileName() + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"" + result.getFileName() + "\"")
                     .body(new InputStreamResource(result.getInputStream()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (RuntimeException e) {
+            log.error("Download failed", e);
+            return ResponseEntity.status(404).build();
         } catch (Exception e) {
-            log.error("Failed to download document: {}", e.getMessage());
-            return ResponseEntity.status(500).build();
+            log.error("Unexpected error", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @DeleteMapping("/{documentId}")
+    public ResponseEntity<ApiResponse<Void>> delete(
+            @PathVariable Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long documentId) {
+        try {
+            service.delete(orgId, documentId);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(true)
+                    .message("Document deleted successfully")
+                    .build());
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(404).body(ApiResponse.<Void>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
+        } catch (Exception e) {
+            log.error("Delete failed", e);
+            return ResponseEntity.internalServerError().body(ApiResponse.<Void>builder()
+                    .success(false)
+                    .message("Server error: " + e.getMessage())
+                    .build());
         }
     }
 }

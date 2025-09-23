@@ -6,6 +6,8 @@ import com.qiaben.ciyex.dto.UpdateUserProfileRequest;
 import com.qiaben.ciyex.entity.User;
 import com.qiaben.ciyex.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -54,6 +56,16 @@ public class UserService {
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
+    }
+
+    public User getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated() && 
+            !authentication.getPrincipal().equals("anonymousUser")) {
+            String email = authentication.getName();
+            return userRepository.findByEmail(email).orElse(null);
+        }
+        return null;
     }
 
 }

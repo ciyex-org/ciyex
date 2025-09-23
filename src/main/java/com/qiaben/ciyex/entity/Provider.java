@@ -20,6 +20,7 @@ public class Provider {
     @Column(name = "org_id")
     private Long orgId; // Added for multi-tenancy
 
+
     @Column(name = "npi")
     private String npi; // National Provider Identifier
 
@@ -33,6 +34,7 @@ public class Provider {
     private String middleName; // Optional
 
     @Column(name = "prefix")
+
     private String prefix; // Optional
 
     @Column(name = "suffix")
@@ -40,6 +42,7 @@ public class Provider {
 
     @Column(name = "gender")
     private String gender; // Optional (FHIR/HL7 code)
+
 
     @Column(name = "dateofbirth")
     private String dateOfBirth; // Optional
@@ -86,6 +89,11 @@ public class Provider {
     @Column(name = "lastmodifieddate")
     private String lastModifiedDate; // Yes
 
+
+  
+
+
+
     @Enumerated(EnumType.STRING)
     private ProviderStatus status;
 
@@ -94,5 +102,4 @@ public class Provider {
         if (status == null) {
             status = ProviderStatus.ACTIVE; // default on create
         }
-    }
-}
+

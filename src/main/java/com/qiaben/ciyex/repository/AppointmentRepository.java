@@ -38,6 +38,11 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     List<Appointment> findAllByProviderIdAndOrgIdAndAppointmentStartDateBetween(
             Long providerId, Long orgId, String startDate, String endDate);
 
+
     // -------- Org Scoped --------
     Page<Appointment> findAllByOrgId(Long orgId, Pageable pageable);
+
+    long countByOrgId(Long orgId);
+
+
 }
