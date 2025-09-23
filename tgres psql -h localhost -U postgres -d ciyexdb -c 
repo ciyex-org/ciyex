@@ -1,5 +1,0 @@
-     actiontype      | userid  |                           description                            |                                                                      details                                                                       
----------------------+---------+------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------
- VIEW_PATIENT_RECORD | user123 | Provider accessed patient medical record for routine examination | {"patientName": "John Doe", "accessReason": "routine_checkup", "dataAccessed": ["demographics", "vitals", "medical_history"], "viewDuration": 180}
-(1 row)
-
