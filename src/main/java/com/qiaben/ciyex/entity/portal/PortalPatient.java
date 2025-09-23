@@ -36,3 +36,4 @@ public class PortalPatient {
         throw new UnsupportedOperationException("Unimplemented method 'setInsuranceId'");
     }
 }
+//
