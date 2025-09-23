@@ -14,7 +14,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 @Service
 @Slf4j
@@ -23,6 +25,10 @@ public class AppointmentService {
     private final AppointmentRepository repository;
     private final ExternalStorageResolver storageResolver;
     private final OrgIntegrationConfigProvider configProvider;
+    private static final int DEFAULT_DAYS_AHEAD = 7;
+
+    private final DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("MM/dd/yyyy");
+    private final DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("hh:mm a");
 
     @Autowired
     public AppointmentService(AppointmentRepository repository,
@@ -37,30 +43,16 @@ public class AppointmentService {
     @Transactional
     public AppointmentDTO create(AppointmentDTO dto) {
         Long orgId = getCurrentOrgId();
-        if (orgId == null) {
-            throw new SecurityException("No orgId available in request context");
-        }
+        if (orgId == null) throw new SecurityException("No orgId available in request context");
 
         Appointment entity = mapToEntity(dto);
-        entity.setOrgId(orgId); // ✅ enforce orgId
+        entity.setOrgId(orgId);
         entity.setCreatedDate(LocalDateTime.now().toString());
         entity.setLastModifiedDate(LocalDateTime.now().toString());
 
-        // Sync to external storage if configured
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            try {
-                ExternalAppointmentStorage externalStorage =
-                        (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
-                String externalId = externalStorage.create(dto);
-                log.info("Synced appointment to external storage with externalId {} for orgId {}", externalId, orgId);
-            } catch (Exception e) {
-                log.error("Failed to sync appointment to external storage for orgId {}, {}", orgId, e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e);
-            }
-        }
-
         entity = repository.save(entity);
+        syncExternalCreate(entity);
+
         return mapToDto(entity);
     }
 
@@ -69,49 +61,42 @@ public class AppointmentService {
     public AppointmentDTO getById(Long id) {
         Long orgId = getCurrentOrgId();
         Appointment entity = repository.findByIdAndOrgId(id, orgId)
-                .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id + " for org " + orgId));
+                .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
         return mapToDto(entity);
     }
 
     @Transactional(readOnly = true)
     public Page<AppointmentDTO> getAll(Pageable pageable) {
         Long orgId = getCurrentOrgId();
-        log.info("Fetching appointments for orgId: {}", orgId); // Log orgId to debug
-
-        if (orgId == null) {
-            log.warn("orgId is null! This might be why no appointments are returned.");
-        }
-
-        // Fetch the appointments with orgId filter
         return repository.findAllByOrgId(orgId, pageable).map(this::mapToDto);
     }
 
+    @Transactional(readOnly = true)
+    public List<AppointmentDTO> getByPatientId(Long patientId) {
+        Long orgId = getCurrentOrgId();
+        return repository.findAllByPatientIdAndOrgId(patientId, orgId)
+                .stream().map(this::mapToDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AppointmentDTO> getByPatientId(Long patientId, Pageable pageable) {
+        Long orgId = getCurrentOrgId();
+        return repository.findAllByPatientIdAndOrgId(patientId, orgId, pageable).map(this::mapToDto);
+    }
 
     // -------- Update --------
     @Transactional
     public AppointmentDTO update(Long id, AppointmentDTO dto) {
         Long orgId = getCurrentOrgId();
         Appointment entity = repository.findByIdAndOrgId(id, orgId)
-                .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id + " for org " + orgId));
+                .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
 
         updateEntityFromDto(entity, dto);
-        entity.setOrgId(orgId); // ✅ keep orgId
         entity.setLastModifiedDate(LocalDateTime.now().toString());
 
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            try {
-                ExternalAppointmentStorage externalStorage =
-                        (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
-                externalStorage.update(dto, String.valueOf(entity.getId()));
-                log.info("Updated appointment {} in external storage for org {}", entity.getId(), orgId);
-            } catch (Exception e) {
-                log.error("Failed to update appointment in external storage: {}", e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e);
-            }
-        }
-
         entity = repository.save(entity);
+        syncExternalUpdate(entity, dto);
+
         return mapToDto(entity);
     }
 
@@ -120,22 +105,85 @@ public class AppointmentService {
     public void delete(Long id) {
         Long orgId = getCurrentOrgId();
         Appointment entity = repository.findByIdAndOrgId(id, orgId)
-                .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id + " for org " + orgId));
+                .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
 
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            try {
-                ExternalAppointmentStorage externalStorage =
-                        (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
-                externalStorage.delete(String.valueOf(entity.getId()));
-                log.info("Deleted appointment {} from external storage for org {}", entity.getId(), orgId);
-            } catch (Exception e) {
-                log.error("Failed to delete appointment from external storage: {}", e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e);
+        syncExternalDelete(entity);
+        repository.delete(entity);
+    }
+
+    // -------- First Available Slots --------
+    @Transactional(readOnly = true)
+    public List<AppointmentDTO> getFirstAvailableSlotsForProvider(Long providerId, int limit) {
+        return getAvailableSlots(providerId, DEFAULT_DAYS_AHEAD, limit);
+    }
+
+    // -------- Available Slots: N days ahead --------
+    @Transactional(readOnly = true)
+    public List<AppointmentDTO> getAvailableSlots(Long providerId, int daysAhead, int limit) {
+        Long orgId = getCurrentOrgId();
+        if (orgId == null) throw new SecurityException("No orgId available in request context");
+
+        List<AppointmentDTO> slots = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+
+        for (int i = 0; i < daysAhead && slots.size() < limit; i++) {
+            LocalDate date = today.plusDays(i);
+            slots.addAll(generateSlotsForDate(providerId, orgId, date, limit - slots.size()));
+        }
+        return slots.stream().limit(limit).toList();
+    }
+
+    // -------- Available Slots: Single Date --------
+    @Transactional(readOnly = true)
+    public List<AppointmentDTO> getAvailableSlotsForDate(Long providerId, LocalDate date, int limit) {
+        Long orgId = getCurrentOrgId();
+        if (orgId == null) throw new SecurityException("No orgId available in request context");
+
+        return generateSlotsForDate(providerId, orgId, date, limit);
+    }
+
+    // -------- Slot Generator --------
+    private List<AppointmentDTO> generateSlotsForDate(Long providerId, Long orgId, LocalDate date, int limit) {
+        List<Appointment> existing = repository
+                .findAllByProviderIdAndOrgIdAndAppointmentStartDate(providerId, orgId, date.toString());
+
+        List<AppointmentDTO> slots = new ArrayList<>();
+        LocalTime workStart = LocalTime.of(9, 0);
+        LocalTime workEnd = LocalTime.of(17, 0);
+        List<Integer> slotDurations = List.of(15, 30);
+
+        for (int durationMinutes : slotDurations) {
+            LocalTime current = workStart;
+            while (!current.plusMinutes(durationMinutes).isAfter(workEnd) && slots.size() < limit) {
+                LocalTime slotStart = current;
+                LocalTime slotEnd = slotStart.plusMinutes(durationMinutes);
+
+                boolean booked = existing.stream().anyMatch(appt -> {
+                    try {
+                        return date.equals(LocalDate.parse(appt.getAppointmentStartDate())) &&
+                               slotStart.equals(LocalTime.parse(appt.getAppointmentStartTime()));
+                    } catch (Exception e) {
+                        return false;
+                    }
+                });
+
+                if (!booked) {
+                    AppointmentDTO slot = new AppointmentDTO();
+                    slot.setProviderId(providerId);
+                    slot.setOrgId(orgId);
+                    slot.setAppointmentStartDate(date);
+                    slot.setAppointmentEndDate(date);
+                    slot.setAppointmentStartTime(slotStart);
+                    slot.setAppointmentEndTime(slotEnd);
+                    slot.setFormattedDate(date.format(dateFmt));
+                    slot.setFormattedTime(slotStart.format(timeFmt));
+                    slot.setStatus("AVAILABLE");
+                    slots.add(slot);
+                }
+                current = slotEnd;
             }
         }
-
-        repository.delete(entity);
+        return slots;
     }
 
     // -------- Mapping Helpers --------
@@ -144,14 +192,16 @@ public class AppointmentService {
         entity.setVisitType(dto.getVisitType());
         entity.setPatientId(dto.getPatientId());
         entity.setProviderId(dto.getProviderId());
-        entity.setAppointmentStartDate(dto.getAppointmentStartDate());
-        entity.setAppointmentEndDate(dto.getAppointmentEndDate());
-        entity.setAppointmentStartTime(dto.getAppointmentStartTime());
-        entity.setAppointmentEndTime(dto.getAppointmentEndTime());
+        entity.setAppointmentStartDate(dto.getAppointmentStartDate() != null ? dto.getAppointmentStartDate().toString() : null);
+        entity.setAppointmentEndDate(dto.getAppointmentEndDate() != null ? dto.getAppointmentEndDate().toString() : null);
+        entity.setAppointmentStartTime(dto.getAppointmentStartTime() != null ? dto.getAppointmentStartTime().toString() : null);
+        entity.setAppointmentEndTime(dto.getAppointmentEndTime() != null ? dto.getAppointmentEndTime().toString() : null);
         entity.setPriority(dto.getPriority());
-        entity.setLocationId(dto.getLocationId()); // ✅ updated
+        entity.setLocationId(dto.getLocationId());
         entity.setStatus(dto.getStatus());
         entity.setReason(dto.getReason());
+        entity.setCreatedDate(dto.getAudit() != null ? dto.getAudit().getCreatedDate() : entity.getCreatedDate());
+        entity.setLastModifiedDate(dto.getAudit() != null ? dto.getAudit().getLastModifiedDate() : entity.getLastModifiedDate());
         return entity;
     }
 
@@ -162,12 +212,12 @@ public class AppointmentService {
         dto.setVisitType(entity.getVisitType());
         dto.setPatientId(entity.getPatientId());
         dto.setProviderId(entity.getProviderId());
-        dto.setAppointmentStartDate(entity.getAppointmentStartDate());
-        dto.setAppointmentEndDate(entity.getAppointmentEndDate());
-        dto.setAppointmentStartTime(entity.getAppointmentStartTime());
-        dto.setAppointmentEndTime(entity.getAppointmentEndTime());
+        dto.setAppointmentStartDate(entity.getAppointmentStartDate() != null ? LocalDate.parse(entity.getAppointmentStartDate()) : null);
+        dto.setAppointmentEndDate(entity.getAppointmentEndDate() != null ? LocalDate.parse(entity.getAppointmentEndDate()) : null);
+        dto.setAppointmentStartTime(entity.getAppointmentStartTime() != null ? LocalTime.parse(entity.getAppointmentStartTime()) : null);
+        dto.setAppointmentEndTime(entity.getAppointmentEndTime() != null ? LocalTime.parse(entity.getAppointmentEndTime()) : null);
         dto.setPriority(entity.getPriority());
-        dto.setLocationId(entity.getLocationId()); // ✅ updated
+        dto.setLocationId(entity.getLocationId());
         dto.setStatus(entity.getStatus());
         dto.setReason(entity.getReason());
 
@@ -176,36 +226,68 @@ public class AppointmentService {
         audit.setLastModifiedDate(entity.getLastModifiedDate());
         dto.setAudit(audit);
 
+        if (dto.getAppointmentStartDate() != null && dto.getAppointmentStartTime() != null) {
+            dto.setFormattedDate(dto.getAppointmentStartDate().format(dateFmt));
+            dto.setFormattedTime(dto.getAppointmentStartTime().format(timeFmt));
+        }
         return dto;
     }
-
-    @Transactional(readOnly = true)
-    public Page<AppointmentDTO> getByPatientId(Long patientId, Pageable pageable) {
-        Long orgId = getCurrentOrgId();
-        return repository.findAllByPatientIdAndOrgId(patientId, orgId, pageable)
-                .map(this::mapToDto);
-    }
-
 
     private void updateEntityFromDto(Appointment entity, AppointmentDTO dto) {
         if (dto.getVisitType() != null) entity.setVisitType(dto.getVisitType());
         if (dto.getPatientId() != null) entity.setPatientId(dto.getPatientId());
         if (dto.getProviderId() != null) entity.setProviderId(dto.getProviderId());
-        if (dto.getAppointmentStartDate() != null) entity.setAppointmentStartDate(dto.getAppointmentStartDate());
-        if (dto.getAppointmentEndDate() != null) entity.setAppointmentEndDate(dto.getAppointmentEndDate());
-        if (dto.getAppointmentStartTime() != null) entity.setAppointmentStartTime(dto.getAppointmentStartTime());
-        if (dto.getAppointmentEndTime() != null) entity.setAppointmentEndTime(dto.getAppointmentEndTime());
+        if (dto.getAppointmentStartDate() != null) entity.setAppointmentStartDate(dto.getAppointmentStartDate().toString());
+        if (dto.getAppointmentEndDate() != null) entity.setAppointmentEndDate(dto.getAppointmentEndDate().toString());
+        if (dto.getAppointmentStartTime() != null) entity.setAppointmentStartTime(dto.getAppointmentStartTime().toString());
+        if (dto.getAppointmentEndTime() != null) entity.setAppointmentEndTime(dto.getAppointmentEndTime().toString());
         if (dto.getPriority() != null) entity.setPriority(dto.getPriority());
-        if (dto.getLocationId() != null) entity.setLocationId(dto.getLocationId()); // ✅ updated
+        if (dto.getLocationId() != null) entity.setLocationId(dto.getLocationId());
         if (dto.getStatus() != null) entity.setStatus(dto.getStatus());
         if (dto.getReason() != null) entity.setReason(dto.getReason());
     }
 
     private Long getCurrentOrgId() {
-        // Log to ensure orgId is coming through correctly
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        log.info("Current orgId from RequestContext: {}", orgId); // Debugging log
-        return orgId;
+        return RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
     }
 
+    // -------- External Sync Methods --------
+    private void syncExternalCreate(Appointment entity) {
+        try {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            if (storageType != null) {
+                ExternalAppointmentStorage externalStorage =
+                        (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
+                externalStorage.create(mapToDto(entity));
+            }
+        } catch (Exception e) {
+            log.error("External sync create failed: {}", e.getMessage());
+        }
+    }
+
+    private void syncExternalUpdate(Appointment entity, AppointmentDTO dto) {
+        try {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            if (storageType != null) {
+                ExternalAppointmentStorage externalStorage =
+                        (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
+                externalStorage.update(dto, String.valueOf(entity.getId()));
+            }
+        } catch (Exception e) {
+            log.error("External sync update failed: {}", e.getMessage());
+        }
+    }
+
+    private void syncExternalDelete(Appointment entity) {
+        try {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            if (storageType != null) {
+                ExternalAppointmentStorage externalStorage =
+                        (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
+                externalStorage.delete(String.valueOf(entity.getId()));
+            }
+        } catch (Exception e) {
+            log.error("External sync delete failed: {}", e.getMessage());
+        }
+    }
 }

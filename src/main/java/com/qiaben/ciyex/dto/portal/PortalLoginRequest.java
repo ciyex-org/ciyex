@@ -1,4 +1,4 @@
-package com.qiaben.ciyex.dto.portal.dto;
+package com.qiaben.ciyex.dto.portal;
 
 import lombok.Data;
 

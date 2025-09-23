@@ -1,11 +1,11 @@
-package com.qiaben.ciyex.repository.portal.repository;
+package com.qiaben.ciyex.repository.portal;
 
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import com.qiaben.ciyex.entity.portal.entity.PortalPatient;
+import com.qiaben.ciyex.entity.portal.PortalPatient;
 
 @Repository
 public interface PortalPatientRepository extends JpaRepository<PortalPatient, Long> {

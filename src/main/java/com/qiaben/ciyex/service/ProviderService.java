@@ -321,61 +321,69 @@ public class ProviderService {
     }
 
     private ProviderDto mapToDto(Provider provider) {
-        ProviderDto dto = new ProviderDto();
-        dto.setId(provider.getId()); // Always set id
-        dto.setNpi(provider.getNpi()); // Map NPI
+    ProviderDto dto = new ProviderDto();
+    dto.setId(provider.getId());
+    dto.setNpi(provider.getNpi());
+    dto.setOrgId(provider.getOrgId());
 
-        // Map Identification (First Name, Last Name, Gender, DOB, etc.)
-        if (provider.getFirstName() != null || provider.getLastName() != null) {
-            ProviderDto.Identification identification = new ProviderDto.Identification();
-            identification.setFirstName(provider.getFirstName());
-            identification.setLastName(provider.getLastName());
-            identification.setMiddleName(provider.getMiddleName());  // Map middle name if available
-            identification.setPrefix(provider.getPrefix());          // Map prefix if available
-            identification.setSuffix(provider.getSuffix());          // Map suffix if available
-            identification.setGender(provider.getGender());          // Map gender if available
-            identification.setDateOfBirth(provider.getDateOfBirth()); // Map DOB
-            identification.setPhoto(provider.getPhoto());            // Map photo if available
-            dto.setIdentification(identification); // Set identification
-        }
+    // ✅ Always populate Identification (avoid nulls)
+    ProviderDto.Identification identification = new ProviderDto.Identification();
+    identification.setFirstName(provider.getFirstName() != null ? provider.getFirstName() : "");
+    identification.setLastName(provider.getLastName() != null ? provider.getLastName() : "");
+    identification.setMiddleName(provider.getMiddleName());
+    identification.setPrefix(provider.getPrefix());
+    identification.setSuffix(provider.getSuffix());
+    identification.setGender(provider.getGender());
+    identification.setDateOfBirth(provider.getDateOfBirth());
+    identification.setPhoto(provider.getPhoto());
+    dto.setIdentification(identification);
 
-        // Map Contact Information (Email, Phone, etc.)
-        if (provider.getEmail() != null || provider.getPhoneNumber() != null) {
-            ProviderDto.Contact contact = new ProviderDto.Contact();
-            contact.setEmail(provider.getEmail());                // Map email
-            contact.setPhoneNumber(provider.getPhoneNumber());    // Map phone number
-            contact.setMobileNumber(provider.getMobileNumber());  // Map mobile number if available
-            contact.setFaxNumber(provider.getFaxNumber());        // Map fax number if available
+    // ✅ Contact
+    if (provider.getEmail() != null || provider.getPhoneNumber() != null) {
+        ProviderDto.Contact contact = new ProviderDto.Contact();
+        contact.setEmail(provider.getEmail());
+        contact.setPhoneNumber(provider.getPhoneNumber());
+        contact.setMobileNumber(provider.getMobileNumber());
+        contact.setFaxNumber(provider.getFaxNumber());
 
-            // Address mapping
-            if (provider.getAddress() != null) {
-                ProviderDto.Contact.Address address = new ProviderDto.Contact.Address();
-                contact.setAddress(address);
-            }
-            dto.setContact(contact);
+        if (provider.getAddress() != null) {
+            ProviderDto.Contact.Address address = new ProviderDto.Contact.Address();
+            // map address fields if available
+            contact.setAddress(address);
         }
-        if (provider.getSpecialty() != null || provider.getLicenseNumber() != null) {
-            ProviderDto.ProfessionalDetails professionalDetails = new ProviderDto.ProfessionalDetails();
-            professionalDetails.setSpecialty(provider.getSpecialty());
-            professionalDetails.setProviderType(provider.getProviderType());
-            professionalDetails.setLicenseNumber(provider.getLicenseNumber());
-            professionalDetails.setLicenseState(provider.getLicenseState());
-            professionalDetails.setLicenseExpiry(provider.getLicenseExpiry());
-            dto.setProfessionalDetails(professionalDetails);
-        }
-        dto.setFhirId(provider.getExternalId()); // Map externalId to fhirId
-        if (provider.getCreatedDate() != null || provider.getLastModifiedDate() != null) {
-            ProviderDto.Audit audit = new ProviderDto.Audit();
-            audit.setCreatedDate(provider.getCreatedDate());
-            audit.setLastModifiedDate(provider.getLastModifiedDate());
-            dto.setAudit(audit);
-        }
-        //  Add SystemAccess mapping here
-        ProviderDto.SystemAccess systemAccess = new ProviderDto.SystemAccess();
-        systemAccess.setStatus(provider.getStatus()); // Map enum from entity
-        dto.setSystemAccess(systemAccess);
-        return dto;
+        dto.setContact(contact);
     }
+
+    // ✅ Professional Details
+    if (provider.getSpecialty() != null || provider.getLicenseNumber() != null) {
+        ProviderDto.ProfessionalDetails professionalDetails = new ProviderDto.ProfessionalDetails();
+        professionalDetails.setSpecialty(provider.getSpecialty());
+        professionalDetails.setProviderType(provider.getProviderType());
+        professionalDetails.setLicenseNumber(provider.getLicenseNumber());
+        professionalDetails.setLicenseState(provider.getLicenseState());
+        professionalDetails.setLicenseExpiry(provider.getLicenseExpiry());
+        dto.setProfessionalDetails(professionalDetails);
+    }
+
+    // ✅ FHIR/External ID
+    dto.setFhirId(provider.getExternalId());
+
+    // ✅ Audit
+    if (provider.getCreatedDate() != null || provider.getLastModifiedDate() != null) {
+        ProviderDto.Audit audit = new ProviderDto.Audit();
+        audit.setCreatedDate(provider.getCreatedDate());
+        audit.setLastModifiedDate(provider.getLastModifiedDate());
+        dto.setAudit(audit);
+    }
+
+    // ✅ System Access
+    ProviderDto.SystemAccess systemAccess = new ProviderDto.SystemAccess();
+    systemAccess.setStatus(provider.getStatus());
+    dto.setSystemAccess(systemAccess);
+
+    return dto;
+}
+
 
     private Long getCurrentOrgId() {
         Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;

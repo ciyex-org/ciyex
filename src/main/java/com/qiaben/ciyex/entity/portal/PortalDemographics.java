@@ -1,4 +1,4 @@
-package com.qiaben.ciyex.entity.portal.entity;
+package com.qiaben.ciyex.entity.portal;
 
 import jakarta.persistence.*;
 import lombok.Data;

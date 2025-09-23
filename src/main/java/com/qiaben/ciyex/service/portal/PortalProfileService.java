@@ -1,8 +1,8 @@
-package com.qiaben.ciyex.service.portal.service;
+package com.qiaben.ciyex.service.portal;
 
-import com.qiaben.ciyex.dto.portal.dto.PortalProfileDto;
-import com.qiaben.ciyex.entity.portal.entity.PortalProfile;
-import com.qiaben.ciyex.repository.portal.repository.PortalProfileRepository;
+import com.qiaben.ciyex.dto.portal.PortalProfileDto;
+import com.qiaben.ciyex.entity.portal.PortalProfile;
+import com.qiaben.ciyex.repository.portal.PortalProfileRepository;
 
 import org.springframework.stereotype.Service;
 

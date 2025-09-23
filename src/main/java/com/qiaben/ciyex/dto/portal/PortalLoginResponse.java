@@ -1,9 +1,9 @@
-package com.qiaben.ciyex.dto.portal.dto;
+package com.qiaben.ciyex.dto.portal;
 
 import java.time.LocalDate;
 import java.util.List;
 
-import com.qiaben.ciyex.entity.portal.entity.PortalUser;
+import com.qiaben.ciyex.entity.portal.PortalUser;
 
 import lombok.Data;
 

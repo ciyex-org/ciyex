@@ -1,48 +1,50 @@
-package com.qiaben.ciyex.controller.portal.controller;
+package com.qiaben.ciyex.controller.portal;
 
 import java.util.Optional;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-import com.qiaben.ciyex.dto.portal.dto.ApiResponse;
-import com.qiaben.ciyex.dto.portal.dto.PortalLoginRequest;
-import com.qiaben.ciyex.dto.portal.dto.PortalLoginResponse;
-import com.qiaben.ciyex.dto.portal.dto.PortalRegisterRequest;
-import com.qiaben.ciyex.dto.portal.dto.PortalUserDto;
-import com.qiaben.ciyex.entity.portal.entity.PortalUser;
-import com.qiaben.ciyex.repository.portal.repository.PortalUserRepository;
-import com.qiaben.ciyex.service.portal.service.PortalAuthService;
+import com.qiaben.ciyex.dto.portal.ApiResponse;
+import com.qiaben.ciyex.dto.portal.PortalLoginRequest;
+import com.qiaben.ciyex.dto.portal.PortalLoginResponse;
+import com.qiaben.ciyex.dto.portal.PortalRegisterRequest;
+import com.qiaben.ciyex.dto.portal.PortalUserDto;
+import com.qiaben.ciyex.entity.portal.PortalUser;
+import com.qiaben.ciyex.repository.portal.PortalUserRepository;
+import com.qiaben.ciyex.service.portal.PortalAuthService;
 
 import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/portal/auth")
 @RequiredArgsConstructor
+// 🔹 Enable CORS only for Portal APIs
+@CrossOrigin(
+    origins = { "http://localhost:3000", "http://127.0.0.1:3000" }, // frontend dev URLs
+    allowedHeaders = "*",
+    methods = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS },
+    allowCredentials = "true"
+)
 public class PortalAuthController {
 
     private final PortalAuthService portalAuthService;
     private final PortalUserRepository portalUserRepository;
     private final PasswordEncoder passwordEncoder;
 
+    /** Patient Portal Registration */
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<PortalUserDto>> register(@RequestBody PortalRegisterRequest request) {
         return ResponseEntity.ok(portalAuthService.register(request));
     }
 
+    /** Patient Portal Login — returns JWT in data.token */
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<PortalLoginResponse>> login(@RequestBody PortalLoginRequest request) {
         return ResponseEntity.ok(portalAuthService.login(request));
     }
 
+    /** Patient Portal Password Reset */
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse<String>> resetPassword(@RequestBody PortalLoginRequest request) {
         Optional<PortalUser> userOpt = portalUserRepository.findByEmail(request.getEmail());
@@ -63,6 +65,7 @@ public class PortalAuthController {
                 .build());
     }
 
+    /** Fetch portal user by ID */
     @GetMapping("/user/{id}")
     public ResponseEntity<ApiResponse<PortalUserDto>> getUserById(@PathVariable Long id) {
         return portalUserRepository.findById(id)
@@ -78,6 +81,7 @@ public class PortalAuthController {
                         .build()));
     }
 
+    /** Fetch portal user by email */
     @GetMapping("/user/email")
     public ResponseEntity<ApiResponse<PortalUserDto>> getUserByEmail(@RequestParam String email) {
         return portalUserRepository.findByEmail(email)
@@ -93,9 +97,11 @@ public class PortalAuthController {
                         .build()));
     }
 
+    /** Update patient profile info */
     @PutMapping("/user/{id}")
-    public ResponseEntity<ApiResponse<PortalUserDto>> updateProfile(@PathVariable Long id,
-                                                                    @RequestBody PortalUserDto request) {
+    public ResponseEntity<ApiResponse<PortalUserDto>> updateProfile(
+            @PathVariable Long id,
+            @RequestBody PortalUserDto request) {
         return portalUserRepository.findById(id)
                 .map(user -> {
                     user.setFirstName(request.getFirstName());

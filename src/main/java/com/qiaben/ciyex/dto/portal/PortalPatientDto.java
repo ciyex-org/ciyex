@@ -1,4 +1,4 @@
-package com.qiaben.ciyex.dto.portal.dto;
+package com.qiaben.ciyex.dto.portal;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,7 +14,7 @@ import java.time.LocalDate;
 public class PortalPatientDto {
 
     private Long id;
-    private Long userId;   // link to PortalUser.id
+    private Long userId;   // Link to PortalUser.id
 
     private String firstName;
     private String lastName;
@@ -24,7 +24,11 @@ public class PortalPatientDto {
     private String phone;
     private String email;
 
-    private String address;   // simple address field
+    private String address;
 
-    private Long insuranceId; // optional insurance linkage
+    // Address details coming from PortalUser
+    private String city;
+    private String state;
+    private String country;
+    private String postalCode;
 }

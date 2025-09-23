@@ -1,4 +1,4 @@
-package com.qiaben.ciyex.dto.portal.dto;
+package com.qiaben.ciyex.dto.portal;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 
-import com.qiaben.ciyex.entity.portal.entity.PortalUser;
+import com.qiaben.ciyex.entity.portal.PortalUser;
 
 @Data
 @Builder
