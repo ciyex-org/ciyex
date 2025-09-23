@@ -132,4 +132,4 @@ public class PortalDemographicsServiceImpl implements PortalDemographicsService 
         e.setAllowVoiceMessage(dto.isAllowVoiceMessage());
         e.setAllowMailMessage(dto.isAllowMailMessage());
     }
-}
+}//

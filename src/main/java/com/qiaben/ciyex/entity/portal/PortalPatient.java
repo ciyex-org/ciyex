@@ -30,8 +30,10 @@ public class PortalPatient {
     private String email;
     private String address;
     private String insuranceId;
+
     public void setInsuranceId(Long insuranceId2) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'setInsuranceId'");
     }
 }
+//

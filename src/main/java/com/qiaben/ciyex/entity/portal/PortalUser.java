@@ -27,7 +27,9 @@ public class PortalUser {
     @Column(nullable = false)
     private String password;
 
-    /** 🔹 One-to-one link to PortalPatient */
+    /**
+     * 🔹 One-to-one link to PortalPatient
+     */
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private PortalPatient patient;
 
