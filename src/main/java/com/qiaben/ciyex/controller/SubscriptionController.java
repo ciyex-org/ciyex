@@ -16,7 +16,9 @@ public class SubscriptionController {
     private final SubscriptionService service;
 
     @PostMapping
-    public ApiResponse<SubscriptionDto> create(@RequestBody SubscriptionDto dto) {
+    public ApiResponse<SubscriptionDto> create(@RequestBody SubscriptionDto dto,
+                                               @RequestHeader("x-org-id") Long orgId) {
+        dto.setOrgId(orgId);
         return ApiResponse.<SubscriptionDto>builder()
                 .success(true)
                 .message("Subscription created successfully")
@@ -25,7 +27,10 @@ public class SubscriptionController {
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<SubscriptionDto> update(@PathVariable Long id, @RequestBody SubscriptionDto dto) {
+    public ApiResponse<SubscriptionDto> update(@PathVariable Long id,
+                                               @RequestHeader("x-org-id") Long orgId,
+                                               @RequestBody SubscriptionDto dto) {
+        dto.setOrgId(orgId);
         return ApiResponse.<SubscriptionDto>builder()
                 .success(true)
                 .message("Subscription updated successfully")
@@ -43,8 +48,9 @@ public class SubscriptionController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<SubscriptionDto> getById(@PathVariable Long id) {
-        return service.getById(id)
+    public ApiResponse<SubscriptionDto> getById(@PathVariable Long id,
+                                                @RequestHeader("x-org-id") Long orgId) {
+        return service.getByIdAndOrg(id, orgId)
                 .map(dto -> ApiResponse.<SubscriptionDto>builder()
                         .success(true)
                         .message("Subscription retrieved successfully")
@@ -57,11 +63,11 @@ public class SubscriptionController {
     }
 
     @GetMapping
-    public ApiResponse<List<SubscriptionDto>> getAll() {
+    public ApiResponse<List<SubscriptionDto>> getAll(@RequestHeader("x-org-id") Long orgId) {
         return ApiResponse.<List<SubscriptionDto>>builder()
                 .success(true)
                 .message("Subscriptions retrieved successfully")
-                .data(service.getAll())
+                .data(service.getAllByOrg(orgId))
                 .build();
     }
 }

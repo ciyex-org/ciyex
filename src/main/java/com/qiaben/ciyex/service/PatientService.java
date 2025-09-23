@@ -26,14 +26,17 @@ public class PatientService {
     private final PatientRepository repository;
     private final ExternalStorageResolver storageResolver;
     private final OrgIntegrationConfigProvider configProvider;
+    private final TenantSchemaInitializer tenantSchemaInitializer;
 
     @Autowired
     public PatientService(PatientRepository repository,
                           ExternalStorageResolver storageResolver,
-                          OrgIntegrationConfigProvider configProvider) {
+                          OrgIntegrationConfigProvider configProvider,
+                          TenantSchemaInitializer tenantSchemaInitializer) {
         this.repository = repository;
         this.storageResolver = storageResolver;
         this.configProvider = configProvider;
+        this.tenantSchemaInitializer = tenantSchemaInitializer;
     }
 
     @Transactional(readOnly = true)
@@ -85,7 +88,11 @@ public class PatientService {
         }
 
         patient.setExternalId(externalId);
+        tenantSchemaInitializer.initializeTenantSchema(currentOrgId);
+
+        // Save within tenant schema (AutoSchemaAspect sets search_path)
         patient = repository.save(patient);
+        
         if (patient.getId() == null) {
             log.error("Database save failed to generate id for patient with externalId: {} and orgId: {}", externalId, currentOrgId);
             throw new RuntimeException("Failed to generate id for new patient");
@@ -257,6 +264,7 @@ public class PatientService {
 
         Page<Patient> page;
         if (search != null && !search.isBlank()) {
+            // TODO: Add tenant-aware search method
             page = repository.searchByOrgId(search.toLowerCase(), currentOrgId, pageable);
         } else {
             page = repository.findAllByOrgId(currentOrgId, pageable);

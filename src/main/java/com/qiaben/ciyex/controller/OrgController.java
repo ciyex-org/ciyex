@@ -8,6 +8,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/orgs")
 public class OrgController {
@@ -138,4 +140,26 @@ public class OrgController {
                         .data(null)
                         .build());
     }
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<OrgDto>>> getAll() {
+        try {
+            List<OrgDto> orgs = service.getAll();
+            return ResponseEntity.ok(
+                    ApiResponse.<List<OrgDto>>builder()
+                            .success(true)
+                            .message("Organizations retrieved successfully")
+                            .data(orgs)
+                            .build()
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<OrgDto>>builder()
+                            .success(false)
+                            .message("Failed to retrieve organizations")
+                            .data(null)
+                            .build());
+        }
+    }
+
 }

@@ -15,10 +15,13 @@ public class Subscription {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String service;
-    private String billingCycle; // Yearly | Monthly
-    private String scope;        // Per Provider | Per Encounter
-    private String status;       // Paid | Unpaid | Failed
-    private String startDate;
+    private Long orgId;     // 🔹 Track organization
+    private Long userId;    // 🔹 Optional (who owns it)
+
+    private String service;       // EHR, Telehealth, etc.
+    private String billingCycle;  // Yearly | Monthly
+    private String scope;         // Per Provider | Per Encounter
+    private String status;        // Active | Cancelled
+    private String startDate;     // Store as ISO string
     private Double price;
 }
