@@ -40,6 +40,7 @@ public class CiyexUserDetailsService implements UserDetailsService {
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
+                                        // (debug logging temporarily removed)
 
             RequestContext ctx = RequestContext.get();
             Long orgId = (ctx != null) ? ctx.getOrgId() : null;
@@ -61,9 +62,11 @@ public class CiyexUserDetailsService implements UserDetailsService {
             );
         }
 
-        // 2️⃣ Fallback to patient portal users
-        PortalUser portalUser = portalUserRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
+                // 2️⃣ Fallback to patient portal users
+                PortalUser portalUser = portalUserRepository.findByEmail(email)
+                                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
+
+                        // (debug logging temporarily removed)
 
         // Always assign ROLE_PATIENT
         return new org.springframework.security.core.userdetails.User(
@@ -84,7 +87,8 @@ public class CiyexUserDetailsService implements UserDetailsService {
                 .filter(user -> user.getUserOrgRoles().stream()
                         .anyMatch(uor -> uor.getOrg().getId().equals(finalOrgId)))
                 .collect(Collectors.toList());
-        users.forEach(u -> u.setPassword("<Hidden>"));
+        // Do not persist or return masked literal; clear password field in DTOs to avoid accidental persistence
+        users.forEach(u -> u.setPassword(null));
         return users;
     }
 
@@ -106,7 +110,8 @@ public class CiyexUserDetailsService implements UserDetailsService {
             }
         }
 
-        user.setPassword("<Hidden>");
+        // clear password from returned object to avoid exposing it and prevent accidental persistence
+        user.setPassword(null);
         return Optional.of(user);
     }
 
@@ -143,7 +148,8 @@ public class CiyexUserDetailsService implements UserDetailsService {
         userRepository.save(persistedUser);
         orgRepository.save(org);
 
-        persistedUser.setPassword("<Hidden>");
+        // When returning the persisted user, clear the password field instead of setting a literal
+        persistedUser.setPassword(null);
         return persistedUser;
     }
 
@@ -173,7 +179,8 @@ public class CiyexUserDetailsService implements UserDetailsService {
         user.setSecurityAnswer(userDetails.getSecurityAnswer());
 
         User updated = userRepository.save(user);
-        updated.setPassword("<Hidden>");
+        // Clear password before returning the updated user
+        updated.setPassword(null);
         return updated;
     }
 
