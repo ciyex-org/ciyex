@@ -15,6 +15,7 @@ import org.hibernate.boot.MetadataSources;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -44,6 +45,9 @@ public class MasterSchemaInitializer {
 
     @Autowired
     private Flyway masterFlyway;
+
+    @Autowired
+    private Environment env;
 
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
@@ -93,10 +97,10 @@ public class MasterSchemaInitializer {
             log.info("Some master schema tables missing. Creating tables from JPA entities...");
             
             // Create a temporary Hibernate configuration for schema generation
-        // Prefer datasource settings from environment / Spring properties so we don't default to localhost inside Kubernetes
-        String jdbcUrl = System.getenv().getOrDefault("SPRING_DATASOURCE_URL", "jdbc:postgresql://localhost:5432/ciyexdb");
-        String dbUser = System.getenv().getOrDefault("SPRING_DATASOURCE_USERNAME", "postgres");
-        String dbPass = System.getenv().getOrDefault("SPRING_DATASOURCE_PASSWORD", "postgres");
+    // Prefer datasource settings from Spring Environment (which aggregates application.yml, env, CLI, etc.)
+    String jdbcUrl = env.getProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/ciyexdb");
+    String dbUser = env.getProperty("spring.datasource.username", "postgres");
+    String dbPass = env.getProperty("spring.datasource.password", "postgres");
 
         StandardServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder()
             .applySetting("hibernate.connection.url", jdbcUrl)

@@ -102,3 +102,8 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+tasks.test {
+	// Don't fail the build if no tests are discovered in some environments
+	failOnNoDiscoveredTests = false
+}

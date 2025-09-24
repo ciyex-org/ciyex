@@ -12,6 +12,7 @@ import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import javax.sql.DataSource;
@@ -38,6 +39,9 @@ public class TenantSchemaInitializer {
 
     @Autowired
     private DataSource dataSource;
+
+    @Autowired
+    private Environment env;
     
     // Cache to track initialized schemas
     private final ConcurrentHashMap<Long, Boolean> initializedSchemas = new ConcurrentHashMap<>();
@@ -199,10 +203,10 @@ public class TenantSchemaInitializer {
                     tenantEntities.size(), schemaName);
             
             // Create a temporary Hibernate configuration for tenant schema generation
-        // Use configured datasource settings if available (env or Spring), otherwise fall back to localhost for local dev
-        String jdbcUrl = System.getenv().getOrDefault("SPRING_DATASOURCE_URL", "jdbc:postgresql://localhost:5432/ciyexdb");
-        String dbUser = System.getenv().getOrDefault("SPRING_DATASOURCE_USERNAME", "postgres");
-        String dbPass = System.getenv().getOrDefault("SPRING_DATASOURCE_PASSWORD", "postgres");
+    // Use configured datasource settings from Spring Environment (application.yml, env vars, CLI args, etc.)
+    String jdbcUrl = env.getProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/ciyexdb");
+    String dbUser = env.getProperty("spring.datasource.username", "postgres");
+    String dbPass = env.getProperty("spring.datasource.password", "postgres");
 
         StandardServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder()
             .applySetting("hibernate.connection.url", jdbcUrl)
