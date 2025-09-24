@@ -1,117 +1,243 @@
 package com.qiaben.ciyex.service;
 
+import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.ImmunizationDto;
 import com.qiaben.ciyex.entity.Immunization;
 import com.qiaben.ciyex.repository.ImmunizationRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.qiaben.ciyex.dto.integration.RequestContext;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class ImmunizationService {
 
     private final ImmunizationRepository repository;
 
-    @Autowired
     public ImmunizationService(ImmunizationRepository repository) {
         this.repository = repository;
     }
 
-    // Create Immunization
-    public ImmunizationDto create(ImmunizationDto dto, Long orgId) {
-        Immunization entity = mapToEntity(dto);
-        entity.setOrgId(orgId);
-        Immunization savedEntity = repository.save(entity);
-        return mapToDto(savedEntity);
+    // ---------- Patient-level ----------
+
+    @Transactional
+    public ImmunizationDto create(ImmunizationDto dto) {
+        Long orgId = getCurrentOrgId();
+        dto.setOrgId(orgId);
+
+        ImmunizationDto.ImmunizationItem item = dto.getImmunizations().get(0);
+        Immunization entity = mapToEntity(dto.getPatientId(), orgId, item);
+        entity.setCreatedDate(LocalDateTime.now().toString());
+        entity.setLastModifiedDate(LocalDateTime.now().toString());
+
+        entity = repository.save(entity);
+        item.setId(entity.getId());
+        item.setExternalId(entity.getExternalId());
+        item.setPatientId(entity.getPatientId());
+
+        return buildDtoFromEntity(entity);
     }
 
-    // Read All Immunizations by orgId
-    public List<ImmunizationDto> getByOrgId(Long orgId) {
-        List<Immunization> immunizations = repository.findByOrgId(orgId);
-        return immunizations.stream().map(this::mapToDto).collect(Collectors.toList());
+    @Transactional(readOnly = true)
+    public ImmunizationDto getByPatientId(Long patientId) {
+        Long orgId = getCurrentOrgId();
+        List<Immunization> entities = repository.findByPatientIdAndOrgId(patientId, orgId);
+        return buildDtoFromEntities(patientId, orgId, entities);
     }
 
-    // Read Immunization by id
-    public ImmunizationDto getById(Long id) {
-        Optional<Immunization> immunization = repository.findById(id);
-        return immunization.map(this::mapToDto).orElse(null);
-    }
+    @Transactional
+    public ImmunizationDto updateByPatientId(Long patientId, ImmunizationDto dto) {
+        Long orgId = getCurrentOrgId();
 
-    // Update Immunization by id
-    public ImmunizationDto update(Long id, ImmunizationDto dto, Long orgId) {
-        Optional<Immunization> immunizationOptional = repository.findById(id);
-        if (immunizationOptional.isPresent()) {
-            Immunization existingImmunization = immunizationOptional.get();
-            existingImmunization = mapToEntity(dto);
-            existingImmunization.setId(id);
-            existingImmunization.setOrgId(orgId);
-            Immunization updatedEntity = repository.save(existingImmunization);
-            return mapToDto(updatedEntity);
-        } else {
-            return null; // Immunization not found
+        if (dto.getImmunizations() == null || dto.getImmunizations().isEmpty()) {
+            throw new IllegalArgumentException("No immunization data provided");
         }
+
+        ImmunizationDto.ImmunizationItem patch = dto.getImmunizations().get(0);
+
+        Immunization entity = repository.findOneByIdAndPatientIdAndOrgId(
+                        patch.getId(), patientId, orgId)
+                .orElseThrow(() -> new RuntimeException("Immunization not found"));
+
+        applyPatch(entity, patch);
+        entity.setLastModifiedDate(LocalDateTime.now().toString());
+
+        repository.save(entity);
+        return buildDtoFromEntity(entity);
     }
 
-    // Delete Immunization by id
-    public boolean delete(Long id) {
-        Optional<Immunization> immunization = repository.findById(id);
-        if (immunization.isPresent()) {
-            repository.delete(immunization.get());
-            return true;
-        }
-        return false;
+
+    @Transactional
+    public void deleteByPatientId(Long patientId) {
+        Long orgId = getCurrentOrgId();
+        List<Immunization> entities = repository.findByPatientIdAndOrgId(patientId, orgId);
+        repository.deleteAll(entities);
     }
 
-    private ImmunizationDto mapToDto(Immunization entity) {
+    // ---------- Item-level ----------
+
+    @Transactional(readOnly = true)
+    public ImmunizationDto.ImmunizationItem getItem(Long patientId, Long immunizationId) {
+        Long orgId = getCurrentOrgId();
+        Immunization entity = repository.findOneByIdAndPatientIdAndOrgId(immunizationId, patientId, orgId)
+                .orElseThrow(() -> new RuntimeException("Not found"));
+        return mapToItem(entity);
+    }
+
+    @Transactional
+    public ImmunizationDto.ImmunizationItem updateItem(Long patientId, Long immunizationId, ImmunizationDto.ImmunizationItem patch) {
+        Long orgId = getCurrentOrgId();
+        Immunization entity = repository.findOneByIdAndPatientIdAndOrgId(immunizationId, patientId, orgId)
+                .orElseThrow(() -> new RuntimeException("Not found"));
+
+        applyPatch(entity, patch);
+        entity.setLastModifiedDate(LocalDateTime.now().toString());
+        repository.save(entity);
+        return mapToItem(entity);
+    }
+
+    @Transactional
+    public void deleteItem(Long patientId, Long immunizationId) {
+        Long orgId = getCurrentOrgId();
+        Immunization entity = repository.findOneByIdAndPatientIdAndOrgId(immunizationId, patientId, orgId)
+                .orElseThrow(() -> new RuntimeException("Not found"));
+        repository.delete(entity);
+    }
+
+    // ---------- Search All ----------
+
+    @Transactional(readOnly = true)
+    public ApiResponse<List<ImmunizationDto>> searchAll() {
+        Long orgId = getCurrentOrgId();
+        List<Immunization> entities = repository.findAllByOrgId(orgId);
+
+        var grouped = entities.stream()
+                .collect(Collectors.groupingBy(Immunization::getPatientId));
+
+        List<ImmunizationDto> result = grouped.entrySet().stream()
+                .map(entry -> buildDtoFromEntities(entry.getKey(), orgId, entry.getValue()))
+                .collect(Collectors.toList());
+
+        return ApiResponse.<List<ImmunizationDto>>builder()
+                .success(true)
+                .message("Immunizations retrieved successfully")
+                .data(result)
+                .build();
+    }
+
+    // ---------- Helpers ----------
+
+    private Immunization mapToEntity(Long patientId, Long orgId, ImmunizationDto.ImmunizationItem item) {
+        return Immunization.builder()
+                .patientId(patientId)
+                .orgId(orgId)
+                .externalId(item.getExternalId())
+                .cvxCode(item.getCvxCode())
+                .dateTimeAdministered(item.getDateTimeAdministered())
+                .amountAdministered(item.getAmountAdministered())
+                .expirationDate(item.getExpirationDate())
+                .manufacturer(item.getManufacturer())
+                .lotNumber(item.getLotNumber())
+                .administratorName(item.getAdministratorName())
+                .administratorTitle(item.getAdministratorTitle())
+                .dateVisGiven(item.getDateVisGiven())
+                .dateVisStatement(item.getDateVisStatement())
+                .route(item.getRoute())
+                .administrationSite(item.getAdministrationSite())
+                .notes(item.getNotes())
+                .informationSource(item.getInformationSource())
+                .completionStatus(item.getCompletionStatus())
+                .substanceRefusalReason(item.getSubstanceRefusalReason())
+                .reasonCode(item.getReasonCode())
+                .orderingProvider(item.getOrderingProvider())
+                .build();
+    }
+
+    private ImmunizationDto.ImmunizationItem mapToItem(Immunization entity) {
+        ImmunizationDto.ImmunizationItem item = new ImmunizationDto.ImmunizationItem();
+        item.setId(entity.getId());
+        item.setExternalId(entity.getExternalId());
+        item.setPatientId(entity.getPatientId());
+        item.setCvxCode(entity.getCvxCode());
+        item.setDateTimeAdministered(entity.getDateTimeAdministered());
+        item.setAmountAdministered(entity.getAmountAdministered());
+        item.setExpirationDate(entity.getExpirationDate());
+        item.setManufacturer(entity.getManufacturer());
+        item.setLotNumber(entity.getLotNumber());
+        item.setAdministratorName(entity.getAdministratorName());
+        item.setAdministratorTitle(entity.getAdministratorTitle());
+        item.setDateVisGiven(entity.getDateVisGiven());
+        item.setDateVisStatement(entity.getDateVisStatement());
+        item.setRoute(entity.getRoute());
+        item.setAdministrationSite(entity.getAdministrationSite());
+        item.setNotes(entity.getNotes());
+        item.setInformationSource(entity.getInformationSource());
+        item.setCompletionStatus(entity.getCompletionStatus());
+        item.setSubstanceRefusalReason(entity.getSubstanceRefusalReason());
+        item.setReasonCode(entity.getReasonCode());
+        item.setOrderingProvider(entity.getOrderingProvider());
+        return item;
+    }
+
+    private void applyPatch(Immunization entity, ImmunizationDto.ImmunizationItem patch) {
+        if (patch.getExternalId() != null) entity.setExternalId(patch.getExternalId());
+        if (patch.getCvxCode() != null) entity.setCvxCode(patch.getCvxCode());
+        if (patch.getDateTimeAdministered() != null) entity.setDateTimeAdministered(patch.getDateTimeAdministered());
+        if (patch.getAmountAdministered() != null) entity.setAmountAdministered(patch.getAmountAdministered());
+        if (patch.getExpirationDate() != null) entity.setExpirationDate(patch.getExpirationDate());
+        if (patch.getManufacturer() != null) entity.setManufacturer(patch.getManufacturer());
+        if (patch.getLotNumber() != null) entity.setLotNumber(patch.getLotNumber());
+        if (patch.getAdministratorName() != null) entity.setAdministratorName(patch.getAdministratorName());
+        if (patch.getAdministratorTitle() != null) entity.setAdministratorTitle(patch.getAdministratorTitle());
+        if (patch.getDateVisGiven() != null) entity.setDateVisGiven(patch.getDateVisGiven());
+        if (patch.getDateVisStatement() != null) entity.setDateVisStatement(patch.getDateVisStatement());
+        if (patch.getRoute() != null) entity.setRoute(patch.getRoute());
+        if (patch.getAdministrationSite() != null) entity.setAdministrationSite(patch.getAdministrationSite());
+        if (patch.getNotes() != null) entity.setNotes(patch.getNotes());
+        if (patch.getInformationSource() != null) entity.setInformationSource(patch.getInformationSource());
+        if (patch.getCompletionStatus() != null) entity.setCompletionStatus(patch.getCompletionStatus());
+        if (patch.getSubstanceRefusalReason() != null) entity.setSubstanceRefusalReason(patch.getSubstanceRefusalReason());
+        if (patch.getReasonCode() != null) entity.setReasonCode(patch.getReasonCode());
+        if (patch.getOrderingProvider() != null) entity.setOrderingProvider(patch.getOrderingProvider());
+    }
+
+    private ImmunizationDto buildDtoFromEntity(Immunization entity) {
         ImmunizationDto dto = new ImmunizationDto();
-        dto.setId(entity.getId());
-        dto.setVaccine(entity.getVaccine());
-        dto.setDose(entity.getDose());
-        dto.setDateAdministered(entity.getDateAdministered());
-        dto.setAmountAdministered(entity.getAmountAdministered());
-        dto.setImmunizationExpirationDate(entity.getImmunizationExpirationDate());
-        dto.setImmunizationManufacturer(entity.getImmunizationManufacturer());
-        dto.setImmunizationLotNumber(entity.getImmunizationLotNumber());
-        dto.setAdministratorName(entity.getAdministratorName());
-        dto.setDateInformationGiven(entity.getDateInformationGiven());
-        dto.setDateVISStatement(entity.getDateVISStatement());
-        dto.setRoute(entity.getRoute());
-        dto.setAdministrationSite(entity.getAdministrationSite());
-        dto.setNotes(entity.getNotes());
-        dto.setInformationSource(entity.getInformationSource());
-        dto.setCompletionStatus(entity.getCompletionStatus());
-        dto.setSubstanceRefusalReason(entity.getSubstanceRefusalReason());
-        dto.setReasonCode(entity.getReasonCode());
-        dto.setImmunizationOrderingProvider(entity.getImmunizationOrderingProvider());
         dto.setPatientId(entity.getPatientId());
         dto.setOrgId(entity.getOrgId());
+
+        ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
+        audit.setCreatedDate(entity.getCreatedDate());
+        audit.setLastModifiedDate(entity.getLastModifiedDate());
+        dto.setAudit(audit);
+
+        dto.setImmunizations(List.of(mapToItem(entity)));
         return dto;
     }
 
-    private Immunization mapToEntity(ImmunizationDto dto) {
-        Immunization entity = new Immunization();
-        entity.setVaccine(dto.getVaccine());
-        entity.setDose(dto.getDose());
-        entity.setDateAdministered(dto.getDateAdministered());
-        entity.setAmountAdministered(dto.getAmountAdministered());
-        entity.setImmunizationExpirationDate(dto.getImmunizationExpirationDate());
-        entity.setImmunizationManufacturer(dto.getImmunizationManufacturer());
-        entity.setImmunizationLotNumber(dto.getImmunizationLotNumber());
-        entity.setAdministratorName(dto.getAdministratorName());
-        entity.setDateInformationGiven(dto.getDateInformationGiven());
-        entity.setDateVISStatement(dto.getDateVISStatement());
-        entity.setRoute(dto.getRoute());
-        entity.setAdministrationSite(dto.getAdministrationSite());
-        entity.setNotes(dto.getNotes());
-        entity.setInformationSource(dto.getInformationSource());
-        entity.setCompletionStatus(dto.getCompletionStatus());
-        entity.setSubstanceRefusalReason(dto.getSubstanceRefusalReason());
-        entity.setReasonCode(dto.getReasonCode());
-        entity.setImmunizationOrderingProvider(dto.getImmunizationOrderingProvider());
-        entity.setPatientId(dto.getPatientId());
-        return entity;
+    private ImmunizationDto buildDtoFromEntities(Long patientId, Long orgId, List<Immunization> entities) {
+        ImmunizationDto dto = new ImmunizationDto();
+        dto.setPatientId(patientId);
+        dto.setOrgId(orgId);
+
+        if (!entities.isEmpty()) {
+            Immunization latest = entities.get(entities.size() - 1);
+            ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
+            audit.setCreatedDate(latest.getCreatedDate());
+            audit.setLastModifiedDate(latest.getLastModifiedDate());
+            dto.setAudit(audit);
+        }
+
+        dto.setImmunizations(entities.stream().map(this::mapToItem).collect(Collectors.toList()));
+        return dto;
+    }
+
+    private Long getCurrentOrgId() {
+        return RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
     }
 }

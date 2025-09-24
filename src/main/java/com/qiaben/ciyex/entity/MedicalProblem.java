@@ -4,12 +4,12 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "allergy_intolerances")
+@Table(name = "medical_problems")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AllergyIntolerance {
+public class MedicalProblem {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -24,29 +24,20 @@ public class AllergyIntolerance {
     @Column(name = "patient_id", nullable = false)
     private Long patientId;
 
-    @Column(name = "allergy_name")
-    private String allergyName;
+    // Requested fields
+    private String title;
 
-    @Column(name = "reaction")
-    private String reaction;
+    private String outcome;
 
-    @Column(name = "severity")
-    private String severity;
+    @Column(name = "verification_status")
+    private String verificationStatus;
 
-    @Column(name = "status")
-    private String status;
+    private String occurrence;
 
-    // NEW
-    @Column(name = "start_date")
-    private String startDate;
+    @Column(length = 2000)
+    private String note;
 
-    @Column(name = "end_date")
-    private String endDate;
-
-    // NEW
-    @Column(name = "comments")
-    private String comments;
-
+    // Audit
     @Column(name = "created_date")
     private String createdDate;
 
