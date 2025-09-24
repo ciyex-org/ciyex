@@ -1,4 +1,3 @@
-// src/main/java/com/qiaben/ciyex/storage/fhir/FhirExternalAllergyIntoleranceStorage.java
 package com.qiaben.ciyex.storage.fhir;
 
 import ca.uhn.fhir.rest.client.api.IGenericClient;
@@ -28,9 +27,7 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
 
     private final FhirClientProvider fhirClientProvider;
 
-
     private static final String TENANT_TAG_SYSTEM = "http://ciyex.com/tenant";
-
 
     private static final Pattern TITLE_PATIENT_PATTERN =
             Pattern.compile("patientId\\s+(\\d+)", Pattern.CASE_INSENSITIVE);
@@ -39,8 +36,6 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
         this.fhirClientProvider = fhirClientProvider;
         log.info("Initializing FhirExternalAllergyIntoleranceStorage");
     }
-
-    // ----------------- ExternalStorage -----------------
 
     @Override
     public String create(AllergyIntoleranceDto dto) {
@@ -79,7 +74,6 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
             AllergyIntoleranceDto dto = mapFromFhir(list, orgId);
             dto.setExternalId(externalId);
 
-            // best-effort: infer patientId from title, e.g. "Allergy Intolerance – patientId 12"
             Long pid = parsePatientIdFromTitle(list.getTitle());
             if (pid != null) dto.setPatientId(pid);
 
@@ -107,7 +101,6 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
         return executeWithRetry(() -> {
             IGenericClient client = fhirClientProvider.getForCurrentOrg();
 
-            // Search List resources tagged with this tenant
             Bundle bundle = client.search()
                     .forResource(ListResource.class)
                     .where(new TokenClientParam("_tag").exactly()
@@ -116,7 +109,6 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
                     .execute();
 
             final List<Bundle.BundleEntryComponent> entries = new ArrayList<>(bundle.getEntry());
-            // handle paging
             while (bundle.getLink(IBaseBundle.LINK_NEXT) != null) {
                 bundle = client.loadPage().next(bundle).execute();
                 entries.addAll(bundle.getEntry());
@@ -143,35 +135,28 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
         return AllergyIntoleranceDto.class.isAssignableFrom(entityType);
     }
 
-    // ----------------- Mapping -----------------
-    /**
-     * Map DTO -> FHIR List with contained Basic resources, each holding
-     * a compact text "name|reaction|severity|status".
-     * One List per patient. Tenant is carried in Meta.tag.
-     */
+    /** Map DTO -> FHIR List with contained Basics; code.text = name|reaction|severity|status|startDate|endDate|comments */
     private ListResource mapToFhir(AllergyIntoleranceDto dto, Long orgId) {
         ListResource list = new ListResource();
         list.setStatus(ListResource.ListStatus.CURRENT);
         list.setMode(ListResource.ListMode.WORKING);
         list.setTitle("Allergy Intolerance – patientId " + dto.getPatientId());
 
-        // Tenant tag for multi-tenancy filtering
         list.getMeta()
                 .addTag()
                 .setSystem(TENANT_TAG_SYSTEM)
                 .setCode(orgId != null ? orgId.toString() : "");
 
-        // Add contained Basics + entries
         if (dto.getAllergiesList() != null) {
             for (AllergyIntoleranceDto.AllergyItem d : dto.getAllergiesList()) {
                 String text = safe(d.getAllergyName()) + "|" + safe(d.getReaction()) + "|" +
-                        safe(d.getSeverity()) + "|" + safe(d.getStatus());
+                        safe(d.getSeverity()) + "|" + safe(d.getStatus()) + "|" +
+                        safe(d.getStartDate()) + "|" + safe(d.getEndDate()) + "|" +
+                        safe(d.getComments());                    // 7th part
                 CodeableConcept cc = new CodeableConcept().setText(text);
 
                 Basic basic = new Basic();
                 basic.setCode(cc);
-
-                // ensure local id for internal reference
                 if (!basic.hasId()) {
                     basic.setId(IdType.newRandomUuid());
                 }
@@ -180,13 +165,10 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
                 list.addEntry().setItem(new Reference("#" + basic.getIdElement().getIdPart()));
             }
         }
-
         return list;
     }
 
-    /**
-     * Map FHIR List -> DTO by decoding contained Basic.code.text "name|reaction|severity|status".
-     */
+    /** Map FHIR List -> DTO; supports 4-part (legacy), 6-part (dates), and 7-part (with comments) encodings. */
     private AllergyIntoleranceDto mapFromFhir(ListResource list, Long orgId) {
         AllergyIntoleranceDto dto = new AllergyIntoleranceDto();
         dto.setOrgId(orgId);
@@ -200,11 +182,13 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
                     String text = basic.getCode() != null ? basic.getCode().getText() : null;
                     String[] parts = text != null ? text.split("\\|", -1) : new String[0];
 
-                    // id: we don’t map a DB id here (FHIR doesn’t know it). Keep null.
                     x.setAllergyName(partOrNull(parts, 0));
                     x.setReaction(partOrNull(parts, 1));
                     x.setSeverity(partOrNull(parts, 2));
                     x.setStatus(partOrNull(parts, 3));
+                    x.setStartDate(partOrNull(parts, 4)); // may be null for legacy
+                    x.setEndDate(partOrNull(parts, 5));   // may be null for legacy
+                    x.setComments(partOrNull(parts, 6));  // may be null for legacy
                     return x;
                 })
                 .collect(Collectors.toList());
@@ -213,7 +197,6 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
         return dto;
     }
 
-    // ----------------- Retry / Helpers -----------------
     private <T> T executeWithRetry(Callable<T> op) {
         Long orgId = orgId();
         try {

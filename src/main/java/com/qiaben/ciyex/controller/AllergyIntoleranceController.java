@@ -1,4 +1,3 @@
-// src/main/java/com/qiaben/ciyex/controller/AllergyIntoleranceController.java
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
@@ -126,7 +125,7 @@ public class AllergyIntoleranceController {
         }
     }
 
-    // ---------- Item endpoints (now simplified to /{patientId}/{intoleranceId}) ----------
+    // ---------- Item endpoints (/{patientId}/{intoleranceId}) ----------
 
     @GetMapping("/{patientId}/{intoleranceId}")
     public ResponseEntity<ApiResponse<AllergyIntoleranceDto.AllergyItem>> getItem(
@@ -167,7 +166,6 @@ public class AllergyIntoleranceController {
             RequestContext.set(ctx);
 
             var updated = service.updateItem(patientId, intoleranceId, patch);
-            AllergyIntoleranceDto dto = service.getByPatientId(patientId); // fetch full DT
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto.AllergyItem>builder()
                     .success(true)
                     .message("Allergy updated successfully")

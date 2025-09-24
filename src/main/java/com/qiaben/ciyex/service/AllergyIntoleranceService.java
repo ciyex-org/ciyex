@@ -1,4 +1,3 @@
-// src/main/java/com/qiaben/ciyex/service/AllergyIntoleranceService.java
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.ApiResponse;
@@ -13,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -46,6 +46,8 @@ public class AllergyIntoleranceService {
 
         if (dto.getAllergiesList() != null) {
             for (var it : dto.getAllergiesList()) {
+                validateDates(it.getStartDate(), it.getEndDate());
+
                 AllergyIntolerance row = AllergyIntolerance.builder()
                         .orgId(orgId)
                         .patientId(dto.getPatientId())
@@ -53,6 +55,9 @@ public class AllergyIntoleranceService {
                         .reaction(it.getReaction())
                         .severity(it.getSeverity())
                         .status(it.getStatus())
+                        .startDate(it.getStartDate())
+                        .endDate(it.getEndDate())
+                        .comments(it.getComments())       // NEW
                         .createdDate(now)
                         .lastModifiedDate(now)
                         .build();
@@ -60,12 +65,11 @@ public class AllergyIntoleranceService {
             }
         }
 
-        // Optional: sync an external snapshot (e.g., FHIR List)
+        // Optional external sync
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && !rows.isEmpty()) {
             ExternalStorage<AllergyIntoleranceDto> ext = storageResolver.resolve(AllergyIntoleranceDto.class);
 
-            // For external sync we include top-level patientId (used for FHIR title parsing, etc.)
             AllergyIntoleranceDto snapshot = toDto(orgId, dto.getPatientId(), rows, true);
             String externalId = ext.create(snapshot);
 
@@ -75,7 +79,7 @@ public class AllergyIntoleranceService {
             }
         }
 
-        // API response: omit top-level patientId (kept only inside items)
+        // API response: omit top-level patientId
         return toDto(orgId, dto.getPatientId(), rows, false);
     }
 
@@ -88,10 +92,8 @@ public class AllergyIntoleranceService {
         if (rows.isEmpty())
             throw new RuntimeException("No allergies found for patientId=" + patientId);
 
-        // API response: omit top-level patientId
         AllergyIntoleranceDto dto = toDto(orgId, patientId, rows, false);
 
-        // Optionally refresh external id from external storage
         if (rows.get(0).getExternalId() != null) {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
             if (storageType != null) {
@@ -106,7 +108,6 @@ public class AllergyIntoleranceService {
     @Transactional
     public AllergyIntoleranceDto updateByPatientId(Long patientId, AllergyIntoleranceDto dto) {
         Long orgId = requireOrg("updateByPatientId");
-        // Replace strategy: delete all, then create new rows from payload
         repo.deleteAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
         dto.setOrgId(orgId);
         dto.setPatientId(patientId);
@@ -132,7 +133,7 @@ public class AllergyIntoleranceService {
         }
     }
 
-    /* ---------------------- Item-level ops (used by /{patientId}/{intoleranceId}) ---------------------- */
+    /* ---------------------- Item-level ops ---------------------- */
 
     @Transactional(readOnly = true)
     public AllergyIntoleranceDto.AllergyItem getItem(Long patientId, Long intoleranceId) {
@@ -161,18 +162,21 @@ public class AllergyIntoleranceService {
         if (patch.getReaction() != null)    row.setReaction(patch.getReaction());
         if (patch.getSeverity() != null)    row.setSeverity(patch.getSeverity());
         if (patch.getStatus() != null)      row.setStatus(patch.getStatus());
+        if (patch.getStartDate() != null)   row.setStartDate(patch.getStartDate());
+        if (patch.getEndDate() != null)     row.setEndDate(patch.getEndDate());
+        if (patch.getComments() != null)    row.setComments(patch.getComments()); // NEW
+
+        validateDates(row.getStartDate(), row.getEndDate());
+
         row.setLastModifiedDate(LocalDateTime.now().toString());
         repo.save(row);
 
-        // Re-sync external snapshot if present
         if (row.getExternalId() != null) {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
             if (storageType != null) {
                 ExternalStorage<AllergyIntoleranceDto> ext = storageResolver.resolve(AllergyIntoleranceDto.class);
                 List<AllergyIntolerance> fresh =
                         repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
-
-                // For external sync we include top-level patientId
                 ext.update(toDto(orgId, patientId, fresh, true), row.getExternalId());
             }
         }
@@ -197,10 +201,7 @@ public class AllergyIntoleranceService {
                 List<AllergyIntolerance> fresh =
                         repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
                 if (fresh.isEmpty()) ext.delete(externalId);
-                else {
-                    // For external sync we include top-level patientId
-                    ext.update(toDto(orgId, patientId, fresh, true), externalId);
-                }
+                else ext.update(toDto(orgId, patientId, fresh, true), externalId);
             }
         }
     }
@@ -217,7 +218,6 @@ public class AllergyIntoleranceService {
 
         List<AllergyIntoleranceDto> dtos = new ArrayList<>();
         for (var e : byPatient.entrySet()) {
-            // API response: omit top-level patientId
             dtos.add(toDto(orgId, e.getKey(), e.getValue(), false));
         }
 
@@ -236,10 +236,6 @@ public class AllergyIntoleranceService {
         return orgId;
     }
 
-    /**
-     * Build DTO with control over whether to include the top-level patientId.
-     * We include it only for internal/external sync needs; API responses omit it.
-     */
     private AllergyIntoleranceDto toDto(Long orgId, Long patientId, List<AllergyIntolerance> rows,
                                         boolean includeTopLevelPatientId) {
         AllergyIntoleranceDto dto = new AllergyIntoleranceDto();
@@ -265,7 +261,24 @@ public class AllergyIntoleranceService {
         it.setReaction(r.getReaction());
         it.setSeverity(r.getSeverity());
         it.setStatus(r.getStatus());
-        it.setPatientId(r.getPatientId()); // <-- patientId only inside each list item
+        it.setPatientId(r.getPatientId());
+        it.setStartDate(r.getStartDate());
+        it.setEndDate(r.getEndDate());
+        it.setComments(r.getComments()); // NEW
         return it;
+    }
+
+    /** Validate only when both are ISO yyyy-MM-dd. */
+    private void validateDates(String start, String end) {
+        if (start == null || end == null) return;
+        try {
+            if (start.matches("\\d{4}-\\d{2}-\\d{2}") && end.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                if (LocalDate.parse(end).isBefore(LocalDate.parse(start))) {
+                    throw new IllegalArgumentException("endDate cannot be before startDate");
+                }
+            }
+        } catch (Exception ignore) {
+            // tolerate non-ISO inputs since we store strings
+        }
     }
 }

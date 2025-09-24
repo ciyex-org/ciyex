@@ -1,4 +1,3 @@
-// src/main/java/com/qiaben/ciyex/dto/AllergyIntoleranceDto.java
 package com.qiaben.ciyex.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -12,19 +11,25 @@ public class AllergyIntoleranceDto {
 
     private String externalId;
     private Long orgId;           // tenant
-    private Long patientId;       // EHR patient id
+    private Long patientId;       // EHR patient id (omitted in API responses)
     private List<AllergyItem> allergiesList;
     private Audit audit;
 
     @Data
     public static class AllergyItem {
-        // IMPORTANT: this id is the primary key of the single table row
-        private Long id;          // AllergyIntolerance row id (no detail id)
+        private Long id;          // primary key row id
         private String allergyName;
         private String reaction;
         private String severity;
         private String status;
         private Long patientId;
+
+        // Effective window
+        private String startDate;  // ISO yyyy-MM-dd preferred
+        private String endDate;    // ISO yyyy-MM-dd preferred
+
+        // NEW
+        private String comments;
     }
 
     @Data
