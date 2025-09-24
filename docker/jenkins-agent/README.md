@@ -1,35 +1,8 @@
 Custom Jenkins Agent for ciyex
 
 This Docker image provides a Jenkins inbound agent with the following tools preinstalled:
-- Azure CLI (`az`)
-- kubectl
-- Docker CLI (`docker`)
-
-Build and push
-
-1. Build the image locally (replace `<tag>`):
-
-```bash
-docker build -t <registry>/ciyex-jenkins-agent:<tag> ./docker/jenkins-agent
-```
-
-2. Push to your container registry (example for ACR):
-
-```bash
-# Login to ACR (replace ACR_NAME and creds)
-az acr login --name <ACR_NAME>
-
-docker push <registry>/ciyex-jenkins-agent:<tag>
-```
-
-Use in Kubernetes
-
-- If you run Jenkins in Kubernetes with the Kubernetes plugin, configure a pod template that uses this image.
-- Ensure the agent has permissions to use Docker (e.g., mount Docker socket) or use remote Docker builds (recommended).
-
-Sample Kubernetes pod template snippet for Jenkins (in Kubernetes plugin UI):
-
 ```yaml
+# Pod template example for Kubernetes plugin
 apiVersion: v1
 kind: Pod
 metadata:
@@ -50,7 +23,45 @@ spec:
       path: /var/run/docker.sock
 ```
 
-Security notes
+Kubernetes deployment example (run an agent as a Deployment):
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ciyex-jenkins-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ciyex-jenkins-agent
+  template:
+    metadata:
+      labels:
+        app: ciyex-jenkins-agent
+    spec:
+      containers:
+        - name: jenkins-agent
+          image: <registry>/ciyex-jenkins-agent:<tag>
+          # adjust args/entrypoint according to your base image and Jenkins setup
+          volumeMounts:
+            - name: dockersock
+              mountPath: /var/run/docker.sock
+      volumes:
+        - name: dockersock
+          hostPath:
+            path: /var/run/docker.sock
+```
+
+Build-and-push helper script
+
+Use the included `build-and-push.sh` script to build and push the image to ACR. Example:
+
+```bash
+ACR_NAME=hinikubestageacr.azurecr.io TAG=v1.0.0 ./docker/jenkins-agent/build-and-push.sh
+```
+
+The script prefers `az acr login` when the Azure CLI is available and falls back to `docker login` using `ACR_USERNAME`/`ACR_PASSWORD` environment variables.
 
 - Mounting `/var/run/docker.sock` grants the container root access on the host. Use with caution.
 - Prefer using BuildKit or a remote build service instead of mounting the host docker socket when possible.

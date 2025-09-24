@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ciyex-jenkins-agent
+  labels:
+    app: ciyex-jenkins-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ciyex-jenkins-agent
+  template:
+    metadata:
+      labels:
+        app: ciyex-jenkins-agent
+    spec:
+      containers:
+        - name: jenkins-agent
+          image: <registry>/ciyex-jenkins-agent:<tag>
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          # If your cluster requires image pull secrets for ACR, configure below
+          env:
+            - name: AZURE_CLIENT_ID
+              value: ""
+            - name: AZURE_CLIENT_SECRET
+              value: ""
+            - name: AZURE_TENANT_ID
+              value: ""
+            - name: AZURE_SUBSCRIPTION_ID
+              value: ""
+          volumeMounts:
+            - name: dockersock
+              mountPath: /var/run/docker.sock
+      volumes:
+        - name: dockersock
+          hostPath:
+            path: /var/run/docker.sock
+      # Optional: specify imagePullSecrets if pulling from private registry:
+      # imagePullSecrets:
+      # - name: acr-pull-secret
