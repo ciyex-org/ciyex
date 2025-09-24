@@ -76,46 +76,77 @@ set -euo pipefail
       }
     }
 
-    stage('Azure Login') {
-      when {
-        expression { return env.IS_PR != 'true' }
-      }
-      steps {
-        // Use branch-specific credential IDs selected earlier
-        withCredentials([
-          string(credentialsId: env.AZURE_CLIENT_ID_CRED, variable: 'AZURE_CLIENT_ID'),
-          string(credentialsId: env.AZURE_CLIENT_SECRET_CRED, variable: 'AZURE_CLIENT_SECRET'),
-          string(credentialsId: env.AZURE_TENANT_ID_CRED, variable: 'AZURE_TENANT_ID'),
-          string(credentialsId: env.AZURE_SUBSCRIPTION_ID_CRED, variable: 'AZURE_SUBSCRIPTION_ID')
-        ]) {
-          sh '''#!/usr/bin/env bash
-set -euo pipefail
-echo "Preparing Azure CLI (use local 'az' if available, otherwise run containerized az)..."
-# wrapper: use local az if present, otherwise run the official Azure CLI container
-AZ_CLI_CMD="az"
-if ! command -v az >/dev/null 2>&1; then
-  echo "'az' not found on agent; will use containerized Azure CLI"
-  # Ensure home dirs exist and mount them so credentials and kubeconfig persist between commands
-  mkdir -p "$HOME/.azure" "$HOME/.kube"
-  # Ensure docker is available before attempting to run the Azure CLI container
-  if ! command -v docker >/dev/null 2>&1; then
-    echo "ERROR: 'az' is not installed on this agent and 'docker' is not available to run a containerized Azure CLI."
-    echo "Options to fix this:"
-    echo "  - Use an agent image that has the Azure CLI installed (recommended)."
-    echo "  - Install Docker on the agent so the pipeline can run the Azure CLI container."
-    echo "  - Or pre-login and provide kubeconfig/credentials on the node before running the pipeline."
-    exit 127
-  fi
-  AZ_CLI_CMD="docker run --rm -v $HOME/.azure:/root/.azure -v $HOME/.kube:/root/.kube -e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID -e AZURE_SUBSCRIPTION_ID mcr.microsoft.com/azure-cli az"
-fi
-
-echo "Logging into Azure..."
-${AZ_CLI_CMD} login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"
-${AZ_CLI_CMD} account set --subscription "$AZURE_SUBSCRIPTION_ID"
-'''
+   // Azure login stage — robust fallback: local az -> kubernetes pod az -> helpful error
+stage('Azure Login') {
+  steps {
+    script {
+      try {
+        // 1) If az exists on the agent, use it
+        if (sh(script: 'command -v az >/dev/null 2>&1', returnStatus: true) == 0) {
+          echo "Using local az on the agent"
+          withCredentials([
+            string(credentialsId: 'AZURE_CLIENT_ID_STAGE', variable: 'AZURE_CLIENT_ID'),
+            string(credentialsId: 'AZURE_CLIENT_SECRET_STAGE', variable: 'AZURE_CLIENT_SECRET'),
+            string(credentialsId: 'AZURE_TENANT_ID_STAGE', variable: 'AZURE_TENANT_ID'),
+            string(credentialsId: 'AZURE_SUBSCRIPTION_ID_STAGE', variable: 'AZURE_SUBSCRIPTION_ID')
+          ]) {
+            sh '''
+              az --version
+              az login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"
+              az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+            '''
+          }
+        } else {
+          // 2) Fallback: try to run az inside an ephemeral Kubernetes pod (Jenkins Kubernetes plugin)
+          echo "'az' not found on agent — attempting containerized az in a Kubernetes pod"
+          def podYaml = """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: azure
+    image: mcr.microsoft.com/azure-cli:2.49.0
+    command:
+      - cat
+    tty: true
+"""
+          // Use a fixed label so we can target the node created by podTemplate
+          def podLabel = "azure-agent-${env.BUILD_ID}"
+          podTemplate(label: podLabel, yaml: podYaml) {
+            node(podLabel) {
+              container('azure') {
+                withCredentials([
+                  string(credentialsId: 'AZURE_CLIENT_ID_STAGE', variable: 'AZURE_CLIENT_ID'),
+                  string(credentialsId: 'AZURE_CLIENT_SECRET_STAGE', variable: 'AZURE_CLIENT_SECRET'),
+                  string(credentialsId: 'AZURE_TENANT_ID_STAGE', variable: 'AZURE_TENANT_ID'),
+                  string(credentialsId: 'AZURE_SUBSCRIPTION_ID_STAGE', variable: 'AZURE_SUBSCRIPTION_ID')
+                ]) {
+                  sh '''
+                    echo "Running az inside Kubernetes pod"
+                    az --version
+                    az login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"
+                    az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+                  '''
+                }
+              }
+            }
+          }
         }
+      } catch (err) {
+        // 3) Clear actionable error message
+        echo "ERROR: Azure login step failed: ${err}"
+        echo '''
+Possible fixes:
+  - Use an agent image that has the Azure CLI installed (recommended).
+  - Install Docker on the agent if you intend to run containerized az via docker.
+  - Configure Jenkins with the Kubernetes plugin and a cloud so podTemplate can create pods (used by fallback).
+  - Or perform az login outside the pipeline and provide kubeconfig/service principal to the job.
+'''
+        error("Azure login could not be performed. See the message above for remediation steps.")
       }
-    }
+    } // end script
+  } // end steps
+} // end stage
 
     stage('Build Docker Image') {
       when {
