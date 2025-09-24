@@ -97,6 +97,15 @@ if ! command -v az >/dev/null 2>&1; then
   echo "'az' not found on agent; will use containerized Azure CLI"
   # Ensure home dirs exist and mount them so credentials and kubeconfig persist between commands
   mkdir -p "$HOME/.azure" "$HOME/.kube"
+  # Ensure docker is available before attempting to run the Azure CLI container
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "ERROR: 'az' is not installed on this agent and 'docker' is not available to run a containerized Azure CLI."
+    echo "Options to fix this:"
+    echo "  - Use an agent image that has the Azure CLI installed (recommended)."
+    echo "  - Install Docker on the agent so the pipeline can run the Azure CLI container."
+    echo "  - Or pre-login and provide kubeconfig/credentials on the node before running the pipeline."
+    exit 127
+  fi
   AZ_CLI_CMD="docker run --rm -v $HOME/.azure:/root/.azure -v $HOME/.kube:/root/.kube -e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID -e AZURE_SUBSCRIPTION_ID mcr.microsoft.com/azure-cli az"
 fi
 
@@ -138,6 +147,11 @@ AZ_CLI_CMD="az"
 if ! command -v az >/dev/null 2>&1; then
   echo "'az' not found on agent; will use containerized Azure CLI for ACR login"
   mkdir -p "$HOME/.azure" "$HOME/.kube"
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "ERROR: 'az' is not installed and 'docker' is not available to run a containerized Azure CLI."
+    echo "You can either use an agent image that contains 'az' or install docker on the agent."
+    exit 127
+  fi
   AZ_CLI_CMD="docker run --rm -v $HOME/.azure:/root/.azure -v $HOME/.kube:/root/.kube -e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID -e AZURE_SUBSCRIPTION_ID mcr.microsoft.com/azure-cli az"
 fi
 
@@ -169,6 +183,11 @@ AZ_CLI_CMD="az"
 if ! command -v az >/dev/null 2>&1; then
   echo "'az' not found on agent; will use containerized Azure CLI to fetch AKS credentials"
   mkdir -p "$HOME/.azure" "$HOME/.kube"
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "ERROR: 'az' is not installed on this agent and 'docker' is not available to run containerized Azure CLI."
+    echo "Please use an agent image that has the Azure CLI installed or install Docker on the agent nodes."
+    exit 127
+  fi
   AZ_CLI_CMD="docker run --rm -v $HOME/.azure:/root/.azure -v $HOME/.kube:/root/.kube -e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID -e AZURE_SUBSCRIPTION_ID mcr.microsoft.com/azure-cli az"
 fi
 
