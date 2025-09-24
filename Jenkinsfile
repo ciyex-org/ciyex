@@ -90,9 +90,19 @@ set -euo pipefail
         ]) {
           sh '''#!/usr/bin/env bash
 set -euo pipefail
+echo "Preparing Azure CLI (use local 'az' if available, otherwise run containerized az)..."
+# wrapper: use local az if present, otherwise run the official Azure CLI container
+AZ_CLI_CMD="az"
+if ! command -v az >/dev/null 2>&1; then
+  echo "'az' not found on agent; will use containerized Azure CLI"
+  # Ensure home dirs exist and mount them so credentials and kubeconfig persist between commands
+  mkdir -p "$HOME/.azure" "$HOME/.kube"
+  AZ_CLI_CMD="docker run --rm -v $HOME/.azure:/root/.azure -v $HOME/.kube:/root/.kube -e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID -e AZURE_SUBSCRIPTION_ID mcr.microsoft.com/azure-cli az"
+fi
+
 echo "Logging into Azure..."
-az login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"
-az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+${AZ_CLI_CMD} login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"
+${AZ_CLI_CMD} account set --subscription "$AZURE_SUBSCRIPTION_ID"
 '''
         }
       }
@@ -122,7 +132,16 @@ docker build --build-arg ENVIRONMENT=stage -t ${ACR_NAME}/${IMAGE_NAME}:${VERSIO
 # Derive short registry name (before first dot)
 ACR_REGISTRY="$(echo ${ACR_NAME} | cut -d'.' -f1)"
 echo "Trying az acr login for registry: ${ACR_REGISTRY}"
-if az acr login --name "${ACR_REGISTRY}" 2>/dev/null; then
+
+# Use same az wrapper as in Azure Login: prefer local az, otherwise run az in container with mounts
+AZ_CLI_CMD="az"
+if ! command -v az >/dev/null 2>&1; then
+  echo "'az' not found on agent; will use containerized Azure CLI for ACR login"
+  mkdir -p "$HOME/.azure" "$HOME/.kube"
+  AZ_CLI_CMD="docker run --rm -v $HOME/.azure:/root/.azure -v $HOME/.kube:/root/.kube -e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID -e AZURE_SUBSCRIPTION_ID mcr.microsoft.com/azure-cli az"
+fi
+
+if ${AZ_CLI_CMD} acr login --name "${ACR_REGISTRY}" 2>/dev/null; then
   echo "az acr login succeeded"
 else
   echo "az acr login failed or not available, falling back to docker login"
@@ -144,7 +163,16 @@ docker push ${ACR_NAME}/${IMAGE_NAME}:${VERSION}
   sh '''#!/usr/bin/env bash
 set -euo pipefail
 echo "Getting AKS credentials for cluster ${CLUSTER_NAME} in ${RESOURCE_GROUP}"
-az aks get-credentials --resource-group "${RESOURCE_GROUP}" --name "${CLUSTER_NAME}" --overwrite-existing
+
+# Prefer local az; if not available, run the Azure CLI container and mount kube and azure dirs so credentials persist
+AZ_CLI_CMD="az"
+if ! command -v az >/dev/null 2>&1; then
+  echo "'az' not found on agent; will use containerized Azure CLI to fetch AKS credentials"
+  mkdir -p "$HOME/.azure" "$HOME/.kube"
+  AZ_CLI_CMD="docker run --rm -v $HOME/.azure:/root/.azure -v $HOME/.kube:/root/.kube -e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID -e AZURE_SUBSCRIPTION_ID mcr.microsoft.com/azure-cli az"
+fi
+
+${AZ_CLI_CMD} aks get-credentials --resource-group "${RESOURCE_GROUP}" --name "${CLUSTER_NAME}" --overwrite-existing
 '''
       }
     }
