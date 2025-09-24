@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: ciyex-app-stage
-          image: IMAGE_URL:IMAGE_TAG
+          image: hinikubestageacr.azurecr.io/ciyex-app-stage:v1.0.4
           ports:
             - containerPort: 8080  # Spring Boot
             - containerPort: 3000  # EHR UI (Next.js)
