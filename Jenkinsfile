@@ -13,8 +13,10 @@ pipeline {
     stage('Select Credentials') {
       steps {
         script {
-          // Determine branch name in multibranch pipeline
-          def branch = env.BRANCH_NAME ?: (env.GIT_BRANCH ? env.GIT_BRANCH.replaceAll('refs/heads/', '') : 'main')
+          // Determine branch name in multibranch pipeline.
+          // If this build is a pull request Jenkins exposes the target branch in CHANGE_TARGET.
+          // Use the PR target branch (if present) so credential selection follows where the PR will be merged.
+          def branch = env.CHANGE_TARGET ?: env.BRANCH_NAME ?: (env.GIT_BRANCH ? env.GIT_BRANCH.replaceAll('refs/heads/', '') : 'main')
           echo "Detected branch: ${branch}"
 
           if (branch == 'main') {
@@ -44,6 +46,10 @@ pipeline {
           }
 
           echo "Using credentials set: ${env.AZURE_CLIENT_ID_CRED} / ${env.ACR_CREDENTIALS_ID} for ${env.TARGET_ENV}"
+          // Record whether this build is a Pull Request and the effective target branch
+          env.IS_PR = env.CHANGE_ID ? 'true' : 'false'
+          env.TARGET_BRANCH = branch
+          echo "IS_PR=${env.IS_PR} TARGET_BRANCH=${env.TARGET_BRANCH}"
         }
       }
     }
@@ -53,7 +59,27 @@ pipeline {
       }
     }
 
+    stage('PR Build & Test') {
+      when {
+        expression {
+          // Run this stage only for pull requests targeting main or release/*
+          return (env.IS_PR == 'true') && (env.TARGET_BRANCH == 'main' || env.TARGET_BRANCH.startsWith('release/'))
+        }
+      }
+      steps {
+        echo "Pull Request detected targeting ${env.TARGET_BRANCH}. Running build and tests only."
+        // Run the project's build and tests. Adjust gradle task if you want only tests or a different task.
+        sh '''
+          set -euo pipefail
+          ./gradlew clean build
+        '''
+      }
+    }
+
     stage('Azure Login') {
+      when {
+        expression { return env.IS_PR != 'true' }
+      }
       steps {
         // Use branch-specific credential IDs selected earlier
         withCredentials([
@@ -73,6 +99,9 @@ pipeline {
     }
 
     stage('Build Docker Image') {
+      when {
+        expression { return env.IS_PR != 'true' }
+      }
       steps {
         sh '''
           set -euo pipefail
@@ -83,6 +112,9 @@ pipeline {
     }
 
     stage('Push to ACR') {
+      when {
+        expression { return env.IS_PR != 'true' }
+      }
       steps {
         // Use the ACR credential ID selected earlier (branch-specific)
         withCredentials([usernamePassword(credentialsId: env.ACR_CREDENTIALS_ID, usernameVariable: 'ACR_USERNAME', passwordVariable: 'ACR_PASSWORD')]) {
@@ -106,6 +138,9 @@ pipeline {
     }
 
     stage('Set AKS context') {
+      when {
+        expression { return env.IS_PR != 'true' }
+      }
       steps {
         sh '''
           set -euo pipefail
@@ -116,6 +151,9 @@ pipeline {
     }
 
     stage('Update manifests') {
+      when {
+        expression { return env.IS_PR != 'true' }
+      }
       steps {
         sh '''
           set -euo pipefail
@@ -127,6 +165,9 @@ pipeline {
     }
 
     stage('Deploy to AKS') {
+      when {
+        expression { return env.IS_PR != 'true' }
+      }
       steps {
         sh '''
           set -euo pipefail
