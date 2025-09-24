@@ -1,12 +1,7 @@
-name: Build & Deploy Ciyex App Stage
+name: Build & Deploy Ciyex App Stage (disabled - migrated to Jenkins)
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+# Triggers disabled. This workflow is kept for historical reference only. Use the repository `Jenkinsfile` and a Jenkins pipeline instead.
+on: {}
 
 env:
   IMAGE_NAME: ciyex-app-stage

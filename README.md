@@ -18,6 +18,11 @@ This repository contains:
 
 ---
 
+## CI / CD
+
+This repository has migrated CI from GitHub Actions to Jenkins. A `Jenkinsfile` is provided at the repository root which defines the pipeline to build the Docker image, push to Azure Container Registry (ACR), and deploy to AKS. See `jenkins/README.md` for credentials and setup instructions.
+
+
 ## Project Structure
 
 ```
