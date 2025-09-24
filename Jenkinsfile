@@ -69,10 +69,10 @@ pipeline {
       steps {
         echo "Pull Request detected targeting ${env.TARGET_BRANCH}. Running build and tests only."
         // Run the project's build and tests. Adjust gradle task if you want only tests or a different task.
-        sh '''
-          bash -lc "set -euo pipefail
-          ./gradlew clean build"
-        '''
+  sh(script: '''
+set -euo pipefail
+./gradlew clean build
+''', shell: '/bin/bash')
       }
     }
 
@@ -88,12 +88,12 @@ pipeline {
           string(credentialsId: env.AZURE_TENANT_ID_CRED, variable: 'AZURE_TENANT_ID'),
           string(credentialsId: env.AZURE_SUBSCRIPTION_ID_CRED, variable: 'AZURE_SUBSCRIPTION_ID')
         ]) {
-          sh '''
-            bash -lc "set -euo pipefail
-            echo \"Logging into Azure...\"
-            az login --service-principal -u \"$AZURE_CLIENT_ID\" -p \"$AZURE_CLIENT_SECRET\" --tenant \"$AZURE_TENANT_ID\"
-            az account set --subscription \"$AZURE_SUBSCRIPTION_ID\""
-          '''
+          sh(script: '''
+set -euo pipefail
+echo "Logging into Azure..."
+az login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"
+az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+''', shell: '/bin/bash')
         }
       }
     }
@@ -103,11 +103,11 @@ pipeline {
         expression { return env.IS_PR != 'true' }
       }
       steps {
-        sh '''
-          bash -lc "set -euo pipefail
-          echo \"Building Docker image: ${ACR_NAME}/${IMAGE_NAME}:${VERSION}\"
-          docker build --build-arg ENVIRONMENT=stage -t ${ACR_NAME}/${IMAGE_NAME}:${VERSION} ."
-        '''
+  sh(script: '''
+set -euo pipefail
+echo "Building Docker image: ${ACR_NAME}/${IMAGE_NAME}:${VERSION}"
+docker build --build-arg ENVIRONMENT=stage -t ${ACR_NAME}/${IMAGE_NAME}:${VERSION} .
+''', shell: '/bin/bash')
       }
     }
 
@@ -118,21 +118,20 @@ pipeline {
       steps {
         // Use the ACR credential ID selected earlier (branch-specific)
         withCredentials([usernamePassword(credentialsId: env.ACR_CREDENTIALS_ID, usernameVariable: 'ACR_USERNAME', passwordVariable: 'ACR_PASSWORD')]) {
-          sh '''
-              bash -lc "set -euo pipefail
-              # Derive short registry name (before first dot)
-              ACR_REGISTRY=\"$(echo ${ACR_NAME} | cut -d'.' -f1)\"
-              echo \"Trying az acr login for registry: ${ACR_REGISTRY}\"
-              if az acr login --name \"${ACR_REGISTRY}\" 2>/dev/null; then
-                echo \"az acr login succeeded\"
-              else
-                echo \"az acr login failed or not available, falling back to docker login\"
-                docker login ${ACR_NAME} -u \"$ACR_USERNAME\" -p \"$ACR_PASSWORD\"
-              fi
+          sh(script: '''
+# Derive short registry name (before first dot)
+ACR_REGISTRY="$(echo ${ACR_NAME} | cut -d'.' -f1)"
+echo "Trying az acr login for registry: ${ACR_REGISTRY}"
+if az acr login --name "${ACR_REGISTRY}" 2>/dev/null; then
+  echo "az acr login succeeded"
+else
+  echo "az acr login failed or not available, falling back to docker login"
+  docker login ${ACR_NAME} -u "$ACR_USERNAME" -p "$ACR_PASSWORD"
+fi
 
-              echo \"Pushing image to ACR\"
-              docker push ${ACR_NAME}/${IMAGE_NAME}:${VERSION}"
-            '''
+echo "Pushing image to ACR"
+docker push ${ACR_NAME}/${IMAGE_NAME}:${VERSION}
+''', shell: '/bin/bash')
         }
       }
     }
@@ -142,11 +141,11 @@ pipeline {
         expression { return env.IS_PR != 'true' }
       }
       steps {
-        sh '''
-          bash -lc "set -euo pipefail
-          echo \"Getting AKS credentials for cluster ${CLUSTER_NAME} in ${RESOURCE_GROUP}\"
-          az aks get-credentials --resource-group \"${RESOURCE_GROUP}\" --name \"${CLUSTER_NAME}\" --overwrite-existing"
-        '''
+  sh(script: '''
+set -euo pipefail
+echo "Getting AKS credentials for cluster ${CLUSTER_NAME} in ${RESOURCE_GROUP}"
+az aks get-credentials --resource-group "${RESOURCE_GROUP}" --name "${CLUSTER_NAME}" --overwrite-existing
+''', shell: '/bin/bash')
       }
     }
 
@@ -155,12 +154,12 @@ pipeline {
         expression { return env.IS_PR != 'true' }
       }
       steps {
-        sh '''
-          bash -lc "set -euo pipefail
-          echo \"Updating image tag in manifests/stage/ciyex-deployment-stage.yaml\"
-          sed -i \"s|IMAGE_URL:IMAGE_TAG|${ACR_NAME}/${IMAGE_NAME}:${VERSION}|g\" manifests/stage/ciyex-deployment-stage.yaml
-          echo \"Updated manifest content:\" && grep -n \"image:\" -n manifests/stage/ciyex-deployment-stage.yaml || true"
-        '''
+  sh(script: '''
+set -euo pipefail
+echo "Updating image tag in manifests/stage/ciyex-deployment-stage.yaml"
+sed -i "s|IMAGE_URL:IMAGE_TAG|${ACR_NAME}/${IMAGE_NAME}:${VERSION}|g" manifests/stage/ciyex-deployment-stage.yaml
+echo "Updated manifest content:" && grep -n "image:" manifests/stage/ciyex-deployment-stage.yaml || true
+''', shell: '/bin/bash')
       }
     }
 
@@ -169,11 +168,11 @@ pipeline {
         expression { return env.IS_PR != 'true' }
       }
       steps {
-        sh '''
-          bash -lc "set -euo pipefail
-          echo \"Applying Kubernetes manifests in manifests/stage/\"
-          kubectl apply -f manifests/stage/"
-        '''
+  sh(script: '''
+set -euo pipefail
+echo "Applying Kubernetes manifests in manifests/stage/"
+kubectl apply -f manifests/stage/
+''', shell: '/bin/bash')
       }
     }
   }
