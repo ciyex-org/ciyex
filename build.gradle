@@ -103,7 +103,5 @@ tasks.named('test') {
 	useJUnitPlatform()
 }
 
-tasks.test {
-	// Don't fail the build if no tests are discovered in some environments
-	failOnNoDiscoveredTests = false
-}
+// Use JUnit Platform for tests (don't set Gradle-specific properties that may not exist
+// in older/newer Gradle distributions used in CI Docker builds).
