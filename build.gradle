@@ -33,6 +33,9 @@ dependencies {
 	    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'   // <-- added for PDF templating
   implementation 'com.github.librepdf:openpdf:1.3.39'
 
+			// Actuator for health/info endpoints
+			implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
     /* (Optional) HTML → PDF fallback using OpenHTMLtoPDF */
     implementation 'com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10'
     implementation 'com.openhtmltopdf:openhtmltopdf-slf4j:1.0.10' 
