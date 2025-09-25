@@ -31,9 +31,9 @@ public class AutoSchemaAspect {
     }
     
     @Around("@annotation(org.springframework.transaction.annotation.Transactional) && " +
-            "execution(* com.qiaben.ciyex.service..*(..)) && " +
-            "!execution(* com.qiaben.ciyex.service.*SchemaInitializer.*(..)) && " +
-            "!execution(* com.qiaben.ciyex.service.TenantAwareService.*(..))")
+        "(execution(* com.qiaben.ciyex.service..*(..)) || execution(* com.qiaben.ciyex.audit..*(..))) && " +
+        "!execution(* com.qiaben.ciyex.service.*SchemaInitializer.*(..)) && " +
+        "!execution(* com.qiaben.ciyex.service.TenantAwareService.*(..))")
     public Object autoSwitchSchema(ProceedingJoinPoint joinPoint) throws Throwable {
         // Get org ID from RequestContext
         Long orgId = getOrgIdFromContext();

@@ -108,7 +108,7 @@ public class MasterSchemaInitializer {
             .applySetting("hibernate.connection.password", dbPass)
                     .applySetting("hibernate.connection.driver_class", "org.postgresql.Driver")
                     .applySetting("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect")
-                    .applySetting("hibernate.hbm2ddl.auto", "create")
+                    .applySetting("hibernate.hbm2ddl.auto", "update")
                     .applySetting("hibernate.default_schema", "public")
                     .applySetting("hibernate.show_sql", "true")
                     .build();

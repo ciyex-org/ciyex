@@ -211,7 +211,14 @@ public class FhirExternalPatientStorage implements ExternalStorage<PatientDto> {
             if (patientDto.getLastName() != null) name.setFamily(patientDto.getLastName());
             fhirPatient.setName(List.of(name));
         }
-        if (patientDto.getGender() != null) fhirPatient.setGender(org.hl7.fhir.r4.model.Enumerations.AdministrativeGender.fromCode(patientDto.getGender()));
+        if (patientDto.getGender() != null) {
+            String normalized = normalizeGenderCode(patientDto.getGender());
+            try {
+                fhirPatient.setGender(org.hl7.fhir.r4.model.Enumerations.AdministrativeGender.fromCode(normalized));
+            } catch (Exception e) {
+                log.warn("Unknown AdministrativeGender code '{}' after normalization, leaving null", patientDto.getGender());
+            }
+        }
         if (patientDto.getDateOfBirth() != null) {
             try {
                 fhirPatient.setBirthDate(DATE_FORMAT.parse(patientDto.getDateOfBirth()));
@@ -256,6 +263,34 @@ public class FhirExternalPatientStorage implements ExternalStorage<PatientDto> {
 
         log.debug("Mapped FHIR Patient for orgId: {}, name: {}, mrn: {}", orgId, getPatientName(patientDto), patientDto.getMedicalRecordNumber());
         return fhirPatient;
+    }
+
+    /**
+     * Accept common short codes and variants and convert them to FHIR administrative gender codes.
+     * Examples: "M" -> "male", "F" -> "female", "O" -> "other", "U" -> "unknown".
+     */
+    private String normalizeGenderCode(String gender) {
+        if (gender == null) return null;
+        String g = gender.trim().toLowerCase();
+        if (g.isEmpty()) return g;
+
+        switch (g) {
+            case "m":
+            case "male":
+                return "male";
+            case "f":
+            case "female":
+                return "female";
+            case "o":
+            case "other":
+                return "other";
+            case "u":
+            case "unknown":
+                return "unknown";
+            default:
+                // Return as-is (lowercased) to allow full codes like "unknown" or custom codes to pass through
+                return g;
+        }
     }
 
     private PatientDto mapFromFhirPatient(Patient fhirPatient) {
