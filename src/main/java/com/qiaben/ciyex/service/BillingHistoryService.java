@@ -104,6 +104,7 @@ public class BillingHistoryService {
                     .updatedAt(LocalDateTime.now())
                     .receiptUrl(receiptUrl)
                     .externalId("INV-" + System.currentTimeMillis())
+                    .invoiceUrl(null)
                     .build();
 
             invoice = invoiceRepo.save(invoice);
@@ -114,7 +115,7 @@ public class BillingHistoryService {
                     .stripePaymentIntentId(intent.getId())
                     .stripePaymentMethodId(paymentMethodId)
                     .amount(dto.getAmount())
-                    .status(intent.getStatus().toUpperCase())
+                    .status(normalizeStripeStatus(intent.getStatus()))
                     .invoiceBill(invoice)
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
@@ -125,33 +126,6 @@ public class BillingHistoryService {
         } catch (StripeException e) {
             throw new RuntimeException("Stripe payment failed: " + e.getMessage(), e);
         }
-    }
-
-    /* ------------------- UPDATE STATUS (for Webhooks) ------------------- */
-    @Transactional
-    public void updateStatus(String paymentIntentId, String status) {
-        repo.findByStripePaymentIntentId(paymentIntentId).ifPresentOrElse(entity -> {
-            entity.setStatus(status.toUpperCase());
-            entity.setUpdatedAt(LocalDateTime.now());
-
-            if (entity.getInvoiceBill() != null) {
-                entity.getInvoiceBill().setStatus(
-                        "succeeded".equalsIgnoreCase(status)
-                                ? InvoiceStatus.PAID
-                                : InvoiceStatus.PENDING
-                );
-                invoiceRepo.save(entity.getInvoiceBill());
-            }
-
-            repo.save(entity);
-            log.info("Updated BillingHistory {} to status {}", paymentIntentId, status);
-        }, () -> log.warn("No BillingHistory found for PaymentIntent {}", paymentIntentId));
-    }
-
-    /* ------------------- DELETE ------------------- */
-    @Transactional
-    public void delete(Long id) {
-        repo.deleteById(id);
     }
 
     /* ------------------- ARCHIVE / UNARCHIVE ------------------- */
@@ -173,6 +147,12 @@ public class BillingHistoryService {
         return toDto(repo.save(entity));
     }
 
+    /* ------------------- DELETE ------------------- */
+    @Transactional
+    public void delete(Long id) {
+        repo.deleteById(id);
+    }
+
     /* ------------------- GET ------------------- */
     @Transactional(readOnly = true)
     public List<BillingHistoryDto> getByUser(Long userId) {
@@ -186,7 +166,42 @@ public class BillingHistoryService {
         return repo.findByOrgId(orgId).stream().map(this::toDto).collect(Collectors.toList());
     }
 
-    /* ------------------- MAPPER ------------------- */
+    /* ------------------- UPDATE STATUS (Webhook) ------------------- */
+    @Transactional
+    public void updateStatus(String paymentIntentId, String stripeStatus) {
+        repo.findByStripePaymentIntentId(paymentIntentId).ifPresentOrElse(entity -> {
+            String normalized = normalizeStripeStatus(stripeStatus);
+            entity.setStatus(normalized);
+            entity.setUpdatedAt(LocalDateTime.now());
+
+            if (entity.getInvoiceBill() != null) {
+                entity.getInvoiceBill().setStatus(
+                        "SUCCEEDED".equals(normalized) ? InvoiceStatus.PAID : InvoiceStatus.PENDING
+                );
+                invoiceRepo.save(entity.getInvoiceBill());
+            }
+
+            repo.save(entity);
+            log.info("✅ Updated BillingHistory {} to {}", paymentIntentId, normalized);
+        }, () -> log.warn("⚠️ No BillingHistory found for PaymentIntent {}", paymentIntentId));
+    }
+
+    /* ------------------- HELPER ------------------- */
+    private String normalizeStripeStatus(String raw) {
+        if (raw == null) return "PENDING";
+        switch (raw.toLowerCase()) {
+            case "succeeded": return "SUCCEEDED";
+            case "requires_payment_method":
+            case "requires_action":
+            case "requires_confirmation": return "PENDING";
+            case "processing": return "PROCESSING";
+            case "canceled": return "CANCELED";
+            case "failed":
+            case "payment_failed": return "FAILED";
+            default: return raw.toUpperCase();
+        }
+    }
+
     private BillingHistoryDto toDto(BillingHistory r) {
         return BillingHistoryDto.builder()
                 .id(r.getId())
@@ -197,6 +212,7 @@ public class BillingHistoryService {
                 .amount(r.getAmount())
                 .status(r.getStatus())
                 .invoiceBillId(r.getInvoiceBill() != null ? r.getInvoiceBill().getId() : null)
+                .externalId(r.getInvoiceBill() != null ? r.getInvoiceBill().getExternalId() : null)
                 .invoiceUrl(r.getInvoiceBill() != null ? r.getInvoiceBill().getInvoiceUrl() : null)
                 .receiptUrl(r.getInvoiceBill() != null ? r.getInvoiceBill().getReceiptUrl() : null)
                 .createdAt(r.getCreatedAt())

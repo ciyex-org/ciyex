@@ -1,10 +1,7 @@
 package com.qiaben.ciyex.dto;
 
-import com.qiaben.ciyex.entity.InvoiceStatus;   // ✅ Import the enum
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import com.qiaben.ciyex.entity.InvoiceStatus;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -17,16 +14,18 @@ public class InvoiceBillDto {
     private Long orgId;
     private Long userId;
     private Long subscriptionId;
+
     private Double amount;
+    private InvoiceStatus status;
 
-    private InvoiceStatus status;   // ✅ Now resolved correctly
-
+    private String externalId;
+    private String invoiceNumber;
     private String invoiceUrl;
     private String receiptUrl;
 
-    private LocalDateTime createdAt;
     private LocalDateTime dueDate;
-    private String externalId;
-    private LocalDateTime updatedAt;
+    private LocalDateTime paidAt;
 
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

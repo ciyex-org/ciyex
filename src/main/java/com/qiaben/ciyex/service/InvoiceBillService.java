@@ -23,15 +23,17 @@ public class InvoiceBillService {
                 .id(e.getId())
                 .orgId(e.getOrgId())
                 .userId(e.getUserId())
-                .subscriptionId(e.getSubscriptionId())
+                .subscriptionId(e   .getSubscriptionId())
                 .amount(e.getAmount())
                 .status(e.getStatus())
                 .invoiceUrl(e.getInvoiceUrl())
                 .receiptUrl(e.getReceiptUrl())
                 .externalId(e.getExternalId())
+                .invoiceNumber(e.getInvoiceNumber())
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
                 .dueDate(e.getDueDate())
+                .paidAt(e.getPaidAt())
                 .build();
     }
 
@@ -46,9 +48,11 @@ public class InvoiceBillService {
                 .invoiceUrl(dto.getInvoiceUrl())
                 .receiptUrl(dto.getReceiptUrl())
                 .externalId(dto.getExternalId())
+                .invoiceNumber(dto.getInvoiceNumber())
                 .createdAt(dto.getCreatedAt())
                 .updatedAt(dto.getUpdatedAt())
                 .dueDate(dto.getDueDate())
+                .paidAt(dto.getPaidAt())
                 .build();
     }
 
@@ -61,6 +65,7 @@ public class InvoiceBillService {
 
         InvoiceBill saved = repository.save(entity);
         saved.setExternalId("INV-" + saved.getId());
+        saved.setInvoiceNumber("INV-" + saved.getId());
 
         return toDto(repository.save(saved));
     }
@@ -97,6 +102,7 @@ public class InvoiceBillService {
 
         invoice.setStatus(InvoiceStatus.PAID);
         invoice.setUpdatedAt(LocalDateTime.now());
+        invoice.setPaidAt(LocalDateTime.now());
         invoice.setReceiptUrl("receipt-" + invoice.getId() + ".pdf");
 
         return toDto(repository.save(invoice));

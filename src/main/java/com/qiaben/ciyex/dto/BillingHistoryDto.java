@@ -12,17 +12,20 @@ public class BillingHistoryDto {
     private Long orgId;
     private Long userId;
 
+    // Stripe identifiers
     private String stripePaymentIntentId;
     private String stripePaymentMethodId;
 
     private Double amount;
     private String status;
 
-    // 🔑 New field to track foreign key reference
+    // 🔑 Foreign key to InvoiceBill
     private Long invoiceBillId;
 
-    private String invoiceUrl;
-    private String receiptUrl;
+    // 📄 External info from InvoiceBill
+    private String externalId;   // invoice external id/number
+    private String invoiceUrl;   // hosted invoice link if available
+    private String receiptUrl;   // Stripe receipt link if available
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

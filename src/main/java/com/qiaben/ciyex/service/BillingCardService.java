@@ -4,6 +4,8 @@ import com.qiaben.ciyex.dto.BillingCardDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.entity.BillingCard;
 import com.qiaben.ciyex.repository.BillingCardRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,9 @@ import java.util.stream.Collectors;
 public class BillingCardService {
 
     private final BillingCardRepository repo;
+
+    @PersistenceContext
+    private EntityManager em; // ✅ Used to check user existence in public.users
 
     public BillingCardService(BillingCardRepository repo) {
         this.repo = repo;
@@ -38,6 +43,14 @@ public class BillingCardService {
 
         if (dto.getStripePaymentMethodId() == null || dto.getStripePaymentMethodId().isBlank()) {
             throw new IllegalArgumentException("stripePaymentMethodId is required to save a billing card");
+        }
+
+        // ✅ Verify user exists in public.users
+        Long userCount = ((Number) em.createNativeQuery("SELECT COUNT(*) FROM public.users WHERE id = :id")
+                .setParameter("id", dto.getUserId())
+                .getSingleResult()).longValue();
+        if (userCount == 0) {
+            throw new IllegalArgumentException("User not found in public.users: " + dto.getUserId());
         }
 
         BillingCard entity = BillingCard.builder()
@@ -72,6 +85,14 @@ public class BillingCardService {
     /* ------------------- GET ALL CARDS FOR USER ------------------- */
     @Transactional(readOnly = true)
     public List<BillingCardDto> getAllByUser(Long userId, Long orgId) {
+        // ✅ Optionally verify existence in public.users
+        Long userCount = ((Number) em.createNativeQuery("SELECT COUNT(*) FROM public.users WHERE id = :id")
+                .setParameter("id", userId)
+                .getSingleResult()).longValue();
+        if (userCount == 0) {
+            throw new IllegalArgumentException("User not found in public.users: " + userId);
+        }
+
         return repo.findByUserIdAndOrgIdOrderByCreatedAtDesc(userId, orgId)
                 .stream()
                 .map(this::toDto)

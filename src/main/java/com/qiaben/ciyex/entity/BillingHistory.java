@@ -2,11 +2,10 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "billing_history")
+@Table(name = "billing_history", schema = "practice_1") // explicitly in practice_1 schema
 @Getter
 @Setter
 @NoArgsConstructor
@@ -18,32 +17,46 @@ public class BillingHistory {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "orgid")
     private Long orgId;
+
+    @Column(name = "userid")
     private Long userId;
 
-    /** Stripe PaymentIntent ID (pi_xxx) */
+    @Column(name = "stripepaymentintentid")
     private String stripePaymentIntentId;
 
-    /** Stripe PaymentMethod ID (pm_xxx) */
-    @Column(nullable = false)
+    @Column(name = "stripepaymentmethodid", nullable = false)
     private String stripePaymentMethodId;
 
+    @Column(name = "amount")
     private Double amount;
 
-    /** SUCCESS, FAILED, PENDING, ARCHIVED, etc. */
+    @Column(name = "status")
     private String status;
 
-    /** FK to InvoiceBill */
-    @Column(name = "invoice_bill_id", insertable = false, updatable = false)
+    // ✅ Fixed mapping to match DB column
+    @Column(name = "invoice_bill_id")
     private Long invoiceBillId;
 
-    /** Relation to InvoiceBill entity */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "invoice_bill_id", referencedColumnName = "id")
+    @JoinColumn(
+        name = "invoice_bill_id",   // must match DB column
+        referencedColumnName = "id",
+        insertable = false,
+        updatable = false
+    )
     private InvoiceBill invoiceBill;
 
+    @Column(name = "invoiceurl")
+    private String invoiceUrl;
+
+    @Column(name = "receipturl")
+    private String receiptUrl;
+
+    @Column(name = "createdat")
     private LocalDateTime createdAt;
+
+    @Column(name = "updatedat")
     private LocalDateTime updatedAt;
 }
-
-
