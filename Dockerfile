@@ -17,15 +17,15 @@ COPY ciyex-ehr-ui .
 ARG ENVIRONMENT=prod
 
 # Remove any previous .env files to avoid ambiguity
-RUN rm -f .env .env.local
+RUN rm -f .env .env.local || true
 
-# Choose the correct env file and copy as .env
+# Choose the correct env file and copy as .env (be tolerant if files are missing)
 RUN if [ "$ENVIRONMENT" = "stage" ]; then \
-      cp .env.stage .env; \
+      cp -f .env.stage .env || true; \
     elif [ "$ENVIRONMENT" = "local" ]; then \
-      cp .env.local .env; \
+      cp -f .env.local .env || true; \
     else \
-      cp .env .env; \
+      cp -f .env .env || true; \
     fi
 
 # Build Next.js app (SSR)
@@ -47,15 +47,15 @@ COPY ciyex-portal-ui .
 ARG ENVIRONMENT=prod
 
 # Remove any previous .env files to avoid ambiguity
-RUN rm -f .env .env.local
+RUN rm -f .env .env.local || true
 
-# Choose the correct env file and copy as .env
+# Choose the correct env file and copy as .env (be tolerant if files are missing)
 RUN if [ "$ENVIRONMENT" = "stage" ]; then \
-      cp .env.stage .env; \
+      cp -f .env.stage .env || true; \
     elif [ "$ENVIRONMENT" = "local" ]; then \
-      cp .env.local .env; \
+      cp -f .env.local .env || true; \
     else \
-      cp .env .env; \
+      cp -f .env .env || true; \
     fi
 
 # Build Next.js Portal app
@@ -77,22 +77,22 @@ COPY ciyex-admin-ui .
 ARG ENVIRONMENT=prod
 
 # Remove any previous .env files to avoid ambiguity
-RUN rm -f .env .env.local
+RUN rm -f .env .env.local || true
 
-# Choose the correct env file and copy as .env
+# Choose the correct env file and copy as .env (be tolerant if files are missing)
 RUN if [ "$ENVIRONMENT" = "stage" ]; then \
-      cp .env.stage .env; \
+      cp -f .env.stage .env || true; \
     elif [ "$ENVIRONMENT" = "local" ]; then \
-      cp .env.local .env; \
+      cp -f .env.local .env || true; \
     else \
-      cp .env .env; \
+      cp -f .env .env || true; \
     fi
 
 # Build Next.js Admin app
 RUN npm run build
 
 # ---- Build Spring Boot ----
-FROM gradle:8.5-jdk21 AS backend-builder
+FROM gradle:jdk21-ubi AS backend-builder
 
 WORKDIR /app
 COPY . .
