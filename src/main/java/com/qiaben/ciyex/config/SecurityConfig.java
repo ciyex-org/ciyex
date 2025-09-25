@@ -68,12 +68,16 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/api/auth/login",
-                                "/api/auth/register",
-                                "/api/auth/encode-password/**",
-                                "/api/auth/secret-key"
-                        ).permitAll()
+            .requestMatchers(
+                "/api/auth/login",
+                "/api/auth/register",
+                "/api/auth/encode-password/**",
+                "/api/auth/secret-key",
+                // Allow Kubernetes probes and other automated systems to fetch health/info
+                "/actuator/health",
+                "/actuator/info",
+                "/actuator/**"
+            ).permitAll()
                         .anyRequest().authenticated()
                 );
 
