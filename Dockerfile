@@ -6,9 +6,12 @@ WORKDIR /app/ciyex-ehr-ui
 # Install pnpm globally
 RUN npm install -g pnpm
 
-# Copy package files and install dependencies
+# Copy package files first to leverage Docker cache for dependencies
 COPY ciyex-ehr-ui/pnpm-lock.yaml ciyex-ehr-ui/package.json ./
-RUN pnpm install --frozen-lockfile
+
+# Use BuildKit cache for pnpm store to speed up installs
+RUN --mount=type=cache,target=/root/.pnpm-store \
+    pnpm install --frozen-lockfile --store=/root/.pnpm-store
 
 # Copy rest of the UI code
 COPY ciyex-ehr-ui .
@@ -36,9 +39,12 @@ FROM node:20 AS portal-ui-builder
 
 WORKDIR /app/ciyex-portal-ui
 
-# Copy package files and install dependencies
+# Copy package files first to leverage cache
 COPY ciyex-portal-ui/package*.json ./
-RUN npm install
+
+# Use BuildKit cache for npm
+RUN --mount=type=cache,target=/root/.npm \
+    npm install
 
 # Copy rest of the Portal UI code
 COPY ciyex-portal-ui .
@@ -68,7 +74,10 @@ WORKDIR /app/ciyex-admin-ui
 
 # Copy package files and install dependencies
 COPY ciyex-admin-ui/package*.json ./
-RUN npm install
+
+# Use BuildKit cache for npm
+RUN --mount=type=cache,target=/root/.npm \
+    npm install
 
 # Copy rest of the Admin UI code
 COPY ciyex-admin-ui .
@@ -95,11 +104,28 @@ RUN npm run build
 FROM gradle:jdk21-ubi AS backend-builder
 
 WORKDIR /app
+
+# Copy Gradle wrapper and build files first so dependency resolution can be cached
+# (this minimizes invalidating the layer when source files change)
+COPY gradlew gradlew
+COPY gradle/ gradle/
+COPY build.gradle settings.gradle ./
+
+# Make wrapper executable
+RUN chmod +x gradlew || true
+
+# Download dependencies into the Gradle cache using BuildKit cache mount
+# Requires BuildKit: set DOCKER_BUILDKIT=1 when building locally
+RUN --mount=type=cache,target=/home/gradle/.gradle \
+  ./gradlew --no-daemon dependencies || true
+
+# Now copy the rest of the source and build the project (uses cached dependencies)
 COPY . .
-RUN gradle build -x test
+RUN --mount=type=cache,target=/home/gradle/.gradle \
+  ./gradlew --no-daemon bootJar -x test
 
 # ---- Final Runtime ----
-FROM eclipse-temurin:21-jre
+FROM openjdk:21-jdk-slim
 WORKDIR /app
 
 # Copy Spring Boot jar
@@ -110,16 +136,18 @@ COPY --from=ehr-ui-builder /app/ciyex-ehr-ui /app/ciyex-ehr-ui
 COPY --from=portal-ui-builder /app/ciyex-portal-ui /app/ciyex-portal-ui
 COPY --from=admin-ui-builder /app/ciyex-admin-ui /app/ciyex-admin-ui
 
-# Install Node.js for SSR Next.js runtime
-RUN apt-get update && apt-get install -y curl && \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs && \
-    rm -rf /var/lib/apt/lists/*
+# Install bash and Node.js for SSR Next.js runtime
+RUN apt-get update && apt-get install -y curl bash dos2unix && \
+  curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+  apt-get install -y nodejs && \
+  rm -rf /var/lib/apt/lists/*
 
 # Add startup script
 COPY start.sh /app/start.sh
+# Normalize line endings inside the image to avoid exec format errors (CRLF -> LF)
+RUN dos2unix /app/start.sh || true
 RUN chmod +x /app/start.sh
 
 EXPOSE 8080 3000 3001 3002
 
-ENTRYPOINT ["/app/start.sh"]
+ENTRYPOINT ["bash","/app/start.sh"]
