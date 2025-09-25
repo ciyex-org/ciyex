@@ -1,4 +1,5 @@
 
+
 #!/bin/bash
 
 # Start Spring Boot in background
