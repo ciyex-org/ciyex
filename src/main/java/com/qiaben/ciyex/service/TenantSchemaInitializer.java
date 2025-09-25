@@ -13,6 +13,7 @@ import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
+import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import javax.sql.DataSource;
@@ -45,21 +46,35 @@ public class TenantSchemaInitializer {
     @Autowired
     private Environment env;
     
+    // Feature flag to disable automatic tenant initialization (useful for dev/testing)
+    private boolean tenantAutoInitEnabled;
+    
     // Cache to track initialized schemas
     private final ConcurrentHashMap<Long, Boolean> initializedSchemas = new ConcurrentHashMap<>();
     // Per-tenant locks to prevent concurrent initialization for the same org
     private final ConcurrentHashMap<Long, Object> tenantLocks = new ConcurrentHashMap<>();
     // Global semaphore to limit concurrent heavy tenant initialization work
     // Allows configuring concurrency via TENANT_INIT_CONCURRENCY env var (default 3)
-    private final Semaphore initSemaphore;
+    private Semaphore initSemaphore;
 
-    public TenantSchemaInitializer() {
+    @PostConstruct
+    public void init() {
         int concurrency = 3;
         try {
-            String v = System.getenv("TENANT_INIT_CONCURRENCY");
+            String v = env.getProperty("TENANT_INIT_CONCURRENCY");
             if (v != null && !v.isBlank()) concurrency = Integer.parseInt(v);
         } catch (Exception ignore) {}
         initSemaphore = new Semaphore(Math.max(1, concurrency));
+
+        // default true unless explicitly set via environment property ciyex.tenant.auto-init
+        boolean enabled = true;
+        try {
+            String prop = env.getProperty("ciyex.tenant.auto-init");
+            if (prop != null && (prop.equalsIgnoreCase("false") || prop.equals("0"))) {
+                enabled = false;
+            }
+        } catch (Exception ignore) {}
+        this.tenantAutoInitEnabled = enabled;
     }
     
     // Test method to initialize a tenant schema for testing purposes
@@ -96,6 +111,11 @@ public class TenantSchemaInitializer {
     @Transactional
     public void initializeTenantSchema(Long orgId) {
         if (orgId == null) {
+            return;
+        }
+
+        if (!tenantAutoInitEnabled) {
+            log.info("Automatic tenant schema initialization is disabled (ciyex.tenant.auto-init=false). Skipping init for orgId={}", orgId);
             return;
         }
 

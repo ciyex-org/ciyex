@@ -16,6 +16,7 @@ import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
+import jakarta.annotation.PostConstruct;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -49,6 +50,18 @@ public class MasterSchemaInitializer {
     @Autowired
     private Environment env;
 
+    private boolean tenantAutoInitEnabled = true;
+
+    @PostConstruct
+    public void init() {
+        try {
+            String prop = env.getProperty("ciyex.tenant.auto-init");
+            if (prop != null && (prop.equalsIgnoreCase("false") || prop.equals("0"))) {
+                this.tenantAutoInitEnabled = false;
+            }
+        } catch (Exception ignore) {}
+    }
+
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void initializeMasterSchema() {
@@ -60,19 +73,27 @@ public class MasterSchemaInitializer {
 
             Set<Long> existingOrgIds = fetchExistingOrgIds();
 
-            // Create master schema tables using JPA entities
-            createMasterSchemaTables();
-
             // Apply master schema Flyway migrations (data, seed scripts, etc.)
+            // Run Flyway first so migrations create the canonical schema objects
+            // before Hibernate attempts to create/update them. This avoids
+            // "relation already exists" errors when both Flyway and Hibernate
+            // try to create the same tables.
             masterFlyway.migrate();
+
+            // Create master schema tables using JPA entities (idempotent check)
+            createMasterSchemaTables();
 
             // Clear persistence context to ensure we see fresh data post-migration
             entityManager.clear();
 
             log.info("Master schema initialization completed successfully");
             
-            // After master schema is initialized, check and initialize tenant schemas
-            initializeTenantSchemasForExistingOrgs(existingOrgIds);
+            // After master schema is initialized, optionally initialize tenant schemas
+            if (tenantAutoInitEnabled) {
+                initializeTenantSchemasForExistingOrgs(existingOrgIds);
+            } else {
+                log.info("Automatic tenant initialization is disabled (ciyex.tenant.auto-init=false). Skipping tenant schema initialization at startup.");
+            }
             
         } catch (Exception e) {
             log.error("Failed to initialize master schema", e);
