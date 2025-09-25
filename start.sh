@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # Start Spring Boot in background
@@ -17,3 +18,4 @@ PORT=3002 npm run start &
 
 # Wait for any process to exit (so container doesn't immediately exit)
 wait -n
+
