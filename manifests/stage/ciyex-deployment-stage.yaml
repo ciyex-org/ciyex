@@ -16,12 +16,27 @@ spec:
     spec:
       containers:
         - name: ciyex-app-stage
-          image: hinikubestageacr.azurecr.io/ciyex-app-stage:v1.0.4
+          image: IMAGE_URL:IMAGE_TAG
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080  # Spring Boot
             - containerPort: 3000  # EHR UI (Next.js)
             - containerPort: 3001  # Portal UI (Next.js)
             - containerPort: 3002  # Admin UI (Next.js)
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "stage"

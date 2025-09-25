@@ -54,9 +54,10 @@ dependencies {
 	implementation 'ca.uhn.hapi.fhir:hapi-fhir-structures-r4:8.2.1'
 
 	// postgres + Lombok
-	// Pin the Postgres JDBC driver explicitly as a runtime dependency so the driver
-	// is guaranteed to be present in the produced fat JAR used by the image.
-	runtimeOnly 'org.postgresql:postgresql:42.7.8'
+	// Ensure the Postgres JDBC driver is packaged into the bootJar used by the
+	// runtime image. Using `implementation` guarantees the driver is present on
+	// the application classpath during the build and in the resulting fat JAR.
+	implementation 'org.postgresql:postgresql:42.7.8'
 	implementation 'org.projectlombok:lombok:1.18.38'
 	annotationProcessor 'org.projectlombok:lombok:1.18.38'
 
