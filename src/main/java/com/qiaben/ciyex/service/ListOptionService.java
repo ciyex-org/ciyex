@@ -3,7 +3,6 @@ package com.qiaben.ciyex.service;
 import com.qiaben.ciyex.dto.ListOptionDto;
 import com.qiaben.ciyex.entity.ListOption;
 import com.qiaben.ciyex.repository.ListOptionRepository;
-import com.qiaben.ciyex.multitenant.TenantContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,10 +25,6 @@ public class ListOptionService {
 
     @Transactional
     public ListOptionDto create(ListOptionDto dto) {
-        if (TenantContext.isMasterContext()) {
-            // list_options exists only in tenant schemas - don't attempt to create in master
-            throw new IllegalStateException("Cannot create list options in master schema");
-        }
         ListOption entity = new ListOption();
         entity.setOrgId(dto.getOrgId());
         entity.setListId(dto.getListId());
@@ -52,9 +47,6 @@ public class ListOptionService {
 
     @Transactional
     public ListOptionDto update(Long id, ListOptionDto dto) {
-        if (TenantContext.isMasterContext()) {
-            throw new IllegalStateException("Cannot update list options in master schema");
-        }
         ListOption existing = repository.findById(id).orElseThrow(() -> new RuntimeException("Option not found"));
 
         existing.setTitle(dto.getTitle());
@@ -73,25 +65,15 @@ public class ListOptionService {
 
     @Transactional
     public void delete(Long id) {
-        if (TenantContext.isMasterContext()) {
-            // nothing to delete in master
-            return;
-        }
         repository.deleteById(id);
     }
 
     public ListOptionDto get(Long id) {
-        if (TenantContext.isMasterContext()) {
-            throw new IllegalStateException("No list options available in master schema");
-        }
         ListOption entity = repository.findById(id).orElseThrow(() -> new RuntimeException("Option not found"));
         return convertToDto(entity);
     }
 
     public List<ListOptionDto> getAll() {
-        if (TenantContext.isMasterContext()) {
-            return java.util.Collections.emptyList();
-        }
         List<ListOption> entities = repository.findAll();
         return entities.stream().map(this::convertToDto).collect(Collectors.toList());
     }
@@ -118,10 +100,6 @@ public class ListOptionService {
 
     // Service method to fetch list options based on list_id
     public List<ListOptionDto> getListOptionsByListId(String listId) {
-        if (TenantContext.isMasterContext()) {
-            // when running in master/public (e.g., logout/auth flows) tenant tables are not present
-            return java.util.Collections.emptyList();
-        }
         // Fetching list options based on list_id
         List<ListOption> listOptions = repository.findByListId(listId);
 
@@ -133,9 +111,6 @@ public class ListOptionService {
 
     @Transactional
     public void deleteByListId(String listId) {
-        if (TenantContext.isMasterContext()) {
-            return;
-        }
         List<ListOption> listOptions = repository.findByListId(listId);
         if (!listOptions.isEmpty()) {
             repository.deleteByListId(listId);  // Custom delete method based on list_id
