@@ -15,6 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 // support both non-versioned and v1 paths so existing clients keep working
@@ -159,6 +160,29 @@ public class AppointmentController {
             return ResponseEntity.ok(ApiResponse.<Long>builder()
                     .success(false)
                     .message("Failed to retrieve appointment count: " + e.getMessage())
+                    .build());
+        }
+    }
+    // -------------------- Update STATUS only (for the UI dropdown) --------------------
+    // PUT /api/appointments/{id}/status   body: { "status": "Checked" | "Unchecked" }
+    @PutMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<AppointmentDTO>> updateStatus(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body
+    ) {
+        try {
+            String status = body.get("status");
+            AppointmentDTO updated = service.updateStatus(id, status);
+            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+                    .success(true)
+                    .message("Status updated successfully")
+                    .data(updated)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to update status for appointment {}", id, e);
+            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+                    .success(false)
+                    .message("Failed to update status: " + e.getMessage())
                     .build());
         }
     }
