@@ -38,6 +38,9 @@ public class AppointmentService {
         this.storageResolver = storageResolver;
         this.configProvider = configProvider;
     }
+    private String normalizeStatus(String status) {
+        return status == null ? null : status.trim().toUpperCase();
+    }
 
     // -------- Create --------
     @Transactional
@@ -298,5 +301,42 @@ public class AppointmentService {
         } catch (Exception e) {
             log.error("External sync delete failed: {}", e.getMessage());
         }
+    }
+    // =========================================================
+    // Update STATUS only (for the UI dropdown)
+    // =========================================================
+    @Transactional
+    public AppointmentDTO updateStatus(Long id, String newStatus) {
+        Long orgId = getCurrentOrgId();
+        Appointment entity = repository.findByIdAndOrgId(id, orgId)
+                .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id + " for org " + orgId));
+
+        String normalized = normalizeStatus(newStatus);
+
+        // Business rule: UI updates only to CHECKED / UNCHECKED. Relax if you want more.
+        if (!"CHECKED".equals(normalized) && !"UNCHECKED".equals(normalized)) {
+            throw new IllegalArgumentException("Invalid status: " + newStatus + ". Allowed: Checked, Unchecked.");
+        }
+
+        entity.setStatus(normalized);
+        entity.setLastModifiedDate(LocalDateTime.now().toString());
+        entity = repository.save(entity);
+
+        // Optional sync to external systems
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        if (storageType != null) {
+            try {
+                ExternalAppointmentStorage externalStorage =
+                        (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
+                externalStorage.update(mapToDto(entity), String.valueOf(entity.getId()));
+                log.info("Updated status for appointment {} in external storage for org {}", entity.getId(), orgId);
+            } catch (Exception e) {
+                log.error("Failed to sync status to external storage: {}", e.getMessage());
+                // Decide whether to fail hard or not. Here we fail to keep DB+external consistent.
+                throw new RuntimeException("Failed to sync with external storage", e);
+            }
+        }
+
+        return mapToDto(entity);
     }
 }
