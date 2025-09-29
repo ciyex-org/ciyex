@@ -11,6 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 @Service
 @Slf4j
@@ -92,6 +96,19 @@ public class AdminTemplateService {
                 .message("Admin templates retrieved successfully")
                 .data(dtos)
                 .build();
+    }
+
+    /**
+     * Return a paginated page of AdminTemplateDto. Page argument is 1-based (clients pass 1 for first page).
+     */
+    @Transactional(readOnly = true)
+    public Page<AdminTemplateDto> getPaginated(int page, int size) {
+        Long orgId = getCurrentOrgId();
+        if (page < 1) page = 1;
+        Pageable pageable = PageRequest.of(page - 1, size);
+        Page<AdminTemplate> p = repository.findAllByOrgId(orgId, pageable);
+        List<AdminTemplateDto> dtos = p.stream().map(this::mapToDto).collect(Collectors.toList());
+        return new PageImpl<>(dtos, pageable, p.getTotalElements());
     }
 
     // --- Helpers ---

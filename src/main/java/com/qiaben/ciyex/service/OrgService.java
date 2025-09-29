@@ -130,18 +130,23 @@ public class OrgService {
     public OrgDto update(Long id, OrgDto dto) {
         // Authorization check: Ensure the requested id belongs to the current orgId
         Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
+        String currentRole = RequestContext.get() != null ? RequestContext.get().getRole() : null;
+
+        // If no orgId provided in context, only allow SUPER_ADMIN to proceed
+        if (currentOrgId == null && (currentRole == null || !"SUPER_ADMIN".equalsIgnoreCase(currentRole))) {
             throw new SecurityException("No orgId available in request context");
         }
-        log.debug("Verifying access for orgId: {} to org with id: {}", currentOrgId, id);
-        // Assuming the id implicitly belongs to the current orgId (adjust if orgId is a field in Org)
-        // If orgId is a field in Org, uncomment and adjust:
-        // Org org = repository.findById(id).orElseThrow(() -> new RuntimeException("Org not found with id: " + id));
+
+        log.debug("Verifying access for orgId: {} (role={}) to org with id: {}", currentOrgId, currentRole, id);
 
         Org org = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Org not found with id: " + id));
-        if (!currentOrgId.equals(org.getId())) {
-            throw new SecurityException("Access denied: Org id " + id + " does not belong to orgId " + currentOrgId);
+
+        // If caller is not SUPER_ADMIN, enforce that the org belongs to the caller's orgId
+        if (currentRole == null || !"SUPER_ADMIN".equalsIgnoreCase(currentRole)) {
+            if (!currentOrgId.equals(org.getId())) {
+                throw new SecurityException("Access denied: Org id " + id + " does not belong to orgId " + currentOrgId);
+            }
         }
         updateEntityFromDto(org, dto);
 

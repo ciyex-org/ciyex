@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
 
 import java.util.List;
 
@@ -91,8 +92,24 @@ public class AdminTemplateController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<AdminTemplateDto>>> getAll() {
+    public ResponseEntity<ApiResponse<List<AdminTemplateDto>>> getAll(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
         try {
+            // If pagination params provided, return paginated results and include total count header
+            if (page != null && size != null) {
+                Page<AdminTemplateDto> p = service.getPaginated(page, size);
+                ApiResponse<List<AdminTemplateDto>> body = ApiResponse.<List<AdminTemplateDto>>builder()
+                        .success(true)
+                        .message("Admin templates retrieved successfully")
+                        .data(p.getContent())
+                        .build();
+                return ResponseEntity.ok()
+                        .header("X-Total-Count", String.valueOf(p.getTotalElements()))
+                        .body(body);
+            }
+
             ApiResponse<List<AdminTemplateDto>> response = service.getAll();
             return ResponseEntity.ok(response);
         } catch (Exception e) {
