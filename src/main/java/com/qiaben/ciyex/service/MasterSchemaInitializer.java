@@ -3,6 +3,7 @@ package com.qiaben.ciyex.service;
 import com.qiaben.ciyex.entity.Org;
 import com.qiaben.ciyex.entity.User;
 import com.qiaben.ciyex.entity.UserOrgRole;
+import com.qiaben.ciyex.entity.AdminTemplate;
 import com.qiaben.ciyex.repository.OrgRepository;
 import com.qiaben.ciyex.service.TenantSchemaInitializer;
 import jakarta.persistence.EntityManager;
@@ -109,8 +110,9 @@ public class MasterSchemaInitializer {
             boolean usersExists = tableExists("users");
             boolean orgsExists = tableExists("orgs");
             boolean userOrgRolesExists = tableExists("user_org_roles");
+            boolean adminTemplatesExists = tableExists("admin_templates");
             
-            if (usersExists && orgsExists && userOrgRolesExists) {
+            if (usersExists && orgsExists && userOrgRolesExists && adminTemplatesExists) {
                 log.info("All master schema tables already exist. Skipping creation.");
                 return;
             }
@@ -135,11 +137,12 @@ public class MasterSchemaInitializer {
                     .build();
 
             // Build metadata from our master schema entities
-            Metadata metadata = new MetadataSources(serviceRegistry)
-                    .addAnnotatedClass(User.class)
-                    .addAnnotatedClass(Org.class)
-                    .addAnnotatedClass(UserOrgRole.class)
-                    .buildMetadata();
+        Metadata metadata = new MetadataSources(serviceRegistry)
+            .addAnnotatedClass(User.class)
+            .addAnnotatedClass(Org.class)
+            .addAnnotatedClass(UserOrgRole.class)
+            .addAnnotatedClass(AdminTemplate.class)
+            .buildMetadata();
 
             // Create the schema using Hibernate's schema management tool
             SessionFactory sessionFactory = metadata.getSessionFactoryBuilder().build();
@@ -151,7 +154,7 @@ public class MasterSchemaInitializer {
             serviceRegistry.close();
             
             // Double-check that tables now exist
-            if (tableExists("users") && tableExists("orgs") && tableExists("user_org_roles")) {
+            if (tableExists("users") && tableExists("orgs") && tableExists("user_org_roles") && tableExists("admin_templates")) {
                 log.info("Verified: All master schema tables created successfully");
             } else {
                 log.warn("Warning: Some tables may not have been created properly");

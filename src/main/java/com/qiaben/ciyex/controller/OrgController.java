@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import java.util.Map;
 
 import java.util.List;
 
@@ -131,6 +132,16 @@ public class OrgController {
                         .build());
     }
 
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<ApiResponse<OrgDto>> handleSecurityException(SecurityException ex) {
+    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+        .body(ApiResponse.<OrgDto>builder()
+            .success(false)
+            .message(ex.getMessage())
+            .data(null)
+            .build());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<OrgDto>> handleGenericException(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -157,6 +168,63 @@ public class OrgController {
                     .body(ApiResponse.<List<OrgDto>>builder()
                             .success(false)
                             .message("Failed to retrieve organizations")
+                            .data(null)
+                            .build());
+        }
+    }
+
+    /**
+     * Update only the status of an organization.
+     * Expected payload: { "status": "ACTIVE" } or { "status": "INACTIVE" }
+     */
+    @PutMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<OrgDto>> updateStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        try {
+            String status = body != null ? body.get("status") : null;
+            if (status == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.<OrgDto>builder()
+                                .success(false)
+                                .message("Missing 'status' in request body")
+                                .data(null)
+                                .build());
+            }
+
+            // Normalize and validate
+            status = status.trim().toUpperCase();
+            if (!"ACTIVE".equals(status) && !"INACTIVE".equals(status)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.<OrgDto>builder()
+                                .success(false)
+                                .message("Invalid status value. Allowed: ACTIVE, INACTIVE")
+                                .data(null)
+                                .build());
+            }
+
+            OrgDto updated = service.updateStatus(id, status);
+            if (updated == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.<OrgDto>builder()
+                                .success(false)
+                                .message("Organization not found")
+                                .data(null)
+                                .build());
+            }
+
+            return ResponseEntity.ok(
+                    ApiResponse.<OrgDto>builder()
+                            .success(true)
+                            .message("Organization status updated successfully")
+                            .data(updated)
+                            .build()
+            );
+        } catch (ResponseStatusException ex) {
+            return handleResponseStatusException(ex);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<OrgDto>builder()
+                            .success(false)
+                            .message("Failed to update organization status")
                             .data(null)
                             .build());
         }
