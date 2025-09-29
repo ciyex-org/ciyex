@@ -93,7 +93,7 @@ public class OrgService {
                 .orElseThrow(() -> new RuntimeException("Org not found with id: " + id));
         log.info("Found org in DB with id: {} for orgId: {}", id, currentOrgId);
         if (!currentOrgId.equals(org.getId())) {
-             throw new SecurityException("Access denied: Org id " + id + " does not belong to orgId " + currentOrgId);
+            throw new SecurityException("Access denied: Org id " + id + " does not belong to orgId " + currentOrgId);
         }
 
         // Always load from external storage if fhirId exists and storage is configured
@@ -141,7 +141,7 @@ public class OrgService {
         Org org = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Org not found with id: " + id));
         if (!currentOrgId.equals(org.getId())) {
-             throw new SecurityException("Access denied: Org id " + id + " does not belong to orgId " + currentOrgId);
+            throw new SecurityException("Access denied: Org id " + id + " does not belong to orgId " + currentOrgId);
         }
         updateEntityFromDto(org, dto);
 
@@ -217,22 +217,33 @@ public class OrgService {
     @Transactional(readOnly = true)
     public List<OrgDto> getAll() {
         Long currentOrgId = getCurrentOrgId();
+        String currentRole = RequestContext.get() != null ? RequestContext.get().getRole() : null;
 
-        // If no orgId (like during signup), allow returning all
-        if (currentOrgId == null) {
-            log.info("No orgId in context, returning all orgs for signup/public view");
+        if ("SUPER_ADMIN".equalsIgnoreCase(currentRole)) {
+            log.info("SUPER_ADMIN detected, returning all organizations");
             return repository.findAll()
                     .stream()
                     .map(this::mapToDto)
                     .collect(Collectors.toList());
         }
 
-        // Otherwise, return only the current org
+        if (currentOrgId == null) {
+            log.info("No orgId in context, returning all orgs (signup/public view)");
+            return repository.findAll()
+                    .stream()
+                    .map(this::mapToDto)
+                    .collect(Collectors.toList());
+        }
+
+        // Normal user → restrict to their org only
         return repository.findAll().stream()
                 .filter(org -> currentOrgId.equals(org.getId()))
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
+
+
+
 
 
 
