@@ -37,7 +37,6 @@ public class AdminTemplateService {
         entity = repository.save(entity);
 
         dto.setId(entity.getId());
-        // ensure returned DTO reflects persisted templateId
         dto.setTemplateId(entity.getTemplateId());
         dto.setAudit(toAudit(entity));
         return dto;
@@ -48,7 +47,9 @@ public class AdminTemplateService {
         Long orgId = getCurrentOrgId();
         AdminTemplate entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("AdminTemplate not found"));
-        if (!entity.getOrgId().equals(orgId)) throw new SecurityException("Access denied");
+        if (!entity.getOrgId().equals(orgId)) {
+            throw new SecurityException("Access denied");
+        }
         return mapToDto(entity);
     }
 
@@ -57,10 +58,16 @@ public class AdminTemplateService {
         Long orgId = getCurrentOrgId();
         AdminTemplate entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("AdminTemplate not found"));
-        if (!entity.getOrgId().equals(orgId)) throw new SecurityException("Access denied");
+        if (!entity.getOrgId().equals(orgId)) {
+            throw new SecurityException("Access denied");
+        }
 
-        if (dto.getLocations() != null) entity.setLocations(dto.getLocations());
-        if (dto.getPracticeType() != null) entity.setPracticeType(dto.getPracticeType());
+        if (dto.getLocations() != null) {
+            entity.setLocations(dto.getLocations());
+        }
+        if (dto.getPracticeType() != null) {
+            entity.setPracticeType(dto.getPracticeType());
+        }
 
         entity = repository.save(entity);
         return mapToDto(entity);
@@ -71,7 +78,9 @@ public class AdminTemplateService {
         Long orgId = getCurrentOrgId();
         AdminTemplate entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("AdminTemplate not found"));
-        if (!entity.getOrgId().equals(orgId)) throw new SecurityException("Access denied");
+        if (!entity.getOrgId().equals(orgId)) {
+            throw new SecurityException("Access denied");
+        }
         repository.delete(entity);
     }
 
@@ -79,13 +88,18 @@ public class AdminTemplateService {
     public ApiResponse<List<AdminTemplateDto>> getAll() {
         Long orgId = getCurrentOrgId();
         List<AdminTemplate> list = repository.findAllByOrgId(orgId);
-        List<AdminTemplateDto> dtos = list.stream().map(this::mapToDto).collect(Collectors.toList());
+        List<AdminTemplateDto> dtos = list.stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
+
         return ApiResponse.<List<AdminTemplateDto>>builder()
                 .success(true)
                 .message("Admin templates retrieved successfully")
                 .data(dtos)
                 .build();
     }
+
+    // --- Helpers ---
 
     private AdminTemplate mapToEntity(AdminTemplateDto dto) {
         return AdminTemplate.builder()
@@ -109,10 +123,10 @@ public class AdminTemplateService {
     }
 
     private AdminTemplateDto.Audit toAudit(AdminTemplate entity) {
-        AdminTemplateDto.Audit a = new AdminTemplateDto.Audit();
-        a.setCreatedAt(entity.getCreatedAt());
-        a.setUpdatedAt(entity.getUpdatedAt());
-        return a;
+        AdminTemplateDto.Audit audit = new AdminTemplateDto.Audit();
+        audit.setCreatedAt(entity.getCreatedAt());
+        audit.setUpdatedAt(entity.getUpdatedAt());
+        return audit;
     }
 
     private Long getCurrentOrgId() {
@@ -126,8 +140,9 @@ public class AdminTemplateService {
             int n = (int) (Math.random() * 9000) + 1000;
             candidate = "TPL-" + n;
             attempts++;
-            // safety: avoid infinite loop
-            if (attempts > 100) throw new RuntimeException("Unable to generate unique template id");
+            if (attempts > 100) {
+                throw new RuntimeException("Unable to generate unique template id");
+            }
         } while (repository.existsByTemplateId(candidate));
         return candidate;
     }

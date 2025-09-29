@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 @Data
 public class AdminTemplateDto {
+
     private Long id;
     private Long orgId;
     private String templateId;

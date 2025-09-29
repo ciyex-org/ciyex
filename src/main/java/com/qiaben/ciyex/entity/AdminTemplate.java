@@ -1,6 +1,5 @@
 package com.qiaben.ciyex.entity;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -31,21 +30,19 @@ public class AdminTemplate {
     public void ensureTemplateId() {
         if (this.templateId == null || this.templateId.trim().isEmpty()) {
             // create a short, readable id with low collision risk
-            this.templateId = "TPL-" + UUID.randomUUID().toString().replaceAll("-", "").substring(0, 8).toUpperCase();
+            this.templateId = "TPL-" + UUID.randomUUID().toString()
+                    .replaceAll("-", "")
+                    .substring(0, 8)
+                    .toUpperCase();
         }
     }
 
-    /**
-     * Backward compatibility: accepts both "classpath" and "locations" from JSON.
-     * Will always be persisted in the DB column "locations".
-     */
     @Column(name = "locations", nullable = false)
-    @JsonAlias({"classpath", "locations"})
     private String locations;
 
     public void setLocations(String value) {
         if (value != null && value.startsWith("classpath:")) {
-            this.locations = value; // keep as-is, already valid
+            this.locations = value; // keep as-is
         } else {
             this.locations = value;
         }
