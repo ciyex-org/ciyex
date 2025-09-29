@@ -16,7 +16,14 @@ spring:
       hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
       hibernate.hbm2ddl.create_namespaces: true
   flyway:
-    enabled: false
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  servlet:
+    multipart:
+      max-file-size: 1GB        # ⬅️ individual file size
+      max-request-size: 1GB     # ⬅️ total request size
 
 jwt:
   secret: Um7I76bdvjLLGMWPPYYZr4jYXSNKpHOtIQS8Ktg8C4w=
@@ -28,6 +35,55 @@ cors:
 logging:
   level:
     root: info
+    com.qiaben.ciyex.audit: debug
 
 ciyex:
   env: ${CIYEX_ENV:local}
+  # Controls whether tenant schemas are automatically initialized at application startup.
+  # Set to false to disable automatic tenant schema creation/migration (useful for running
+  # migrations manually or when using external provisioning).
+  tenant:
+    auto-init: ${CIYEX_TENANT_AUTO_INIT:false}
+  
+  # ONC-Compliant Audit Configuration
+  audit:
+    enabled: true
+    log-successful-operations: true
+    log-failed-operations: true
+    auto-log-controller-methods: true
+    auto-log-service-methods: true
+    capture-detailed-info: true
+    max-description-length: 500
+    max-details-length: 10000
+    anonymize-user-info: false
+    retention-period-days: 2555  # 7 years for healthcare compliance
+    archive-old-logs: true
+    batch-size: 100
+    async-logging: false
+    async-thread-pool-size: 5
+    validate-integrity: true
+    log-ip-addresses: true
+    log-user-agent: true
+    log-session-info: true
+    
+    # Security monitoring and alerting
+    enable-alerts: true
+    failed-login-alert-threshold: 5
+    failed-login-time-window-minutes: 15
+    enable-compliance-monitoring: true
+    generate-daily-reports: true
+    enable-tamper-detection: true
+    use-digital-signatures: false
+    
+    # Endpoints to exclude from automatic audit logging
+    excluded-endpoints:
+      - /health
+      - /metrics
+      - /info
+      - /actuator
+      - /api/audit  # Prevent recursive audit logging
+    
+    # User roles to exclude from automatic audit logging  
+    excluded-user-roles:
+      - SYSTEM
+      - HEALTH_CHECK

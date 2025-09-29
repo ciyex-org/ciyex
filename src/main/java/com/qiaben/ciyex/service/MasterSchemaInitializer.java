@@ -15,6 +15,8 @@ import org.hibernate.boot.MetadataSources;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
+import jakarta.annotation.PostConstruct;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -45,6 +47,21 @@ public class MasterSchemaInitializer {
     @Autowired
     private Flyway masterFlyway;
 
+    @Autowired
+    private Environment env;
+
+    private boolean tenantAutoInitEnabled = true;
+
+    @PostConstruct
+    public void init() {
+        try {
+            String prop = env.getProperty("ciyex.tenant.auto-init");
+            if (prop != null && (prop.equalsIgnoreCase("false") || prop.equals("0"))) {
+                this.tenantAutoInitEnabled = false;
+            }
+        } catch (Exception ignore) {}
+    }
+
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void initializeMasterSchema() {
@@ -56,19 +73,27 @@ public class MasterSchemaInitializer {
 
             Set<Long> existingOrgIds = fetchExistingOrgIds();
 
-            // Create master schema tables using JPA entities
-            createMasterSchemaTables();
-
             // Apply master schema Flyway migrations (data, seed scripts, etc.)
+            // Run Flyway first so migrations create the canonical schema objects
+            // before Hibernate attempts to create/update them. This avoids
+            // "relation already exists" errors when both Flyway and Hibernate
+            // try to create the same tables.
             masterFlyway.migrate();
+
+            // Create master schema tables using JPA entities (idempotent check)
+            createMasterSchemaTables();
 
             // Clear persistence context to ensure we see fresh data post-migration
             entityManager.clear();
 
             log.info("Master schema initialization completed successfully");
             
-            // After master schema is initialized, check and initialize tenant schemas
-            initializeTenantSchemasForExistingOrgs(existingOrgIds);
+            // After master schema is initialized, optionally initialize tenant schemas
+            if (tenantAutoInitEnabled) {
+                initializeTenantSchemasForExistingOrgs(existingOrgIds);
+            } else {
+                log.info("Automatic tenant initialization is disabled (ciyex.tenant.auto-init=false). Skipping tenant schema initialization at startup.");
+            }
             
         } catch (Exception e) {
             log.error("Failed to initialize master schema", e);
@@ -93,13 +118,18 @@ public class MasterSchemaInitializer {
             log.info("Some master schema tables missing. Creating tables from JPA entities...");
             
             // Create a temporary Hibernate configuration for schema generation
-            StandardServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder()
-                    .applySetting("hibernate.connection.url", "jdbc:postgresql://localhost:5432/ciyexdb")
-                    .applySetting("hibernate.connection.username", "postgres")
-                    .applySetting("hibernate.connection.password", "postgres")
+    // Prefer datasource settings from Spring Environment (which aggregates application.yml, env, CLI, etc.)
+    String jdbcUrl = env.getProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/ciyexdb");
+    String dbUser = env.getProperty("spring.datasource.username", "postgres");
+    String dbPass = env.getProperty("spring.datasource.password", "postgres");
+
+        StandardServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder()
+            .applySetting("hibernate.connection.url", jdbcUrl)
+            .applySetting("hibernate.connection.username", dbUser)
+            .applySetting("hibernate.connection.password", dbPass)
                     .applySetting("hibernate.connection.driver_class", "org.postgresql.Driver")
                     .applySetting("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect")
-                    .applySetting("hibernate.hbm2ddl.auto", "create")
+                    .applySetting("hibernate.hbm2ddl.auto", "update")
                     .applySetting("hibernate.default_schema", "public")
                     .applySetting("hibernate.show_sql", "true")
                     .build();
@@ -176,6 +206,13 @@ public class MasterSchemaInitializer {
                     } else {
                         log.debug("Tenant schema {} already exists for org ID {}", tenantSchemaName, orgId);
                     }
+                    // Ensure any missing tables are created (compare entities with information_schema)
+                    try {
+                        tenantSchemaInitializer.ensureTenantTablesExist(orgId);
+                    } catch (Exception e) {
+                        log.warn("Failed to ensure tenant tables for org {}: {}", orgId, e.getMessage());
+                    }
+
                     // Run idempotent migrations to keep schema up to date (e.g., JSONB columns)
                     tenantSchemaInitializer.runTenantMigrations(orgId);
                 }

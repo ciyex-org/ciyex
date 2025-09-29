@@ -3,6 +3,8 @@
 
 
 
+
+
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.EncounterDto;
@@ -14,10 +16,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class EncounterService {
 
+    
+   
     private final EncounterRepository encounterRepository;
 
     @Autowired
@@ -105,6 +110,11 @@ public class EncounterService {
         encounter = encounterRepository.save(encounter);
         return mapToDto(encounter);
     }
+
+
+
+
+
 
 
     // ----- Mappers -----

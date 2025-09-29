@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+**/.next
+build
+tmp
+**/.git
+.dockerignore
+.gitignore
+.idea
+.vscode
+**/dist
+**/out
+**/npm-debug.log
+**/pnpm-debug.log
+**/.DS_Store

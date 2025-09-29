@@ -1,4 +1,3 @@
-// src/main/java/com/qiaben/ciyex/repository/AllergyIntoleranceRepository.java
 package com.qiaben.ciyex.repository;
 
 import com.qiaben.ciyex.entity.AllergyIntolerance;
@@ -11,7 +10,6 @@ import java.util.List;
 
 public interface AllergyIntoleranceRepository extends JpaRepository<AllergyIntolerance, Long> {
 
-    /* Get all rows for a patient in an org  */
     @Query(value = """
         SELECT *
         FROM allergy_intolerances
@@ -22,7 +20,6 @@ public interface AllergyIntoleranceRepository extends JpaRepository<AllergyIntol
     List<AllergyIntolerance> findAllByPatientIdAndOrgIdText(@Param("patientIdTxt") String patientIdTxt,
                                                             @Param("orgIdTxt") String orgIdTxt);
 
-    /* Delete all rows for a patient in an org */
     @Modifying
     @Query(value = """
         DELETE FROM allergy_intolerances
@@ -32,7 +29,6 @@ public interface AllergyIntoleranceRepository extends JpaRepository<AllergyIntol
     int deleteAllByPatientIdAndOrgIdText(@Param("patientIdTxt") String patientIdTxt,
                                          @Param("orgIdTxt") String orgIdTxt);
 
-    /* Delete one row by its id, constrained by patient + org */
     @Modifying
     @Query(value = """
         DELETE FROM allergy_intolerances
@@ -44,7 +40,6 @@ public interface AllergyIntoleranceRepository extends JpaRepository<AllergyIntol
                                               @Param("patientIdTxt") String patientIdTxt,
                                               @Param("orgIdTxt") String orgIdTxt);
 
-    /* ✅ FIX: This is the method your service.searchAll() expects */
     @Query(value = """
         SELECT *
         FROM allergy_intolerances

@@ -1,4 +1,3 @@
-// src/main/java/com/qiaben/ciyex/entity/AllergyIntolerance.java
 package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
@@ -36,6 +35,17 @@ public class AllergyIntolerance {
 
     @Column(name = "status")
     private String status;
+
+    // NEW
+    @Column(name = "start_date")
+    private String startDate;
+
+    @Column(name = "end_date")
+    private String endDate;
+
+    // NEW
+    @Column(name = "comments")
+    private String comments;
 
     @Column(name = "created_date")
     private String createdDate;

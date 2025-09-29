@@ -3,42 +3,49 @@ package com.qiaben.ciyex.controller;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.AppointmentDTO;
 import com.qiaben.ciyex.service.AppointmentService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Map;
+
 @RestController
-@RequestMapping("/api/appointments")
+// support both non-versioned and v1 paths so existing clients keep working
+@RequestMapping({"/api/appointments", "/api/v1/appointments"})
 @RequiredArgsConstructor
 @Slf4j
 public class AppointmentController {
 
     private final AppointmentService service;
 
-    // Create a new Appointment
+    // -------- Create --------
     @PostMapping
     public ResponseEntity<ApiResponse<AppointmentDTO>> create(@RequestBody AppointmentDTO dto) {
         try {
             AppointmentDTO created = service.create(dto);
-            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+            return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.<AppointmentDTO>builder()
                     .success(true)
                     .message("Appointment created successfully")
                     .data(created)
                     .build());
         } catch (Exception e) {
             log.error("Failed to create appointment", e);
-            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<AppointmentDTO>builder()
                     .success(false)
                     .message("Failed to create appointment: " + e.getMessage())
                     .build());
         }
     }
 
-    // Retrieve an appointment by ID
+    // -------- Retrieve --------
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<AppointmentDTO>> get(@PathVariable Long id) {
         try {
@@ -50,14 +57,19 @@ public class AppointmentController {
                     .build());
         } catch (Exception e) {
             log.error("Failed to retrieve appointment with id {}", id, e);
-            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<AppointmentDTO>builder()
                     .success(false)
                     .message("Failed to retrieve appointment: " + e.getMessage())
                     .build());
         }
     }
 
-    // Update an appointment
+    // -------- Current patient (paginated) --------
+
+    // -------- Current patient (non-paginated list) --------
+
+
+    // -------- Update --------
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<AppointmentDTO>> update(@PathVariable Long id, @RequestBody AppointmentDTO dto) {
         try {
@@ -69,14 +81,14 @@ public class AppointmentController {
                     .build());
         } catch (Exception e) {
             log.error("Failed to update appointment with id {}", id, e);
-            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<AppointmentDTO>builder()
                     .success(false)
                     .message("Failed to update appointment: " + e.getMessage())
                     .build());
         }
     }
 
-    // Delete an appointment
+    // -------- Delete --------
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         try {
@@ -87,14 +99,14 @@ public class AppointmentController {
                     .build());
         } catch (Exception e) {
             log.error("Failed to delete appointment with id {}", id, e);
-            return ResponseEntity.ok(ApiResponse.<Void>builder()
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<Void>builder()
                     .success(false)
                     .message("Failed to delete appointment: " + e.getMessage())
                     .build());
         }
     }
 
-    // List appointments (paginated)
+    // -------- List all (paginated) --------
     @GetMapping
     public ResponseEntity<ApiResponse<Page<AppointmentDTO>>> getAll(@PageableDefault Pageable pageable) {
         try {
@@ -106,13 +118,14 @@ public class AppointmentController {
                     .build());
         } catch (Exception e) {
             log.error("Failed to retrieve appointments", e);
-            return ResponseEntity.ok(ApiResponse.<Page<AppointmentDTO>>builder()
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<Page<AppointmentDTO>>builder()
                     .success(false)
                     .message("Failed to retrieve appointments: " + e.getMessage())
                     .build());
         }
     }
 
+    // -------- List by patient (paginated) --------
     @GetMapping("/patient/{patientId}")
     public ResponseEntity<ApiResponse<Page<AppointmentDTO>>> getByPatient(
             @PathVariable Long patientId,
@@ -126,7 +139,7 @@ public class AppointmentController {
                     .build());
         } catch (Exception e) {
             log.error("Failed to retrieve appointments for patient {}", patientId, e);
-            return ResponseEntity.ok(ApiResponse.<Page<AppointmentDTO>>builder()
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<Page<AppointmentDTO>>builder()
                     .success(false)
                     .message("Failed to retrieve appointments: " + e.getMessage())
                     .build());
@@ -147,6 +160,29 @@ public class AppointmentController {
             return ResponseEntity.ok(ApiResponse.<Long>builder()
                     .success(false)
                     .message("Failed to retrieve appointment count: " + e.getMessage())
+                    .build());
+        }
+    }
+    // -------------------- Update STATUS only (for the UI dropdown) --------------------
+    // PUT /api/appointments/{id}/status   body: { "status": "Checked" | "Unchecked" }
+    @PutMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<AppointmentDTO>> updateStatus(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body
+    ) {
+        try {
+            String status = body.get("status");
+            AppointmentDTO updated = service.updateStatus(id, status);
+            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+                    .success(true)
+                    .message("Status updated successfully")
+                    .data(updated)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to update status for appointment {}", id, e);
+            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+                    .success(false)
+                    .message("Failed to update status: " + e.getMessage())
                     .build());
         }
     }

@@ -6,6 +6,9 @@ import org.springframework.stereotype.Service;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.Statement;
 import java.util.function.Supplier;
 
 @Slf4j
@@ -15,6 +18,11 @@ public class TenantSchemaManager {
     
     @PersistenceContext
     private EntityManager entityManager;
+    private final DataSource dataSource;
+
+    public TenantSchemaManager(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
     
     public void executeWithTenantSchema(Runnable operation) {
         RequestContext context = RequestContext.get();
@@ -22,15 +30,22 @@ public class TenantSchemaManager {
             String schemaName = "practice_" + context.getOrgId();
             
             try {
-                // Set schema using native SQL through EntityManager
-                entityManager.createNativeQuery("CREATE SCHEMA IF NOT EXISTS " + schemaName).executeUpdate();
-                entityManager.createNativeQuery("SET search_path TO " + schemaName + ", public").executeUpdate();
-                
+                // Create schema using a separate connection so it doesn't participate in caller's txn
+                try (Connection conn = dataSource.getConnection()) {
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.execute("CREATE SCHEMA IF NOT EXISTS " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
+                    }
+                } catch (Exception ignore) {
+                    log.debug("CREATE SCHEMA for {} failed on separate connection: {}", schemaName, ignore.getMessage());
+                }
+
+                // Set search_path via EntityManager (affects current session)
+                entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public").executeUpdate();
                 log.debug("Set search_path to: {}, public via EntityManager", schemaName);
-                
+
                 // Execute the operation
                 operation.run();
-                
+
             } catch (Exception e) {
                 log.error("Failed to set schema: {}", schemaName, e);
                 throw new RuntimeException("Failed to set tenant schema", e);
@@ -47,15 +62,19 @@ public class TenantSchemaManager {
             String schemaName = "practice_" + context.getOrgId();
             
             try {
-                // Set schema using native SQL through EntityManager
-                entityManager.createNativeQuery("CREATE SCHEMA IF NOT EXISTS " + schemaName).executeUpdate();
-                entityManager.createNativeQuery("SET search_path TO " + schemaName + ", public").executeUpdate();
-                
+                try (Connection conn = dataSource.getConnection()) {
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.execute("CREATE SCHEMA IF NOT EXISTS " + schemaName);
+                    }
+                } catch (Exception ignore) {
+                    log.debug("CREATE SCHEMA for {} failed on separate connection: {}", schemaName, ignore.getMessage());
+                }
+
+                entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public").executeUpdate();
                 log.debug("Set search_path to: {}, public via EntityManager", schemaName);
-                
-                // Execute the operation and return result
+
                 return operation.get();
-                
+
             } catch (Exception e) {
                 log.error("Failed to set schema: {}", schemaName, e);
                 throw new RuntimeException("Failed to set tenant schema", e);

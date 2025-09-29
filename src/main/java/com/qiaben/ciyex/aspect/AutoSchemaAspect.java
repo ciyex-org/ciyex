@@ -3,6 +3,9 @@ package com.qiaben.ciyex.aspect;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.Statement;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -21,11 +24,16 @@ public class AutoSchemaAspect {
     
     @PersistenceContext
     private EntityManager entityManager;
+    private final DataSource dataSource;
+
+    public AutoSchemaAspect(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
     
     @Around("@annotation(org.springframework.transaction.annotation.Transactional) && " +
-            "execution(* com.qiaben.ciyex.service..*(..)) && " +
-            "!execution(* com.qiaben.ciyex.service.*SchemaInitializer.*(..)) && " +
-            "!execution(* com.qiaben.ciyex.service.TenantAwareService.*(..))")
+        "(execution(* com.qiaben.ciyex.service..*(..)) || execution(* com.qiaben.ciyex.audit..*(..))) && " +
+        "!execution(* com.qiaben.ciyex.service.*SchemaInitializer.*(..)) && " +
+        "!execution(* com.qiaben.ciyex.service.TenantAwareService.*(..))")
     public Object autoSwitchSchema(ProceedingJoinPoint joinPoint) throws Throwable {
         // Get org ID from RequestContext
         Long orgId = getOrgIdFromContext();
@@ -85,8 +93,26 @@ public class AutoSchemaAspect {
     
     private void setSchema(String schemaName) {
         try {
-            entityManager.createNativeQuery("SET search_path TO " + schemaName)
-                    .executeUpdate();
+            // Ensure the tenant schema exists when switching (no-op for public)
+            if (!"public".equals(schemaName)) {
+                // Execute CREATE SCHEMA on a separate, autocommit connection so it does not participate
+                // in the caller's transaction (avoids failures when caller's transaction is read-only)
+                try (Connection conn = dataSource.getConnection()) {
+                    try (Statement stmt = conn.createStatement()) {
+                        // Ensure this runs immediately; use standard SQL which is supported by Postgres
+                        stmt.execute("CREATE SCHEMA IF NOT EXISTS " + schemaName);
+                    }
+                } catch (Exception ignore) {
+                    // best-effort: ignore failures creating schema here
+                    log.debug("CREATE SCHEMA for {} failed on separate connection: {}", schemaName, ignore.getMessage());
+                }
+
+                // Set search_path to tenant schema first, then public as fallback
+                entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public").executeUpdate();
+            } else {
+                entityManager.createNativeQuery("SET search_path TO public").executeUpdate();
+            }
+
             entityManager.flush(); // Ensure the schema change is applied
         } catch (Exception e) {
             log.warn("Failed to set schema to {}: {}", schemaName, e.getMessage());

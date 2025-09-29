@@ -12,6 +12,8 @@ import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
+import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import javax.sql.DataSource;
@@ -20,6 +22,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -38,9 +42,40 @@ public class TenantSchemaInitializer {
 
     @Autowired
     private DataSource dataSource;
+
+    @Autowired
+    private Environment env;
+    
+    // Feature flag to disable automatic tenant initialization (useful for dev/testing)
+    private boolean tenantAutoInitEnabled;
     
     // Cache to track initialized schemas
     private final ConcurrentHashMap<Long, Boolean> initializedSchemas = new ConcurrentHashMap<>();
+    // Per-tenant locks to prevent concurrent initialization for the same org
+    private final ConcurrentHashMap<Long, Object> tenantLocks = new ConcurrentHashMap<>();
+    // Global semaphore to limit concurrent heavy tenant initialization work
+    // Allows configuring concurrency via TENANT_INIT_CONCURRENCY env var (default 3)
+    private Semaphore initSemaphore;
+
+    @PostConstruct
+    public void init() {
+        int concurrency = 3;
+        try {
+            String v = env.getProperty("TENANT_INIT_CONCURRENCY");
+            if (v != null && !v.isBlank()) concurrency = Integer.parseInt(v);
+        } catch (Exception ignore) {}
+        initSemaphore = new Semaphore(Math.max(1, concurrency));
+
+        // default true unless explicitly set via environment property ciyex.tenant.auto-init
+        boolean enabled = true;
+        try {
+            String prop = env.getProperty("ciyex.tenant.auto-init");
+            if (prop != null && (prop.equalsIgnoreCase("false") || prop.equals("0"))) {
+                enabled = false;
+            }
+        } catch (Exception ignore) {}
+        this.tenantAutoInitEnabled = enabled;
+    }
     
     // Test method to initialize a tenant schema for testing purposes
     @Transactional
@@ -73,36 +108,83 @@ public class TenantSchemaInitializer {
         }
     }
     
+    @Transactional
     public void initializeTenantSchema(Long orgId) {
         if (orgId == null) {
             return;
         }
 
-        String schemaName = "practice_" + orgId;
-
-        if (initializedSchemas.containsKey(orgId)) {
-            log.debug("Tenant schema already initialized for orgId: {}. Running pending Flyway migrations.", orgId);
-            tenantFlywayMigrator.migrate(schemaName, orgId);
+        if (!tenantAutoInitEnabled) {
+            log.info("Automatic tenant schema initialization is disabled (ciyex.tenant.auto-init=false). Skipping init for orgId={}", orgId);
             return;
         }
-        
-        try {
-            // Create schema if it doesn't exist
-            createSchemaIfNotExists(schemaName);
-            
-            // Create all tenant tables using Hibernate metadata
-            createTenantTablesFromEntities(schemaName);
 
-            // Apply tenant-specific Flyway migrations after tables exist
-            tenantFlywayMigrator.migrate(schemaName, orgId);
-            
-            // Mark as initialized
-            initializedSchemas.put(orgId, true);
-            
-            log.info("Successfully initialized tenant schema with all application tables: {}", schemaName);
-        } catch (Exception e) {
-            log.error("Failed to initialize tenant schema: {}", schemaName, e);
-            throw new RuntimeException("Failed to initialize tenant schema: " + schemaName, e);
+        String schemaName = "practice_" + orgId;
+
+        log.debug("initializeTenantSchema called for orgId: {} schema: {}", orgId, schemaName);
+        // Limit overall concurrency for heavy tenant initialization work to avoid exhausting DB connections
+        boolean permitAcquired = false;
+        try {
+            permitAcquired = initSemaphore.tryAcquire(30, TimeUnit.SECONDS);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
+
+        if (!permitAcquired) {
+            String msg = "Could not acquire tenant initialization permit within timeout - pool may be busy";
+            log.warn(msg + " for orgId: {}", orgId);
+            throw new RuntimeException(msg);
+        }
+
+        // Use a per-tenant lock so only one thread initializes a given tenant at a time.
+        Object lock = tenantLocks.computeIfAbsent(orgId, k -> new Object());
+        try {
+            synchronized (lock) {
+                // Double-check after acquiring the lock
+                if (initializedSchemas.containsKey(orgId)) {
+                    log.debug("Tenant schema already initialized for orgId: {}. Running pending Flyway migrations.", orgId);
+                    try {
+                        tenantFlywayMigrator.migrate(schemaName, orgId);
+                    } catch (Exception e) {
+                        log.warn("Flyway migrate failed while post-check for {}: {}", schemaName, e.getMessage());
+                    }
+                    return;
+                }
+
+                try {
+                    // Create schema if it doesn't exist
+                    createSchemaIfNotExists(schemaName);
+
+                    // Create all tenant tables using Hibernate metadata
+                    createTenantTablesFromEntities(schemaName);
+
+                    // Ensure that if some tables are missing (schema existed previously) we create any missing ones
+                    // This helps when entity set changed between deployments — compare and create missing tables
+                    ensureTenantTablesExist(orgId);
+
+                    // Apply tenant-specific Flyway migrations after tables exist
+                    tenantFlywayMigrator.migrate(schemaName, orgId);
+
+                    // Mark as initialized
+                    initializedSchemas.put(orgId, true);
+
+                    log.info("Successfully initialized tenant schema with all application tables: {}", schemaName);
+                } catch (Exception e) {
+                    // Detect common Hikari connection pool exhaust situation and provide extra context in logs
+                    String msg = e.getMessage() != null ? e.getMessage() : "";
+                    if (msg.contains("HikariPool") || msg.contains("Connection is not available")) {
+                        log.error("Hikari pool timeout while initializing schema {}. Consider increasing Hikari pool size or avoiding concurrent initializations.", schemaName);
+                    }
+                    log.error("Failed to initialize tenant schema: {}", schemaName, e);
+                    throw new RuntimeException("Failed to initialize tenant schema: " + schemaName, e);
+                } finally {
+                    // remove lock to avoid memory leak (only remove if this object is still mapped to this key)
+                    tenantLocks.remove(orgId);
+                }
+            }
+        } finally {
+            // Always release the semaphore permit
+            initSemaphore.release();
         }
     }
 
@@ -113,7 +195,7 @@ public class TenantSchemaInitializer {
         String schemaName = "practice_" + orgId;
         try {
             // Use only the tenant schema in search_path
-            entityManager.createNativeQuery("SET search_path TO " + schemaName).executeUpdate();
+            entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName)).executeUpdate();
             ensureJsonbColumn(schemaName, "org_config", "integrations");
             tenantFlywayMigrator.migrate(schemaName, orgId);
         } catch (Exception e) {
@@ -126,7 +208,7 @@ public class TenantSchemaInitializer {
     private void createSchemaIfNotExists(String schemaName) {
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
-            statement.executeUpdate("CREATE SCHEMA IF NOT EXISTS " + schemaName);
+            statement.executeUpdate("CREATE SCHEMA IF NOT EXISTS " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
         } catch (SQLException ex) {
             throw new RuntimeException("Failed to create schema: " + schemaName, ex);
         }
@@ -135,7 +217,7 @@ public class TenantSchemaInitializer {
     private void createTenantTablesFromEntities(String schemaName) {
         try {
             // Set search path to tenant schema only (not including public)
-            entityManager.createNativeQuery("SET search_path TO " + schemaName).executeUpdate();
+            entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName)).executeUpdate();
             
             // Get all tenant entities
             List<Class<?>> tenantEntities = getAllTenantEntities();
@@ -193,13 +275,18 @@ public class TenantSchemaInitializer {
                     tenantEntities.size(), schemaName);
             
             // Create a temporary Hibernate configuration for tenant schema generation
-            StandardServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder()
-                    .applySetting("hibernate.connection.url", "jdbc:postgresql://localhost:5432/ciyexdb")
-                    .applySetting("hibernate.connection.username", "postgres")
-                    .applySetting("hibernate.connection.password", "postgres")
+    // Use configured datasource settings from Spring Environment (application.yml, env vars, CLI args, etc.)
+    String jdbcUrl = env.getProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/ciyexdb");
+    String dbUser = env.getProperty("spring.datasource.username", "postgres");
+    String dbPass = env.getProperty("spring.datasource.password", "postgres");
+
+        StandardServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder()
+            .applySetting("hibernate.connection.url", jdbcUrl)
+            .applySetting("hibernate.connection.username", dbUser)
+            .applySetting("hibernate.connection.password", dbPass)
                     .applySetting("hibernate.connection.driver_class", "org.postgresql.Driver")
                     .applySetting("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect")
-                    .applySetting("hibernate.hbm2ddl.auto", "create")
+                    .applySetting("hibernate.hbm2ddl.auto", "update")
                     .applySetting("hibernate.default_schema", schemaName)
                     .applySetting("hibernate.show_sql", "true")
                     .build();
@@ -247,10 +334,13 @@ public class TenantSchemaInitializer {
 
             String dataType = dataTypeObj != null ? dataTypeObj.toString() : null;
             if (dataType != null && !dataType.equalsIgnoreCase("jsonb")) {
-                String alter = String.format(
-                        "ALTER TABLE %s.%s ALTER COLUMN %s TYPE JSONB USING %s::jsonb",
-                        schemaName, tableName, columnName, columnName);
-                entityManager.createNativeQuery(alter).executeUpdate();
+        String alter = String.format(
+            "ALTER TABLE %s.%s ALTER COLUMN %s TYPE JSONB USING %s::jsonb",
+            com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
+            com.qiaben.ciyex.util.SqlIdentifier.quote(tableName),
+            com.qiaben.ciyex.util.SqlIdentifier.quote(columnName),
+            com.qiaben.ciyex.util.SqlIdentifier.quote(columnName));
+        entityManager.createNativeQuery(alter).executeUpdate();
                 log.info("Altered column {}.{}.{} to JSONB", schemaName, tableName, columnName);
             }
         } catch (Exception e) {
@@ -324,36 +414,95 @@ public class TenantSchemaInitializer {
     private void createTableUsingHibernateDDL(Class<?> entityClass, String schemaName, String tableName) {
         try {
             // Use Hibernate's SchemaExport to generate DDL for this specific entity
-            SessionFactoryImplementor sessionFactory = entityManagerFactory.unwrap(SessionFactoryImplementor.class);
-            
+
             // Create a simple table structure dynamically based on entity fields
             StringBuilder ddl = new StringBuilder();
-            ddl.append(String.format("CREATE TABLE IF NOT EXISTS %s.%s (", schemaName, tableName));
-            
-            // Always add an ID column
-            ddl.append("id BIGSERIAL PRIMARY KEY");
-            
+            ddl.append(String.format("CREATE TABLE IF NOT EXISTS %s.%s (",
+                com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
+                com.qiaben.ciyex.util.SqlIdentifier.quote(tableName)));
+
+            // Always add an ID column (quote the identifier to avoid reserved-word issues)
+            ddl.append(String.format("%s BIGSERIAL PRIMARY KEY", com.qiaben.ciyex.util.SqlIdentifier.quote("id")));
+
             // Add other columns based on entity fields (simplified approach)
             java.lang.reflect.Field[] fields = entityClass.getDeclaredFields();
             for (java.lang.reflect.Field field : fields) {
                 if (!field.getName().equals("id") && !java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
                     String columnName = camelToSnakeCase(field.getName());
                     String columnType = getColumnType(field.getType());
-                    ddl.append(String.format(", %s %s", columnName, columnType));
+                    // Quote column names to handle reserved words (e.g., user) and special characters
+                    ddl.append(String.format(", %s %s", com.qiaben.ciyex.util.SqlIdentifier.quote(columnName), columnType));
                 }
             }
-            
+
             ddl.append(")");
-            
+
             entityManager.createNativeQuery(ddl.toString()).executeUpdate();
             log.debug("Created table: {}.{} for entity: {}", schemaName, tableName, entityClass.getSimpleName());
-            
+
         } catch (Exception e) {
             log.warn("Failed to create table for entity {}: {}", entityClass.getSimpleName(), e.getMessage());
             // Fallback: create a basic table with just ID
-            String fallbackDDL = String.format("CREATE TABLE IF NOT EXISTS %s.%s (id BIGSERIAL PRIMARY KEY)", schemaName, tableName);
+            String fallbackDDL = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s BIGSERIAL PRIMARY KEY)",
+                com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
+                com.qiaben.ciyex.util.SqlIdentifier.quote(tableName),
+                com.qiaben.ciyex.util.SqlIdentifier.quote("id"));
             entityManager.createNativeQuery(fallbackDDL).executeUpdate();
             log.debug("Created fallback table: {}.{}", schemaName, tableName);
+        }
+    }
+
+    /**
+     * Ensure all tenant tables exist for the given org schema. This compares the JPA tenant entities
+     * to information_schema and creates any missing tables using existing helpers.
+     */
+    @Transactional
+    public void ensureTenantTablesExist(Long orgId) {
+        if (orgId == null) return;
+        String schemaName = "practice_" + orgId;
+
+        try {
+            // Ensure search_path to tenant schema
+            entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName)).executeUpdate();
+
+            List<Class<?>> tenantEntities = getAllTenantEntities();
+            log.info("Ensuring {} tenant entities exist in schema {}", tenantEntities.size(), schemaName);
+
+            for (Class<?> entityClass : tenantEntities) {
+                try {
+                    String tableName = getTableName(entityClass);
+                    String checkTableQuery = String.format(
+                            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s')",
+                            schemaName, tableName
+                    );
+                    Object result = entityManager.createNativeQuery(checkTableQuery).getSingleResult();
+                    boolean exists = false;
+                    if (result instanceof Boolean) {
+                        exists = (Boolean) result;
+                    } else if (result instanceof Number) {
+                        exists = ((Number) result).intValue() == 1;
+                    } else if (result != null) {
+                        exists = Boolean.parseBoolean(result.toString());
+                    }
+
+                    if (!exists) {
+                        log.info("Table {}.{} missing - creating", schemaName, tableName);
+                        createTableForEntity(entityClass, schemaName);
+                    } else {
+                        log.debug("Table {}.{} already exists", schemaName, tableName);
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to verify/create table for entity {}: {}", entityClass.getSimpleName(), e.getMessage());
+                }
+            }
+
+            // Ensure known JSON columns
+            ensureJsonbColumn(schemaName, "org_config", "integrations");
+
+        } catch (Exception e) {
+            log.warn("Failed to ensure tenant tables exist for schema {}: {}", schemaName, e.getMessage());
+        } finally {
+            try { entityManager.createNativeQuery("SET search_path TO public").executeUpdate(); } catch (Exception ignore) {}
         }
     }
     

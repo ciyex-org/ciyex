@@ -1,19 +1,20 @@
 package com.qiaben.ciyex.repository;
 
 import com.qiaben.ciyex.entity.Immunization;
-import com.qiaben.ciyex.entity.Invoice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
 
 public interface ImmunizationRepository extends JpaRepository<Immunization, Long> {
-    List<Immunization> findByPatientId(Long patientId);
-    List<Immunization> findByOrgId(Long orgId);
 
-//    interface InvoiceRepository extends JpaRepository<Invoice, Long> {
-//        List<Invoice> findByOrgIdAndPatientId(Long orgId, Long patientId);
-//        List<Invoice> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
-//        Optional<Invoice> findByOrgIdAndPatientIdAndEncounterIdAndId(Long orgId, Long patientId, Long encounterId, Long id);
-//    }
+    @Query("SELECT i FROM Immunization i WHERE i.patientId = :patientId AND i.orgId = :orgId")
+    List<Immunization> findByPatientIdAndOrgId(Long patientId, Long orgId);
+
+    @Query("SELECT i FROM Immunization i WHERE i.id = :id AND i.patientId = :patientId AND i.orgId = :orgId")
+    Optional<Immunization> findOneByIdAndPatientIdAndOrgId(Long id, Long patientId, Long orgId);
+
+    @Query("SELECT i FROM Immunization i WHERE i.orgId = :orgId")
+    List<Immunization> findAllByOrgId(Long orgId);
 }

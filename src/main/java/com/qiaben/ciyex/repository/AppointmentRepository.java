@@ -10,22 +10,38 @@ import java.util.Optional;
 
 public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
 
-    // Count appointments for a given provider
+    // -------- Count --------
     long countByProviderId(Long providerId);
 
-    // List appointments by provider (scoped to org)
+    // -------- Provider Scoped --------
     Page<Appointment> findAllByProviderIdAndOrgId(Long providerId, Long orgId, Pageable pageable);
 
-    // List appointments by patient (scoped to org)
+    List<Appointment> findAllByProviderIdAndOrgId(Long providerId, Long orgId);
+
+    // Top N appointments (for “next slots” view)
+    List<Appointment> findTop3ByProviderIdAndOrgIdAndStatusOrderByAppointmentStartDateAscAppointmentStartTimeAsc(
+            Long providerId, Long orgId, String status);
+
+    // -------- Patient Scoped --------
     List<Appointment> findAllByPatientIdAndOrgId(Long patientId, Long orgId);
 
-    // Get appointment by id + org
+    Page<Appointment> findAllByPatientIdAndOrgId(Long patientId, Long orgId, Pageable pageable);
+
+    // -------- By ID --------
     Optional<Appointment> findByIdAndOrgId(Long id, Long orgId);
 
-    // Get all appointments for an org (paginated)
-    Page<Appointment> findAllByOrgId(Long orgId, Pageable pageable);
+    // -------- Scoped by Provider + Date --------
+    List<Appointment> findAllByProviderIdAndOrgIdAndAppointmentStartDate(
+            Long providerId, Long orgId, String appointmentStartDate);
 
-    Page<Appointment> findAllByPatientIdAndOrgId(Long patientId, Long orgId, Pageable pageable);
+    // -------- Scoped by Provider + Date Range --------
+    List<Appointment> findAllByProviderIdAndOrgIdAndAppointmentStartDateBetween(
+            Long providerId, Long orgId, String startDate, String endDate);
+
+    Page<Appointment> findAllByOrgIdAndStatus(Long orgId, String status, Pageable pageable);
+
+    // -------- Org Scoped --------
+    Page<Appointment> findAllByOrgId(Long orgId, Pageable pageable);
 
     long countByOrgId(Long orgId);
 
