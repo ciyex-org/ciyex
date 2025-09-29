@@ -1,10 +1,10 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.entity.Org;
+import com.qiaben.ciyex.entity.OrgConfig;
 import com.qiaben.ciyex.entity.User;
 import com.qiaben.ciyex.entity.UserOrgRole;
 import com.qiaben.ciyex.repository.OrgRepository;
-import com.qiaben.ciyex.service.TenantSchemaInitializer;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.flywaydb.core.Flyway;
@@ -109,8 +109,9 @@ public class MasterSchemaInitializer {
             boolean usersExists = tableExists("users");
             boolean orgsExists = tableExists("orgs");
             boolean userOrgRolesExists = tableExists("user_org_roles");
+            boolean orgConfigExists = tableExists("org_config");
             
-            if (usersExists && orgsExists && userOrgRolesExists) {
+            if (usersExists && orgsExists && userOrgRolesExists && orgConfigExists) {
                 log.info("All master schema tables already exist. Skipping creation.");
                 return;
             }
@@ -139,6 +140,7 @@ public class MasterSchemaInitializer {
                     .addAnnotatedClass(User.class)
                     .addAnnotatedClass(Org.class)
                     .addAnnotatedClass(UserOrgRole.class)
+                    .addAnnotatedClass(OrgConfig.class)  // Add OrgConfig to master schema
                     .buildMetadata();
 
             // Create the schema using Hibernate's schema management tool
@@ -146,12 +148,15 @@ public class MasterSchemaInitializer {
             
             log.info("Master schema tables created/updated successfully using JPA entities");
             
+            // Ensure JSONB column for OrgConfig integrations in master schema
+            ensureMasterJsonbColumn("public", "org_config", "integrations");
+            
             // Verify tables were created
             sessionFactory.close();
             serviceRegistry.close();
             
             // Double-check that tables now exist
-            if (tableExists("users") && tableExists("orgs") && tableExists("user_org_roles")) {
+            if (tableExists("users") && tableExists("orgs") && tableExists("user_org_roles") && tableExists("org_config")) {
                 log.info("Verified: All master schema tables created successfully");
             } else {
                 log.warn("Warning: Some tables may not have been created properly");
@@ -269,6 +274,35 @@ public class MasterSchemaInitializer {
         } catch (Exception e) {
             log.warn("Failed to check if table {} exists: {}", tableName, e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Ensure a column in the master schema uses JSONB type (for PostgreSQL).
+     */
+    private void ensureMasterJsonbColumn(String schemaName, String tableName, String columnName) {
+        try {
+            // Check current data type
+            String dataTypeQuery = "SELECT data_type FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ?";
+            Object dataTypeObj = entityManager.createNativeQuery(dataTypeQuery)
+                    .setParameter(1, schemaName)
+                    .setParameter(2, tableName)
+                    .setParameter(3, columnName)
+                    .getSingleResult();
+
+            String dataType = dataTypeObj != null ? dataTypeObj.toString() : null;
+            if (dataType != null && !dataType.equalsIgnoreCase("jsonb")) {
+                String alter = String.format(
+                    "ALTER TABLE %s.%s ALTER COLUMN %s TYPE JSONB USING %s::jsonb",
+                    com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
+                    com.qiaben.ciyex.util.SqlIdentifier.quote(tableName),
+                    com.qiaben.ciyex.util.SqlIdentifier.quote(columnName),
+                    com.qiaben.ciyex.util.SqlIdentifier.quote(columnName));
+                entityManager.createNativeQuery(alter).executeUpdate();
+                log.info("Altered column {}.{}.{} to JSONB in master schema", schemaName, tableName, columnName);
+            }
+        } catch (Exception e) {
+            log.warn("Could not ensure JSONB type for master schema column {}.{}.{}: {}", schemaName, tableName, columnName, e.getMessage());
         }
     }
 }
