@@ -352,13 +352,15 @@ public class TenantSchemaInitializer {
         // Define master schema entities (authentication-related) - use full class names for accuracy
         Set<String> masterEntities = Set.of(
             "com.qiaben.ciyex.entity.User",
-            "com.qiaben.ciyex.entity.Org", 
-            "com.qiaben.ciyex.entity.UserOrgRole"
+            "com.qiaben.ciyex.entity.Org",
+            "com.qiaben.ciyex.entity.UserOrgRole",
+            // AdminTemplate belongs to the master/public schema only
+            "com.qiaben.ciyex.entity.AdminTemplate"
         );
         
         // Also check simple names as fallback
         Set<String> masterSimpleNames = Set.of(
-            "User", "Org", "UserOrgRole"
+            "User", "Org", "UserOrgRole", "AdminTemplate"
         );
         
         // Only include entities that are JPA entities and not master entities
