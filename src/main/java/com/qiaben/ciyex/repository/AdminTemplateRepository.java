@@ -9,5 +9,4 @@ public interface AdminTemplateRepository extends JpaRepository<AdminTemplate, Lo
 
     List<AdminTemplate> findAllByOrgId(Long orgId);
 
-    boolean existsByTemplateId(String templateId);
 }

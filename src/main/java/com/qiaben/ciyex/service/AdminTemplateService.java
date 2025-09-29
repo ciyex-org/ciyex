@@ -28,16 +28,11 @@ public class AdminTemplateService {
         if (orgId == null) throw new SecurityException("No orgId in RequestContext");
         dto.setOrgId(orgId);
 
-        // Auto-generate a templateId if missing
-        if (dto.getTemplateId() == null || dto.getTemplateId().trim().isEmpty()) {
-            dto.setTemplateId(generateUniqueTemplateId());
-        }
-
         AdminTemplate entity = mapToEntity(dto);
         entity = repository.save(entity);
 
         dto.setId(entity.getId());
-        dto.setTemplateId(entity.getTemplateId());
+        // templateId removed — id is the primary identifier
         dto.setAudit(toAudit(entity));
         return dto;
     }
@@ -105,7 +100,6 @@ public class AdminTemplateService {
         return AdminTemplate.builder()
                 .id(dto.getId())
                 .orgId(dto.getOrgId())
-                .templateId(dto.getTemplateId())
                 .locations(dto.getLocations())
                 .practiceType(dto.getPracticeType())
                 .build();
@@ -115,7 +109,6 @@ public class AdminTemplateService {
         AdminTemplateDto dto = new AdminTemplateDto();
         dto.setId(entity.getId());
         dto.setOrgId(entity.getOrgId());
-        dto.setTemplateId(entity.getTemplateId());
         dto.setLocations(entity.getLocations());
         dto.setPracticeType(entity.getPracticeType());
         dto.setAudit(toAudit(entity));
@@ -133,17 +126,5 @@ public class AdminTemplateService {
         return RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
     }
 
-    private String generateUniqueTemplateId() {
-        String candidate;
-        int attempts = 0;
-        do {
-            int n = (int) (Math.random() * 9000) + 1000;
-            candidate = "TPL-" + n;
-            attempts++;
-            if (attempts > 100) {
-                throw new RuntimeException("Unable to generate unique template id");
-            }
-        } while (repository.existsByTemplateId(candidate));
-        return candidate;
-    }
+    // templateId generation removed
 }

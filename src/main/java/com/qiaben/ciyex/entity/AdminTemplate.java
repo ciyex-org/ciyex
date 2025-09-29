@@ -6,7 +6,6 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "admin_templates")
@@ -23,19 +22,7 @@ public class AdminTemplate {
     @Column(name = "org_id", nullable = false)
     private Long orgId;
 
-    @Column(name = "template_id", unique = true)
-    private String templateId;
-
-    @PrePersist
-    public void ensureTemplateId() {
-        if (this.templateId == null || this.templateId.trim().isEmpty()) {
-            // create a short, readable id with low collision risk
-            this.templateId = "TPL-" + UUID.randomUUID().toString()
-                    .replaceAll("-", "")
-                    .substring(0, 8)
-                    .toUpperCase();
-        }
-    }
+    // templateId removed: IDs are now managed by the database `id` column
 
     @Column(name = "locations", nullable = false)
     private String locations;

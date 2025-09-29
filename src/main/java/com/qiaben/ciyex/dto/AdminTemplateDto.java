@@ -9,7 +9,6 @@ public class AdminTemplateDto {
 
     private Long id;
     private Long orgId;
-    private String templateId;
     private String locations;
     private String practiceType;
     private Audit audit;
