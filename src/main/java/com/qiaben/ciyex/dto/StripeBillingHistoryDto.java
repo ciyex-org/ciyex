@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class BillingHistoryDto {
+public class StripeBillingHistoryDto {
     private Long id;
     private Long orgId;
     private Long userId;

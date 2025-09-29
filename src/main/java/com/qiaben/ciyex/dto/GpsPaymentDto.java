@@ -1,28 +1,20 @@
 package com.qiaben.ciyex.dto;
 
 import lombok.Data;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
-public class GpsBillingHistoryDto {
+public class GpsPaymentDto {
     private Long id;
     private Long orgId;
     private Long userId;
+    private Long cardId;
     private String gpsTransactionId;
-    private String gpsCustomerVaultId;
     private BigDecimal amount;
+    private String currency;
     private String status;
-    private String responseMessage;
+    private String description;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-
-    // Optional extra fields for payment processing
-    private String firstName;
-    private String lastName;
-    private String street;
-    private String city;
-    private String state;
-    private String zip;
 }

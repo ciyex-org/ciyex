@@ -1,10 +1,14 @@
 package com.qiaben.ciyex.controller;
 
-import com.qiaben.ciyex.service.BillingHistoryService;
+import com.qiaben.ciyex.dto.StripeBillingCardDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.service.StripeBillingHistoryService;
+import com.qiaben.ciyex.service.StripeBillingCardService;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
 import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.PaymentIntent;
+import com.stripe.model.PaymentMethod;
 import com.stripe.net.Webhook;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +26,16 @@ public class StripeWebhookController {
     @Value("${stripe.webhook-secret:}")
     private String endpointSecret;
 
-    private final BillingHistoryService billingHistoryService;
+    private final StripeBillingHistoryService billingHistoryService;
+    private final StripeBillingCardService billingCardService;
+
+    private Long getOrgIdOrThrow() {
+        RequestContext ctx = RequestContext.get();
+        if (ctx == null || ctx.getOrgId() == null) {
+            throw new RuntimeException("Organization context is required");
+        }
+        return ctx.getOrgId();
+    }
 
     @PostMapping("/webhook")
     public ResponseEntity<String> handleStripeWebhook(
@@ -41,37 +54,71 @@ public class StripeWebhookController {
 
         log.info("🔔 Received Stripe event: {}", event.getType());
 
-        // Handle success
-        if ("payment_intent.succeeded".equals(event.getType())) {
-            EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
-            deserializer.getObject().ifPresent(obj -> {
-                PaymentIntent succeededIntent = (PaymentIntent) obj;
-                billingHistoryService.updateStatus(succeededIntent.getId(), succeededIntent.getStatus());
-                log.info("💰 Payment succeeded: {}", succeededIntent.getId());
-            });
-        }
-        // Handle failure
-        else if ("payment_intent.payment_failed".equals(event.getType())) {
-            EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
-            deserializer.getObject().ifPresent(obj -> {
-                PaymentIntent failedIntent = (PaymentIntent) obj;
-                billingHistoryService.updateStatus(failedIntent.getId(), failedIntent.getStatus());
-                log.warn("❌ Payment failed: {}", failedIntent.getId());
-            });
-        }
-        // Handle other intents like processing or canceled
-        else if ("payment_intent.processing".equals(event.getType())) {
-            EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
-            deserializer.getObject().ifPresent(obj -> {
-                PaymentIntent processingIntent = (PaymentIntent) obj;
-                billingHistoryService.updateStatus(processingIntent.getId(), processingIntent.getStatus());
-                log.info("⏳ Payment processing: {}", processingIntent.getId());
-            });
-        }
-        else {
-            log.info("⚠️ Unhandled Stripe event type: {}", event.getType());
+        switch (event.getType()) {
+            case "payment_intent.succeeded" -> {
+                PaymentIntent succeededIntent = getObject(event, PaymentIntent.class);
+                if (succeededIntent != null) {
+                    billingHistoryService.updateStatus(
+                            succeededIntent.getId(),
+                            succeededIntent.getStatus()
+                    );
+                    log.info("💰 Payment succeeded: {}", succeededIntent.getId());
+                }
+            }
+            case "payment_intent.payment_failed" -> {
+                PaymentIntent failedIntent = getObject(event, PaymentIntent.class);
+                if (failedIntent != null) {
+                    billingHistoryService.updateStatus(
+                            failedIntent.getId(),
+                            failedIntent.getStatus()
+                    );
+                    log.warn("❌ Payment failed: {}", failedIntent.getId());
+                }
+            }
+            case "payment_intent.processing" -> {
+                PaymentIntent processingIntent = getObject(event, PaymentIntent.class);
+                if (processingIntent != null) {
+                    billingHistoryService.updateStatus(
+                            processingIntent.getId(),
+                            processingIntent.getStatus()
+                    );
+                    log.info("⏳ Payment processing: {}", processingIntent.getId());
+                }
+            }
+
+            case "payment_method.attached" -> {
+                PaymentMethod pm = getObject(event, PaymentMethod.class);
+                if (pm != null && pm.getCard() != null) {
+                    StripeBillingCardDto dto = StripeBillingCardDto.builder()
+                            .stripePaymentMethodId(pm.getId())
+                            .stripeCustomerId(pm.getCustomer() != null ? pm.getCustomer().toString() : null)
+                            .brand(pm.getCard().getBrand())
+                            .last4(pm.getCard().getLast4())
+                            .expMonth(pm.getCard().getExpMonth() != null ? pm.getCard().getExpMonth().intValue() : null)
+                            .expYear(pm.getCard().getExpYear() != null ? pm.getCard().getExpYear().intValue() : null)
+                            .isDefault(false)
+                            .orgId(getOrgIdOrThrow())
+                            .build();
+
+                    billingCardService.create(dto, getOrgIdOrThrow());
+                    log.info("💳 Stripe payment method attached & saved: {}", pm.getId());
+                }
+            }
+
+            default -> log.info("⚠️ Unhandled Stripe event type: {}", event.getType());
         }
 
         return ResponseEntity.ok("✅ Webhook received");
+    }
+
+    private <T> T getObject(Event event, Class<T> clazz) {
+        EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
+        if (deserializer.getObject().isPresent()) {
+            Object obj = deserializer.getObject().get();
+            if (clazz.isInstance(obj)) {
+                return clazz.cast(obj);
+            }
+        }
+        return null;
     }
 }

@@ -8,6 +8,6 @@ import java.util.Optional;
 
 public interface GpsBillingHistoryRepository extends JpaRepository<GpsBillingHistory, Long> {
     List<GpsBillingHistory> findByOrgIdAndUserIdOrderByCreatedAtDesc(Long orgId, Long userId);
-    Optional<GpsBillingHistory> findByGpsTransactionId(String gpsTransactionId);
     List<GpsBillingHistory> findByOrgIdOrderByCreatedAtDesc(Long orgId);
+    Optional<GpsBillingHistory> findByGpsTransactionId(String gpsTransactionId);
 }

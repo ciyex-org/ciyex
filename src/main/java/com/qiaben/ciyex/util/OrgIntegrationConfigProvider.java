@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.integration.IntegrationKey;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.dto.integration.StripeConfig;
-import com.qiaben.ciyex.dto.integration.GpsConfig;
+import com.qiaben.ciyex.dto.integration.GpsConfig;   // ✅ Added import
 import com.qiaben.ciyex.entity.OrgConfig;
 import com.qiaben.ciyex.repository.OrgConfigRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -144,8 +144,10 @@ public void someServiceMethod(Long orgId) {
     OpenEmrConfig openEmrConfig = integrationConfigProvider.get(orgId, IntegrationKey.OPENEMR);
     StripeConfig stripeConfig = integrationConfigProvider.get(orgId, IntegrationKey.STRIPE);
     TwilioConfig twilioConfig = integrationConfigProvider.get(orgId, IntegrationKey.TWILIO);
+    GpsConfig gpsConfig = integrationConfigProvider.get(orgId, IntegrationKey.GPS); // ✅ GPS
     // ...and so on
 
     String storageType = integrationConfigProvider.getStorageType(orgId);
     // Use storageType to resolve the appropriate ExternalOrgStorage
-}*/
+}
+*/

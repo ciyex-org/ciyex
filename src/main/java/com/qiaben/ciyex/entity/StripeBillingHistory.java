@@ -5,13 +5,13 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "billing_history", schema = "practice_1") // explicitly in practice_1 schema
+@Table(name = "stripe_billing_history")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class BillingHistory {
+public class StripeBillingHistory {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,16 +35,15 @@ public class BillingHistory {
     @Column(name = "status")
     private String status;
 
-    // ✅ Fixed mapping to match DB column
     @Column(name = "invoice_bill_id")
     private Long invoiceBillId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
-        name = "invoice_bill_id",   // must match DB column
-        referencedColumnName = "id",
-        insertable = false,
-        updatable = false
+            name = "invoice_bill_id",
+            referencedColumnName = "id",
+            insertable = false,
+            updatable = false
     )
     private InvoiceBill invoiceBill;
 

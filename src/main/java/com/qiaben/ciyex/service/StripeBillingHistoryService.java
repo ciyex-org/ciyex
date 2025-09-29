@@ -1,15 +1,14 @@
 package com.qiaben.ciyex.service;
 
-import com.qiaben.ciyex.dto.BillingHistoryDto;
+import com.qiaben.ciyex.dto.StripeBillingHistoryDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.dto.integration.StripeConfig;
-import com.qiaben.ciyex.entity.BillingCard;
-import com.qiaben.ciyex.entity.BillingHistory;
+import com.qiaben.ciyex.entity.StripeBillingHistory;
 import com.qiaben.ciyex.entity.InvoiceBill;
 import com.qiaben.ciyex.entity.InvoiceStatus;
-import com.qiaben.ciyex.repository.BillingCardRepository;
-import com.qiaben.ciyex.repository.BillingHistoryRepository;
+import com.qiaben.ciyex.repository.StripeBillingHistoryRepository;
 import com.qiaben.ciyex.repository.InvoiceBillRepository;
+import com.qiaben.ciyex.repository.StripeBillingCardRepository;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
@@ -26,22 +25,22 @@ import java.util.stream.Collectors;
 
 @Service
 @Slf4j
-public class BillingHistoryService {
+public class StripeBillingHistoryService {
 
-    private final BillingHistoryRepository repo;
+    private final StripeBillingHistoryRepository repo;
     private final InvoiceBillRepository invoiceRepo;
-    private final BillingCardRepository cardRepo;
+    private final StripeBillingCardRepository stripeCardRepo;
     private final OrgIntegrationConfigProvider configProvider;
 
-    public BillingHistoryService(
-            BillingHistoryRepository repo,
+    public StripeBillingHistoryService(
+            StripeBillingHistoryRepository repo,
             InvoiceBillRepository invoiceRepo,
-            BillingCardRepository cardRepo,
+            StripeBillingCardRepository stripeCardRepo,
             OrgIntegrationConfigProvider configProvider
     ) {
         this.repo = repo;
         this.invoiceRepo = invoiceRepo;
-        this.cardRepo = cardRepo;
+        this.stripeCardRepo = stripeCardRepo;
         this.configProvider = configProvider;
     }
 
@@ -53,7 +52,7 @@ public class BillingHistoryService {
 
     /* ------------------- PAY NOW ------------------- */
     @Transactional
-    public BillingHistoryDto recordPayment(BillingHistoryDto dto) {
+    public StripeBillingHistoryDto recordPayment(StripeBillingHistoryDto dto) {
         Long orgId = requireOrg("recordPayment");
         dto.setOrgId(orgId);
 
@@ -66,9 +65,10 @@ public class BillingHistoryService {
         try {
             String paymentMethodId = dto.getStripePaymentMethodId();
             if (paymentMethodId == null || paymentMethodId.isBlank()) {
-                BillingCard defaultCard = cardRepo.findFirstByUserIdAndOrgIdAndIsDefaultTrue(dto.getUserId(), orgId)
-                        .orElseThrow(() -> new RuntimeException("No default billing card found for user " + dto.getUserId()));
-                paymentMethodId = defaultCard.getStripePaymentMethodId();
+                paymentMethodId = stripeCardRepo.findFirstByUserIdAndOrgIdAndIsDefaultTrue(dto.getUserId(), orgId)
+                        .map(c -> c.getStripePaymentMethodId())
+                        .orElseThrow(() -> new RuntimeException(
+                                "No default Stripe card found for user " + dto.getUserId()));
             }
 
             PaymentIntent intent;
@@ -109,7 +109,7 @@ public class BillingHistoryService {
 
             invoice = invoiceRepo.save(invoice);
 
-            BillingHistory entity = BillingHistory.builder()
+            StripeBillingHistory entity = StripeBillingHistory.builder()
                     .orgId(orgId)
                     .userId(dto.getUserId())
                     .stripePaymentIntentId(intent.getId())
@@ -130,16 +130,16 @@ public class BillingHistoryService {
 
     /* ------------------- ARCHIVE / UNARCHIVE ------------------- */
     @Transactional
-    public BillingHistoryDto archive(Long id) {
-        BillingHistory entity = repo.findById(id).orElseThrow(() -> new RuntimeException("Billing history not found"));
+    public StripeBillingHistoryDto archive(Long id) {
+        StripeBillingHistory entity = repo.findById(id).orElseThrow(() -> new RuntimeException("Stripe billing history not found"));
         entity.setStatus("ARCHIVED");
         entity.setUpdatedAt(LocalDateTime.now());
         return toDto(repo.save(entity));
     }
 
     @Transactional
-    public BillingHistoryDto unarchive(Long id) {
-        BillingHistory entity = repo.findById(id).orElseThrow(() -> new RuntimeException("Billing history not found"));
+    public StripeBillingHistoryDto unarchive(Long id) {
+        StripeBillingHistory entity = repo.findById(id).orElseThrow(() -> new RuntimeException("Stripe billing history not found"));
         if ("ARCHIVED".equalsIgnoreCase(entity.getStatus())) {
             entity.setStatus("SUCCEEDED");
             entity.setUpdatedAt(LocalDateTime.now());
@@ -155,13 +155,13 @@ public class BillingHistoryService {
 
     /* ------------------- GET ------------------- */
     @Transactional(readOnly = true)
-    public List<BillingHistoryDto> getByUser(Long userId) {
+    public List<StripeBillingHistoryDto> getByUser(Long userId) {
         Long orgId = requireOrg("getByUser");
         return repo.findByUserIdAndOrgId(userId, orgId).stream().map(this::toDto).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public List<BillingHistoryDto> getAll() {
+    public List<StripeBillingHistoryDto> getAll() {
         Long orgId = requireOrg("getAll");
         return repo.findByOrgId(orgId).stream().map(this::toDto).collect(Collectors.toList());
     }
@@ -182,8 +182,8 @@ public class BillingHistoryService {
             }
 
             repo.save(entity);
-            log.info("✅ Updated BillingHistory {} to {}", paymentIntentId, normalized);
-        }, () -> log.warn("⚠️ No BillingHistory found for PaymentIntent {}", paymentIntentId));
+            log.info("✅ Updated StripeBillingHistory {} to {}", paymentIntentId, normalized);
+        }, () -> log.warn("⚠️ No StripeBillingHistory found for PaymentIntent {}", paymentIntentId));
     }
 
     /* ------------------- HELPER ------------------- */
@@ -202,8 +202,8 @@ public class BillingHistoryService {
         }
     }
 
-    private BillingHistoryDto toDto(BillingHistory r) {
-        return BillingHistoryDto.builder()
+    private StripeBillingHistoryDto toDto(StripeBillingHistory r) {
+        return StripeBillingHistoryDto.builder()
                 .id(r.getId())
                 .orgId(r.getOrgId())
                 .userId(r.getUserId())

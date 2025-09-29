@@ -4,6 +4,7 @@ import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.GpsBillingHistoryDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.service.GpsBillingHistoryService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,15 +16,11 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/gps/billing")
 @Slf4j
+@RequiredArgsConstructor
 public class GpsBillingHistoryController {
 
     private final GpsBillingHistoryService service;
 
-    public GpsBillingHistoryController(GpsBillingHistoryService service) {
-        this.service = service;
-    }
-
-    /* ------------------- PAYMENT ------------------- */
     @PostMapping("/pay")
     public ResponseEntity<ApiResponse<GpsBillingHistoryDto>> processPayment(
             @Valid @RequestBody GpsBillingHistoryDto dto,
@@ -33,7 +30,7 @@ public class GpsBillingHistoryController {
             ctx.setOrgId(orgId);
             RequestContext.set(ctx);
 
-            dto.setOrgId(orgId); // enforce tenant
+            dto.setOrgId(orgId);
             GpsBillingHistoryDto result = service.recordPayment(dto);
 
             return ResponseEntity.ok(ApiResponse.<GpsBillingHistoryDto>builder()
@@ -43,18 +40,16 @@ public class GpsBillingHistoryController {
                     .build());
         } catch (Exception e) {
             log.error("Failed to process GPS payment: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    ApiResponse.<GpsBillingHistoryDto>builder()
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<GpsBillingHistoryDto>builder()
                             .success(false)
-                            .message("Failed to process GPS payment: " + e.getMessage())
-                            .build()
-            );
+                            .message("Failed: " + e.getMessage())
+                            .build());
         } finally {
             RequestContext.clear();
         }
     }
 
-    /* ------------------- READ ------------------- */
     @GetMapping("/history")
     public ResponseEntity<ApiResponse<List<GpsBillingHistoryDto>>> getAllHistory(
             @RequestHeader("x-org-id") Long orgId) {
@@ -71,12 +66,11 @@ public class GpsBillingHistoryController {
                     .build());
         } catch (Exception e) {
             log.error("Failed to retrieve GPS billing history: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    ApiResponse.<List<GpsBillingHistoryDto>>builder()
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<GpsBillingHistoryDto>>builder()
                             .success(false)
-                            .message("Failed to retrieve GPS billing history: " + e.getMessage())
-                            .build()
-            );
+                            .message("Failed: " + e.getMessage())
+                            .build());
         } finally {
             RequestContext.clear();
         }
@@ -99,12 +93,11 @@ public class GpsBillingHistoryController {
                     .build());
         } catch (Exception e) {
             log.error("Failed to retrieve GPS billing history for user {}: {}", userId, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    ApiResponse.<List<GpsBillingHistoryDto>>builder()
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<GpsBillingHistoryDto>>builder()
                             .success(false)
-                            .message("Failed to retrieve GPS billing history: " + e.getMessage())
-                            .build()
-            );
+                            .message("Failed: " + e.getMessage())
+                            .build());
         } finally {
             RequestContext.clear();
         }

@@ -23,7 +23,7 @@ public class InvoiceBillService {
                 .id(e.getId())
                 .orgId(e.getOrgId())
                 .userId(e.getUserId())
-                .subscriptionId(e   .getSubscriptionId())
+                .subscriptionId(e.getSubscriptionId())
                 .amount(e.getAmount())
                 .status(e.getStatus())
                 .invoiceUrl(e.getInvoiceUrl())
@@ -41,7 +41,7 @@ public class InvoiceBillService {
         return InvoiceBill.builder()
                 .id(dto.getId())
                 .orgId(dto.getOrgId())
-                .userId(dto.getUserId())
+                .userId(dto.getUserId()) // ⚡ ensure not null
                 .subscriptionId(dto.getSubscriptionId())
                 .amount(dto.getAmount())
                 .status(dto.getStatus())
@@ -58,12 +58,18 @@ public class InvoiceBillService {
 
     /* ------------ CRUD ------------ */
     public InvoiceBillDto createInvoice(InvoiceBillDto dto) {
+        if (dto.getUserId() == null) {
+            throw new RuntimeException("Invoice must have a userId (not null)");
+        }
+
         InvoiceBill entity = toEntity(dto);
         entity.setStatus(InvoiceStatus.UNPAID);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
 
         InvoiceBill saved = repository.save(entity);
+
+        // generate identifiers after initial save
         saved.setExternalId("INV-" + saved.getId());
         saved.setInvoiceNumber("INV-" + saved.getId());
 
@@ -74,8 +80,12 @@ public class InvoiceBillService {
         InvoiceBill existing = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Invoice not found"));
 
-        existing.setAmount(dto.getAmount());
-        existing.setDueDate(dto.getDueDate());
+        if (dto.getAmount() != null) {
+            existing.setAmount(dto.getAmount());
+        }
+        if (dto.getDueDate() != null) {
+            existing.setDueDate(dto.getDueDate());
+        }
         existing.setUpdatedAt(LocalDateTime.now());
 
         return toDto(repository.save(existing));
@@ -92,7 +102,10 @@ public class InvoiceBillService {
     }
 
     public List<InvoiceBillDto> getAllInvoices() {
-        return repository.findAll().stream().map(this::toDto).collect(Collectors.toList());
+        return repository.findAll()
+                .stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
     }
 
     /* ------------ Payment ------------ */
@@ -110,11 +123,16 @@ public class InvoiceBillService {
 
     /* ------------ Org-based Queries ------------ */
     public List<InvoiceBillDto> getAllByOrg(Long orgId) {
-        return repository.findByOrgId(orgId).stream().map(this::toDto).collect(Collectors.toList());
+        return repository.findByOrgId(orgId)
+                .stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
     }
 
     public List<InvoiceBillDto> getByStatus(Long orgId, InvoiceStatus status) {
-        return repository.findByOrgIdAndStatus(orgId, status).stream()
-                .map(this::toDto).collect(Collectors.toList());
+        return repository.findByOrgIdAndStatus(orgId, status)
+                .stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
     }
 }

@@ -5,7 +5,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "invoice_bills") // explicitly in practice_1 schema
+@Table(name = "invoice_bills", schema = "practice_1")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -16,18 +16,20 @@ public class InvoiceBill {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "org_id")
+    @Column(name = "org_id", nullable = false)
     private Long orgId;
 
-    @Column(name = "user_id")
+    @Column(name = "user_id", nullable = false)
     private Long userId;
 
     @Column(name = "subscription_id")
     private Long subscriptionId;
 
+    @Column(nullable = false)
     private Double amount;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private InvoiceStatus status;
 
     @Column(name = "external_id")
@@ -48,9 +50,21 @@ public class InvoiceBill {
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    public void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }

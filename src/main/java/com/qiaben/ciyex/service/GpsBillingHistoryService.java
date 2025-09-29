@@ -11,6 +11,7 @@ import com.qiaben.ciyex.repository.GpsBillingCardRepository;
 import com.qiaben.ciyex.repository.GpsBillingHistoryRepository;
 import com.qiaben.ciyex.repository.InvoiceBillRepository;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,23 +32,13 @@ import java.util.stream.Collectors;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class GpsBillingHistoryService {
 
     private final GpsBillingHistoryRepository repository;
     private final GpsBillingCardRepository cardRepository;
     private final InvoiceBillRepository invoiceRepository;
     private final OrgIntegrationConfigProvider configProvider;
-
-    public GpsBillingHistoryService(
-            GpsBillingHistoryRepository repository,
-            GpsBillingCardRepository cardRepository,
-            InvoiceBillRepository invoiceRepository,
-            OrgIntegrationConfigProvider configProvider) {
-        this.repository = repository;
-        this.cardRepository = cardRepository;
-        this.invoiceRepository = invoiceRepository;
-        this.configProvider = configProvider;
-    }
 
     private Long requireOrg(String operation) {
         RequestContext ctx = RequestContext.get();
@@ -57,17 +48,27 @@ public class GpsBillingHistoryService {
         return ctx.getOrgId();
     }
 
+    /* ------------------- UPDATE STATUS (used by webhook) ------------------- */
+    @Transactional
+    public void updateStatus(String transactionId, String status) {
+        repository.findByGpsTransactionId(transactionId).ifPresent(history -> {
+            history.setStatus(status.toUpperCase());
+            history.setUpdatedAt(LocalDateTime.now());
+            repository.save(history);
+        });
+    }
+
     /* ------------------- READ ------------------- */
     public List<GpsBillingHistoryDto> getAllByUser(Long userId) {
         Long orgId = requireOrg("getAllByUser");
-        return repository.findByOrgIdAndUserIdOrderByCreatedAtDesc(orgId, userId).stream()
-                .map(this::toDto).collect(Collectors.toList());
+        return repository.findByOrgIdAndUserIdOrderByCreatedAtDesc(orgId, userId)
+                .stream().map(this::toDto).collect(Collectors.toList());
     }
 
     public List<GpsBillingHistoryDto> getAll() {
         Long orgId = requireOrg("getAll");
-        return repository.findByOrgIdOrderByCreatedAtDesc(orgId).stream()
-                .map(this::toDto).collect(Collectors.toList());
+        return repository.findByOrgIdOrderByCreatedAtDesc(orgId)
+                .stream().map(this::toDto).collect(Collectors.toList());
     }
 
     /* ------------------- PAY NOW ------------------- */
@@ -84,30 +85,27 @@ public class GpsBillingHistoryService {
         try {
             String customerVaultId = dto.getGpsCustomerVaultId();
             if (customerVaultId == null || customerVaultId.isBlank()) {
-                GpsBillingCard defaultCard = cardRepository.findFirstByUserIdAndOrgIdAndIsDefaultTrue(dto.getUserId(), orgId)
+                GpsBillingCard defaultCard = cardRepository
+                        .findFirstByUserIdAndOrgIdAndIsDefaultTrue(dto.getUserId(), orgId)
                         .orElseThrow(() -> new RuntimeException("No default GPS billing card found for user " + dto.getUserId()));
                 customerVaultId = defaultCard.getGpsCustomerVaultId();
             }
 
-            // Process payment with GPS
+            // Process payment (mock or real)
             String transactionId = processGpsPayment(gpsConfig, customerVaultId, dto.getAmount());
-            
-            if (transactionId == null || transactionId.isEmpty()) {
-                throw new RuntimeException("GPS payment processing failed");
-            }
+            if (transactionId == null) throw new RuntimeException("GPS payment failed");
 
-            // Create invoice record
+            // Create invoice
             InvoiceBill invoice = InvoiceBill.builder()
                     .orgId(orgId)
                     .userId(dto.getUserId())
                     .amount(dto.getAmount().doubleValue())
-                    .status(InvoiceStatus.PAID) // GPS payments are immediate
+                    .status(InvoiceStatus.PAID)
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
-                    .receiptUrl("gps-receipt-" + transactionId + ".pdf")
                     .externalId("GPS-INV-" + System.currentTimeMillis())
+                    .receiptUrl("gps-receipt-" + transactionId + ".pdf")
                     .build();
-
             invoice = invoiceRepository.save(invoice);
 
             GpsBillingHistory entity = GpsBillingHistory.builder()
@@ -122,14 +120,12 @@ public class GpsBillingHistoryService {
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
                     .build();
-
             return toDto(repository.save(entity));
 
         } catch (Exception e) {
             log.error("GPS payment failed: {}", e.getMessage(), e);
-            
-            // Record the failure
-            GpsBillingHistory failedEntity = GpsBillingHistory.builder()
+
+            GpsBillingHistory failed = GpsBillingHistory.builder()
                     .orgId(orgId)
                     .userId(dto.getUserId())
                     .gpsTransactionId("FAILED-" + System.currentTimeMillis())
@@ -140,49 +136,48 @@ public class GpsBillingHistoryService {
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
                     .build();
-            
-            repository.save(failedEntity);
+            repository.save(failed);
+
             throw new RuntimeException("GPS payment failed: " + e.getMessage(), e);
         }
     }
 
+    /* ------------------- PROCESS PAYMENT ------------------- */
     private String processGpsPayment(GpsConfig gpsConfig, String customerVaultId, BigDecimal amount) throws Exception {
+        // --- Mock success for local dev ---
+        if (customerVaultId != null && customerVaultId.startsWith("CUST")) {
+            log.info("Mock GPS payment for customerVaultId={} amount={}", customerVaultId, amount);
+            return "MOCK-TRX-" + System.currentTimeMillis();
+        }
+
+        // --- Otherwise call real GPS ---
         Map<String, String> params = new HashMap<>();
-        params.put("username", gpsConfig.getUsername());
-        params.put("password", gpsConfig.getPassword());
+        params.put("security_key", gpsConfig.getSecurityKey());
         params.put("type", "sale");
         params.put("customer_vault_id", customerVaultId);
         params.put("amount", amount.toString());
 
         String response = sendGpsRequest(gpsConfig.getTransactUrl(), params);
-        
-        // Parse response for transaction ID
+
         if (response.contains("response=1")) {
-            // Success - extract transaction ID
-            String[] parts = response.split("&");
-            for (String part : parts) {
+            for (String part : response.split("&")) {
                 if (part.startsWith("transactionid=")) {
                     return part.substring("transactionid=".length());
                 }
             }
         }
-        
-        log.error("GPS payment failed: {}", response);
         return null;
     }
 
     private String sendGpsRequest(String url, Map<String, String> params) throws Exception {
         StringBuilder postData = new StringBuilder();
         for (Map.Entry<String, String> entry : params.entrySet()) {
-            if (postData.length() > 0) {
-                postData.append('&');
-            }
+            if (postData.length() > 0) postData.append('&');
             postData.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8));
             postData.append('=');
             postData.append(URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8));
         }
 
-        @SuppressWarnings("deprecation")
         URL urlObj = new URL(url);
         HttpURLConnection connection = (HttpURLConnection) urlObj.openConnection();
         connection.setRequestMethod("POST");
@@ -200,18 +195,7 @@ public class GpsBillingHistoryService {
                 response.append(line);
             }
         }
-
         return response.toString();
-    }
-
-    /* ------------------- UPDATE STATUS ------------------- */
-    @Transactional
-    public void updateStatus(String transactionId, String status) {
-        repository.findByGpsTransactionId(transactionId).ifPresent(history -> {
-            history.setStatus(status.toUpperCase());
-            history.setUpdatedAt(LocalDateTime.now());
-            repository.save(history);
-        });
     }
 
     /* ------------------- MAPPER ------------------- */

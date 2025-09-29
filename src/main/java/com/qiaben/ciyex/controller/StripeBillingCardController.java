@@ -1,9 +1,9 @@
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
-import com.qiaben.ciyex.dto.GpsBillingCardDto;
+import com.qiaben.ciyex.dto.StripeBillingCardDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
-import com.qiaben.ciyex.service.GpsBillingCardService;
+import com.qiaben.ciyex.service.StripeBillingCardService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,11 +14,12 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/gps/cards")
+// Support both /api/stripe/cards and /api/stripe-billing-cards
+@RequestMapping({"/api/stripe/cards", "/api/stripe-billing-cards"})
 @RequiredArgsConstructor
-public class GpsBillingCardController {
+public class StripeBillingCardController {
 
-    private final GpsBillingCardService service;
+    private final StripeBillingCardService service;
 
     private Long getOrgIdOrThrow() {
         RequestContext ctx = RequestContext.get();
@@ -30,44 +31,44 @@ public class GpsBillingCardController {
 
     /* CREATE */
     @PostMapping
-    public ResponseEntity<ApiResponse<GpsBillingCardDto>> createCard(
-            @Valid @RequestBody GpsBillingCardDto dto) {
+    public ResponseEntity<ApiResponse<StripeBillingCardDto>> createCard(
+            @Valid @RequestBody StripeBillingCardDto dto) {
         try {
-            GpsBillingCardDto saved = service.create(dto, getOrgIdOrThrow());
-            return ResponseEntity.ok(ApiResponse.<GpsBillingCardDto>builder()
+            StripeBillingCardDto saved = service.create(dto, getOrgIdOrThrow());
+            return ResponseEntity.ok(ApiResponse.<StripeBillingCardDto>builder()
                     .success(true)
-                    .message("Card saved successfully")
+                    .message("Stripe card saved successfully")
                     .data(saved)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to create card", e);
-            return ResponseEntity.ok(ApiResponse.<GpsBillingCardDto>builder()
+            log.error("Failed to create stripe card", e);
+            return ResponseEntity.ok(ApiResponse.<StripeBillingCardDto>builder()
                     .success(false)
                     .message("Failed to save card: " + e.getMessage())
                     .build());
         }
     }
 
-    /* ALIAS for /api/gps/billing/tokenize */
+    /* ALIAS for /api/stripe/cards/billing/tokenize */
     @PostMapping("/billing/tokenize")
-    public ResponseEntity<ApiResponse<GpsBillingCardDto>> tokenize(
-            @Valid @RequestBody GpsBillingCardDto dto) {
+    public ResponseEntity<ApiResponse<StripeBillingCardDto>> tokenize(
+            @Valid @RequestBody StripeBillingCardDto dto) {
         return createCard(dto);
     }
 
     /* GET ALL */
     @GetMapping
-    public ResponseEntity<ApiResponse<List<GpsBillingCardDto>>> getAll() {
+    public ResponseEntity<ApiResponse<List<StripeBillingCardDto>>> getAll() {
         try {
-            List<GpsBillingCardDto> cards = service.getAll(getOrgIdOrThrow());
-            return ResponseEntity.ok(ApiResponse.<List<GpsBillingCardDto>>builder()
+            List<StripeBillingCardDto> cards = service.getAll(getOrgIdOrThrow());
+            return ResponseEntity.ok(ApiResponse.<List<StripeBillingCardDto>>builder()
                     .success(true)
-                    .message("Cards fetched successfully")
+                    .message("Stripe cards fetched successfully")
                     .data(cards)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to fetch cards", e);
-            return ResponseEntity.ok(ApiResponse.<List<GpsBillingCardDto>>builder()
+            log.error("Failed to fetch stripe cards", e);
+            return ResponseEntity.ok(ApiResponse.<List<StripeBillingCardDto>>builder()
                     .success(false)
                     .message("Failed to fetch cards: " + e.getMessage())
                     .build());
@@ -76,41 +77,41 @@ public class GpsBillingCardController {
 
     /* GET BY USER */
     @GetMapping("/user/{userId}")
-    public ResponseEntity<ApiResponse<List<GpsBillingCardDto>>> getByUser(
+    public ResponseEntity<ApiResponse<List<StripeBillingCardDto>>> getByUser(
             @PathVariable Long userId) {
         try {
-            List<GpsBillingCardDto> cards = service.getAllByUser(userId, getOrgIdOrThrow());
-            return ResponseEntity.ok(ApiResponse.<List<GpsBillingCardDto>>builder()
+            List<StripeBillingCardDto> cards = service.getAllByUser(userId, getOrgIdOrThrow());
+            return ResponseEntity.ok(ApiResponse.<List<StripeBillingCardDto>>builder()
                     .success(true)
-                    .message("User cards fetched successfully")
+                    .message("User stripe cards fetched successfully")
                     .data(cards)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to fetch user cards", e);
-            return ResponseEntity.ok(ApiResponse.<List<GpsBillingCardDto>>builder()
+            log.error("Failed to fetch user stripe cards", e);
+            return ResponseEntity.ok(ApiResponse.<List<StripeBillingCardDto>>builder()
                     .success(false)
-                    .message("Failed to fetch user cards: " + e.getMessage())
+                    .message("Failed to fetch user stripe cards: " + e.getMessage())
                     .build());
         }
     }
 
     /* GET BY ID */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<GpsBillingCardDto>> getById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<StripeBillingCardDto>> getById(@PathVariable Long id) {
         try {
             return service.getById(id, getOrgIdOrThrow())
-                    .map(dto -> ResponseEntity.ok(ApiResponse.<GpsBillingCardDto>builder()
+                    .map(dto -> ResponseEntity.ok(ApiResponse.<StripeBillingCardDto>builder()
                             .success(true)
-                            .message("Card found")
+                            .message("Stripe card found")
                             .data(dto)
                             .build()))
-                    .orElse(ResponseEntity.ok(ApiResponse.<GpsBillingCardDto>builder()
+                    .orElse(ResponseEntity.ok(ApiResponse.<StripeBillingCardDto>builder()
                             .success(false)
                             .message("Card not found with id: " + id)
                             .build()));
         } catch (Exception e) {
-            log.error("Failed to get card", e);
-            return ResponseEntity.ok(ApiResponse.<GpsBillingCardDto>builder()
+            log.error("Failed to get stripe card", e);
+            return ResponseEntity.ok(ApiResponse.<StripeBillingCardDto>builder()
                     .success(false)
                     .message("Failed to get card: " + e.getMessage())
                     .build());
@@ -119,19 +120,19 @@ public class GpsBillingCardController {
 
     /* UPDATE */
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<GpsBillingCardDto>> updateCard(
+    public ResponseEntity<ApiResponse<StripeBillingCardDto>> updateCard(
             @PathVariable Long id,
-            @Valid @RequestBody GpsBillingCardDto dto) {
+            @Valid @RequestBody StripeBillingCardDto dto) {
         try {
-            GpsBillingCardDto updated = service.update(id, dto, getOrgIdOrThrow());
-            return ResponseEntity.ok(ApiResponse.<GpsBillingCardDto>builder()
+            StripeBillingCardDto updated = service.update(id, dto, getOrgIdOrThrow());
+            return ResponseEntity.ok(ApiResponse.<StripeBillingCardDto>builder()
                     .success(true)
-                    .message("Card updated successfully")
+                    .message("Stripe card updated successfully")
                     .data(updated)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to update card", e);
-            return ResponseEntity.ok(ApiResponse.<GpsBillingCardDto>builder()
+            log.error("Failed to update stripe card", e);
+            return ResponseEntity.ok(ApiResponse.<StripeBillingCardDto>builder()
                     .success(false)
                     .message("Failed to update card: " + e.getMessage())
                     .build());
@@ -145,10 +146,10 @@ public class GpsBillingCardController {
             service.delete(id, getOrgIdOrThrow());
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)
-                    .message("Card deleted successfully")
+                    .message("Stripe card deleted successfully")
                     .build());
         } catch (Exception e) {
-            log.error("Failed to delete card", e);
+            log.error("Failed to delete stripe card", e);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(false)
                     .message("Failed to delete card: " + e.getMessage())
@@ -158,17 +159,17 @@ public class GpsBillingCardController {
 
     /* SET DEFAULT */
     @PostMapping("/{id}/default")
-    public ResponseEntity<ApiResponse<GpsBillingCardDto>> setDefaultCard(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<StripeBillingCardDto>> setDefaultCard(@PathVariable Long id) {
         try {
-            GpsBillingCardDto updated = service.setDefault(id, getOrgIdOrThrow());
-            return ResponseEntity.ok(ApiResponse.<GpsBillingCardDto>builder()
+            StripeBillingCardDto updated = service.setDefault(id, getOrgIdOrThrow());
+            return ResponseEntity.ok(ApiResponse.<StripeBillingCardDto>builder()
                     .success(true)
-                    .message("Default card updated successfully")
+                    .message("Default stripe card updated successfully")
                     .data(updated)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to set default card", e);
-            return ResponseEntity.ok(ApiResponse.<GpsBillingCardDto>builder()
+            log.error("Failed to set default stripe card", e);
+            return ResponseEntity.ok(ApiResponse.<StripeBillingCardDto>builder()
                     .success(false)
                     .message("Failed to set default card: " + e.getMessage())
                     .build());
