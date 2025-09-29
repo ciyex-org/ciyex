@@ -4,6 +4,7 @@ public enum IntegrationKey {
     PRACTICE_DB("practice_db", PracticeDbConfig.class),
     FHIR("fhir", FhirConfig.class),
     STRIPE("stripe", StripeConfig.class),
+    GPS("gps", GpsConfig.class),
     SPHERE("sphere", SphereConfig.class),
     TWILIO("twilio", TwilioConfig.class),
     SMTP("smtp", SmtpConfig.class),

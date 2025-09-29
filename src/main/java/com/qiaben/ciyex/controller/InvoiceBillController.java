@@ -3,6 +3,7 @@ package com.qiaben.ciyex.controller;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.InvoiceBillDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.entity.InvoiceStatus;
 import com.qiaben.ciyex.service.InvoiceBillService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +21,7 @@ public class InvoiceBillController {
     @PostMapping
     public ResponseEntity<ApiResponse<InvoiceBillDto>> create(
             @RequestBody InvoiceBillDto dto,
-            @RequestHeader("x-org-id") Long orgId) {
+            @RequestHeader("X-Org-Id") Long orgId) {
         return withContext(orgId, () ->
                 ApiResponse.<InvoiceBillDto>builder()
                         .success(true)
@@ -32,12 +33,31 @@ public class InvoiceBillController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<InvoiceBillDto>>> getAll(
-            @RequestHeader("x-org-id") Long orgId) {
+            @RequestHeader("X-Org-Id") Long orgId,
+            @RequestParam(value = "status", required = false) String status) {
+        return withContext(orgId, () -> {
+            List<InvoiceBillDto> invoices;
+            if (status != null) {
+                invoices = service.getByStatus(orgId, InvoiceStatus.valueOf(status.toUpperCase()));
+            } else {
+                invoices = service.getAllByOrg(orgId);
+            }
+            return ApiResponse.<List<InvoiceBillDto>>builder()
+                    .success(true)
+                    .message("Invoices retrieved")
+                    .data(invoices)
+                    .build();
+        });
+    }
+
+    @GetMapping("/history")
+    public ResponseEntity<ApiResponse<List<InvoiceBillDto>>> getBillingHistory(
+            @RequestHeader("X-Org-Id") Long orgId) {
         return withContext(orgId, () ->
                 ApiResponse.<List<InvoiceBillDto>>builder()
                         .success(true)
-                        .message("Invoices retrieved")
-                        .data(service.getAllInvoices())
+                        .message("Billing history retrieved")
+                        .data(service.getByStatus(orgId, InvoiceStatus.PAID))
                         .build()
         );
     }
@@ -45,7 +65,7 @@ public class InvoiceBillController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<InvoiceBillDto>> getById(
             @PathVariable Long id,
-            @RequestHeader("x-org-id") Long orgId) {
+            @RequestHeader("X-Org-Id") Long orgId) {
         return withContext(orgId, () ->
                 ApiResponse.<InvoiceBillDto>builder()
                         .success(true)
@@ -59,7 +79,7 @@ public class InvoiceBillController {
     public ResponseEntity<ApiResponse<InvoiceBillDto>> update(
             @PathVariable Long id,
             @RequestBody InvoiceBillDto dto,
-            @RequestHeader("x-org-id") Long orgId) {
+            @RequestHeader("X-Org-Id") Long orgId) {
         return withContext(orgId, () ->
                 ApiResponse.<InvoiceBillDto>builder()
                         .success(true)
@@ -72,7 +92,7 @@ public class InvoiceBillController {
     @PutMapping("/{id}/pay")
     public ResponseEntity<ApiResponse<InvoiceBillDto>> pay(
             @PathVariable Long id,
-            @RequestHeader("x-org-id") Long orgId) {
+            @RequestHeader("X-Org-Id") Long orgId) {
         return withContext(orgId, () ->
                 ApiResponse.<InvoiceBillDto>builder()
                         .success(true)
@@ -85,7 +105,7 @@ public class InvoiceBillController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long id,
-            @RequestHeader("x-org-id") Long orgId) {
+            @RequestHeader("X-Org-Id") Long orgId) {
         return withContext(orgId, () -> {
             service.deleteInvoice(id);
             return ApiResponse.<Void>builder()
@@ -95,7 +115,7 @@ public class InvoiceBillController {
         });
     }
 
-    /* ---------- Utility wrapper to avoid repetition ---------- */
+    /* ---------- Utility wrapper ---------- */
     private <T> ResponseEntity<T> withContext(Long orgId, java.util.concurrent.Callable<T> action) {
         RequestContext ctx = new RequestContext();
         ctx.setOrgId(orgId);

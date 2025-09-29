@@ -7,7 +7,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "org_config")
+@Table(name = "org_config",schema = "practice_2")
 @Data
 public class OrgConfig {
 
