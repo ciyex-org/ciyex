@@ -173,6 +173,56 @@ public class OrgService {
         return mapToDto(org);
     }
 
+    /**
+     * Update only the status of an organization.
+     * Accepts status values: "ACTIVE" or "INACTIVE".
+     */
+    @Transactional
+    public OrgDto updateStatus(Long id, String status) {
+        Long currentOrgId = getCurrentOrgId();
+        if (currentOrgId == null) {
+            throw new SecurityException("No orgId available in request context");
+        }
+
+        Org org = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Org not found with id: " + id));
+        if (!currentOrgId.equals(org.getId())) {
+            throw new SecurityException("Access denied: Org id " + id + " does not belong to orgId " + currentOrgId);
+        }
+
+        // Validate and set status
+        Org.OrgStatus newStatus;
+        try {
+            newStatus = Org.OrgStatus.valueOf(status.trim().toUpperCase());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid status value: " + status);
+        }
+        org.setStatus(newStatus);
+
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        if (storageType != null) {
+            ExternalStorage<OrgDto> externalStorage = storageResolver.resolve(OrgDto.class);
+            OrgDto dto = mapToDto(org);
+            try {
+                if (org.getFhirId() != null) {
+                    externalStorage.update(dto, org.getFhirId());
+                    log.info("Updated external storage with status for org id: {} and externalId: {}", org.getId(), org.getFhirId());
+                } else {
+                    // Create external record if missing
+                    String externalId = externalStorage.create(dto);
+                    org.setFhirId(externalId);
+                    log.info("Created external record for org id: {} with externalId: {}", org.getId(), externalId);
+                }
+            } catch (Exception e) {
+                log.error("Failed to sync status change to external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
+                throw new RuntimeException("Failed to sync with external storage", e);
+            }
+        }
+
+        org = repository.save(org);
+        return mapToDto(org);
+    }
+
     @Transactional
     public void delete(Long id) {
         // Authorization check: Ensure the requested id belongs to the current orgId
@@ -249,14 +299,25 @@ public class OrgService {
 
 
     private Org mapToEntity(OrgDto dto) {
-        return Org.builder()
+        Org.OrgBuilder builder = Org.builder()
                 .orgName(dto.getOrgName())
                 .address(dto.getAddress())
                 .city(dto.getCity())
                 .state(dto.getState())
                 .postalCode(dto.getPostalCode())
-                .country(dto.getCountry())
-                .build();
+                .country(dto.getCountry());
+
+        // Only set status on the builder if provided in DTO. If not provided, Lombok's @Builder.Default
+        // on the entity will apply and default to ACTIVE.
+        if (dto.getStatus() != null) {
+            try {
+                builder.status(Org.OrgStatus.valueOf(dto.getStatus()));
+            } catch (IllegalArgumentException ignored) {
+                // Ignore invalid values - let entity default apply
+            }
+        }
+
+        return builder.build();
     }
 
     private OrgDto mapToDto(Org org) {
@@ -269,6 +330,7 @@ public class OrgService {
         dto.setPostalCode(org.getPostalCode());
         dto.setCountry(org.getCountry());
         dto.setFhirId(org.getFhirId());
+        dto.setStatus(org.getStatus() != null ? org.getStatus().name() : null);
         return dto;
     }
 
@@ -279,6 +341,13 @@ public class OrgService {
         if (dto.getState() != null) org.setState(dto.getState());
         if (dto.getPostalCode() != null) org.setPostalCode(dto.getPostalCode());
         if (dto.getCountry() != null) org.setCountry(dto.getCountry());
+        if (dto.getStatus() != null) {
+            try {
+                org.setStatus(Org.OrgStatus.valueOf(dto.getStatus()));
+            } catch (IllegalArgumentException e) {
+                // ignore invalid status values or could throw a validation exception
+            }
+        }
     }
 
     private void updateEntityFromSynced(Org org, OrgDto synced) {
