@@ -132,6 +132,16 @@ public class OrgController {
                         .build());
     }
 
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<ApiResponse<OrgDto>> handleSecurityException(SecurityException ex) {
+    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+        .body(ApiResponse.<OrgDto>builder()
+            .success(false)
+            .message(ex.getMessage())
+            .data(null)
+            .build());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<OrgDto>> handleGenericException(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

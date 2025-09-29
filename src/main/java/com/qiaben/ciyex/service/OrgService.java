@@ -180,14 +180,21 @@ public class OrgService {
     @Transactional
     public OrgDto updateStatus(Long id, String status) {
         Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
+        String currentRole = RequestContext.get() != null ? RequestContext.get().getRole() : null;
+
+        // If no orgId provided in context, only allow SUPER_ADMIN to proceed
+        if (currentOrgId == null && (currentRole == null || !"SUPER_ADMIN".equalsIgnoreCase(currentRole))) {
             throw new SecurityException("No orgId available in request context");
         }
 
         Org org = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Org not found with id: " + id));
-        if (!currentOrgId.equals(org.getId())) {
-            throw new SecurityException("Access denied: Org id " + id + " does not belong to orgId " + currentOrgId);
+
+        // If caller is not SUPER_ADMIN, enforce that the org belongs to the caller's orgId
+        if (currentRole == null || !"SUPER_ADMIN".equalsIgnoreCase(currentRole)) {
+            if (!currentOrgId.equals(org.getId())) {
+                throw new SecurityException("Access denied: Org id " + id + " does not belong to orgId " + currentOrgId);
+            }
         }
 
         // Validate and set status
