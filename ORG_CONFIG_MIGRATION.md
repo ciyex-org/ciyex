@@ -35,10 +35,10 @@ Previously, the `org_config` table was created in each tenant schema (`practice_
 ### New Migration Components
 
 1. **Master Migration Scripts**
-   - `db/migration/master/base/V2__move_org_config_to_master.sql`
+   - `db/migration/master/base/V5__move_org_config_to_master.sql`
    - `db/migration/master/local/V3__move_org_config_to_master.sql` 
-   - `db/migration/master/stg/V2__move_org_config_to_master.sql`
-   - `db/migration/master/prod/V2__move_org_config_to_master.sql`
+   - `db/migration/master/stg/V5__move_org_config_to_master.sql`
+   - `db/migration/master/prod/V5__move_org_config_to_master.sql`
    - Creates org_config table in master schema and migrates data from tenant schemas
 
 2. **Tenant Migration Scripts**
@@ -62,7 +62,7 @@ No manual intervention is required - just deploy the application with the new mi
 
 ### Migration Order
 
-1. **V2__move_org_config_to_master.sql** (Master Schema)
+1. **V5__move_org_config_to_master.sql** (Master Schema)
    - Creates org_config table in public schema
    - Migrates all existing data from tenant schemas
    - Handles JSONB column type conversion
@@ -75,7 +75,7 @@ No manual intervention is required - just deploy the application with the new mi
 
 ### Migration Steps (What Happens)
 
-1. **Master Migration (V2__move_org_config_to_master.sql)**:
+1. **Master Migration (V5__move_org_config_to_master.sql)**:
    - Creates `org_config` table in public schema if not exists
    - Scans all tenant schemas (`practice_*`) for existing org_config data
    - Migrates data safely with conflict handling (ON CONFLICT DO NOTHING)

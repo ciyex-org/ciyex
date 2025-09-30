@@ -10,6 +10,9 @@ import com.qiaben.ciyex.entity.OrgConfig;
 import com.qiaben.ciyex.repository.OrgConfigRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.Statement;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -27,21 +30,47 @@ public class OrgIntegrationConfigProvider {
     @PersistenceContext
     private EntityManager entityManager;
 
+    private final DataSource dataSource;
+
     @Autowired
-    public OrgIntegrationConfigProvider(ObjectMapper objectMapper, OrgConfigRepository orgConfigRepository) {
+    public OrgIntegrationConfigProvider(ObjectMapper objectMapper, OrgConfigRepository orgConfigRepository, DataSource dataSource) {
         this.objectMapper = objectMapper;
         this.orgConfigRepository = orgConfigRepository;
+        this.dataSource = dataSource;
     }
 
     /**
      * Ensures we're in the master schema (public) before executing OrgConfig operations
      */
-    private void ensureMasterSchema() {
+    private void ensureTenantSchema(Long orgId) {
+        if (orgId == null) return;
+        String schemaName = "practice_" + orgId;
+        if (dataSource != null) {
+            try (Connection conn = dataSource.getConnection(); Statement stmt = conn.createStatement()) {
+                stmt.execute("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public");
+                log.debug("Set search_path to {} via DataSource for OrgIntegrationConfigProvider", schemaName);
+                return;
+            } catch (Exception e) {
+                log.warn("Failed to set search_path via DataSource for {}: {}", schemaName, e.getMessage());
+            }
+        }
+
         try {
-            entityManager.createNativeQuery("SET search_path TO public").executeUpdate();
-            log.debug("Set schema to public for OrgConfig operations");
+            entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public").executeUpdate();
+            log.debug("Set search_path to {} via EntityManager (fallback)", schemaName);
         } catch (Exception e) {
-            log.warn("Failed to set schema to public for OrgConfig operations: {}", e.getMessage());
+            log.warn("Failed to set schema to {} for OrgIntegrationConfigProvider: {}", schemaName, e.getMessage());
+        }
+    }
+
+    private void ensureTenantSchemaFromContext() {
+        try {
+            RequestContext ctx = RequestContext.get();
+            if (ctx != null && ctx.getOrgId() != null) {
+                ensureTenantSchema(ctx.getOrgId());
+            }
+        } catch (Exception e) {
+            log.debug("No RequestContext available to set tenant schema: {}", e.getMessage());
         }
     }
 
@@ -49,8 +78,8 @@ public class OrgIntegrationConfigProvider {
     @SuppressWarnings("unchecked")
     @Transactional
     public <T> T get(Long orgId, IntegrationKey integrationKey) {
-        // Ensure we're in the master schema to access OrgConfig table
-        ensureMasterSchema();
+    // Ensure we're in the tenant schema for this org
+    ensureTenantSchema(orgId);
         
         // Ensure RequestContext carries the target orgId for the duration of the lookup
         RequestContext previousContext = RequestContext.get();
@@ -106,8 +135,8 @@ public class OrgIntegrationConfigProvider {
 
     @Transactional
     public String getStorageType(Long orgId) {
-        // Ensure we're in the master schema to access OrgConfig table
-        ensureMasterSchema();
+    // Ensure we're in the tenant schema for this org
+    ensureTenantSchema(orgId);
         
         // Ensure RequestContext carries the target orgId for the duration of the lookup
         RequestContext previousContext = RequestContext.get();
@@ -162,8 +191,8 @@ public class OrgIntegrationConfigProvider {
     /** ✅ NEW: Helper for S3 Document Storage */
     @Transactional
     public S3Config getS3DocumentStorage(Long orgId) {
-        // Ensure we're in the master schema to access OrgConfig table
-        ensureMasterSchema();
+    // Ensure we're in the tenant schema for this org
+    ensureTenantSchema(orgId);
         
         // Ensure RequestContext carries the target orgId for the duration of the lookup
         RequestContext previousContext = RequestContext.get();

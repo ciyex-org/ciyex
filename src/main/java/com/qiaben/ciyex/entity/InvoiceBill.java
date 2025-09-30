@@ -5,7 +5,8 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "invoice_bills", schema = "practice_1")
+// Do not hard-code tenant schema here; the app controls search_path at runtime
+@Table(name = "invoice_bills")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

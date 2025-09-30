@@ -35,10 +35,10 @@ This document summarizes all changes made to move the `org_config` table from te
 
 5. **Flyway Migration Scripts** *(NEW)*
    - **Master Schema Migrations**:
-     - `db/migration/master/base/V2__move_org_config_to_master.sql`
+     - `db/migration/master/base/V5__move_org_config_to_master.sql`
      - `db/migration/master/local/V3__move_org_config_to_master.sql`
-     - `db/migration/master/stg/V2__move_org_config_to_master.sql` 
-     - `db/migration/master/prod/V2__move_org_config_to_master.sql`
+     - `db/migration/master/stg/V5__move_org_config_to_master.sql` 
+     - `db/migration/master/prod/V5__move_org_config_to_master.sql`
    - **Tenant Schema Migrations**:
      - `db/migration/tenant/base/V2__drop_org_config_from_tenant.sql`
      - `db/migration/tenant/local/V3__drop_org_config_from_tenant.sql`
@@ -81,7 +81,7 @@ The migration scripts are version-controlled and will run automatically when the
 
 ### Migration Order
 
-1. **Master Schema**: V2__move_org_config_to_master.sql runs first
+1. **Master Schema**: V5__move_org_config_to_master.sql runs first
 2. **Tenant Schemas**: V2__drop_org_config_from_tenant.sql runs for each tenant schema
 3. **Result**: All data moved to master schema, tenant tables cleaned up
 

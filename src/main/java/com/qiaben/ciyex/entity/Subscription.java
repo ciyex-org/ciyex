@@ -4,7 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "subscriptions",schema = "practice_1")
+// Do not hard-code tenant schema; rely on search_path
+@Table(name = "subscriptions")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
