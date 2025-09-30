@@ -8,6 +8,9 @@ import com.qiaben.ciyex.dto.integration.StripeConfig;
 import com.qiaben.ciyex.dto.integration.GpsConfig;   // ✅ Added import
 import com.qiaben.ciyex.entity.OrgConfig;
 import com.qiaben.ciyex.repository.OrgConfigRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,10 +18,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Objects;
 
 @Component
+@Slf4j
 public class OrgIntegrationConfigProvider {
 
     private final ObjectMapper objectMapper;
     private final OrgConfigRepository orgConfigRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Autowired
     public OrgIntegrationConfigProvider(ObjectMapper objectMapper, OrgConfigRepository orgConfigRepository) {
@@ -26,10 +33,25 @@ public class OrgIntegrationConfigProvider {
         this.orgConfigRepository = orgConfigRepository;
     }
 
+    /**
+     * Ensures we're in the master schema (public) before executing OrgConfig operations
+     */
+    private void ensureMasterSchema() {
+        try {
+            entityManager.createNativeQuery("SET search_path TO public").executeUpdate();
+            log.debug("Set schema to public for OrgConfig operations");
+        } catch (Exception e) {
+            log.warn("Failed to set schema to public for OrgConfig operations: {}", e.getMessage());
+        }
+    }
+
     // Core method: Always use IntegrationKey (which knows both key and class)
     @SuppressWarnings("unchecked")
     @Transactional
     public <T> T get(Long orgId, IntegrationKey integrationKey) {
+        // Ensure we're in the master schema to access OrgConfig table
+        ensureMasterSchema();
+        
         // Ensure RequestContext carries the target orgId for the duration of the lookup
         RequestContext previousContext = RequestContext.get();
         boolean contextAdjusted = false;
@@ -84,6 +106,9 @@ public class OrgIntegrationConfigProvider {
 
     @Transactional
     public String getStorageType(Long orgId) {
+        // Ensure we're in the master schema to access OrgConfig table
+        ensureMasterSchema();
+        
         // Ensure RequestContext carries the target orgId for the duration of the lookup
         RequestContext previousContext = RequestContext.get();
         boolean contextAdjusted = false;
@@ -137,6 +162,9 @@ public class OrgIntegrationConfigProvider {
     /** ✅ NEW: Helper for S3 Document Storage */
     @Transactional
     public S3Config getS3DocumentStorage(Long orgId) {
+        // Ensure we're in the master schema to access OrgConfig table
+        ensureMasterSchema();
+        
         // Ensure RequestContext carries the target orgId for the duration of the lookup
         RequestContext previousContext = RequestContext.get();
         boolean contextAdjusted = false;

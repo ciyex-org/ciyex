@@ -83,3 +83,7 @@ ciyex-ui/yarn.lock
 node_modules
 .next
 .clerk
+.vscode/tasks.json
+.vscode/launch.json
+
+/.vscode/
