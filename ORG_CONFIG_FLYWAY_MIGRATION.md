@@ -7,10 +7,10 @@ The `org_config` table migration from tenant schemas to master schema has been i
 ## 🗂️ **Migration Files Created**
 
 ### Master Schema Migrations (Creates table and migrates data)
-- `db/migration/master/base/V2__move_org_config_to_master.sql`
+- `db/migration/master/base/V5__move_org_config_to_master.sql`
 - `db/migration/master/local/V3__move_org_config_to_master.sql`
-- `db/migration/master/stg/V2__move_org_config_to_master.sql`  
-- `db/migration/master/prod/V2__move_org_config_to_master.sql`
+- `db/migration/master/stg/V5__move_org_config_to_master.sql`  
+- `db/migration/master/prod/V5__move_org_config_to_master.sql`
 
 ### Tenant Schema Migrations (Drops table from tenants)
 - `db/migration/tenant/base/V2__drop_org_config_from_tenant.sql`

@@ -107,10 +107,22 @@ public class AutoSchemaAspect {
                     log.debug("CREATE SCHEMA for {} failed on separate connection: {}", schemaName, ignore.getMessage());
                 }
 
-                // Set search_path to tenant schema first, then public as fallback
-                entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public").executeUpdate();
+                // Set search_path to tenant schema first, then public as fallback using a
+                // separate autocommit connection so it does not participate in the caller's transaction.
+                try (Connection conn2 = dataSource.getConnection(); Statement stmt2 = conn2.createStatement()) {
+                    stmt2.execute("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public");
+                } catch (Exception ex) {
+                    log.warn("Failed to set search_path via separate connection for {}: {}", schemaName, ex.getMessage());
+                    // Fall back to EntityManager if necessary
+                    entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public").executeUpdate();
+                }
             } else {
-                entityManager.createNativeQuery("SET search_path TO public").executeUpdate();
+                try (Connection conn2 = dataSource.getConnection(); Statement stmt2 = conn2.createStatement()) {
+                    stmt2.execute("SET search_path TO public");
+                } catch (Exception ex) {
+                    log.warn("Failed to set search_path to public via separate connection: {}", ex.getMessage());
+                    entityManager.createNativeQuery("SET search_path TO public").executeUpdate();
+                }
             }
 
             entityManager.flush(); // Ensure the schema change is applied
