@@ -19,9 +19,6 @@ public class AdminTemplate {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
-
     // templateId removed: IDs are now managed by the database `id` column
 
     @Column(name = "locations", nullable = false)

@@ -8,7 +8,6 @@ import java.time.LocalDateTime;
 public class AdminTemplateDto {
 
     private Long id;
-    private Long orgId;
     private String locations;
     private String practiceType;
     private Audit audit;
