@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
+// Rely on runtime search_path rather than embedding tenant schema
 @Table(name = "payment_orders")
 @Getter
 @Setter

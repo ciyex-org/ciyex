@@ -39,6 +39,11 @@ logging:
 
 ciyex:
   env: ${CIYEX_ENV:local}
+  # Controls whether tenant schemas are automatically initialized at application startup.
+  # Set to false to disable automatic tenant schema creation/migration (useful for running
+  # migrations manually or when using external provisioning).
+  tenant:
+    auto-init: ${CIYEX_TENANT_AUTO_INIT:false}
   
   # ONC-Compliant Audit Configuration
   audit:

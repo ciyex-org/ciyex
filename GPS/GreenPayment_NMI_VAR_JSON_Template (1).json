@@ -1,0 +1,91 @@
+{
+  "merchant": {
+    "legal_name": "",
+    "dba": "",
+    "descriptor": "",
+    "mid": "",
+    "mcc": "",
+    "address": {
+      "street": "",
+      "city": "",
+      "state": "",
+      "postal": "",
+      "country": "US"
+    },
+    "phone": "",
+    "website": "",
+    "timezone": {
+      "code": "",
+      "offset_minutes": 0
+    },
+    "location_number": "000001",
+    "currency_code": "840"
+  },
+  "hierarchy": {
+    "bin": "",
+    "agent": "",
+    "chain": "",
+    "store": "",
+    "terminal": ""
+  },
+  "industry": {
+    "retail": false,
+    "restaurant": false,
+    "qsr": false,
+    "lodging": false,
+    "direct_marketing": true
+  },
+  "acceptance": {
+    "brands": {
+      "visa": true,
+      "mastercard": true,
+      "amex": true,
+      "discover": true,
+      "jcb": false,
+      "debit": true,
+      "hsa_fsa": true
+    },
+    "entry_modes": {
+      "card_present": false,
+      "card_not_present": true
+    },
+    "recurring": true,
+    "level_2_3": true
+  },
+  "nmi": {
+    "username": "",
+    "security_key": "",
+    "collectjs_public_key": "",
+    "transact_url": "https://secure.nmi.com/api/transact.php",
+    "webhook_url": ""
+  },
+  "risk": {
+    "avs_policy": "reject_avs_nz",
+    "cvv_policy": "reject_cvv_n",
+    "velocity": {
+      "per_hour": 0,
+      "per_day": 0
+    },
+    "international": "allow_us_only",
+    "three_ds": true
+  },
+  "settlement": {
+    "cutoff": "23:00",
+    "funding": "next_day",
+    "partial_approvals": false,
+    "tips": false,
+    "fiid": "",
+    "merchant_aba": "",
+    "reimbursement_attribute": "",
+    "cashback": false
+  },
+  "ebt": {
+    "fcs_id": "",
+    "enabled": false
+  },
+  "host_capture": {
+    "participant": false,
+    "auto_close_times": []
+  },
+  "notes": ""
+}

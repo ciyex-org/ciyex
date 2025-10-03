@@ -13,6 +13,7 @@ import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
+import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import javax.sql.DataSource;
@@ -21,6 +22,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -43,8 +46,36 @@ public class TenantSchemaInitializer {
     @Autowired
     private Environment env;
     
+    // Feature flag to disable automatic tenant initialization (useful for dev/testing)
+    private boolean tenantAutoInitEnabled;
+    
     // Cache to track initialized schemas
     private final ConcurrentHashMap<Long, Boolean> initializedSchemas = new ConcurrentHashMap<>();
+    // Per-tenant locks to prevent concurrent initialization for the same org
+    private final ConcurrentHashMap<Long, Object> tenantLocks = new ConcurrentHashMap<>();
+    // Global semaphore to limit concurrent heavy tenant initialization work
+    // Allows configuring concurrency via TENANT_INIT_CONCURRENCY env var (default 3)
+    private Semaphore initSemaphore;
+
+    @PostConstruct
+    public void init() {
+        int concurrency = 3;
+        try {
+            String v = env.getProperty("TENANT_INIT_CONCURRENCY");
+            if (v != null && !v.isBlank()) concurrency = Integer.parseInt(v);
+        } catch (Exception ignore) {}
+        initSemaphore = new Semaphore(Math.max(1, concurrency));
+
+        // default true unless explicitly set via environment property ciyex.tenant.auto-init
+        boolean enabled = true;
+        try {
+            String prop = env.getProperty("ciyex.tenant.auto-init");
+            if (prop != null && (prop.equalsIgnoreCase("false") || prop.equals("0"))) {
+                enabled = false;
+            }
+        } catch (Exception ignore) {}
+        this.tenantAutoInitEnabled = enabled;
+    }
     
     // Test method to initialize a tenant schema for testing purposes
     @Transactional
@@ -77,42 +108,83 @@ public class TenantSchemaInitializer {
         }
     }
     
+    @Transactional
     public void initializeTenantSchema(Long orgId) {
         if (orgId == null) {
+            return;
+        }
+
+        if (!tenantAutoInitEnabled) {
+            log.info("Automatic tenant schema initialization is disabled (ciyex.tenant.auto-init=false). Skipping init for orgId={}", orgId);
             return;
         }
 
         String schemaName = "practice_" + orgId;
 
         log.debug("initializeTenantSchema called for orgId: {} schema: {}", orgId, schemaName);
-
-        if (initializedSchemas.containsKey(orgId)) {
-            log.debug("Tenant schema already initialized for orgId: {}. Running pending Flyway migrations.", orgId);
-            tenantFlywayMigrator.migrate(schemaName, orgId);
-            return;
-        }
-        
+        // Limit overall concurrency for heavy tenant initialization work to avoid exhausting DB connections
+        boolean permitAcquired = false;
         try {
-            // Create schema if it doesn't exist
-            createSchemaIfNotExists(schemaName);
-            
-            // Create all tenant tables using Hibernate metadata
-            createTenantTablesFromEntities(schemaName);
+            permitAcquired = initSemaphore.tryAcquire(30, TimeUnit.SECONDS);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
 
-            // Ensure that if some tables are missing (schema existed previously) we create any missing ones
-            // This helps when entity set changed between deployments — compare and create missing tables
-            ensureTenantTablesExist(orgId);
+        if (!permitAcquired) {
+            String msg = "Could not acquire tenant initialization permit within timeout - pool may be busy";
+            log.warn(msg + " for orgId: {}", orgId);
+            throw new RuntimeException(msg);
+        }
 
-            // Apply tenant-specific Flyway migrations after tables exist
-            tenantFlywayMigrator.migrate(schemaName, orgId);
-            
-            // Mark as initialized
-            initializedSchemas.put(orgId, true);
-            
-            log.info("Successfully initialized tenant schema with all application tables: {}", schemaName);
-        } catch (Exception e) {
-            log.error("Failed to initialize tenant schema: {}", schemaName, e);
-            throw new RuntimeException("Failed to initialize tenant schema: " + schemaName, e);
+        // Use a per-tenant lock so only one thread initializes a given tenant at a time.
+        Object lock = tenantLocks.computeIfAbsent(orgId, k -> new Object());
+        try {
+            synchronized (lock) {
+                // Double-check after acquiring the lock
+                if (initializedSchemas.containsKey(orgId)) {
+                    log.debug("Tenant schema already initialized for orgId: {}. Running pending Flyway migrations.", orgId);
+                    try {
+                        tenantFlywayMigrator.migrate(schemaName, orgId);
+                    } catch (Exception e) {
+                        log.warn("Flyway migrate failed while post-check for {}: {}", schemaName, e.getMessage());
+                    }
+                    return;
+                }
+
+                try {
+                    // Create schema if it doesn't exist
+                    createSchemaIfNotExists(schemaName);
+
+                    // Create all tenant tables using Hibernate metadata
+                    createTenantTablesFromEntities(schemaName);
+
+                    // Ensure that if some tables are missing (schema existed previously) we create any missing ones
+                    // This helps when entity set changed between deployments — compare and create missing tables
+                    ensureTenantTablesExist(orgId);
+
+                    // Apply tenant-specific Flyway migrations after tables exist
+                    tenantFlywayMigrator.migrate(schemaName, orgId);
+
+                    // Mark as initialized
+                    initializedSchemas.put(orgId, true);
+
+                    log.info("Successfully initialized tenant schema with all application tables: {}", schemaName);
+                } catch (Exception e) {
+                    // Detect common Hikari connection pool exhaust situation and provide extra context in logs
+                    String msg = e.getMessage() != null ? e.getMessage() : "";
+                    if (msg.contains("HikariPool") || msg.contains("Connection is not available")) {
+                        log.error("Hikari pool timeout while initializing schema {}. Consider increasing Hikari pool size or avoiding concurrent initializations.", schemaName);
+                    }
+                    log.error("Failed to initialize tenant schema: {}", schemaName, e);
+                    throw new RuntimeException("Failed to initialize tenant schema: " + schemaName, e);
+                } finally {
+                    // remove lock to avoid memory leak (only remove if this object is still mapped to this key)
+                    tenantLocks.remove(orgId);
+                }
+            }
+        } finally {
+            // Always release the semaphore permit
+            initSemaphore.release();
         }
     }
 
@@ -124,7 +196,7 @@ public class TenantSchemaInitializer {
         try {
             // Use only the tenant schema in search_path
             entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName)).executeUpdate();
-            ensureJsonbColumn(schemaName, "org_config", "integrations");
+            // Note: OrgConfig is now in master schema, no JSONB column handling needed here
             tenantFlywayMigrator.migrate(schemaName, orgId);
         } catch (Exception e) {
             log.warn("Tenant migration failed for schema {}: {}", schemaName, e.getMessage());
@@ -156,8 +228,7 @@ public class TenantSchemaInitializer {
                 createAllTenantTablesWithHibernate(tenantEntities, schemaName);
             }
             
-            // Ensure known JSON columns use JSONB type (avoid 255-char limit)
-            ensureJsonbColumn(schemaName, "org_config", "integrations");
+            // Note: OrgConfig is now in master schema, no longer needed in tenant schema
 
             log.info("Created all tenant tables from JPA entities in schema: {}", schemaName);
             
@@ -214,7 +285,7 @@ public class TenantSchemaInitializer {
             .applySetting("hibernate.connection.password", dbPass)
                     .applySetting("hibernate.connection.driver_class", "org.postgresql.Driver")
                     .applySetting("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect")
-                    .applySetting("hibernate.hbm2ddl.auto", "create")
+                    .applySetting("hibernate.hbm2ddl.auto", "update")
                     .applySetting("hibernate.default_schema", schemaName)
                     .applySetting("hibernate.show_sql", "true")
                     .build();
@@ -250,43 +321,20 @@ public class TenantSchemaInitializer {
         }
     }
     
-    private void ensureJsonbColumn(String schemaName, String tableName, String columnName) {
-        try {
-            String columnTypeQuery = "SELECT data_type FROM information_schema.columns " +
-                    "WHERE table_schema = ? AND table_name = ? AND column_name = ?";
-            Object dataTypeObj = entityManager.createNativeQuery(columnTypeQuery)
-                    .setParameter(1, schemaName)
-                    .setParameter(2, tableName)
-                    .setParameter(3, columnName)
-                    .getSingleResult();
-
-            String dataType = dataTypeObj != null ? dataTypeObj.toString() : null;
-            if (dataType != null && !dataType.equalsIgnoreCase("jsonb")) {
-        String alter = String.format(
-            "ALTER TABLE %s.%s ALTER COLUMN %s TYPE JSONB USING %s::jsonb",
-            com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
-            com.qiaben.ciyex.util.SqlIdentifier.quote(tableName),
-            com.qiaben.ciyex.util.SqlIdentifier.quote(columnName),
-            com.qiaben.ciyex.util.SqlIdentifier.quote(columnName));
-        entityManager.createNativeQuery(alter).executeUpdate();
-                log.info("Altered column {}.{}.{} to JSONB", schemaName, tableName, columnName);
-            }
-        } catch (Exception e) {
-            log.warn("Could not ensure JSONB type for {}.{}.{}: {}", schemaName, tableName, columnName, e.getMessage());
-        }
-    }
-    
     private boolean isTenantEntity(Class<?> entityClass) {
-        // Define master schema entities (authentication-related) - use full class names for accuracy
+        // Define master schema entities (authentication-related and global configuration)
+        // Use full class names for accuracy
         Set<String> masterEntities = Set.of(
             "com.qiaben.ciyex.entity.User",
-            "com.qiaben.ciyex.entity.Org", 
-            "com.qiaben.ciyex.entity.UserOrgRole"
+            "com.qiaben.ciyex.entity.Org",
+            "com.qiaben.ciyex.entity.UserOrgRole",
+            "com.qiaben.ciyex.entity.AdminTemplate",
+            "com.qiaben.ciyex.entity.OrgConfig"
         );
-        
+
         // Also check simple names as fallback
         Set<String> masterSimpleNames = Set.of(
-            "User", "Org", "UserOrgRole"
+            "User", "Org", "UserOrgRole", "AdminTemplate", "OrgConfig"
         );
         
         // Only include entities that are JPA entities and not master entities
@@ -424,8 +472,7 @@ public class TenantSchemaInitializer {
                 }
             }
 
-            // Ensure known JSON columns
-            ensureJsonbColumn(schemaName, "org_config", "integrations");
+            // Note: OrgConfig is now in master schema, no JSONB column handling needed here
 
         } catch (Exception e) {
             log.warn("Failed to ensure tenant tables exist for schema {}: {}", schemaName, e.getMessage());

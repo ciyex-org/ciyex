@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
+// Do not hard-code tenant schema; rely on search_path
 @Table(name = "subscriptions")
 @Data
 @NoArgsConstructor
@@ -15,13 +16,27 @@ public class Subscription {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long orgId;     // 🔹 Track organization
-    private Long userId;    // 🔹 Optional (who owns it)
+    @Column(name = "orgid")   // ✅ match DB column
+    private Long orgId;
 
-    private String service;       // EHR, Telehealth, etc.
-    private String billingCycle;  // Yearly | Monthly
-    private String scope;         // Per Provider | Per Encounter
-    private String status;        // Active | Cancelled
-    private String startDate;     // Store as ISO string
+    @Column(name = "userid")
+    private Long userId;
+
+    @Column(name = "service")
+    private String service;
+
+    @Column(name = "billingcycle")   // ✅ DB column is billingcycle
+    private String billingCycle;
+
+    @Column(name = "scope")
+    private String scope;
+
+    @Column(name = "status")
+    private String status;
+
+    @Column(name = "startdate")   // ✅ DB column is startdate
+    private String startDate;
+
+    @Column(name = "price")
     private Double price;
 }

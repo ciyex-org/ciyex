@@ -1,32 +1,36 @@
 package com.qiaben.ciyex.dto;
 
-import lombok.*;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Builder;
+import lombok.Data;
+
 import java.time.LocalDateTime;
 
 @Data
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class BillingCardDto {
+public class StripeBillingCardDto {
     private Long id;
-    private Long orgId;
+
     private Long userId;
 
-    /** Stripe PaymentMethod ID (pm_xxx) */
+    private Long orgId;
+
     private String stripePaymentMethodId;
 
-    /** Stripe Customer ID (cus_xxx) */
     private String stripeCustomerId;
 
-    /** Card details snapshot */
     private String brand;
+
     private String last4;
+
     private Integer expMonth;
+
     private Integer expYear;
 
-    /** Track default card per user */
-    private Boolean isDefault;
+    @JsonProperty("isDefault") // ensures JSON uses "isDefault" key
+    private boolean isDefault;
 
     private LocalDateTime createdAt;
+
     private LocalDateTime updatedAt;
 }

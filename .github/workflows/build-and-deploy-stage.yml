@@ -1,12 +1,11 @@
 name: Build & Deploy Ciyex App Stage
 
+# Triggers: run for pull requests targeting main and pushes to main
 on:
   push:
-    branches:
-      - main
+    branches: [ 'main' ]
   pull_request:
-    branches:
-      - main
+    branches: [ 'main' ]
 
 env:
   IMAGE_NAME: ciyex-app-stage

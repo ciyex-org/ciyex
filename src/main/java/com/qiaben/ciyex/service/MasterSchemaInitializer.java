@@ -1,10 +1,11 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.entity.Org;
+import com.qiaben.ciyex.entity.OrgConfig;
 import com.qiaben.ciyex.entity.User;
 import com.qiaben.ciyex.entity.UserOrgRole;
+import com.qiaben.ciyex.entity.AdminTemplate;
 import com.qiaben.ciyex.repository.OrgRepository;
-import com.qiaben.ciyex.service.TenantSchemaInitializer;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.flywaydb.core.Flyway;
@@ -16,6 +17,7 @@ import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
+import jakarta.annotation.PostConstruct;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -49,6 +51,18 @@ public class MasterSchemaInitializer {
     @Autowired
     private Environment env;
 
+    private boolean tenantAutoInitEnabled = true;
+
+    @PostConstruct
+    public void init() {
+        try {
+            String prop = env.getProperty("ciyex.tenant.auto-init");
+            if (prop != null && (prop.equalsIgnoreCase("false") || prop.equals("0"))) {
+                this.tenantAutoInitEnabled = false;
+            }
+        } catch (Exception ignore) {}
+    }
+
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void initializeMasterSchema() {
@@ -60,19 +74,27 @@ public class MasterSchemaInitializer {
 
             Set<Long> existingOrgIds = fetchExistingOrgIds();
 
-            // Create master schema tables using JPA entities
-            createMasterSchemaTables();
-
             // Apply master schema Flyway migrations (data, seed scripts, etc.)
+            // Run Flyway first so migrations create the canonical schema objects
+            // before Hibernate attempts to create/update them. This avoids
+            // "relation already exists" errors when both Flyway and Hibernate
+            // try to create the same tables.
             masterFlyway.migrate();
+
+            // Create master schema tables using JPA entities (idempotent check)
+            createMasterSchemaTables();
 
             // Clear persistence context to ensure we see fresh data post-migration
             entityManager.clear();
 
             log.info("Master schema initialization completed successfully");
             
-            // After master schema is initialized, check and initialize tenant schemas
-            initializeTenantSchemasForExistingOrgs(existingOrgIds);
+            // After master schema is initialized, optionally initialize tenant schemas
+            if (tenantAutoInitEnabled) {
+                initializeTenantSchemasForExistingOrgs(existingOrgIds);
+            } else {
+                log.info("Automatic tenant initialization is disabled (ciyex.tenant.auto-init=false). Skipping tenant schema initialization at startup.");
+            }
             
         } catch (Exception e) {
             log.error("Failed to initialize master schema", e);
@@ -82,33 +104,36 @@ public class MasterSchemaInitializer {
     
     private void createMasterSchemaTables() {
         log.info("Creating master schema tables using Hibernate metadata...");
-        
+
         try {
             // Check if tables already exist before creating
             boolean usersExists = tableExists("users");
             boolean orgsExists = tableExists("orgs");
             boolean userOrgRolesExists = tableExists("user_org_roles");
-            
-            if (usersExists && orgsExists && userOrgRolesExists) {
+            boolean adminTemplatesExists = tableExists("admin_templates");
+            boolean orgConfigExists = tableExists("org_config");
+
+            // If all known master tables are present, skip creation
+            if (usersExists && orgsExists && userOrgRolesExists && adminTemplatesExists && orgConfigExists) {
                 log.info("All master schema tables already exist. Skipping creation.");
                 return;
             }
-            
-            log.info("Some master schema tables missing. Creating tables from JPA entities...");
-            
-            // Create a temporary Hibernate configuration for schema generation
-    // Prefer datasource settings from Spring Environment (which aggregates application.yml, env, CLI, etc.)
-    String jdbcUrl = env.getProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/ciyexdb");
-    String dbUser = env.getProperty("spring.datasource.username", "postgres");
-    String dbPass = env.getProperty("spring.datasource.password", "postgres");
 
-        StandardServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder()
-            .applySetting("hibernate.connection.url", jdbcUrl)
-            .applySetting("hibernate.connection.username", dbUser)
-            .applySetting("hibernate.connection.password", dbPass)
+            log.info("Some master schema tables missing. Creating tables from JPA entities...");
+
+            // Create a temporary Hibernate configuration for schema generation
+            // Prefer datasource settings from Spring Environment (which aggregates application.yml, env, CLI, etc.)
+            String jdbcUrl = env.getProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/ciyexdb");
+            String dbUser = env.getProperty("spring.datasource.username", "postgres");
+            String dbPass = env.getProperty("spring.datasource.password", "postgres");
+
+            StandardServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder()
+                    .applySetting("hibernate.connection.url", jdbcUrl)
+                    .applySetting("hibernate.connection.username", dbUser)
+                    .applySetting("hibernate.connection.password", dbPass)
                     .applySetting("hibernate.connection.driver_class", "org.postgresql.Driver")
                     .applySetting("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect")
-                    .applySetting("hibernate.hbm2ddl.auto", "create")
+                    .applySetting("hibernate.hbm2ddl.auto", "update")
                     .applySetting("hibernate.default_schema", "public")
                     .applySetting("hibernate.show_sql", "true")
                     .build();
@@ -118,24 +143,29 @@ public class MasterSchemaInitializer {
                     .addAnnotatedClass(User.class)
                     .addAnnotatedClass(Org.class)
                     .addAnnotatedClass(UserOrgRole.class)
+                    .addAnnotatedClass(AdminTemplate.class)
+                    .addAnnotatedClass(OrgConfig.class)  // Ensure OrgConfig is present in master schema
                     .buildMetadata();
 
             // Create the schema using Hibernate's schema management tool
             SessionFactory sessionFactory = metadata.getSessionFactoryBuilder().build();
-            
+
             log.info("Master schema tables created/updated successfully using JPA entities");
-            
+
+            // Ensure JSONB column for OrgConfig integrations in master schema
+            ensureMasterJsonbColumn("public", "org_config", "integrations");
+
             // Verify tables were created
             sessionFactory.close();
             serviceRegistry.close();
-            
+
             // Double-check that tables now exist
-            if (tableExists("users") && tableExists("orgs") && tableExists("user_org_roles")) {
+            if (tableExists("users") && tableExists("orgs") && tableExists("user_org_roles") && tableExists("admin_templates") && tableExists("org_config")) {
                 log.info("Verified: All master schema tables created successfully");
             } else {
                 log.warn("Warning: Some tables may not have been created properly");
             }
-            
+
         } catch (Exception e) {
             log.error("Failed to create master schema tables using Hibernate metadata", e);
             throw new RuntimeException("Schema creation failed", e);
@@ -248,6 +278,35 @@ public class MasterSchemaInitializer {
         } catch (Exception e) {
             log.warn("Failed to check if table {} exists: {}", tableName, e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Ensure a column in the master schema uses JSONB type (for PostgreSQL).
+     */
+    private void ensureMasterJsonbColumn(String schemaName, String tableName, String columnName) {
+        try {
+            // Check current data type
+            String dataTypeQuery = "SELECT data_type FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ?";
+            Object dataTypeObj = entityManager.createNativeQuery(dataTypeQuery)
+                    .setParameter(1, schemaName)
+                    .setParameter(2, tableName)
+                    .setParameter(3, columnName)
+                    .getSingleResult();
+
+            String dataType = dataTypeObj != null ? dataTypeObj.toString() : null;
+            if (dataType != null && !dataType.equalsIgnoreCase("jsonb")) {
+                String alter = String.format(
+                    "ALTER TABLE %s.%s ALTER COLUMN %s TYPE JSONB USING %s::jsonb",
+                    com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
+                    com.qiaben.ciyex.util.SqlIdentifier.quote(tableName),
+                    com.qiaben.ciyex.util.SqlIdentifier.quote(columnName),
+                    com.qiaben.ciyex.util.SqlIdentifier.quote(columnName));
+                entityManager.createNativeQuery(alter).executeUpdate();
+                log.info("Altered column {}.{}.{} to JSONB in master schema", schemaName, tableName, columnName);
+            }
+        } catch (Exception e) {
+            log.warn("Could not ensure JSONB type for master schema column {}.{}.{}: {}", schemaName, tableName, columnName, e.getMessage());
         }
     }
 }

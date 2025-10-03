@@ -7,6 +7,9 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Entity
+// OrgConfig should not hard-code a tenant schema so it can live in each tenant
+// schema (practice_{id}). The application sets the connection's search_path
+// to the correct tenant before repository operations.
 @Table(name = "org_config")
 @Data
 public class OrgConfig {

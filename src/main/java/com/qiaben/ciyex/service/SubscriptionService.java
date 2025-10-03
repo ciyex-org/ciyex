@@ -54,23 +54,31 @@ public class SubscriptionService {
     public SubscriptionDto create(SubscriptionDto dto) {
         Subscription saved = repository.save(mapToEntity(dto));
 
-        // 🔹 Auto-create invoice when subscription is created
-        LocalDate start = LocalDate.parse(dto.getStartDate());
+        // 🔹 Parse startDate flexibly
+        LocalDateTime startDateTime;
+        try {
+            LocalDate localDate = LocalDate.parse(dto.getStartDate()); // "yyyy-MM-dd"
+            startDateTime = localDate.atStartOfDay();
+        } catch (Exception e) {
+            startDateTime = LocalDateTime.parse(dto.getStartDate()); // "yyyy-MM-ddTHH:mm:ss"
+        }
+
         LocalDateTime dueDate = dto.getBillingCycle().equalsIgnoreCase("Yearly")
-                ? start.plusYears(1).atStartOfDay()
-                : start.plusMonths(1).atStartOfDay();
+                ? startDateTime.plusYears(1)
+                : startDateTime.plusMonths(1);
 
         InvoiceBillDto invoice = InvoiceBillDto.builder()
                 .orgId(saved.getOrgId())
                 .userId(saved.getUserId())
                 .subscriptionId(saved.getId())
                 .amount(saved.getPrice())
-                .status(InvoiceStatus.UNPAID)   // ✅ FIX: use enum
+                .status(InvoiceStatus.UNPAID)
                 .dueDate(dueDate)
                 .createdAt(LocalDateTime.now())
                 .build();
 
         invoiceBillService.createInvoice(invoice);
+
         return mapToDto(saved);
     }
 

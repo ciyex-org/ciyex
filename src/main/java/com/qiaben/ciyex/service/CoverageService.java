@@ -27,21 +27,26 @@ public class CoverageService {
         this.insuranceCompanyRepository = insuranceCompanyRepository;
     }
 
-    // ---- CRUD (create stays same) ----
+    // ---- CRUD ----
 
     @Transactional
     public CoverageDto create(CoverageDto dto) {
         Long orgId = getCurrentOrgIdOrThrow("create");
         dto.setOrgId(orgId); // enforce header value
 
-        // If your design maps orgId => insurance company row id, keep this:
-        InsuranceCompany insuranceCompany = insuranceCompanyRepository.findById(orgId)
-                .orElseThrow(() -> new RuntimeException("Insurance company not found for orgId: " + orgId));
-
         Coverage coverage = mapToEntity(dto);
-        coverage.setInsuranceCompany(insuranceCompany);
-        Coverage saved = coverageRepository.save(coverage);
 
+        // Attach insurance company only if the client provided it
+        if (dto.getInsuranceCompany() != null && dto.getInsuranceCompany().getId() != null) {
+            Long icId = dto.getInsuranceCompany().getId();
+            InsuranceCompany ic = insuranceCompanyRepository.findById(icId)
+                    .orElseThrow(() -> new RuntimeException("Insurance company not found: " + icId));
+            coverage.setInsuranceCompany(ic);
+        } else {
+            coverage.setInsuranceCompany(null);
+        }
+
+        Coverage saved = coverageRepository.save(coverage);
         return mapToDto(saved);
     }
 
@@ -63,6 +68,19 @@ public class CoverageService {
 
         dto.setOrgId(orgId);
         updateEntityFromDto(coverage, dto);
+
+        // If payload mentions insurance company, reflect that; if null object provided, detach
+        if (dto.getInsuranceCompany() != null) {
+            if (dto.getInsuranceCompany().getId() != null) {
+                Long icId = dto.getInsuranceCompany().getId();
+                InsuranceCompany ic = insuranceCompanyRepository.findById(icId)
+                        .orElseThrow(() -> new RuntimeException("Insurance company not found: " + icId));
+                coverage.setInsuranceCompany(ic);
+            } else {
+                coverage.setInsuranceCompany(null);
+            }
+        }
+
         Coverage saved = coverageRepository.save(coverage);
         return mapToDto(saved);
     }
@@ -83,7 +101,7 @@ public class CoverageService {
         return coverages.stream().map(this::mapToDto).collect(Collectors.toList());
     }
 
-    // ---- Composite (id + patientId) ops using text-cast queries ----
+    // ---- Composite (id + patientId) ----
 
     @Transactional(readOnly = true)
     public CoverageDto getByIdAndPatientId(Long id, Long patientId) {
@@ -105,6 +123,18 @@ public class CoverageService {
 
         dto.setOrgId(orgId);
         updateEntityFromDto(coverage, dto);
+
+        if (dto.getInsuranceCompany() != null) {
+            if (dto.getInsuranceCompany().getId() != null) {
+                Long icId = dto.getInsuranceCompany().getId();
+                InsuranceCompany ic = insuranceCompanyRepository.findById(icId)
+                        .orElseThrow(() -> new RuntimeException("Insurance company not found: " + icId));
+                coverage.setInsuranceCompany(ic);
+            } else {
+                coverage.setInsuranceCompany(null);
+            }
+        }
+
         Coverage saved = coverageRepository.save(coverage);
         return mapToDto(saved);
     }

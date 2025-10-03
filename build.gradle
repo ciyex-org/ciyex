@@ -33,6 +33,9 @@ dependencies {
 	    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'   // <-- added for PDF templating
   implementation 'com.github.librepdf:openpdf:1.3.39'
 
+			// Actuator for health/info endpoints
+			implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
     /* (Optional) HTML → PDF fallback using OpenHTMLtoPDF */
     implementation 'com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10'
     implementation 'com.openhtmltopdf:openhtmltopdf-slf4j:1.0.10' 
@@ -42,8 +45,8 @@ dependencies {
   // implementation 'com.openhtmltopdf:openhtmltopdf-rtl-support:1.0.10'
   // implementation 'com.openhtmltopdf:openhtmltopdf-svg-support:1.0.10'     
 
-	implementation 'org.flywaydb:flyway-core:10.17.3'
-	implementation 'org.flywaydb:flyway-database-postgresql:10.17.3'
+	implementation 'org.flywaydb:flyway-core:11.13.1'
+	implementation 'org.flywaydb:flyway-database-postgresql:11.13.1'
 
 
 	// https://mvnrepository.com/artifact/ca.uhn.hapi.fhir/hapi-fhir-structures-r4
@@ -54,7 +57,10 @@ dependencies {
 	implementation 'ca.uhn.hapi.fhir:hapi-fhir-structures-r4:8.2.1'
 
 	// postgres + Lombok
-	implementation 'org.postgresql:postgresql'
+	// Ensure the Postgres JDBC driver is packaged into the bootJar used by the
+	// runtime image. Using `implementation` guarantees the driver is present on
+	// the application classpath during the build and in the resulting fat JAR.
+	implementation 'org.postgresql:postgresql:42.7.8'
 	implementation 'org.projectlombok:lombok:1.18.38'
 	annotationProcessor 'org.projectlombok:lombok:1.18.38'
 
@@ -103,7 +109,5 @@ tasks.named('test') {
 	useJUnitPlatform()
 }
 
-tasks.test {
-	// Don't fail the build if no tests are discovered in some environments
-	failOnNoDiscoveredTests = false
-}
+// Use JUnit Platform for tests (don't set Gradle-specific properties that may not exist
+// in older/newer Gradle distributions used in CI Docker builds).

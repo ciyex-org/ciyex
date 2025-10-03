@@ -1,15 +1,14 @@
 package com.qiaben.ciyex.service;
 
-import com.qiaben.ciyex.dto.BillingHistoryDto;
+import com.qiaben.ciyex.dto.StripeBillingHistoryDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.dto.integration.StripeConfig;
-import com.qiaben.ciyex.entity.BillingCard;
-import com.qiaben.ciyex.entity.BillingHistory;
+import com.qiaben.ciyex.entity.StripeBillingHistory;
 import com.qiaben.ciyex.entity.InvoiceBill;
 import com.qiaben.ciyex.entity.InvoiceStatus;
-import com.qiaben.ciyex.repository.BillingCardRepository;
-import com.qiaben.ciyex.repository.BillingHistoryRepository;
+import com.qiaben.ciyex.repository.StripeBillingHistoryRepository;
 import com.qiaben.ciyex.repository.InvoiceBillRepository;
+import com.qiaben.ciyex.repository.StripeBillingCardRepository;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
@@ -26,22 +25,22 @@ import java.util.stream.Collectors;
 
 @Service
 @Slf4j
-public class BillingHistoryService {
+public class StripeBillingHistoryService {
 
-    private final BillingHistoryRepository repo;
+    private final StripeBillingHistoryRepository repo;
     private final InvoiceBillRepository invoiceRepo;
-    private final BillingCardRepository cardRepo;
+    private final StripeBillingCardRepository stripeCardRepo;
     private final OrgIntegrationConfigProvider configProvider;
 
-    public BillingHistoryService(
-            BillingHistoryRepository repo,
+    public StripeBillingHistoryService(
+            StripeBillingHistoryRepository repo,
             InvoiceBillRepository invoiceRepo,
-            BillingCardRepository cardRepo,
+            StripeBillingCardRepository stripeCardRepo,
             OrgIntegrationConfigProvider configProvider
     ) {
         this.repo = repo;
         this.invoiceRepo = invoiceRepo;
-        this.cardRepo = cardRepo;
+        this.stripeCardRepo = stripeCardRepo;
         this.configProvider = configProvider;
     }
 
@@ -53,7 +52,7 @@ public class BillingHistoryService {
 
     /* ------------------- PAY NOW ------------------- */
     @Transactional
-    public BillingHistoryDto recordPayment(BillingHistoryDto dto) {
+    public StripeBillingHistoryDto recordPayment(StripeBillingHistoryDto dto) {
         Long orgId = requireOrg("recordPayment");
         dto.setOrgId(orgId);
 
@@ -66,9 +65,10 @@ public class BillingHistoryService {
         try {
             String paymentMethodId = dto.getStripePaymentMethodId();
             if (paymentMethodId == null || paymentMethodId.isBlank()) {
-                BillingCard defaultCard = cardRepo.findFirstByUserIdAndOrgIdAndIsDefaultTrue(dto.getUserId(), orgId)
-                        .orElseThrow(() -> new RuntimeException("No default billing card found for user " + dto.getUserId()));
-                paymentMethodId = defaultCard.getStripePaymentMethodId();
+                paymentMethodId = stripeCardRepo.findFirstByUserIdAndOrgIdAndIsDefaultTrue(dto.getUserId(), orgId)
+                        .map(c -> c.getStripePaymentMethodId())
+                        .orElseThrow(() -> new RuntimeException(
+                                "No default Stripe card found for user " + dto.getUserId()));
             }
 
             PaymentIntent intent;
@@ -104,17 +104,18 @@ public class BillingHistoryService {
                     .updatedAt(LocalDateTime.now())
                     .receiptUrl(receiptUrl)
                     .externalId("INV-" + System.currentTimeMillis())
+                    .invoiceUrl(null)
                     .build();
 
             invoice = invoiceRepo.save(invoice);
 
-            BillingHistory entity = BillingHistory.builder()
+            StripeBillingHistory entity = StripeBillingHistory.builder()
                     .orgId(orgId)
                     .userId(dto.getUserId())
                     .stripePaymentIntentId(intent.getId())
                     .stripePaymentMethodId(paymentMethodId)
                     .amount(dto.getAmount())
-                    .status(intent.getStatus().toUpperCase())
+                    .status(normalizeStripeStatus(intent.getStatus()))
                     .invoiceBill(invoice)
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
@@ -127,25 +128,23 @@ public class BillingHistoryService {
         }
     }
 
-    /* ------------------- UPDATE STATUS (for Webhooks) ------------------- */
+    /* ------------------- ARCHIVE / UNARCHIVE ------------------- */
     @Transactional
-    public void updateStatus(String paymentIntentId, String status) {
-        repo.findByStripePaymentIntentId(paymentIntentId).ifPresentOrElse(entity -> {
-            entity.setStatus(status.toUpperCase());
+    public StripeBillingHistoryDto archive(Long id) {
+        StripeBillingHistory entity = repo.findById(id).orElseThrow(() -> new RuntimeException("Stripe billing history not found"));
+        entity.setStatus("ARCHIVED");
+        entity.setUpdatedAt(LocalDateTime.now());
+        return toDto(repo.save(entity));
+    }
+
+    @Transactional
+    public StripeBillingHistoryDto unarchive(Long id) {
+        StripeBillingHistory entity = repo.findById(id).orElseThrow(() -> new RuntimeException("Stripe billing history not found"));
+        if ("ARCHIVED".equalsIgnoreCase(entity.getStatus())) {
+            entity.setStatus("SUCCEEDED");
             entity.setUpdatedAt(LocalDateTime.now());
-
-            if (entity.getInvoiceBill() != null) {
-                entity.getInvoiceBill().setStatus(
-                        "succeeded".equalsIgnoreCase(status)
-                                ? InvoiceStatus.PAID
-                                : InvoiceStatus.PENDING
-                );
-                invoiceRepo.save(entity.getInvoiceBill());
-            }
-
-            repo.save(entity);
-            log.info("Updated BillingHistory {} to status {}", paymentIntentId, status);
-        }, () -> log.warn("No BillingHistory found for PaymentIntent {}", paymentIntentId));
+        }
+        return toDto(repo.save(entity));
     }
 
     /* ------------------- DELETE ------------------- */
@@ -154,41 +153,57 @@ public class BillingHistoryService {
         repo.deleteById(id);
     }
 
-    /* ------------------- ARCHIVE / UNARCHIVE ------------------- */
-    @Transactional
-    public BillingHistoryDto archive(Long id) {
-        BillingHistory entity = repo.findById(id).orElseThrow(() -> new RuntimeException("Billing history not found"));
-        entity.setStatus("ARCHIVED");
-        entity.setUpdatedAt(LocalDateTime.now());
-        return toDto(repo.save(entity));
-    }
-
-    @Transactional
-    public BillingHistoryDto unarchive(Long id) {
-        BillingHistory entity = repo.findById(id).orElseThrow(() -> new RuntimeException("Billing history not found"));
-        if ("ARCHIVED".equalsIgnoreCase(entity.getStatus())) {
-            entity.setStatus("SUCCEEDED");
-            entity.setUpdatedAt(LocalDateTime.now());
-        }
-        return toDto(repo.save(entity));
-    }
-
     /* ------------------- GET ------------------- */
     @Transactional(readOnly = true)
-    public List<BillingHistoryDto> getByUser(Long userId) {
+    public List<StripeBillingHistoryDto> getByUser(Long userId) {
         Long orgId = requireOrg("getByUser");
         return repo.findByUserIdAndOrgId(userId, orgId).stream().map(this::toDto).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public List<BillingHistoryDto> getAll() {
+    public List<StripeBillingHistoryDto> getAll() {
         Long orgId = requireOrg("getAll");
         return repo.findByOrgId(orgId).stream().map(this::toDto).collect(Collectors.toList());
     }
 
-    /* ------------------- MAPPER ------------------- */
-    private BillingHistoryDto toDto(BillingHistory r) {
-        return BillingHistoryDto.builder()
+    /* ------------------- UPDATE STATUS (Webhook) ------------------- */
+    @Transactional
+    public void updateStatus(String paymentIntentId, String stripeStatus) {
+        repo.findByStripePaymentIntentId(paymentIntentId).ifPresentOrElse(entity -> {
+            String normalized = normalizeStripeStatus(stripeStatus);
+            entity.setStatus(normalized);
+            entity.setUpdatedAt(LocalDateTime.now());
+
+            if (entity.getInvoiceBill() != null) {
+                entity.getInvoiceBill().setStatus(
+                        "SUCCEEDED".equals(normalized) ? InvoiceStatus.PAID : InvoiceStatus.PENDING
+                );
+                invoiceRepo.save(entity.getInvoiceBill());
+            }
+
+            repo.save(entity);
+            log.info("✅ Updated StripeBillingHistory {} to {}", paymentIntentId, normalized);
+        }, () -> log.warn("⚠️ No StripeBillingHistory found for PaymentIntent {}", paymentIntentId));
+    }
+
+    /* ------------------- HELPER ------------------- */
+    private String normalizeStripeStatus(String raw) {
+        if (raw == null) return "PENDING";
+        switch (raw.toLowerCase()) {
+            case "succeeded": return "SUCCEEDED";
+            case "requires_payment_method":
+            case "requires_action":
+            case "requires_confirmation": return "PENDING";
+            case "processing": return "PROCESSING";
+            case "canceled": return "CANCELED";
+            case "failed":
+            case "payment_failed": return "FAILED";
+            default: return raw.toUpperCase();
+        }
+    }
+
+    private StripeBillingHistoryDto toDto(StripeBillingHistory r) {
+        return StripeBillingHistoryDto.builder()
                 .id(r.getId())
                 .orgId(r.getOrgId())
                 .userId(r.getUserId())
@@ -197,6 +212,7 @@ public class BillingHistoryService {
                 .amount(r.getAmount())
                 .status(r.getStatus())
                 .invoiceBillId(r.getInvoiceBill() != null ? r.getInvoiceBill().getId() : null)
+                .externalId(r.getInvoiceBill() != null ? r.getInvoiceBill().getExternalId() : null)
                 .invoiceUrl(r.getInvoiceBill() != null ? r.getInvoiceBill().getInvoiceUrl() : null)
                 .receiptUrl(r.getInvoiceBill() != null ? r.getInvoiceBill().getReceiptUrl() : null)
                 .createdAt(r.getCreatedAt())
