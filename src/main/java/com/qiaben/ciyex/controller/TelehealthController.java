@@ -67,10 +67,10 @@ public class TelehealthController {
         TelehealthService service = resolver.resolve();
         if (service instanceof JitsiTelehealthService jitsiService) {
             int ttl = (req.ttlSeconds() != null && req.ttlSeconds() > 0) ? req.ttlSeconds() : 3600;
-            JitsiTelehealthService.JoinTokenWithMeetingUrl result = 
-                jitsiService.createJoinTokenWithUrl(req.roomName(), req.identity(), ttl);
+            JitsiTelehealthService.JoinTokenWithMeetingUrl result =
+                    jitsiService.createJoinTokenWithUrl(req.roomName(), req.identity(), ttl);
             return ResponseEntity.ok(new JitsiJoinResponse(
-                result.token(), result.roomName(), result.identity(), result.meetingUrl(), ttl));
+                    result.token(), result.roomName(), result.identity(), result.meetingUrl(), ttl));
         } else {
             // Fallback to regular token if not using Jitsi
             int ttl = (req.ttlSeconds() != null && req.ttlSeconds() > 0) ? req.ttlSeconds() : 3600;

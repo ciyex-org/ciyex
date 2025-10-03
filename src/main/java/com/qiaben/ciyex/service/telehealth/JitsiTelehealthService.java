@@ -143,7 +143,7 @@ public class JitsiTelehealthService implements TelehealthService {
         String token = createJoinToken(roomName, identity, ttlSecs);
         String meetingUrl = getMeetingUrl(roomName);
         
-        // For Jitsi, if we have a JWT token, we can append it as a query parameter
+        // For , if we have a JWT token, we can append it as a query parameter
         if (!token.equals(roomName)) { // If token is not just the room name (i.e., JWT was generated)
             meetingUrl += "?jwt=" + token;
         }
