@@ -1,6 +1,9 @@
 package com.qiaben.ciyex.controller;
 
+import com.qiaben.ciyex.service.telehealth.JitsiTelehealthService;
 import com.qiaben.ciyex.service.telehealth.TelehealthGateway;
+import com.qiaben.ciyex.service.telehealth.TelehealthResolver;
+import com.qiaben.ciyex.service.telehealth.TelehealthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 
@@ -15,9 +18,11 @@ import org.springframework.web.bind.annotation.*;
 public class TelehealthController {
 
     private final TelehealthGateway gateway;
+    private final TelehealthResolver resolver;
 
-    public TelehealthController(TelehealthGateway gateway) {
+    public TelehealthController(TelehealthGateway gateway, TelehealthResolver resolver) {
         this.gateway = gateway;
+        this.resolver = resolver;
     }
 
     public record StartCallRequest(
@@ -36,6 +41,10 @@ public class TelehealthController {
             String token, String roomName, String identity, long expiresIn
     ) {}
 
+    public record JitsiJoinResponse(
+            String token, String roomName, String identity, String meetingUrl, long expiresIn
+    ) {}
+
     public record StatusResponse(String status) {}
 
     // -------- Endpoints --------
@@ -51,6 +60,23 @@ public class TelehealthController {
         int ttl = (req.ttlSeconds() != null && req.ttlSeconds() > 0) ? req.ttlSeconds() : 3600;
         String token = gateway.createJoinToken(req.roomName(), req.identity(), ttl);
         return ResponseEntity.ok(new JoinTokenResponse(token, req.roomName(), req.identity(), ttl));
+    }
+
+    @PostMapping("/jitsi/join")
+    public ResponseEntity<JitsiJoinResponse> jitsiJoin(@RequestBody JoinTokenRequest req) {
+        TelehealthService service = resolver.resolve();
+        if (service instanceof JitsiTelehealthService jitsiService) {
+            int ttl = (req.ttlSeconds() != null && req.ttlSeconds() > 0) ? req.ttlSeconds() : 3600;
+            JitsiTelehealthService.JoinTokenWithMeetingUrl result =
+                    jitsiService.createJoinTokenWithUrl(req.roomName(), req.identity(), ttl);
+            return ResponseEntity.ok(new JitsiJoinResponse(
+                    result.token(), result.roomName(), result.identity(), result.meetingUrl(), ttl));
+        } else {
+            // Fallback to regular token if not using Jitsi
+            int ttl = (req.ttlSeconds() != null && req.ttlSeconds() > 0) ? req.ttlSeconds() : 3600;
+            String token = gateway.createJoinToken(req.roomName(), req.identity(), ttl);
+            return ResponseEntity.ok(new JitsiJoinResponse(token, req.roomName(), req.identity(), "", ttl));
+        }
     }
 
     @GetMapping("/rooms/{id}/status")
