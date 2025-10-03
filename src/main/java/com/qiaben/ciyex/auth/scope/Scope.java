@@ -14,7 +14,7 @@ public class Scope {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** e.g. "appointments.read", "appointments.write" */
+    /** e.g. "appointments:read", "appointments:write" */
     @Column(nullable = false, unique = true, length = 64)
     private String code;
 
@@ -27,10 +27,10 @@ public class Scope {
     @Column(nullable = false)
     private boolean active = true;
 
-    @Column(nullable = false)
+    @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
-    @Column(nullable = false)
+    @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
     @PreUpdate

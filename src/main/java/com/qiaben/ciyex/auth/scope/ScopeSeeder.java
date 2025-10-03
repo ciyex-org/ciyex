@@ -2,8 +2,12 @@ package com.qiaben.ciyex.auth.scope;
 
 import com.qiaben.ciyex.entity.RoleName;
 import com.qiaben.ciyex.repository.UserOrgRoleRepository;
+import com.qiaben.ciyex.service.RoleScopeManagementService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -12,13 +16,38 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Component
+@Order(2)
 @RequiredArgsConstructor
-public class ScopeSeeder {
+@Slf4j
+public class ScopeSeeder implements CommandLineRunner {
 
     private final ScopeRepository scopeRepository;
     private final RoleScopeTemplateRepository templateRepository;
     private final UserOrgRoleRepository userOrgRoleRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final RoleScopeManagementService roleScopeManagementService;
+
+    @Override
+    public void run(String... args) throws Exception {
+        try {
+            log.info("Starting scope seeding...");
+            Map<String, Object> result = seed();
+            log.info("Scope seeding completed successfully: {}", result);
+            
+            // Initialize role-scope templates using the new service
+            log.info("Initializing role-scope templates using RoleScopeManagementService...");  
+            try {
+                roleScopeManagementService.initializeRoleScopeTemplates();
+                log.info("Role-scope template initialization completed successfully");
+            } catch (Exception e) {
+                log.warn("Role-scope template initialization encountered issues but continuing: {}", e.getMessage());
+            }
+            
+        } catch (Exception e) {
+            log.error("Error during scope seeding", e);
+            throw e;
+        }
+    }
 
     @Transactional
     public Map<String, Object> seed() {
@@ -29,19 +58,19 @@ public class ScopeSeeder {
         int existingScopes = 0;
         int createdTemplates = 0;
 
-        // 1) Seed master scopes (idempotent)
-        Map<String, String> scopes = Map.ofEntries(
-                Map.entry("user.read", "User Read"),
-                Map.entry("user.write", "User Write"),
-                Map.entry("appointments.read", "Appointments Read"),
-                Map.entry("appointments.write", "Appointments Write"),
-                Map.entry("messaging.read", "Messaging Read"),
-                Map.entry("messaging.write", "Messaging Write"),
-                Map.entry("labs.read", "Labs Read"),
-                Map.entry("labs.write", "Labs Write"),
-                Map.entry("patients.read", "Patients Read"),
-                Map.entry("patients.write", "Patients Write")
-        );
+    // 1) Seed master scopes (idempotent)
+    Map<String, String> scopes = Map.ofEntries(
+        Map.entry("user:read", "User Read"),
+        Map.entry("user:write", "User Write"),
+        Map.entry("appointments:read", "Appointments Read"),
+        Map.entry("appointments:write", "Appointments Write"),
+        Map.entry("messaging:read", "Messaging Read"),
+        Map.entry("messaging:write", "Messaging Write"),
+        Map.entry("labs:read", "Labs Read"),
+        Map.entry("labs:write", "Labs Write"),
+        Map.entry("patients:read", "Patients Read"),
+        Map.entry("patients:write", "Patients Write")
+    );
         for (var e : scopes.entrySet()) {
             String code = e.getKey();
             var opt = scopeRepository.findByCode(code);
@@ -113,15 +142,15 @@ public class ScopeSeeder {
         } else if ("DOCTOR".equals(roleName) || "CLINICIAN".equals(roleName)
                 || "PROVIDER".equals(roleName) || "PHYSICIAN".equals(roleName)
                 || "NURSE".equals(roleName)) {
-            raw = List.of("user.read","appointments.read","appointments.write",
-                    "messaging.read","messaging.write","labs.read","labs.write","patients.read");
+        raw = List.of("user:read","appointments:read","appointments:write",
+            "messaging:read","messaging:write","labs:read","labs:write","patients:read");
         } else if ("PATIENT".equals(roleName) || "MEMBER".equals(roleName)) {
-            raw = List.of("user.read","appointments.read","messaging.read","messaging.write","labs.read");
+            raw = List.of("user:read","appointments:read","messaging:read","messaging:write","labs:read");
         } else if ("BILLER".equals(roleName) || "RECEPTIONIST".equals(roleName)) {
-            raw = List.of("user.read","appointments.read","messaging.read","labs.read","patients.read");
+            raw = List.of("user:read","appointments:read","messaging:read","labs:read","patients:read");
         } else {
             // fallback for any other role
-            raw = List.of("user.read");
+            raw = List.of("user:read");
         }
         return raw.stream().filter(allCodes::contains).distinct().collect(Collectors.toList());
     }
@@ -137,25 +166,15 @@ public class ScopeSeeder {
     }
 
     /**
-     * Ensure the auth_role_scope_template.role CHECK constraint matches the DISTINCT role values
-     * in user_org_roles (minus SUPER_ADMIN), and delete any template rows that would violate it.
+     * Ensure the auth_role_scope_template.role CHECK constraint matches all possible role values
+     * from RoleName enum (minus SUPER_ADMIN), and delete any template rows that would violate it.
      */
     private void syncRoleCheckConstraintWithUserRoles() {
-        // get distinct roles from user_org_roles as strings
-        List<String> roles = jdbcTemplate.queryForList(
-                "select distinct role from user_org_roles order by role asc", String.class);
-
-        // sanitize + normalize (upper-case)
-        LinkedHashSet<String> allowed = roles == null ? new LinkedHashSet<>() :
-                roles.stream()
-                        .filter(Objects::nonNull)
-                        .map(String::trim)
-                        .filter(s -> !s.isEmpty())
-                        .map(String::toUpperCase)
-                        .collect(Collectors.toCollection(LinkedHashSet::new));
-
-        // super-admin is implicit → never allowed in template table
-        allowed.remove("SUPER_ADMIN");
+        // Get all possible roles from RoleName enum (except SUPER_ADMIN)
+        LinkedHashSet<String> allowed = Arrays.stream(RoleName.values())
+                .filter(role -> role != RoleName.SUPER_ADMIN)
+                .map(Enum::name)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
         // drop existing constraint (if any)
         jdbcTemplate.execute(

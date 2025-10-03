@@ -19,18 +19,18 @@ public class ScopeBootstrap {
     ) {
         return () -> {
             // 1) Seed master scopes (idempotent)
-            Map<String, String> scopes = Map.ofEntries(
-                    Map.entry("user.read",          "User Read"),
-                    Map.entry("user.write",         "User Write"),
-                    Map.entry("appointments.read",  "Appointments Read"),
-                    Map.entry("appointments.write", "Appointments Write"),
-                    Map.entry("messaging.read",     "Messaging Read"),
-                    Map.entry("messaging.write",    "Messaging Write"),
-                    Map.entry("labs.read",          "Labs Read"),
-                    Map.entry("labs.write",         "Labs Write"),
-                    Map.entry("patients.read",      "Patients Read"),
-                    Map.entry("patients.write",     "Patients Write")
-            );
+        Map<String, String> scopes = Map.ofEntries(
+            Map.entry("user:read",          "User Read"),
+            Map.entry("user:write",         "User Write"),
+            Map.entry("appointments:read",  "Appointments Read"),
+            Map.entry("appointments:write", "Appointments Write"),
+            Map.entry("messaging:read",     "Messaging Read"),
+            Map.entry("messaging:write",    "Messaging Write"),
+            Map.entry("labs:read",          "Labs Read"),
+            Map.entry("labs:write",         "Labs Write"),
+            Map.entry("patients:read",      "Patients Read"),
+            Map.entry("patients:write",     "Patients Write")
+        );
 
             for (var e : scopes.entrySet()) {
                 String code = e.getKey();
@@ -52,14 +52,14 @@ public class ScopeBootstrap {
             // Use strings to avoid compile errors if a constant (e.g., DOCTOR) doesn't exist in RoleName
             Map<String, List<String>> roleMatrix = new LinkedHashMap<>();
             roleMatrix.put("ADMIN", null); // ADMIN → all scopes
-            roleMatrix.put("DOCTOR", List.of(
-                    "user.read", "appointments.read", "appointments.write",
-                    "messaging.read", "messaging.write",
-                    "labs.read", "labs.write", "patients.read"
-            ));
-            roleMatrix.put("PATIENT", List.of(
-                    "user.read", "appointments.read", "messaging.read", "messaging.write", "labs.read"
-            ));
+        roleMatrix.put("DOCTOR", List.of(
+            "user:read", "appointments:read", "appointments:write",
+            "messaging:read", "messaging:write",
+            "labs:read", "labs:write", "patients:read"
+        ));
+        roleMatrix.put("PATIENT", List.of(
+            "user:read", "appointments:read", "messaging:read", "messaging:write", "labs:read"
+        ));
             // NOTE: SUPER_ADMIN intentionally omitted (implicit access elsewhere)
 
             List<Scope> all = scopeRepository.findAll();

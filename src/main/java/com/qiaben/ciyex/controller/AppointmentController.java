@@ -2,6 +2,7 @@ package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.AppointmentDTO;
+import com.qiaben.ciyex.security.RequireScope;
 import com.qiaben.ciyex.service.AppointmentService;
 
 import lombok.RequiredArgsConstructor;
@@ -21,12 +22,14 @@ import java.util.List;
 @RequestMapping({"/api/appointments", "/api/v1/appointments"})
 @RequiredArgsConstructor
 @Slf4j
+@RequireScope("appointments:read")  // Default scope for appointment operations
 public class AppointmentController {
 
     private final AppointmentService service;
 
     // -------- Create --------
     @PostMapping
+    @RequireScope("appointments:write")
     public ResponseEntity<ApiResponse<AppointmentDTO>> create(@RequestBody AppointmentDTO dto) {
         try {
             AppointmentDTO created = service.create(dto);
