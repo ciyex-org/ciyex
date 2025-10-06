@@ -20,6 +20,10 @@ public class UserService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    public User findById(Long id) {
+        return userRepository.findById(id).orElse(null);
+    }
+
 
     public void updateUserProfileByEmail(String email, UpdateUserProfileRequest request) throws Exception {
         User user = userRepository.findByEmail(email)

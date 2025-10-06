@@ -16,4 +16,6 @@ public class OrgDto {
 
     // <-- NEW FIELD
     private JsonNode integrations;
+    // Organization status: ACTIVE or INACTIVE. Optional on create; defaults to ACTIVE.
+    private String status;
 }

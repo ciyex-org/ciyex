@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NMI VAR JSON",
+  "type": "object",
+  "required": [
+    "merchant",
+    "nmi"
+  ],
+  "properties": {
+    "merchant": {
+      "type": "object",
+      "required": [
+        "mcc",
+        "descriptor"
+      ],
+      "properties": {
+        "mid": {
+          "type": "string"
+        },
+        "legal_name": {
+          "type": "string"
+        },
+        "dba": {
+          "type": "string"
+        },
+        "mcc": {
+          "type": "string",
+          "pattern": "^\\d{4}$"
+        },
+        "descriptor": {
+          "type": "string",
+          "maxLength": 22
+        },
+        "address": {
+          "type": "object",
+          "properties": {
+            "street": {
+              "type": "string"
+            },
+            "city": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string"
+            },
+            "postal": {
+              "type": "string"
+            },
+            "country": {
+              "type": "string",
+              "default": "US"
+            }
+          }
+        },
+        "phone": {
+          "type": "string"
+        },
+        "website": {
+          "type": "string"
+        }
+      }
+    },
+    "nmi": {
+      "type": "object",
+      "required": [
+        "transact_url"
+      ],
+      "properties": {
+        "username": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "security_key": {
+          "type": "string"
+        },
+        "collectjs_public_key": {
+          "type": "string"
+        },
+        "transact_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "webhook_url": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "acceptance": {
+      "type": "object"
+    },
+    "risk": {
+      "type": "object"
+    },
+    "settlement": {
+      "type": "object"
+    }
+  }
+}

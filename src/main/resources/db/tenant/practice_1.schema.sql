@@ -13,7 +13,7 @@ SET standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', '', false);
 SET check_function_bodies = false;
 SET xmloption = content;
-SET client_min_messages = warning;cccccbuljlrnnvnfkblkdkeleirnvvijnejjkfuindnf
+SET client_min_messages = warning;
 
 SET row_security = off;
 
@@ -1996,40 +1996,6 @@ ALTER SEQUENCE practice_1.orders_id_seq OWNED BY practice_1.orders.id;
 
 
 --
--- Name: org_config; Type: TABLE; Schema: practice_1; Owner: postgres
---
-
-CREATE TABLE practice_1.org_config (
-    id bigint NOT NULL,
-    org_id bigint,
-    integrations jsonb
-);
-
-
-ALTER TABLE practice_1.org_config OWNER TO postgres;
-
---
--- Name: org_config_id_seq; Type: SEQUENCE; Schema: practice_1; Owner: postgres
---
-
-CREATE SEQUENCE practice_1.org_config_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER SEQUENCE practice_1.org_config_id_seq OWNER TO postgres;
-
---
--- Name: org_config_id_seq; Type: SEQUENCE OWNED BY; Schema: practice_1; Owner: postgres
---
-
-ALTER SEQUENCE practice_1.org_config_id_seq OWNED BY practice_1.org_config.id;
-
-
---
 -- Name: past_medical_history; Type: TABLE; Schema: practice_1; Owner: postgres
 --
 
@@ -3910,13 +3876,6 @@ ALTER TABLE ONLY practice_1.orders ALTER COLUMN id SET DEFAULT nextval('practice
 
 
 --
--- Name: org_config id; Type: DEFAULT; Schema: practice_1; Owner: postgres
---
-
-ALTER TABLE ONLY practice_1.org_config ALTER COLUMN id SET DEFAULT nextval('practice_1.org_config_id_seq'::regclass);
-
-
---
 -- Name: past_medical_history id; Type: DEFAULT; Schema: practice_1; Owner: postgres
 --
 
@@ -4474,14 +4433,6 @@ ALTER TABLE ONLY practice_1.medication_requests
 
 ALTER TABLE ONLY practice_1.orders
     ADD CONSTRAINT orders_pkey PRIMARY KEY (id);
-
-
---
--- Name: org_config org_config_pkey; Type: CONSTRAINT; Schema: practice_1; Owner: postgres
---
-
-ALTER TABLE ONLY practice_1.org_config
-    ADD CONSTRAINT org_config_pkey PRIMARY KEY (id);
 
 
 --

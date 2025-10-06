@@ -196,7 +196,7 @@ public class TenantSchemaInitializer {
         try {
             // Use only the tenant schema in search_path
             entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName)).executeUpdate();
-            ensureJsonbColumn(schemaName, "org_config", "integrations");
+            // Note: OrgConfig is now in master schema, no JSONB column handling needed here
             tenantFlywayMigrator.migrate(schemaName, orgId);
         } catch (Exception e) {
             log.warn("Tenant migration failed for schema {}: {}", schemaName, e.getMessage());
@@ -228,8 +228,7 @@ public class TenantSchemaInitializer {
                 createAllTenantTablesWithHibernate(tenantEntities, schemaName);
             }
             
-            // Ensure known JSON columns use JSONB type (avoid 255-char limit)
-            ensureJsonbColumn(schemaName, "org_config", "integrations");
+            // Note: OrgConfig is now in master schema, no longer needed in tenant schema
 
             log.info("Created all tenant tables from JPA entities in schema: {}", schemaName);
             
@@ -322,43 +321,20 @@ public class TenantSchemaInitializer {
         }
     }
     
-    private void ensureJsonbColumn(String schemaName, String tableName, String columnName) {
-        try {
-            String columnTypeQuery = "SELECT data_type FROM information_schema.columns " +
-                    "WHERE table_schema = ? AND table_name = ? AND column_name = ?";
-            Object dataTypeObj = entityManager.createNativeQuery(columnTypeQuery)
-                    .setParameter(1, schemaName)
-                    .setParameter(2, tableName)
-                    .setParameter(3, columnName)
-                    .getSingleResult();
-
-            String dataType = dataTypeObj != null ? dataTypeObj.toString() : null;
-            if (dataType != null && !dataType.equalsIgnoreCase("jsonb")) {
-        String alter = String.format(
-            "ALTER TABLE %s.%s ALTER COLUMN %s TYPE JSONB USING %s::jsonb",
-            com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName),
-            com.qiaben.ciyex.util.SqlIdentifier.quote(tableName),
-            com.qiaben.ciyex.util.SqlIdentifier.quote(columnName),
-            com.qiaben.ciyex.util.SqlIdentifier.quote(columnName));
-        entityManager.createNativeQuery(alter).executeUpdate();
-                log.info("Altered column {}.{}.{} to JSONB", schemaName, tableName, columnName);
-            }
-        } catch (Exception e) {
-            log.warn("Could not ensure JSONB type for {}.{}.{}: {}", schemaName, tableName, columnName, e.getMessage());
-        }
-    }
-    
     private boolean isTenantEntity(Class<?> entityClass) {
-        // Define master schema entities (authentication-related) - use full class names for accuracy
+        // Define master schema entities (authentication-related and global configuration)
+        // Use full class names for accuracy
         Set<String> masterEntities = Set.of(
             "com.qiaben.ciyex.entity.User",
-            "com.qiaben.ciyex.entity.Org", 
-            "com.qiaben.ciyex.entity.UserOrgRole"
+            "com.qiaben.ciyex.entity.Org",
+            "com.qiaben.ciyex.entity.UserOrgRole",
+            "com.qiaben.ciyex.entity.AdminTemplate",
+            "com.qiaben.ciyex.entity.OrgConfig"
         );
-        
+
         // Also check simple names as fallback
         Set<String> masterSimpleNames = Set.of(
-            "User", "Org", "UserOrgRole"
+            "User", "Org", "UserOrgRole", "AdminTemplate", "OrgConfig"
         );
         
         // Only include entities that are JPA entities and not master entities
@@ -496,8 +472,7 @@ public class TenantSchemaInitializer {
                 }
             }
 
-            // Ensure known JSON columns
-            ensureJsonbColumn(schemaName, "org_config", "integrations");
+            // Note: OrgConfig is now in master schema, no JSONB column handling needed here
 
         } catch (Exception e) {
             log.warn("Failed to ensure tenant tables exist for schema {}: {}", schemaName, e.getMessage());

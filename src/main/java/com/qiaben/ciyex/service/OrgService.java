@@ -93,7 +93,7 @@ public class OrgService {
                 .orElseThrow(() -> new RuntimeException("Org not found with id: " + id));
         log.info("Found org in DB with id: {} for orgId: {}", id, currentOrgId);
         if (!currentOrgId.equals(org.getId())) {
-             throw new SecurityException("Access denied: Org id " + id + " does not belong to orgId " + currentOrgId);
+            throw new SecurityException("Access denied: Org id " + id + " does not belong to orgId " + currentOrgId);
         }
 
         // Always load from external storage if fhirId exists and storage is configured
@@ -130,18 +130,23 @@ public class OrgService {
     public OrgDto update(Long id, OrgDto dto) {
         // Authorization check: Ensure the requested id belongs to the current orgId
         Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
+        String currentRole = RequestContext.get() != null ? RequestContext.get().getRole() : null;
+
+        // If no orgId provided in context, only allow SUPER_ADMIN to proceed
+        if (currentOrgId == null && (currentRole == null || !"SUPER_ADMIN".equalsIgnoreCase(currentRole))) {
             throw new SecurityException("No orgId available in request context");
         }
-        log.debug("Verifying access for orgId: {} to org with id: {}", currentOrgId, id);
-        // Assuming the id implicitly belongs to the current orgId (adjust if orgId is a field in Org)
-        // If orgId is a field in Org, uncomment and adjust:
-        // Org org = repository.findById(id).orElseThrow(() -> new RuntimeException("Org not found with id: " + id));
+
+        log.debug("Verifying access for orgId: {} (role={}) to org with id: {}", currentOrgId, currentRole, id);
 
         Org org = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Org not found with id: " + id));
-        if (!currentOrgId.equals(org.getId())) {
-             throw new SecurityException("Access denied: Org id " + id + " does not belong to orgId " + currentOrgId);
+
+        // If caller is not SUPER_ADMIN, enforce that the org belongs to the caller's orgId
+        if (currentRole == null || !"SUPER_ADMIN".equalsIgnoreCase(currentRole)) {
+            if (!currentOrgId.equals(org.getId())) {
+                throw new SecurityException("Access denied: Org id " + id + " does not belong to orgId " + currentOrgId);
+            }
         }
         updateEntityFromDto(org, dto);
 
@@ -169,6 +174,63 @@ public class OrgService {
         }
 
         // Save to database only if external storage succeeded
+        org = repository.save(org);
+        return mapToDto(org);
+    }
+
+    /**
+     * Update only the status of an organization.
+     * Accepts status values: "ACTIVE" or "INACTIVE".
+     */
+    @Transactional
+    public OrgDto updateStatus(Long id, String status) {
+        Long currentOrgId = getCurrentOrgId();
+        String currentRole = RequestContext.get() != null ? RequestContext.get().getRole() : null;
+
+        // If no orgId provided in context, only allow SUPER_ADMIN to proceed
+        if (currentOrgId == null && (currentRole == null || !"SUPER_ADMIN".equalsIgnoreCase(currentRole))) {
+            throw new SecurityException("No orgId available in request context");
+        }
+
+        Org org = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Org not found with id: " + id));
+
+        // If caller is not SUPER_ADMIN, enforce that the org belongs to the caller's orgId
+        if (currentRole == null || !"SUPER_ADMIN".equalsIgnoreCase(currentRole)) {
+            if (!currentOrgId.equals(org.getId())) {
+                throw new SecurityException("Access denied: Org id " + id + " does not belong to orgId " + currentOrgId);
+            }
+        }
+
+        // Validate and set status
+        Org.OrgStatus newStatus;
+        try {
+            newStatus = Org.OrgStatus.valueOf(status.trim().toUpperCase());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid status value: " + status);
+        }
+        org.setStatus(newStatus);
+
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        if (storageType != null) {
+            ExternalStorage<OrgDto> externalStorage = storageResolver.resolve(OrgDto.class);
+            OrgDto dto = mapToDto(org);
+            try {
+                if (org.getFhirId() != null) {
+                    externalStorage.update(dto, org.getFhirId());
+                    log.info("Updated external storage with status for org id: {} and externalId: {}", org.getId(), org.getFhirId());
+                } else {
+                    // Create external record if missing
+                    String externalId = externalStorage.create(dto);
+                    org.setFhirId(externalId);
+                    log.info("Created external record for org id: {} with externalId: {}", org.getId(), externalId);
+                }
+            } catch (Exception e) {
+                log.error("Failed to sync status change to external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
+                throw new RuntimeException("Failed to sync with external storage", e);
+            }
+        }
+
         org = repository.save(org);
         return mapToDto(org);
     }
@@ -217,17 +279,25 @@ public class OrgService {
     @Transactional(readOnly = true)
     public List<OrgDto> getAll() {
         Long currentOrgId = getCurrentOrgId();
+        String currentRole = RequestContext.get() != null ? RequestContext.get().getRole() : null;
 
-        // If no orgId (like during signup), allow returning all
-        if (currentOrgId == null) {
-            log.info("No orgId in context, returning all orgs for signup/public view");
+        if ("SUPER_ADMIN".equalsIgnoreCase(currentRole)) {
+            log.info("SUPER_ADMIN detected, returning all organizations");
             return repository.findAll()
                     .stream()
                     .map(this::mapToDto)
                     .collect(Collectors.toList());
         }
 
-        // Otherwise, return only the current org
+        if (currentOrgId == null) {
+            log.info("No orgId in context, returning all orgs (signup/public view)");
+            return repository.findAll()
+                    .stream()
+                    .map(this::mapToDto)
+                    .collect(Collectors.toList());
+        }
+
+        // Normal user → restrict to their org only
         return repository.findAll().stream()
                 .filter(org -> currentOrgId.equals(org.getId()))
                 .map(this::mapToDto)
@@ -237,15 +307,29 @@ public class OrgService {
 
 
 
+
+
+
     private Org mapToEntity(OrgDto dto) {
-        return Org.builder()
+        Org.OrgBuilder builder = Org.builder()
                 .orgName(dto.getOrgName())
                 .address(dto.getAddress())
                 .city(dto.getCity())
                 .state(dto.getState())
                 .postalCode(dto.getPostalCode())
-                .country(dto.getCountry())
-                .build();
+                .country(dto.getCountry());
+
+        // Only set status on the builder if provided in DTO. If not provided, Lombok's @Builder.Default
+        // on the entity will apply and default to ACTIVE.
+        if (dto.getStatus() != null) {
+            try {
+                builder.status(Org.OrgStatus.valueOf(dto.getStatus()));
+            } catch (IllegalArgumentException ignored) {
+                // Ignore invalid values - let entity default apply
+            }
+        }
+
+        return builder.build();
     }
 
     private OrgDto mapToDto(Org org) {
@@ -258,6 +342,7 @@ public class OrgService {
         dto.setPostalCode(org.getPostalCode());
         dto.setCountry(org.getCountry());
         dto.setFhirId(org.getFhirId());
+        dto.setStatus(org.getStatus() != null ? org.getStatus().name() : null);
         return dto;
     }
 
@@ -268,6 +353,13 @@ public class OrgService {
         if (dto.getState() != null) org.setState(dto.getState());
         if (dto.getPostalCode() != null) org.setPostalCode(dto.getPostalCode());
         if (dto.getCountry() != null) org.setCountry(dto.getCountry());
+        if (dto.getStatus() != null) {
+            try {
+                org.setStatus(Org.OrgStatus.valueOf(dto.getStatus()));
+            } catch (IllegalArgumentException e) {
+                // ignore invalid status values or could throw a validation exception
+            }
+        }
     }
 
     private void updateEntityFromSynced(Org org, OrgDto synced) {

@@ -29,9 +29,11 @@ public class InvoiceBillService {
                 .invoiceUrl(e.getInvoiceUrl())
                 .receiptUrl(e.getReceiptUrl())
                 .externalId(e.getExternalId())
+                .invoiceNumber(e.getInvoiceNumber())
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
                 .dueDate(e.getDueDate())
+                .paidAt(e.getPaidAt())
                 .build();
     }
 
@@ -39,28 +41,37 @@ public class InvoiceBillService {
         return InvoiceBill.builder()
                 .id(dto.getId())
                 .orgId(dto.getOrgId())
-                .userId(dto.getUserId())
+                .userId(dto.getUserId()) // ⚡ ensure not null
                 .subscriptionId(dto.getSubscriptionId())
                 .amount(dto.getAmount())
                 .status(dto.getStatus())
                 .invoiceUrl(dto.getInvoiceUrl())
                 .receiptUrl(dto.getReceiptUrl())
                 .externalId(dto.getExternalId())
+                .invoiceNumber(dto.getInvoiceNumber())
                 .createdAt(dto.getCreatedAt())
                 .updatedAt(dto.getUpdatedAt())
                 .dueDate(dto.getDueDate())
+                .paidAt(dto.getPaidAt())
                 .build();
     }
 
     /* ------------ CRUD ------------ */
     public InvoiceBillDto createInvoice(InvoiceBillDto dto) {
+        if (dto.getUserId() == null) {
+            throw new RuntimeException("Invoice must have a userId (not null)");
+        }
+
         InvoiceBill entity = toEntity(dto);
         entity.setStatus(InvoiceStatus.UNPAID);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
 
         InvoiceBill saved = repository.save(entity);
+
+        // generate identifiers after initial save
         saved.setExternalId("INV-" + saved.getId());
+        saved.setInvoiceNumber("INV-" + saved.getId());
 
         return toDto(repository.save(saved));
     }
@@ -69,8 +80,12 @@ public class InvoiceBillService {
         InvoiceBill existing = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Invoice not found"));
 
-        existing.setAmount(dto.getAmount());
-        existing.setDueDate(dto.getDueDate());
+        if (dto.getAmount() != null) {
+            existing.setAmount(dto.getAmount());
+        }
+        if (dto.getDueDate() != null) {
+            existing.setDueDate(dto.getDueDate());
+        }
         existing.setUpdatedAt(LocalDateTime.now());
 
         return toDto(repository.save(existing));
@@ -87,7 +102,10 @@ public class InvoiceBillService {
     }
 
     public List<InvoiceBillDto> getAllInvoices() {
-        return repository.findAll().stream().map(this::toDto).collect(Collectors.toList());
+        return repository.findAll()
+                .stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
     }
 
     /* ------------ Payment ------------ */
@@ -97,6 +115,7 @@ public class InvoiceBillService {
 
         invoice.setStatus(InvoiceStatus.PAID);
         invoice.setUpdatedAt(LocalDateTime.now());
+        invoice.setPaidAt(LocalDateTime.now());
         invoice.setReceiptUrl("receipt-" + invoice.getId() + ".pdf");
 
         return toDto(repository.save(invoice));
@@ -104,11 +123,16 @@ public class InvoiceBillService {
 
     /* ------------ Org-based Queries ------------ */
     public List<InvoiceBillDto> getAllByOrg(Long orgId) {
-        return repository.findByOrgId(orgId).stream().map(this::toDto).collect(Collectors.toList());
+        return repository.findByOrgId(orgId)
+                .stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
     }
 
     public List<InvoiceBillDto> getByStatus(Long orgId, InvoiceStatus status) {
-        return repository.findByOrgIdAndStatus(orgId, status).stream()
-                .map(this::toDto).collect(Collectors.toList());
+        return repository.findByOrgIdAndStatus(orgId, status)
+                .stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
     }
 }

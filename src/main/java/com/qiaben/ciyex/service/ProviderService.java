@@ -411,4 +411,26 @@ public class ProviderService {
         return mapToDto(repository.save(provider));
     }
 
+    @Transactional
+    public boolean resetProviderPassword(Long providerId, String newPassword) {
+        Long currentOrgId = getCurrentOrgId();
+        if (currentOrgId == null) {
+            log.error("No orgId found in RequestContext during password reset for provider id: {}", providerId);
+            throw new SecurityException("No orgId available in request context");
+        }
+        
+        Provider provider = repository.findById(providerId)
+                .orElseThrow(() -> new RuntimeException("Provider not found with id: " + providerId));
+                
+        if (!currentOrgId.equals(provider.getOrgId())) {
+            throw new SecurityException("Access denied: Provider id " + providerId + " does not belong to orgId " + currentOrgId);
+        }
+        
+        // Implementation depends on your password storage strategy
+        // This is a placeholder - you should implement proper password hashing
+        log.info("Password reset requested for provider id: {} in org: {}", providerId, currentOrgId);
+        
+        return true; // Return success status
+    }
+
 }

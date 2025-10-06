@@ -17,7 +17,7 @@ public class SubscriptionController {
 
     @PostMapping
     public ApiResponse<SubscriptionDto> create(@RequestBody SubscriptionDto dto,
-                                               @RequestHeader("x-org-id") Long orgId) {
+                                               @RequestHeader("X-Org-Id") Long orgId) {
         dto.setOrgId(orgId);
         return ApiResponse.<SubscriptionDto>builder()
                 .success(true)
@@ -28,7 +28,7 @@ public class SubscriptionController {
 
     @PutMapping("/{id}")
     public ApiResponse<SubscriptionDto> update(@PathVariable Long id,
-                                               @RequestHeader("x-org-id") Long orgId,
+                                               @RequestHeader("X-Org-Id") Long orgId,
                                                @RequestBody SubscriptionDto dto) {
         dto.setOrgId(orgId);
         return ApiResponse.<SubscriptionDto>builder()
@@ -49,7 +49,7 @@ public class SubscriptionController {
 
     @GetMapping("/{id}")
     public ApiResponse<SubscriptionDto> getById(@PathVariable Long id,
-                                                @RequestHeader("x-org-id") Long orgId) {
+                                                @RequestHeader("X-Org-Id") Long orgId) {
         return service.getByIdAndOrg(id, orgId)
                 .map(dto -> ApiResponse.<SubscriptionDto>builder()
                         .success(true)
@@ -63,7 +63,7 @@ public class SubscriptionController {
     }
 
     @GetMapping
-    public ApiResponse<List<SubscriptionDto>> getAll(@RequestHeader("x-org-id") Long orgId) {
+    public ApiResponse<List<SubscriptionDto>> getAll(@RequestHeader("X-Org-Id") Long orgId) {
         return ApiResponse.<List<SubscriptionDto>>builder()
                 .success(true)
                 .message("Subscriptions retrieved successfully")
