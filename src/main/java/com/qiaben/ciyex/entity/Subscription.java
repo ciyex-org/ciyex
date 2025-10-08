@@ -3,8 +3,10 @@ package com.qiaben.ciyex.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
 @Entity
-// Do not hard-code tenant schema; rely on search_path
 @Table(name = "subscriptions")
 @Data
 @NoArgsConstructor
@@ -16,27 +18,24 @@ public class Subscription {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "orgid")   // ✅ match DB column
+    @Column(name = "org_id", nullable = false)
     private Long orgId;
 
-    @Column(name = "userid")
+    @Column(name = "user_id")
     private Long userId;
 
-    @Column(name = "service")
+    @Column(nullable = false)
     private String service;
 
-    @Column(name = "billingcycle")   // ✅ DB column is billingcycle
-    private String billingCycle;
+    @Column(name = "billing_cycle", nullable = false)
+    private String billingCycle; // "Yearly" or "Monthly"
 
-    @Column(name = "scope")
-    private String scope;
+    @Column(name = "start_date")
+    private LocalDateTime startDate;
 
     @Column(name = "status")
     private String status;
 
-    @Column(name = "startdate")   // ✅ DB column is startdate
-    private String startDate;
-
-    @Column(name = "price")
-    private Double price;
+    @Column(precision = 12, scale = 2)
+    private BigDecimal price;
 }

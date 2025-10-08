@@ -1,6 +1,5 @@
 package com.qiaben.ciyex.service;
 
-
 import com.qiaben.ciyex.entity.OrgConfig;
 import com.qiaben.ciyex.repository.OrgConfigRepository;
 import jakarta.persistence.EntityManager;
@@ -31,6 +30,7 @@ public class OrgConfigService {
         this.orgConfigRepository = orgConfigRepository;
         this.dataSource = dataSource;
     }
+
     /**
      * Ensure the connection's search_path is set to the tenant schema for the given orgId.
      * This runs on a separate JDBC connection (autocommit) so it does not participate in
@@ -105,8 +105,7 @@ public class OrgConfigService {
         return orgConfigRepository.findById(id)
                 .map(orgConfig -> {
                     orgConfig.setIntegrations(updatedOrgConfig.getIntegrations());
-                    // orgId is unique, optionally allow update or skip
-                    orgConfig.setOrgId(updatedOrgConfig.getOrgId());
+                    // ⚠️ orgId should not usually change; better to skip updating it
                     return orgConfigRepository.save(orgConfig);
                 })
                 .orElseThrow(() -> new IllegalArgumentException("OrgConfig not found with id: " + id));
@@ -119,5 +118,43 @@ public class OrgConfigService {
             throw new IllegalArgumentException("OrgConfig not found with id: " + id);
         }
         orgConfigRepository.deleteById(id);
+    }
+
+    /**
+     * ✅ Fetch the Stripe secret key for the given orgId from OrgConfig.integrations JSON/Map.
+     */
+    @Transactional(readOnly = true)
+    public String getStripeSecretKey(Long orgId) {
+        return findByOrgId(orgId)
+                .map(orgConfig -> {
+                    if (orgConfig.getIntegrations() == null) return null;
+
+                    // integrations is stored as a JsonNode (jsonb). Try common shapes:
+                    // 1) { "stripe": { "apiKey": "sk_..." } }
+                    // 2) { "stripeSecretKey": "sk_..." }
+                    try {
+                        com.fasterxml.jackson.databind.JsonNode integrations = orgConfig.getIntegrations();
+
+                        com.fasterxml.jackson.databind.JsonNode stripeNode = integrations.get("stripe");
+                        if (stripeNode != null && !stripeNode.isNull()) {
+                            com.fasterxml.jackson.databind.JsonNode apiKey = stripeNode.get("apiKey");
+                            if (apiKey != null && !apiKey.isNull()) return apiKey.asText();
+
+                            com.fasterxml.jackson.databind.JsonNode secret = stripeNode.get("secret");
+                            if (secret != null && !secret.isNull()) return secret.asText();
+                        }
+
+                        com.fasterxml.jackson.databind.JsonNode topLevel = integrations.get("stripeSecretKey");
+                        if (topLevel != null && !topLevel.isNull()) return topLevel.asText();
+
+                        // Last resort: look for apiKey at top-level
+                        com.fasterxml.jackson.databind.JsonNode apiKeyTop = integrations.get("apiKey");
+                        if (apiKeyTop != null && !apiKeyTop.isNull()) return apiKeyTop.asText();
+                    } catch (Exception e) {
+                        log.warn("Failed to extract Stripe key from integrations JSON for orgId={}: {}", orgId, e.getMessage());
+                    }
+                    return null;
+                })
+                .orElse(null);
     }
 }
