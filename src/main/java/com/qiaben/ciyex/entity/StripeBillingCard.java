@@ -7,7 +7,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "stripe_billing_cards")
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -17,19 +18,22 @@ public class StripeBillingCard {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id")
+    @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(name = "org_id")
+    @Column(name = "org_id", nullable = false)
     private Long orgId;
 
-    @Column(name = "stripe_payment_method_id")
+    @Column(name = "stripe_payment_method_id", length = 100)
     private String stripePaymentMethodId;
 
-    @Column(name = "stripe_customer_id")
+    @Column(name = "stripe_customer_id", length = 100)
     private String stripeCustomerId;
 
+    @Column(length = 50)
     private String brand;
+
+    @Column(length = 10)
     private String last4;
 
     @Column(name = "exp_month")
@@ -39,16 +43,18 @@ public class StripeBillingCard {
     private Integer expYear;
 
     @Column(name = "is_default")
-    private Boolean isDefault;
+    private Boolean isDefault = false;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // Add convenience method for "isDefault"
-    public boolean isDefault() {
+    /**
+     * Convenience method: safely check if card is marked as default.
+     */
+    public boolean isDefaultCard() {
         return Boolean.TRUE.equals(isDefault);
     }
 }

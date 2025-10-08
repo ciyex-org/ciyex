@@ -2,10 +2,10 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-// Do not hard-code tenant schema here; the app controls search_path at runtime
 @Table(name = "invoice_bills")
 @Data
 @NoArgsConstructor
@@ -17,20 +17,19 @@ public class InvoiceBill {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "org_id", nullable = false)
+    @Column(name = "org_id")
     private Long orgId;
 
-    @Column(name = "user_id", nullable = false)
+    @Column(name = "user_id")
     private Long userId;
 
     @Column(name = "subscription_id")
     private Long subscriptionId;
 
-    @Column(nullable = false)
-    private Double amount;
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private InvoiceStatus status;
 
     @Column(name = "external_id")
@@ -56,6 +55,8 @@ public class InvoiceBill {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    // removed placeholder fields - orgId, userId, subscriptionId are mapped above
 
     @PrePersist
     public void prePersist() {
