@@ -14,6 +14,7 @@ public record PatientInvoiceDto(
         BigDecimal ptBalance,
         BigDecimal insBalance,
         BigDecimal totalCharge,
+
         List<PatientInvoiceLineDto> lines
 
 ) {}

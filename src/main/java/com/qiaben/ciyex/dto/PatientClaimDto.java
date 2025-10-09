@@ -18,4 +18,5 @@ public record PatientClaimDto(
         int attachments,
         boolean eobAttached,
         LocalDate createdOn
+
 ) {}

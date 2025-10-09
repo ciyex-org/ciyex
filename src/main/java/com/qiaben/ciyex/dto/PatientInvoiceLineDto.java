@@ -16,4 +16,5 @@ public record PatientInvoiceLineDto(
         BigDecimal insWriteOff,
         BigDecimal insPortion,
         BigDecimal patientPortion
+
 ) {}

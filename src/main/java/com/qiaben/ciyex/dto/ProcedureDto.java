@@ -28,7 +28,13 @@ public class ProcedureDto {
     private String modifier3;
     private String modifier4;
 
+    private Integer priceLevelId;
+
+    // NEW: optional – returned for display only
+    private String priceLevelTitle;
     private String note;
+    private String  providername;
+    //private String dateOfService;
 
     private Audit audit;
     @Data
