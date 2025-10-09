@@ -39,6 +39,10 @@ public class ProcedureService {
                 .modifier1(in.getModifier1()).modifier2(in.getModifier2())
                 .modifier3(in.getModifier3()).modifier4(in.getModifier4())
                 .note(in.getNote())
+                .priceLevelTitle(in.getPriceLevelTitle())
+                .priceLevelId(in.getPriceLevelId())
+                .providername(in.getProvidername())
+
                 .build();
 
         final Procedure saved = repo.save(p);
@@ -49,6 +53,8 @@ public class ProcedureService {
             ref.setExternalId(externalId);
             repo.save(ref);
         });
+
+
 
         return mapToDto(saved);
     }
@@ -69,7 +75,8 @@ public class ProcedureService {
         p.setModifier3(in.getModifier3());
         p.setModifier4(in.getModifier4());
         p.setNote(in.getNote());
-
+        p.setPriceLevelTitle(in.getPriceLevelTitle());
+        p.setProvidername(in.getProvidername());
         final Procedure updated = repo.save(p);
 
         external.ifPresent(ext -> {
@@ -130,7 +137,8 @@ public class ProcedureService {
         dto.setModifier3(e.getModifier3());
         dto.setModifier4(e.getModifier4());
         dto.setNote(e.getNote());
-
+        dto.setPriceLevelTitle(e.getPriceLevelTitle());
+        dto.setProvidername(e.getProvidername());
         ProcedureDto.Audit a = new ProcedureDto.Audit();
         if (e.getCreatedAt() != null) a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
         if (e.getUpdatedAt() != null) a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));

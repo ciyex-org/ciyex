@@ -52,6 +52,8 @@ public class ProcedureController {
             @PathVariable Long patientId, @PathVariable Long encounterId, @RequestHeader("orgId") Long orgId,
             @RequestBody ProcedureDto dto) {
         var created = service.create(orgId, patientId, encounterId, dto);
+
+
         return ResponseEntity.ok(ApiResponse.<ProcedureDto>builder()
                 .success(true).message("Procedure created").data(created).build());
     }

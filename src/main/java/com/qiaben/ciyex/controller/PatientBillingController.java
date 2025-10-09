@@ -274,9 +274,12 @@ import com.qiaben.ciyex.service.PatientBillingService;
 import com.qiaben.ciyex.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @Slf4j
 @RestController
@@ -494,8 +497,8 @@ public class PatientBillingController {
         return ResponseEntity.ok(resp);
     }
 
-    /* ================= Insurance Payment ================= */
 
+    /* ================= Insurance Payment ================= */
     @GetMapping("/insurance-payments")
     public ResponseEntity<ApiResponse<List<PatientInsuranceRemitLineDto>>> listInsurancePayments(
             @RequestHeader("x-org-id") Long orgId,
@@ -505,15 +508,13 @@ public class PatientBillingController {
             @RequestParam(required = false) Long insuranceId) {
 
         var data = service.listInsurancePayments(orgId, patientId, invoiceId, claimId, insuranceId);
-        var resp = new ApiResponse.Builder<List<PatientInsuranceRemitLineDto>>()
-                .success(true)
-                .message("Insurance payments loaded")
-                .data(data)
-                .build();
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(
+                new ApiResponse.Builder<List<PatientInsuranceRemitLineDto>>()
+                        .success(true).message("Insurance payments loaded").data(data).build()
+        );
     }
 
-    /** NEW: Convenience read — all insurance payments for a specific invoice */
+    /** Invoice-scope: list insurance payments for one invoice (matches POST invoice path) */
     @GetMapping("/invoices/{invoiceId}/insurance-payments")
     public ResponseEntity<ApiResponse<List<PatientInsuranceRemitLineDto>>> listInsurancePaymentsForInvoice(
             @RequestHeader("x-org-id") Long orgId,
@@ -521,12 +522,10 @@ public class PatientBillingController {
             @PathVariable Long invoiceId) {
 
         var data = service.listInsurancePayments(orgId, patientId, invoiceId, null, null);
-        var resp = new ApiResponse.Builder<List<PatientInsuranceRemitLineDto>>()
-                .success(true)
-                .message("Insurance payments for invoice loaded")
-                .data(data)
-                .build();
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(
+                new ApiResponse.Builder<List<PatientInsuranceRemitLineDto>>()
+                        .success(true).message("Insurance payments for invoice loaded").data(data).build()
+        );
     }
 
 
@@ -549,45 +548,25 @@ public class PatientBillingController {
 
     /* ================= Patient Payment & Credit ================= */
 
+//    /** Patient payment → Apply */
+//    @PostMapping("/invoices/{invoiceId}/patient-payments")
+//    public ResponseEntity<ApiResponse<PatientInvoiceDto>> applyPatientPayment(
+//            @RequestHeader("x-org-id") Long orgId,
+//            @PathVariable Long patientId,
+//            @PathVariable Long invoiceId,
+//            @RequestBody PatientPatientPaymentRequestDto body) {
+//
+//        var data = service.applyPatientPayment(orgId, patientId, invoiceId, body);
+//        var resp = new ApiResponse.Builder<PatientInvoiceDto>()
+//                .success(true)
+//                .message("Patient payment applied")
+//                .data(data)
+//                .build();
+//        return ResponseEntity.ok(resp);
+//    }
 
 
-
-
-
-
-    @GetMapping("/patient-payments")
-    public ResponseEntity<ApiResponse<List<PaymentDTO>>> listPatientPayments(
-            @RequestHeader("x-org-id") Long orgId,
-            @PathVariable Long patientId,
-            @RequestParam(required = false) Long invoiceId,
-            @RequestParam(required = false) Long claimId,
-            @RequestParam(required = false) Long insuranceId) {
-
-        var data = service.listPatientPayments(orgId, patientId, invoiceId, claimId, insuranceId);
-        var resp = new ApiResponse.Builder<List<PaymentDTO>>()
-                .success(true)
-                .message("Patient payments loaded")
-                .data(data)
-                .build();
-        return ResponseEntity.ok(resp);
-    }
-
-    /** NEW: Convenience read — all patient payments for a specific invoice */
-    @GetMapping("/invoices/{invoiceId}/patient-payments")
-    public ResponseEntity<ApiResponse<List<PaymentDTO>>> listPatientPaymentsForInvoice(
-            @RequestHeader("x-org-id") Long orgId,
-            @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
-
-        var data = service.listPatientPayments(orgId, patientId, invoiceId, null, null);
-        var resp = new ApiResponse.Builder<List<PaymentDTO>>()
-                .success(true)
-                .message("Patient payments for invoice loaded")
-                .data(data)
-                .build();
-        return ResponseEntity.ok(resp);
-    }
-    /** Patient payment → Apply */
+    /** ✅ Patient payment → Apply (POST) */
     @PostMapping("/invoices/{invoiceId}/patient-payments")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> applyPatientPayment(
             @RequestHeader("x-org-id") Long orgId,
@@ -603,6 +582,38 @@ public class PatientBillingController {
                 .build();
         return ResponseEntity.ok(resp);
     }
+
+    /** ✅ GET all payments for a patient */
+    @GetMapping("/patient-payments")
+    public ResponseEntity<ApiResponse<List<PatientPatientPaymentAllocationDto>>> getAllPatientPayments(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId) {
+
+        var data = service.getAllPatientPayments(orgId, patientId);
+        var resp = new ApiResponse.Builder<List<PatientPatientPaymentAllocationDto>>()
+                .success(true)
+                .message("All patient payments fetched successfully")
+                .data(data)
+                .build();
+        return ResponseEntity.ok(resp);
+    }
+
+    /** ✅ GET payments by invoice */
+    @GetMapping("/invoices/{invoiceId}/patient-payments")
+    public ResponseEntity<ApiResponse<List<PatientPatientPaymentAllocationDto>>> getPaymentsByInvoice(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId) {
+
+        var data = service.getPatientPaymentsByInvoice(orgId, patientId, invoiceId);
+        var resp = new ApiResponse.Builder<List<PatientPatientPaymentAllocationDto>>()
+                .success(true)
+                .message("Patient payments for invoice fetched successfully")
+                .data(data)
+                .build();
+        return ResponseEntity.ok(resp);
+    }
+    /* ================= Account credit ================= */
 
     @GetMapping("/account-credit")
     public ResponseEntity<ApiResponse<PatientAccountCreditDto>> getAccountCredit(
@@ -643,5 +654,42 @@ public class PatientBillingController {
         service.deleteInvoice(orgId, patientId, invoiceId);
         return ResponseEntity.noContent().build();
     }
+
+    /** Upload claim attachment (image/pdf) */
+    @PostMapping(value = "/invoices/{invoiceId}/claim/{claimId}/attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<Void>> uploadClaimAttachment(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @PathVariable Long claimId,
+            @RequestParam("file") MultipartFile file) {
+        service.uploadClaimAttachment(orgId, patientId, invoiceId, claimId, file);
+        var resp = new ApiResponse.Builder<Void>()
+                .success(true)
+                .message("Attachment uploaded successfully")
+                .build();
+        return ResponseEntity.ok(resp);
+    }
+
+
+
+
+
+    /** Upload EOB document (image/pdf) */
+    @PostMapping(value = "/invoices/{invoiceId}/claim/{claimId}/eob", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<Void>> uploadEobDocument(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @PathVariable Long claimId,
+            @RequestParam("file") MultipartFile file) {
+        service.uploadEobDocument(orgId, patientId, invoiceId, claimId, file);
+        var resp = new ApiResponse.Builder<Void>()
+                .success(true)
+                .message("EOB uploaded successfully")
+                .build();
+        return ResponseEntity.ok(resp);
+    }
 }
+
 

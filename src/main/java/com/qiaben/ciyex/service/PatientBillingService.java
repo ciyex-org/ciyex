@@ -333,11 +333,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 import java.math.RoundingMode;   // <-- keep this
 import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -350,6 +352,10 @@ public class PatientBillingService {
     private final PatientClaimRepository claimRepo;
     private final PatientInsuranceRemitLineRepository remitRepo;
     private final PatientAccountCreditRepository creditRepo;
+
+    private final PatientPaymentAllocationRepository allocationRepo;
+    private final PatientPaymentRepository paymentRepo;
+    private final PatientInvoiceLineRepository invoiceLineRepo;
 
     /* ====== Request DTOs for JSON bodies (simple and explicit) ====== */
     public record CreateInvoiceRequest(String code, String description, String provider, String dos, BigDecimal rate) {}
@@ -367,6 +373,7 @@ public class PatientBillingService {
             String attachmentTransmissionCode,
             String claimSubmissionReasonCode
     ) {}
+
 
     /* ===================== Invoices ===================== */
 
@@ -435,6 +442,12 @@ public class PatientBillingService {
 
         return toInvoiceDto(invoice);
     }
+
+
+
+
+
+
 
     public PatientInvoiceDto updateInvoiceLineAmount(Long orgId, Long patientId, Long invoiceId, Long lineId, UpdateLineAmountRequest b) {
         PatientInvoice invoice = getInvoiceOrThrow(orgId, patientId, invoiceId);
@@ -561,6 +574,9 @@ public class PatientBillingService {
         return toClaimDto(c);
     }
 
+
+
+
     /* ================ Insurance Payment ================ */
 
 //    public PatientInvoiceDto applyInsurancePayment(Long orgId, Long patientId, Long invoiceId, PatientInsurancePaymentRequestDto req) {
@@ -675,20 +691,18 @@ public class PatientBillingService {
     }
 
 
-    public List<PatientInsuranceRemitLineDto> listInsurancePayments(Long orgId, Long patientId,
-                                                                    Long invoiceId, Long claimId, Long insuranceId) {
-        // Resolve claimId -> invoiceId when needed
+    public List<PatientInsuranceRemitLineDto> listInsurancePayments(
+            Long orgId, Long patientId, Long invoiceId, Long claimId, Long insuranceId) {
+
         if (invoiceId == null && claimId != null) {
             try {
                 PatientClaim c;
                 try {
-                    List<PatientClaim> claims = claimRepo.findAllByIdAndOrgIdAndPatientId(claimId, orgId, patientId);
+                    var claims = claimRepo.findAllByIdAndOrgIdAndPatientId(claimId, orgId, patientId);
                     c = (claims != null && !claims.isEmpty()) ? claims.get(0) : null;
                 } catch (NoSuchMethodError e) {
                     c = claimRepo.findById(claimId).orElse(null);
                 }
-
-
                 if (c != null) invoiceId = c.getInvoiceId();
             } catch (RuntimeException ex) {
                 log.warn("Unable to resolve claimId {} to invoiceId: {}", claimId, ex.getMessage());
@@ -697,30 +711,22 @@ public class PatientBillingService {
 
         List<PatientInsuranceRemitLine> rows;
         try {
-            if (invoiceId != null) {
-                // Prefer an index-friendly path first
-                rows = remitRepo.findAllByOrgIdAndPatientIdAndInvoiceIdOrderByIdDesc(orgId, patientId, invoiceId);
-            } else {
-                rows = remitRepo.findAllByOrgIdAndPatientIdOrderByIdDesc(orgId, patientId);
-            }
+            rows = (invoiceId != null)
+                    ? remitRepo.findAllByOrgIdAndPatientIdAndInvoiceIdOrderByIdDesc(orgId, patientId, invoiceId)
+                    : remitRepo.findAllByOrgIdAndPatientIdOrderByIdDesc(orgId, patientId);
         } catch (NoSuchMethodError | RuntimeException e) {
-            // Older repos without OrderBy…
             try {
-                if (invoiceId != null) {
-                    rows = remitRepo.findAllByOrgIdAndPatientIdAndInvoiceId(orgId, patientId, invoiceId);
-                } else {
-                    rows = remitRepo.findAllByOrgIdAndPatientId(orgId, patientId);
-                }
+                rows = (invoiceId != null)
+                        ? remitRepo.findAllByOrgIdAndPatientIdAndInvoiceId(orgId, patientId, invoiceId)
+                        : remitRepo.findAllByOrgIdAndPatientId(orgId, patientId);
             } catch (RuntimeException ex) {
-                // Last resort: get everything for patientId ignoring org filter (legacy)
                 log.warn("Fallback remit query (no org filter) due to: {}", ex.getMessage());
                 rows = remitRepo.findAllByPatientId(patientId);
             }
         }
 
-        // NOTE: insuranceId not applied (entity has no insurance/payer field)
         if (insuranceId != null) {
-            log.info("insuranceId filter provided ({}), but PatientInsuranceRemitLine lacks insuranceId; ignoring for now.", insuranceId);
+            log.info("insuranceId filter provided ({}), but entity lacks payer id; ignoring.", insuranceId);
         }
 
         return rows.stream().map(this::toRemitDto).toList();
@@ -730,58 +736,152 @@ public class PatientBillingService {
 
 
 
+
     /* ================ Patient Payment & Credit ================ */
 
-    public PatientInvoiceDto applyPatientPayment(Long orgId, Long patientId, Long invoiceId, PatientPatientPaymentRequestDto req) {
-        PatientInvoice invoice = getInvoiceOrThrow(orgId, patientId, invoiceId);
+//    public PatientInvoiceDto applyPatientPayment(Long orgId, Long patientId, Long invoiceId, PatientPatientPaymentRequestDto req) {
+//        PatientInvoice invoice = getInvoiceOrThrow(orgId, patientId, invoiceId);
+//
+//        BigDecimal outstanding = nz(invoice.getInsBalance()).add(nz(invoice.getPtBalance()));
+//        BigDecimal entered = (req == null || req.allocations() == null) ? BigDecimal.ZERO
+//                : req.allocations().stream().map(a -> nz(a.amount())).reduce(BigDecimal.ZERO, BigDecimal::add);
+//
+//        if (outstanding.compareTo(BigDecimal.ZERO) <= 0) {
+//            addCredit(orgId, patientId, entered);
+//            return toInvoiceDto(invoice);
+//        }
+//
+//        BigDecimal cover = entered.min(outstanding);
+//        BigDecimal remaining = outstanding.subtract(cover);
+//
+//        invoice.setStatus(remaining.compareTo(BigDecimal.ZERO) <= 0 ? PatientInvoice.Status.PAID : PatientInvoice.Status.PARTIALLY_PAID);
+//
+//        BigDecimal over = entered.subtract(cover);
+//        if (over.compareTo(BigDecimal.ZERO) > 0) addCredit(orgId, patientId, over);
+//
+//        return toInvoiceDto(invoice);
+//    }
+@Transactional
+public PatientInvoiceDto applyPatientPayment(
+        Long orgId, Long patientId, Long invoiceId, PatientPatientPaymentRequestDto req) {
 
-        BigDecimal outstanding = nz(invoice.getInsBalance()).add(nz(invoice.getPtBalance()));
-        BigDecimal entered = (req == null || req.allocations() == null) ? BigDecimal.ZERO
-                : req.allocations().stream().map(a -> nz(a.amount())).reduce(BigDecimal.ZERO, BigDecimal::add);
+    // 1️⃣ Fetch and validate invoice
+    PatientInvoice invoice = getInvoiceOrThrow(orgId, patientId, invoiceId);
 
-        if (outstanding.compareTo(BigDecimal.ZERO) <= 0) {
-            addCredit(orgId, patientId, entered);
-            return toInvoiceDto(invoice);
-        }
+    BigDecimal outstanding = nz(invoice.getInsBalance()).add(nz(invoice.getPtBalance()));
+    BigDecimal entered = (req == null || req.allocations() == null)
+            ? BigDecimal.ZERO
+            : req.allocations().stream()
+            .map(a -> nz(a.amount()))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal cover = entered.min(outstanding);
-        BigDecimal remaining = outstanding.subtract(cover);
-
-        invoice.setStatus(remaining.compareTo(BigDecimal.ZERO) <= 0 ? PatientInvoice.Status.PAID : PatientInvoice.Status.PARTIALLY_PAID);
-
-        BigDecimal over = entered.subtract(cover);
-        if (over.compareTo(BigDecimal.ZERO) > 0) addCredit(orgId, patientId, over);
-
+    // 2️⃣ Handle zero or overpayment as account credit
+    if (outstanding.compareTo(BigDecimal.ZERO) <= 0) {
+        addCredit(orgId, patientId, entered);
         return toInvoiceDto(invoice);
     }
 
+    // 3️⃣ Compute coverage and remaining balance
+    BigDecimal cover = entered.min(outstanding);
+    BigDecimal remaining = outstanding.subtract(cover);
 
-    public List<PaymentDTO> listPatientPayments(Long orgId, Long patientId,
-                                                Long invoiceId, Long claimId, Long insuranceId) {
-        // Resolve claimId -> invoiceId (future-proof when you add a repository)
-        if (invoiceId == null && claimId != null) {
-            try {
-                PatientClaim c;
-                try {
-                    List<PatientClaim> claims = claimRepo.findAllByIdAndOrgIdAndPatientId(claimId, orgId, patientId);
-                    c = (claims != null && !claims.isEmpty()) ? claims.get(0) : null;
-                } catch (NoSuchMethodError e) {
-                    c = claimRepo.findById(claimId).orElse(null);
-                }
+    invoice.setStatus(remaining.compareTo(BigDecimal.ZERO) <= 0
+            ? PatientInvoice.Status.PAID
+            : PatientInvoice.Status.PARTIALLY_PAID);
 
-                if (c != null) invoiceId = c.getInvoiceId();
-            } catch (RuntimeException ex) {
-                log.warn("Unable to resolve claimId {} to invoiceId for patient payments: {}", claimId, ex.getMessage());
-            }
+    // 4️⃣ Handle any overpayment
+    BigDecimal over = entered.subtract(cover);
+    if (over.compareTo(BigDecimal.ZERO) > 0) {
+        addCredit(orgId, patientId, over);
+    }
+
+    // 5️⃣ Save payment first — ensures ID exists before allocation
+    PatientPayment payment = new PatientPayment(
+            patientId,
+            PaymentMethod.valueOf(req.paymentMethod()),
+            entered
+    );
+    PatientPayment savedPayment = paymentRepo.saveAndFlush(payment); // flush ensures persistence before allocation
+
+    // 6️⃣ Save allocations linked to payment
+    if (req.allocations() != null && !req.allocations().isEmpty()) {
+        for (var allocReq : req.allocations()) {
+            PatientInvoiceLine line = invoiceLineRepo.findById(allocReq.invoiceLineId())
+                    .orElseThrow(() -> new RuntimeException("Invoice line not found: " + allocReq.invoiceLineId()));
+
+            PatientPaymentAllocation alloc = new PatientPaymentAllocation(savedPayment, line, allocReq.amount());
+            alloc.setPayment(savedPayment); // make sure relation is set
+            allocationRepo.save(alloc);
         }
+    }
 
-        if (insuranceId != null) {
-            log.info("insuranceId filter provided ({}), but patient payment persistence not implemented; ignoring.", insuranceId);
-        }
+    // 7️⃣ Persist invoice status updates
+    invoiceRepo.save(invoice);
 
-        log.info("Patient payments listing is not yet persisted; returning empty list. orgId={}, patientId={}, invoiceId={}",
-                orgId, patientId, invoiceId);
-        return List.of();
+    // 8️⃣ Return latest DTO
+    return toInvoiceDto(invoice);
+}
+
+    // -------------------- NEW METHODS -------------------- //
+
+//    /** 🔹 Get all payments for patient */
+//    public List<PatientPatientPaymentAllocationDto> getAllPatientPayments(Long orgId, Long patientId) {
+//        var allocations = allocationRepo.findByPayment_PatientId(patientId);
+//        return allocations.stream()
+//                .map(a -> new PatientPatientPaymentAllocationDto(
+//                        a.getId(),
+//                        a.getInvoiceLine() != null ? a.getInvoiceLine().getId() : null,
+//                        a.getAmount(),
+//                        a.getPayment() != null ? a.getPayment().getPaymentMethod().name() : null,
+//                        a.getCreatedAt()
+//                ))
+//                .collect(Collectors.toList());
+//
+//    }
+//
+//    /** 🔹 Get payments for a specific invoice */
+//    public List<PatientPatientPaymentAllocationDto> getPatientPaymentsByInvoice(Long orgId, Long patientId, Long invoiceId) {
+//        getInvoiceOrThrow(orgId, patientId, invoiceId);
+//        var allocations = allocationRepo.findByInvoiceLine_Invoice_Id(invoiceId);
+//        return allocations.stream()
+//                .map(a -> new PatientPatientPaymentAllocationDto(
+//                        a.getId(),
+//                        a.getInvoiceLine() != null ? a.getInvoiceLine().getId() : null,
+//                        a.getAmount(),
+//                        a.getPayment() != null ? a.getPayment().getPaymentMethod().name() : null,
+//                        a.getCreatedAt()
+//                ))
+//                .collect(Collectors.toList());
+//
+//    }
+
+
+
+    public List<PatientPatientPaymentAllocationDto> getAllPatientPayments(Long orgId, Long patientId) {
+        var allocations = allocationRepo.findByPatientId(patientId);
+        return allocations.stream()
+                .map(a -> new PatientPatientPaymentAllocationDto(
+                        a.getId(),
+                        a.getInvoiceLine() != null ? a.getInvoiceLine().getId() : null,
+                        a.getAmount(),
+                        a.getPayment() != null ? a.getPayment().getPaymentMethod().name() : null,
+                        a.getCreatedAt()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    public List<PatientPatientPaymentAllocationDto> getPatientPaymentsByInvoice(Long orgId, Long patientId, Long invoiceId) {
+        getInvoiceOrThrow(orgId, patientId, invoiceId);
+        var allocations = allocationRepo.findByInvoiceId(invoiceId);
+        return allocations.stream()
+                .map(a -> new PatientPatientPaymentAllocationDto(
+                        a.getId(),
+                        a.getInvoiceLine() != null ? a.getInvoiceLine().getId() : null,
+                        a.getAmount(),
+                        a.getPayment() != null ? a.getPayment().getPaymentMethod().name() : null,
+                        a.getCreatedAt()
+                ))
+                .collect(Collectors.toList());
     }
 
 
@@ -813,6 +913,18 @@ public class PatientBillingService {
         PatientInvoice invoice = getInvoiceOrThrow(orgId, patientId, invoiceId);
         invoiceRepo.delete(invoice);
     }
+
+
+
+
+
+
+
+
+
+
+
+
 
     /* ===================== Helpers & mapping ===================== */
 
@@ -878,5 +990,34 @@ public class PatientBillingService {
                 e.getApplyWriteoff()
         );
     }
+
+    public void uploadClaimAttachment(Long orgId, Long patientId, Long invoiceId, Long claimId, MultipartFile file) {
+        // Validate claim exists
+        PatientClaim claim = claimRepo.findById(claimId).orElseThrow(() -> new IllegalArgumentException("Claim not found"));
+        // Null-safe increment for attachments
+        Integer currentAttachments = claim.getAttachments();
+        claim.setAttachments((currentAttachments != null ? currentAttachments : 0) + 1);
+        claimRepo.save(claim);
+    }
+
+    public void uploadEobDocument(Long orgId, Long patientId, Long invoiceId, Long claimId, MultipartFile file) {
+        // Validate claim exists
+        PatientClaim claim = claimRepo.findById(claimId).orElseThrow(() -> new IllegalArgumentException("Claim not found"));
+        // TODO: Store file (local, cloud, or DB)
+        // For now, just set eob_attached to true
+        claim.setEobAttached(true);
+        claimRepo.save(claim);
+    }
+
+    private PatientPaymentDto toPaymentDto(PatientPayment payment) {
+        return new PatientPaymentDto(
+                payment.getId(),
+                payment.getPatientId(),
+                payment.getPaymentMethod() != null ? payment.getPaymentMethod().name() : null,
+                payment.getAmount(),
+                payment.getCreatedAt()
+        );
+    }
+
 
 }
