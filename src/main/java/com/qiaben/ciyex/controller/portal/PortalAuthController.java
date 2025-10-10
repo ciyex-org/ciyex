@@ -107,12 +107,6 @@ public class PortalAuthController {
                     user.setFirstName(request.getFirstName());
                     user.setLastName(request.getLastName());
                     user.setPhoneNumber(request.getPhoneNumber());
-                    user.setCity(request.getCity());
-                    user.setState(request.getState());
-                    user.setStreet(request.getStreet());
-                    user.setStreet2(request.getStreet2());
-                    user.setPostalCode(request.getPostalCode());
-                    user.setCountry(request.getCountry());
                     PortalUser updated = portalUserRepository.save(user);
 
                     return ApiResponse.<PortalUserDto>builder()
