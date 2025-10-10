@@ -15,22 +15,22 @@ public class PortalPatientMapper {
     public PortalPatientDto toDto(PortalPatient patient) {
         if (patient == null) return null;
 
-        PortalUser user = patient.getUser();
+        PortalUser user = patient.getPortalUser();
 
         return PortalPatientDto.builder()
                 .id(patient.getId())
                 .userId(user != null ? user.getId() : null)
-                .firstName(patient.getFirstName())
-                .lastName(patient.getLastName())
-                .dob(patient.getDob())
+                .firstName(user != null ? user.getFirstName() : null)
+                .lastName(user != null ? user.getLastName() : null)
+                .dob(patient.getDateOfBirth())
                 .gender(patient.getGender())
-                .phone(patient.getPhone())
-                .email(patient.getEmail())
-                .address(patient.getAddress())
-                .city(user != null ? user.getCity() : null)
-                .state(user != null ? user.getState() : null)
-                .country(user != null ? user.getCountry() : null)
-                .postalCode(user != null ? user.getPostalCode() : null)
+                .phone(user != null ? user.getPhoneNumber() : null)
+                .email(user != null ? user.getEmail() : null)
+                .address(patient.getAddressLine1())
+                .city(patient.getCity())
+                .state(patient.getState())
+                .country(patient.getCountry())
+                .postalCode(patient.getPostalCode())
                 .build();
     }
 
@@ -42,14 +42,14 @@ public class PortalPatientMapper {
 
         return PortalPatient.builder()
                 .id(dto.getId())
-                .user(user)  // 🔹 maintain the link back to PortalUser
-                .firstName(dto.getFirstName())
-                .lastName(dto.getLastName())
-                .dob(dto.getDob())
+                .portalUser(user)  // maintain the link back to PortalUser
+                .dateOfBirth(dto.getDob())
                 .gender(dto.getGender())
-                .phone(dto.getPhone())
-                .email(dto.getEmail())
-                .address(dto.getAddress())
+                .addressLine1(dto.getAddress())
+                .city(dto.getCity())
+                .state(dto.getState())
+                .country(dto.getCountry())
+                .postalCode(dto.getPostalCode())
                 .build();
     }
 
@@ -59,12 +59,12 @@ public class PortalPatientMapper {
     public void updateEntityFromDto(PortalPatientDto dto, PortalPatient patient) {
         if (dto == null || patient == null) return;
 
-        if (dto.getFirstName() != null) patient.setFirstName(dto.getFirstName());
-        if (dto.getLastName() != null) patient.setLastName(dto.getLastName());
-        if (dto.getDob() != null) patient.setDob(dto.getDob());
+        if (dto.getDob() != null) patient.setDateOfBirth(dto.getDob());
         if (dto.getGender() != null) patient.setGender(dto.getGender());
-        if (dto.getPhone() != null) patient.setPhone(dto.getPhone());
-        if (dto.getEmail() != null) patient.setEmail(dto.getEmail());
-        if (dto.getAddress() != null) patient.setAddress(dto.getAddress());
+        if (dto.getAddress() != null) patient.setAddressLine1(dto.getAddress());
+        if (dto.getCity() != null) patient.setCity(dto.getCity());
+        if (dto.getState() != null) patient.setState(dto.getState());
+        if (dto.getCountry() != null) patient.setCountry(dto.getCountry());
+        if (dto.getPostalCode() != null) patient.setPostalCode(dto.getPostalCode());
     }
 }
