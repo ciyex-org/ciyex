@@ -3,14 +3,20 @@ package com.qiaben.ciyex.controller;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.StripeBillingCardDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.service.OrgConfigService;
 import com.qiaben.ciyex.service.StripeBillingCardService;
+import com.stripe.model.Customer;
+import com.stripe.model.PaymentMethod;
+import com.stripe.net.RequestOptions;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -20,6 +26,7 @@ import java.util.List;
 public class StripeBillingCardController {
 
     private final StripeBillingCardService service;
+    private final OrgConfigService orgConfigService;
 
     private Long getOrgIdOrThrow() {
         RequestContext ctx = RequestContext.get();
@@ -33,8 +40,37 @@ public class StripeBillingCardController {
     @PostMapping
     public ResponseEntity<ApiResponse<StripeBillingCardDto>> createCard(
             @Valid @RequestBody StripeBillingCardDto dto) {
+        Long orgId = getOrgIdOrThrow();
+
         try {
-            StripeBillingCardDto saved = service.create(dto, getOrgIdOrThrow());
+            // 1. Get org-specific Stripe key
+            String stripeKey = orgConfigService.getStripeSecretKey(orgId);
+            RequestOptions opts = RequestOptions.builder().setApiKey(stripeKey).build();
+
+            // 2. Ensure Stripe Customer exists
+            String customerId = dto.getStripeCustomerId();
+            if (customerId == null || customerId.isBlank()) {
+                Map<String, Object> custParams = new HashMap<>();
+                custParams.put("description", "Org " + orgId + " user " + dto.getUserId());
+                custParams.put("metadata", Map.of("orgId", String.valueOf(orgId)));
+                Customer customer = Customer.create(custParams, opts);
+                customerId = customer.getId();
+                dto.setStripeCustomerId(customerId);
+            }
+
+            // 3. Attach PaymentMethod to Customer (if provided)
+            if (dto.getStripePaymentMethodId() != null && !dto.getStripePaymentMethodId().isBlank()) {
+                PaymentMethod pm = PaymentMethod.retrieve(dto.getStripePaymentMethodId(), opts);
+
+                // ⚠️ Avoid re-attaching if already attached
+                if (pm.getCustomer() == null || !pm.getCustomer().equals(customerId)) {
+                    pm.attach(Map.of("customer", customerId), opts);
+                }
+            }
+
+            // 4. Save in DB
+            StripeBillingCardDto saved = service.create(dto, orgId);
+
             return ResponseEntity.ok(ApiResponse.<StripeBillingCardDto>builder()
                     .success(true)
                     .message("Stripe card saved successfully")

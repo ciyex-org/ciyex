@@ -26,8 +26,9 @@ public class StripeBillingCardService {
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
 
-        if (entity.isDefault()) {
+        if (dto.isDefault()) {
             clearDefaultForUser(entity.getUserId(), orgId);
+            entity.setIsDefault(true);
         }
 
         return toDto(repository.save(entity));
@@ -67,9 +68,32 @@ public class StripeBillingCardService {
         if (dto.isDefault()) {
             clearDefaultForUser(entity.getUserId(), orgId);
             entity.setIsDefault(true);
+        } else {
+            entity.setIsDefault(false);
         }
 
         return toDto(repository.save(entity));
+    }
+
+    /**
+     * ✅ Update only the Stripe Customer ID for a card
+     */
+    @Transactional
+    public void updateCustomerId(Long cardId, Long orgId, String customerId) {
+        repository.findByIdAndOrgId(cardId, orgId).ifPresent(card -> {
+            card.setStripeCustomerId(customerId);
+            card.setUpdatedAt(LocalDateTime.now());
+            repository.save(card);
+        });
+    }
+
+    /**
+     * ✅ Find all cards without a Stripe Customer ID (per org).
+     */
+    public List<StripeBillingCardDto> findAllWithoutCustomer(Long orgId) {
+        return repository.findByStripeCustomerIdIsNullAndOrgId(orgId).stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
     }
 
     /* ---------------- DELETE ---------------- */
@@ -92,12 +116,19 @@ public class StripeBillingCardService {
     }
 
     private void clearDefaultForUser(Long userId, Long orgId) {
-        repository.findByUserIdAndOrgId(userId, orgId).forEach(c -> {
-            if (c.isDefault()) {
+        // Run in a separate transaction to avoid marking the outer transaction rollback-only
+        // if an error happens while clearing defaults.
+        List<StripeBillingCard> cards = repository.findByUserIdAndOrgId(userId, orgId);
+        boolean changed = false;
+        for (StripeBillingCard c : cards) {
+            if (c.isDefaultCard()) {
                 c.setIsDefault(false);
-                repository.save(c);
+                changed = true;
             }
-        });
+        }
+        if (changed) {
+            repository.saveAll(cards);
+        }
     }
 
     /* ---------------- MAPPERS ---------------- */
@@ -112,7 +143,7 @@ public class StripeBillingCardService {
                 .last4(entity.getLast4())
                 .expMonth(entity.getExpMonth())
                 .expYear(entity.getExpYear())
-                .isDefault(entity.isDefault())
+                .defaultCard(entity.isDefaultCard()) // ✅ maps correctly to DTO
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
@@ -129,7 +160,7 @@ public class StripeBillingCardService {
                 .last4(dto.getLast4())
                 .expMonth(dto.getExpMonth())
                 .expYear(dto.getExpYear())
-                .isDefault(dto.isDefault())
+                .isDefault(dto.isDefault()) // ✅ maps from DTO "isDefault" (JsonProperty)
                 .createdAt(dto.getCreatedAt())
                 .updatedAt(dto.getUpdatedAt())
                 .build();
