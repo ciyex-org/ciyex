@@ -55,9 +55,6 @@ public class PortalProfileController {
         if (updated.getFirstName() != null) user.setFirstName(updated.getFirstName());
         if (updated.getLastName() != null) user.setLastName(updated.getLastName());
         if (updated.getPhoneNumber() != null) user.setPhoneNumber(updated.getPhoneNumber());
-        if (updated.getCity() != null) user.setCity(updated.getCity());
-        if (updated.getState() != null) user.setState(updated.getState());
-        if (updated.getCountry() != null) user.setCountry(updated.getCountry());
 
         PortalUser saved = userRepository.save(user);
         PortalUserDto dto = PortalUserDto.fromEntity(saved);
@@ -72,4 +69,3 @@ public class PortalProfileController {
         return null;
     }
 }
-//

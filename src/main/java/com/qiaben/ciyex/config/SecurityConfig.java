@@ -46,7 +46,7 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    // Explicitly register your custom UserDetailsService and encoder
+    // Custom auth provider
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
@@ -55,7 +55,6 @@ public class SecurityConfig {
         return authProvider;
     }
 
-    // Auth manager using above provider
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
         return authConfig.getAuthenticationManager();
@@ -64,30 +63,44 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))
-        .authorizeHttpRequests(auth -> auth
-            // public auth endpoints
-            .requestMatchers(
-                "/api/auth/login",
-                "/api/auth/register",
-                "/api/auth/encode-password/**",
-                "/api/auth/secret-key"
-            ).permitAll()
-            // permit all actuator endpoints (works regardless of management base-path/port)
-            .requestMatchers(EndpointRequest.toAnyEndpoint()).permitAll()
-            // everything else requires authentication
-            .anyRequest().authenticated()
-        );
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .csrf(AbstractHttpConfigurer::disable)
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))
+            .authorizeHttpRequests(auth -> auth
+                // ✅ PUBLIC endpoints for EHR and Portal
+                .requestMatchers(
+                    "/api/auth/login",
+                    "/api/auth/register",
+                    "/api/auth/encode-password/**",
+                    "/api/auth/secret-key",
+
+                    // ✅ Portal-specific auth endpoints
+                    "/api/portal/auth/login",
+                    "/api/portal/auth/register",
+                    "/api/portal/auth/reset-password",
+                    "/api/portal/auth/user/**",
+
+                    // ✅ Public read-only portal endpoints (if needed)
+                    "/api/portal/providers/**",
+                    "/api/portal/locations/**",
+
+                    // ✅ Telehealth endpoints (JWT parsed manually in controller)
+                    "/api/telehealth/**"
+                ).permitAll()
+
+                // ✅ Allow Spring Actuator endpoints
+                .requestMatchers(EndpointRequest.toAnyEndpoint()).permitAll()
+
+                // everything else requires JWT
+                .anyRequest().authenticated()
+            );
 
         http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
-
         return http.build();
     }
 
-    // CORS config (adjust as needed)
+    // ✅ CORS config (portal + EHR)
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();

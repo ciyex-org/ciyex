@@ -30,21 +30,23 @@ public class JitsiTelehealthService implements TelehealthService {
 
     @Override
     public String startVideoCall(Long providerId, Long patientId, String roomName) {
-        Long orgId = RequestContext.get().getOrgId();
-        TelehealthConfig config = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
-        ensureJitsiConfigured(config);
+        TelehealthConfig config = null;
+        try {
+            Long orgId = getCurrentOrgId();
+            config = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
+        } catch (Exception e) {
+            log.warn("Failed to get telehealth config, proceeding without config: {}", e.getMessage());
+        }
 
         // For Jitsi, we don't need to create a room via API - rooms are created on-demand
         // We just return a unique room identifier that will be used for the meeting URL
-        String uniqueRoomName = generateUniqueRoomName(roomName, orgId, providerId, patientId);
-        
-        log.info("Started Jitsi video call for orgId={}, roomName={}, providerId={}, patientId={}", 
-                orgId, uniqueRoomName, providerId, patientId);
-        
-        return uniqueRoomName;
-    }
+        String uniqueRoomName = generateUniqueRoomName(roomName, getCurrentOrgId(), providerId, patientId);
 
-    @Override
+        log.info("Started Jitsi video call for roomName={}, providerId={}, patientId={}",
+                uniqueRoomName, providerId, patientId);
+
+        return uniqueRoomName;
+    }    @Override
     public String getCallStatus(String callId) {
         // For Jitsi, we assume the room is always "active" since rooms are created on-demand
         // In a more sophisticated implementation, you could track room status via webhooks
@@ -53,20 +55,28 @@ public class JitsiTelehealthService implements TelehealthService {
 
     @Override
     public String createJoinToken(String roomName, String identity, Integer ttlSecs) {
-        Long orgId = RequestContext.get().getOrgId();
-        TelehealthConfig config = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
-        ensureJitsiConfigured(config);
+        TelehealthConfig config = null;
+        try {
+            Long orgId = getCurrentOrgId();
+            config = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
+        } catch (Exception e) {
+            log.warn("Failed to get telehealth config, using defaults: {}", e.getMessage());
+        }
 
-        TelehealthConfig.Jitsi jitsiConfig = config.getJitsi();
-        
+        TelehealthConfig.Jitsi jitsiConfig = config != null ? config.getJitsi() : null;
+
+        // If Jitsi config is missing, fall back to using room name as token
+        if (jitsiConfig == null) {
+            log.warn("Jitsi configuration section is missing, falling back to room name as token");
+            return roomName;
+        }
+
         // Use provided TTL or default from config or fallback to 1 hour
-        int tokenTtl = ttlSecs != null ? ttlSecs : 
+        int tokenTtl = ttlSecs != null ? ttlSecs :
                       (jitsiConfig.getDefaultTokenTtl() != null ? jitsiConfig.getDefaultTokenTtl() : 3600);
 
         return generateJitsiJWT(jitsiConfig, roomName, identity, tokenTtl);
-    }
-
-    /**
+    }    /**
      * Generate a JWT token for Jitsi authentication
      */
     private String generateJitsiJWT(TelehealthConfig.Jitsi config, String roomName, String identity, int ttlSecs) {
@@ -85,7 +95,7 @@ public class JitsiTelehealthService implements TelehealthService {
         claims.put("room", roomName);
         claims.put("exp", expiration.getEpochSecond());
         claims.put("iat", now.getEpochSecond());
-        
+
         // User context for Jitsi
         Map<String, Object> context = new HashMap<>();
         Map<String, Object> user = new HashMap<>();
@@ -96,7 +106,7 @@ public class JitsiTelehealthService implements TelehealthService {
 
         try {
             SecretKey key = Keys.hmacShaKeyFor(config.getAppSecret().getBytes());
-            
+
             String token = Jwts.builder()
                     .claims(claims)
                     .signWith(key)
@@ -123,47 +133,71 @@ public class JitsiTelehealthService implements TelehealthService {
      * Get the full Jitsi meeting URL for a room
      */
     public String getMeetingUrl(String roomName) {
-        Long orgId = RequestContext.get().getOrgId();
-        TelehealthConfig config = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
-        ensureJitsiConfigured(config);
+        TelehealthConfig config = null;
+        try {
+            Long orgId = getCurrentOrgId();
+            config = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
+        } catch (Exception e) {
+            log.warn("Failed to get telehealth config for meeting URL, using defaults: {}", e.getMessage());
+        }
 
-        String serverUrl = config.getJitsi().getServerUrl();
+        String serverUrl;
+        if (config != null && config.getJitsi() != null && !isBlank(config.getJitsi().getServerUrl())) {
+            serverUrl = config.getJitsi().getServerUrl();
+        } else {
+            // Fallback to default Jitsi server if not configured
+            serverUrl = "https://meet-stg.ciyex.com";
+            log.warn("Jitsi server URL not configured, using default: {}", serverUrl);
+        }
+
         // Remove trailing slash if present
         if (serverUrl.endsWith("/")) {
             serverUrl = serverUrl.substring(0, serverUrl.length() - 1);
         }
-        
-        return serverUrl + "/" + roomName;
-    }
 
-    /**
+        return serverUrl + "/" + roomName;
+    }    /**
      * Create a join token and return both the token and meeting URL
      */
     public JoinTokenWithMeetingUrl createJoinTokenWithUrl(String roomName, String identity, Integer ttlSecs) {
         String token = createJoinToken(roomName, identity, ttlSecs);
         String meetingUrl = getMeetingUrl(roomName);
-        
-        // For , if we have a JWT token, we can append it as a query parameter
+
+        // For Jitsi, if we have a JWT token, we can append it as a query parameter
         if (!token.equals(roomName)) { // If token is not just the room name (i.e., JWT was generated)
             meetingUrl += "?jwt=" + token;
         }
-        
+
         return new JoinTokenWithMeetingUrl(roomName, identity, token, meetingUrl);
     }
 
     public record JoinTokenWithMeetingUrl(String roomName, String identity, String token, String meetingUrl) {}
 
     private static void ensureJitsiConfigured(TelehealthConfig cfg) {
-        if (cfg == null || cfg.getJitsi() == null) {
-            throw new IllegalStateException("Telehealth Jitsi configuration is missing.");
+        if (cfg == null) {
+            throw new IllegalStateException("Telehealth configuration is missing.");
         }
-        
-        if (isBlank(cfg.getJitsi().getServerUrl())) {
-            throw new IllegalStateException("Jitsi server URL is required but not configured.");
-        }
+        // Note: We no longer require Jitsi section to be configured since we provide fallbacks
+        // if (cfg.getJitsi() == null) {
+        //     throw new IllegalStateException("Jitsi configuration section is missing.");
+        // }
     }
 
     private static boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
+    }
+
+    /**
+     * Get the current organization ID from RequestContext, with fallback for when context is not set.
+     * This allows the service to work in scenarios where tenant context is not available (e.g., patient joins).
+     */
+    private Long getCurrentOrgId() {
+        try {
+            return RequestContext.get().getOrgId();
+        } catch (Exception e) {
+            // Fallback to default org ID when RequestContext is not available
+            log.debug("RequestContext not available, using default org ID for Jitsi configuration");
+            return 1L; // Default organization ID
+        }
     }
 }

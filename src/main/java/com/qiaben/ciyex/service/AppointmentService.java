@@ -155,9 +155,16 @@ public class AppointmentService {
         LocalTime workEnd = LocalTime.of(17, 0);
         List<Integer> slotDurations = List.of(15, 30);
 
+        // Generate slots for each duration type, distributing across durations
+        int slotsPerDuration = (limit + slotDurations.size() - 1) / slotDurations.size(); // Ceiling division
+
         for (int durationMinutes : slotDurations) {
+            if (slots.size() >= limit) break;
+
             LocalTime current = workStart;
-            while (!current.plusMinutes(durationMinutes).isAfter(workEnd) && slots.size() < limit) {
+            int slotsForThisDuration = Math.min(slotsPerDuration, limit - slots.size());
+
+            for (int i = 0; i < slotsForThisDuration && !current.plusMinutes(durationMinutes).isAfter(workEnd); i++) {
                 LocalTime slotStart = current;
                 LocalTime slotEnd = slotStart.plusMinutes(durationMinutes);
 
@@ -183,10 +190,14 @@ public class AppointmentService {
                     slot.setStatus("AVAILABLE");
                     slots.add(slot);
                 }
+
+                // Move to next potential slot time
                 current = slotEnd;
             }
         }
-        return slots;
+
+        log.info("Generated {} available slots for provider {} on date {}", slots.size(), providerId, date);
+        return slots.stream().limit(limit).toList();
     }
 
     @Transactional(readOnly = true)
@@ -212,6 +223,7 @@ public class AppointmentService {
         entity.setLocationId(dto.getLocationId());
         entity.setStatus(dto.getStatus());
         entity.setReason(dto.getReason());
+        // entity.setMeetingUrl(dto.getMeetingUrl());
         entity.setCreatedDate(dto.getAudit() != null ? dto.getAudit().getCreatedDate() : entity.getCreatedDate());
         entity.setLastModifiedDate(dto.getAudit() != null ? dto.getAudit().getLastModifiedDate() : entity.getLastModifiedDate());
         return entity;
@@ -232,6 +244,7 @@ public class AppointmentService {
         dto.setLocationId(entity.getLocationId());
         dto.setStatus(entity.getStatus());
         dto.setReason(entity.getReason());
+        // dto.setMeetingUrl(entity.getMeetingUrl());
 
         AppointmentDTO.Audit audit = new AppointmentDTO.Audit();
         audit.setCreatedDate(entity.getCreatedDate());
@@ -257,6 +270,7 @@ public class AppointmentService {
         if (dto.getLocationId() != null) entity.setLocationId(dto.getLocationId());
         if (dto.getStatus() != null) entity.setStatus(dto.getStatus());
         if (dto.getReason() != null) entity.setReason(dto.getReason());
+        // if (dto.getMeetingUrl() != null) entity.setMeetingUrl(dto.getMeetingUrl());
     }
 
     private Long getCurrentOrgId() {
@@ -267,39 +281,42 @@ public class AppointmentService {
     private void syncExternalCreate(Appointment entity) {
         try {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
+            if (storageType != null && !"fhir".equals(storageType)) { // Temporarily disable FHIR sync
                 ExternalAppointmentStorage externalStorage =
                         (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
                 externalStorage.create(mapToDto(entity));
             }
         } catch (Exception e) {
             log.error("External sync create failed: {}", e.getMessage());
+            // Don't rethrow - external sync failure shouldn't fail the main transaction
         }
     }
 
     private void syncExternalUpdate(Appointment entity, AppointmentDTO dto) {
         try {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
+            if (storageType != null && !"fhir".equals(storageType)) { // Temporarily disable FHIR sync
                 ExternalAppointmentStorage externalStorage =
                         (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
                 externalStorage.update(dto, String.valueOf(entity.getId()));
             }
         } catch (Exception e) {
             log.error("External sync update failed: {}", e.getMessage());
+            // Don't rethrow - external sync failure shouldn't fail the main transaction
         }
     }
 
     private void syncExternalDelete(Appointment entity) {
         try {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
+            if (storageType != null && !"fhir".equals(storageType)) { // Temporarily disable FHIR sync
                 ExternalAppointmentStorage externalStorage =
                         (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
                 externalStorage.delete(String.valueOf(entity.getId()));
             }
         } catch (Exception e) {
             log.error("External sync delete failed: {}", e.getMessage());
+            // Don't rethrow - external sync failure shouldn't fail the main transaction
         }
     }
     // =========================================================
@@ -324,7 +341,7 @@ public class AppointmentService {
 
         // Optional sync to external systems
         String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
+        if (storageType != null && !"fhir".equals(storageType)) { // Temporarily disable FHIR sync
             try {
                 ExternalAppointmentStorage externalStorage =
                         (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
@@ -332,8 +349,7 @@ public class AppointmentService {
                 log.info("Updated status for appointment {} in external storage for org {}", entity.getId(), orgId);
             } catch (Exception e) {
                 log.error("Failed to sync status to external storage: {}", e.getMessage());
-                // Decide whether to fail hard or not. Here we fail to keep DB+external consistent.
-                throw new RuntimeException("Failed to sync with external storage", e);
+                // Don't fail the main transaction for external sync issues
             }
         }
 

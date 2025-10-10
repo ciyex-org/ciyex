@@ -20,12 +20,12 @@ public interface PortalDemographicsRepository extends JpaRepository<PortalDemogr
     boolean existsByPatient_Id(Long patientId);
 
     /**
-     *  Direct lookup: find demographics by PortalUser.id (via patient.user.id)
+     *  Direct lookup: find demographics by PortalUser.id (via patient.portalUser.id)
      */
-    Optional<PortalDemographics> findByPatient_User_Id(Long userId);
+    Optional<PortalDemographics> findByPatient_PortalUser_Id(Long userId);
 
     /**
      * 🔹 Check existence by PortalUser.id
      */
-    boolean existsByPatient_User_Id(Long userId);
+    boolean existsByPatient_PortalUser_Id(Long userId);
 }

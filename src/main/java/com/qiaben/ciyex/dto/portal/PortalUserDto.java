@@ -44,21 +44,10 @@ public class PortalUserDto {
                 .email(user.getEmail())
                 .firstName(user.getFirstName())
                 .lastName(user.getLastName())
-                .middleName(user.getMiddleName())
-                .dateOfBirth(user.getDateOfBirth())
                 .phoneNumber(user.getPhoneNumber())
-                .city(user.getCity())
-                .state(user.getState())
-                .country(user.getCountry())
-                .street(user.getStreet())
-                .street2(user.getStreet2())
-                .postalCode(user.getPostalCode())
-                .profileImage(user.getProfileImage())
-                .securityQuestion(user.getSecurityQuestion())
-                .securityAnswer(user.getSecurityAnswer())
                 .uuid(user.getUuid() != null ? user.getUuid().toString() : null)
                 .orgId(user.getOrgId())
-                .role(user.getRole())
+                .role("PATIENT") // Portal users are always patients
                 .build();
     }
 

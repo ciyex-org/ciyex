@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.ListOptionDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.entity.ListOption;
 import com.qiaben.ciyex.repository.ListOptionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -100,8 +101,14 @@ public class ListOptionService {
 
     // Service method to fetch list options based on list_id
     public List<ListOptionDto> getListOptionsByListId(String listId) {
-        // Fetching list options based on list_id
-        List<ListOption> listOptions = repository.findByListId(listId);
+        // Get current org_id from request context
+        Long orgId = RequestContext.get().getOrgId();
+        if (orgId == null) {
+            throw new IllegalStateException("No orgId found in request context");
+        }
+        
+        // Fetching list options based on org_id and list_id
+        List<ListOption> listOptions = repository.findByOrgIdAndListId(orgId.toString(), listId);
 
         // Convert ListOption entities to ListOptionDto objects
         return listOptions.stream()
