@@ -10,14 +10,14 @@ import java.util.Optional;
 @Repository
 public interface StripeBillingCardRepository extends JpaRepository<StripeBillingCard, Long> {
 
-    List<StripeBillingCard> findByUserIdAndOrgId(Long userId, Long orgId);
-
     List<StripeBillingCard> findByOrgId(Long orgId);
+
+    List<StripeBillingCard> findByUserIdAndOrgId(Long userId, Long orgId);
 
     Optional<StripeBillingCard> findByIdAndOrgId(Long id, Long orgId);
 
-    void deleteByIdAndUserIdAndOrgId(Long id, Long userId, Long orgId);
-
-    // 🔥 Add this method for BillingHistoryService
     Optional<StripeBillingCard> findFirstByUserIdAndOrgIdAndIsDefaultTrue(Long userId, Long orgId);
+
+    // ✅ Needed for backfilling customer IDs
+    List<StripeBillingCard> findByStripeCustomerIdIsNullAndOrgId(Long orgId);
 }

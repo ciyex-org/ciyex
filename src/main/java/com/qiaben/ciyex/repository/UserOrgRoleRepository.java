@@ -5,9 +5,9 @@ import com.qiaben.ciyex.entity.RoleName;
 import com.qiaben.ciyex.entity.User;
 import com.qiaben.ciyex.entity.UserOrgRole;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
-import java.util.Arrays;
 import java.util.List;
 
 @Repository
@@ -23,5 +23,8 @@ public interface UserOrgRoleRepository extends JpaRepository<UserOrgRole, Long> 
     List<UserOrgRole> findByRole(RoleName role);
 
     List<UserOrgRole> findByUserId(Long id);
+    
+    @Query("SELECT DISTINCT uor.role FROM UserOrgRole uor")
+    List<RoleName> findDistinctRoles();
 }
 

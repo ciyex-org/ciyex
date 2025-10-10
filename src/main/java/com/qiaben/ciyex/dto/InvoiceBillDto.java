@@ -1,8 +1,10 @@
 package com.qiaben.ciyex.dto;
 
 import com.qiaben.ciyex.entity.InvoiceStatus;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -15,7 +17,8 @@ public class InvoiceBillDto {
     private Long userId;
     private Long subscriptionId;
 
-    private Double amount;
+    // Use BigDecimal for money
+    private BigDecimal amount;
     private InvoiceStatus status;
 
     private String externalId;
@@ -23,9 +26,16 @@ public class InvoiceBillDto {
     private String invoiceUrl;
     private String receiptUrl;
 
+    // Serialize dates without time component (date-only)
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDateTime dueDate;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDateTime paidAt;
 
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDateTime createdAt;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDateTime updatedAt;
 }

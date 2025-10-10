@@ -6,6 +6,15 @@ import com.qiaben.ciyex.entity.User;
 import com.qiaben.ciyex.entity.UserOrgRole;
 import com.qiaben.ciyex.entity.AdminTemplate;
 import com.qiaben.ciyex.repository.OrgRepository;
+import com.qiaben.ciyex.entity.GpsBillingCard;
+import com.qiaben.ciyex.entity.BillingHistory;
+import com.qiaben.ciyex.entity.GpsPayment;
+import com.qiaben.ciyex.entity.InvoiceBill;
+import com.qiaben.ciyex.entity.StripeBillingCard;
+
+import com.qiaben.ciyex.entity.Subscription;
+import com.qiaben.ciyex.entity.ServiceEntity;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.flywaydb.core.Flyway;
@@ -112,6 +121,15 @@ public class MasterSchemaInitializer {
             boolean userOrgRolesExists = tableExists("user_org_roles");
             boolean adminTemplatesExists = tableExists("admin_templates");
             boolean orgConfigExists = tableExists("org_config");
+            boolean gpsBillingCardsExists = tableExists("gps_billing_cards");
+            boolean gpsBillingHistoryExists = tableExists("gps_billing_history");
+            boolean gpsPaymentsExists = tableExists("gps_payments");
+            boolean invoiceBillsExists = tableExists("invoice_bills");
+            boolean stripeBillingCardsExists = tableExists("stripe_billing_cards");
+            boolean stripeBillingHistoryExists = tableExists("stripe_billing_history");
+            boolean subscriptionsExists = tableExists("subscriptions");
+            boolean servicesExists = tableExists("services");
+
 
             // If all known master tables are present, skip creation
             if (usersExists && orgsExists && userOrgRolesExists && adminTemplatesExists && orgConfigExists) {
@@ -144,7 +162,15 @@ public class MasterSchemaInitializer {
                     .addAnnotatedClass(Org.class)
                     .addAnnotatedClass(UserOrgRole.class)
                     .addAnnotatedClass(AdminTemplate.class)
-                    .addAnnotatedClass(OrgConfig.class)  // Ensure OrgConfig is present in master schema
+                    .addAnnotatedClass(OrgConfig.class)
+                    .addAnnotatedClass(GpsBillingCard.class)
+                    .addAnnotatedClass(BillingHistory.class)
+                    .addAnnotatedClass(GpsPayment.class)
+                    .addAnnotatedClass(InvoiceBill.class)
+                    .addAnnotatedClass(StripeBillingCard.class)
+
+                    .addAnnotatedClass(Subscription.class)
+                    .addAnnotatedClass(ServiceEntity.class)
                     .buildMetadata();
 
             // Create the schema using Hibernate's schema management tool

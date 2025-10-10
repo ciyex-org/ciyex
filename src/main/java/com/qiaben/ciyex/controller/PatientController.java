@@ -4,6 +4,7 @@ package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.PatientDto;
+import com.qiaben.ciyex.security.RequireScope;
 import com.qiaben.ciyex.service.PatientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,12 +18,14 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/patients")
 @RequiredArgsConstructor
 @Slf4j
+@RequireScope("patients:read")  // Default scope for patient operations
 public class PatientController {
 
     private final PatientService service;
 
     // ✅ Create a new Patient
     @PostMapping
+    @RequireScope("patients:write")
     public ResponseEntity<ApiResponse<PatientDto>> create(@RequestBody PatientDto dto) {
         try {
             PatientDto createdPatient = service.create(dto);
@@ -67,6 +70,7 @@ public class PatientController {
 
     // ✅ Update an existing patient
     @PutMapping("/{id}")
+    @RequireScope("patients:write")
     public ResponseEntity<ApiResponse<PatientDto>> update(@PathVariable Long id, @RequestBody PatientDto dto) {
         try {
             PatientDto updatedPatient = service.update(id, dto);
@@ -92,6 +96,7 @@ public class PatientController {
 
     // ✅ Delete a patient by ID
     @DeleteMapping("/{id}")
+    @RequireScope("patients:write")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         try {
             service.delete(id);

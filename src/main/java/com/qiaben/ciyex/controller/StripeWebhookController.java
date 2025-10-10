@@ -2,7 +2,8 @@ package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.StripeBillingCardDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
-import com.qiaben.ciyex.service.StripeBillingHistoryService;
+import com.qiaben.ciyex.service.PaymentOrderService;
+
 import com.qiaben.ciyex.service.StripeBillingCardService;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
@@ -17,6 +18,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.qiaben.ciyex.service.BillingHistoryService;   // updated
+
 @RestController
 @RequestMapping("/api/stripe")
 @RequiredArgsConstructor
@@ -26,8 +29,9 @@ public class StripeWebhookController {
     @Value("${stripe.webhook-secret:}")
     private String endpointSecret;
 
-    private final StripeBillingHistoryService billingHistoryService;
+    private final BillingHistoryService billingHistoryService;  // updated
     private final StripeBillingCardService billingCardService;
+    private final PaymentOrderService paymentOrderService;
 
     private Long getOrgIdOrThrow() {
         RequestContext ctx = RequestContext.get();
@@ -62,6 +66,7 @@ public class StripeWebhookController {
                             succeededIntent.getId(),
                             succeededIntent.getStatus()
                     );
+                    paymentOrderService.markOrderAsPaid(succeededIntent.getId());
                     log.info("💰 Payment succeeded: {}", succeededIntent.getId());
                 }
             }
@@ -72,6 +77,7 @@ public class StripeWebhookController {
                             failedIntent.getId(),
                             failedIntent.getStatus()
                     );
+                    paymentOrderService.markOrderAsFailed(failedIntent.getId());
                     log.warn("❌ Payment failed: {}", failedIntent.getId());
                 }
             }
@@ -85,7 +91,6 @@ public class StripeWebhookController {
                     log.info("⏳ Payment processing: {}", processingIntent.getId());
                 }
             }
-
             case "payment_method.attached" -> {
                 PaymentMethod pm = getObject(event, PaymentMethod.class);
                 if (pm != null && pm.getCard() != null) {
@@ -96,7 +101,7 @@ public class StripeWebhookController {
                             .last4(pm.getCard().getLast4())
                             .expMonth(pm.getCard().getExpMonth() != null ? pm.getCard().getExpMonth().intValue() : null)
                             .expYear(pm.getCard().getExpYear() != null ? pm.getCard().getExpYear().intValue() : null)
-                            .isDefault(false)
+                            .defaultCard(false)
                             .orgId(getOrgIdOrThrow())
                             .build();
 
@@ -104,7 +109,6 @@ public class StripeWebhookController {
                     log.info("💳 Stripe payment method attached & saved: {}", pm.getId());
                 }
             }
-
             default -> log.info("⚠️ Unhandled Stripe event type: {}", event.getType());
         }
 
