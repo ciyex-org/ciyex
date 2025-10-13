@@ -31,4 +31,6 @@ public interface PatientPaymentAllocationRepository extends JpaRepository<Patien
 
     @Query("SELECT a FROM PatientPaymentAllocation a WHERE a.invoiceLine.invoice.id = :invoiceId")
     List<PatientPaymentAllocation> findByInvoiceId(@Param("invoiceId") Long invoiceId);
+
+    List<PatientPaymentAllocation> findByPaymentId(Long paymentId);
 }

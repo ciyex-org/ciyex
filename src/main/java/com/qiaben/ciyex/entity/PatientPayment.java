@@ -27,6 +27,9 @@ public class PatientPayment {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    @Column(name = "invoice_id")
+    private Long invoiceId;
+
     @OneToMany(mappedBy = "payment", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PatientPaymentAllocation> allocations = new ArrayList<>();
 
@@ -79,6 +82,14 @@ public class PatientPayment {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Long getInvoiceId() {
+        return invoiceId;
+    }
+
+    public void setInvoiceId(Long invoiceId) {
+        this.invoiceId = invoiceId;
     }
 
     public List<PatientPaymentAllocation> getAllocations() {

@@ -495,7 +495,48 @@ public class PatientBillingController {
                 .data(data)
                 .build();
         return ResponseEntity.ok(resp);
+
     }
+
+
+
+    /** Upload claim attachment (image/pdf) */
+    @PostMapping(value = "/invoices/{invoiceId}/claim/{claimId}/attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<Void>> uploadClaimAttachment(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @PathVariable Long claimId,
+            @RequestParam("file") MultipartFile file) {
+        service.uploadClaimAttachment(orgId, patientId, invoiceId, claimId, file);
+        var resp = new ApiResponse.Builder<Void>()
+                .success(true)
+                .message("Attachment uploaded successfully")
+                .build();
+        return ResponseEntity.ok(resp);
+    }
+
+
+
+
+
+    /** Upload EOB document (image/pdf) */
+    @PostMapping(value = "/invoices/{invoiceId}/claim/{claimId}/eob", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<Void>> uploadEobDocument(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @PathVariable Long claimId,
+            @RequestParam("file") MultipartFile file) {
+        service.uploadEobDocument(orgId, patientId, invoiceId, claimId, file);
+        var resp = new ApiResponse.Builder<Void>()
+                .success(true)
+                .message("EOB uploaded successfully")
+                .build();
+        return ResponseEntity.ok(resp);
+    }
+
+
 
 
     /* ================= Insurance Payment ================= */
@@ -544,6 +585,58 @@ public class PatientBillingController {
                 .data(data)
                 .build();
         return ResponseEntity.ok(resp);
+    }
+
+    // Edit one insurance remit line (icon: ✏️)
+    @PutMapping("/invoices/{invoiceId}/insurance-payments/{remitId}")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> editInsuranceRemitLine(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @PathVariable Long remitId,
+            @RequestBody PatientInsuranceRemitLineDto body
+    ) {
+        var data = service.editInsuranceRemitLine(orgId, patientId, invoiceId, remitId, body);
+        return ResponseEntity.ok(ApiResponse.ok("Insurance payment updated", data));
+    }
+
+    // Void insurance payment (icon: ⛔)
+    @PostMapping("/invoices/{invoiceId}/insurance-payments/{remitId}/void")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> voidInsurancePayment(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @PathVariable Long remitId,
+            @RequestBody(required = false) PatientBillingService.VoidReason reason
+    ) {
+        var data = service.voidInsurancePayment(orgId, patientId, invoiceId, remitId, reason);
+        return ResponseEntity.ok(ApiResponse.ok("Insurance payment voided", data));
+    }
+
+    // Refund insurance payment (icon: ↩️)
+    @PostMapping("/invoices/{invoiceId}/insurance-payments/{remitId}/refund")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> refundInsurancePayment(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @PathVariable Long remitId,
+            @RequestBody PatientBillingService.RefundRequest body
+    ) {
+        var data = service.refundInsurancePayment(orgId, patientId, invoiceId, remitId, body);
+        return ResponseEntity.ok(ApiResponse.ok("Insurance payment refunded", data));
+    }
+
+    // Transfer insurance credit to patient account (icon: ⇄)
+    @PostMapping("/invoices/{invoiceId}/insurance-payments/{remitId}/transfer-credit-to-patient")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> transferInsuranceCreditToPatient(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @PathVariable Long remitId,
+            @RequestBody PatientBillingService.TransferCreditRequest body
+    ) {
+        var data = service.transferInsuranceCreditToPatient(orgId, patientId, invoiceId, remitId, body);
+        return ResponseEntity.ok(ApiResponse.ok("Insurance credit transferred", data));
     }
 
     /* ================= Patient Payment & Credit ================= */
@@ -613,6 +706,62 @@ public class PatientBillingController {
                 .build();
         return ResponseEntity.ok(resp);
     }
+
+
+    // Edit patient payment (icon: ✏️)
+    @PutMapping("/invoices/{invoiceId}/patient-payments/{paymentId}")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> editPatientPayment(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @PathVariable Long paymentId,
+            @RequestBody PatientPaymentDto body
+    ) {
+        try {
+            var data = service.editPatientPayment(orgId, patientId, invoiceId, paymentId, body);
+            return ResponseEntity.ok(ApiResponse.ok("Patient payment updated", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(ex.getMessage()));
+        }
+    }
+
+    // Void patient payment (icon: ⛔)
+    @PostMapping("/invoices/{invoiceId}/patient-payments/{paymentId}/void")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> voidPatientPayment(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @PathVariable Long paymentId,
+            @RequestBody(required = false) PatientBillingService.VoidReason reason
+    ) {
+        var data = service.voidPatientPayment(orgId, patientId, invoiceId, paymentId, reason);
+        return ResponseEntity.ok(ApiResponse.ok("Patient payment voided", data));
+    }
+
+    // Refund patient payment (icon: ↩️)
+    @PostMapping("/invoices/{invoiceId}/patient-payments/{paymentId}/refund")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> refundPatientPayment(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @PathVariable Long paymentId,
+            @RequestBody PatientBillingService.RefundRequest body
+    ) {
+        var data = service.refundPatientPayment(orgId, patientId, invoiceId, paymentId, body);
+        return ResponseEntity.ok(ApiResponse.ok("Patient payment refunded", data));
+    }
+
+    // Transfer patient credit to patient account (icon: ⇄)
+    @PostMapping("/patients/{fromPatientId}/transfer-credit/{toPatientId}")
+    public ResponseEntity<ApiResponse<PatientAccountCreditDto[]>> transferPatientCreditToPatient(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long fromPatientId,
+            @PathVariable Long toPatientId,
+            @RequestBody PatientBillingService.TransferCreditRequest body
+    ) {
+        var data = service.transferPatientCreditToPatient(orgId, fromPatientId, toPatientId, body.amount());
+        return ResponseEntity.ok(ApiResponse.ok("Patient credit transferred", data));
+    }
     /* ================= Account credit ================= */
 
     @GetMapping("/account-credit")
@@ -655,41 +804,8 @@ public class PatientBillingController {
         return ResponseEntity.noContent().build();
     }
 
-    /** Upload claim attachment (image/pdf) */
-    @PostMapping(value = "/invoices/{invoiceId}/claim/{claimId}/attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponse<Void>> uploadClaimAttachment(
-            @RequestHeader("x-org-id") Long orgId,
-            @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @PathVariable Long claimId,
-            @RequestParam("file") MultipartFile file) {
-        service.uploadClaimAttachment(orgId, patientId, invoiceId, claimId, file);
-        var resp = new ApiResponse.Builder<Void>()
-                .success(true)
-                .message("Attachment uploaded successfully")
-                .build();
-        return ResponseEntity.ok(resp);
-    }
 
 
 
 
-
-    /** Upload EOB document (image/pdf) */
-    @PostMapping(value = "/invoices/{invoiceId}/claim/{claimId}/eob", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponse<Void>> uploadEobDocument(
-            @RequestHeader("x-org-id") Long orgId,
-            @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @PathVariable Long claimId,
-            @RequestParam("file") MultipartFile file) {
-        service.uploadEobDocument(orgId, patientId, invoiceId, claimId, file);
-        var resp = new ApiResponse.Builder<Void>()
-                .success(true)
-                .message("EOB uploaded successfully")
-                .build();
-        return ResponseEntity.ok(resp);
-    }
 }
-
-
