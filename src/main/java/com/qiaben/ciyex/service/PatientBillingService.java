@@ -339,6 +339,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;   // <-- keep this
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -373,6 +374,10 @@ public class PatientBillingService {
             String attachmentTransmissionCode,
             String claimSubmissionReasonCode
     ) {}
+    public record VoidReason(String reason) {}
+    public record RefundRequest(BigDecimal amount, String reason) {}
+    public record TransferCreditRequest(BigDecimal amount, String note) {}
+
 
 
     /* ===================== Invoices ===================== */
@@ -573,6 +578,23 @@ public class PatientBillingService {
         }
         return toClaimDto(c);
     }
+    public void uploadClaimAttachment(Long orgId, Long patientId, Long invoiceId, Long claimId, MultipartFile file) {
+        // Validate claim exists
+        PatientClaim claim = claimRepo.findById(claimId).orElseThrow(() -> new IllegalArgumentException("Claim not found"));
+        // Null-safe increment for attachments
+        Integer currentAttachments = claim.getAttachments();
+        claim.setAttachments((currentAttachments != null ? currentAttachments : 0) + 1);
+        claimRepo.save(claim);
+    }
+
+    public void uploadEobDocument(Long orgId, Long patientId, Long invoiceId, Long claimId, MultipartFile file) {
+        // Validate claim exists
+        PatientClaim claim = claimRepo.findById(claimId).orElseThrow(() -> new IllegalArgumentException("Claim not found"));
+        // TODO: Store file (local, cloud, or DB)
+        // For now, just set eob_attached to true
+        claim.setEobAttached(true);
+        claimRepo.save(claim);
+    }
 
 
 
@@ -687,6 +709,8 @@ public class PatientBillingService {
                                 : PatientClaim.Status.IN_PROCESS
                 ));
 
+
+
         return toInvoiceDto(invoice);
     }
 
@@ -734,6 +758,137 @@ public class PatientBillingService {
 
 
 
+
+    @Transactional
+    public PatientInvoiceDto editInsuranceRemitLine(
+            Long orgId, Long patientId, Long invoiceId, Long remitId, PatientInsuranceRemitLineDto dto) {
+
+        PatientInvoice invoice = getInvoiceOrThrow(orgId, patientId, invoiceId);
+        PatientInsuranceRemitLine remit = remitRepo.findById(remitId)
+                .orElseThrow(() -> new IllegalArgumentException("Insurance remit not found"));
+
+        // Update remit values
+        if (dto.submitted() != null)    remit.setSubmitted(dto.submitted());
+        if (dto.balance() != null)      remit.setBalance(dto.balance());
+        if (dto.deductible() != null)   remit.setDeductible(dto.deductible());
+        if (dto.allowed() != null)      remit.setAllowed(dto.allowed());
+        if (dto.insWriteOff() != null)  remit.setInsWriteOff(dto.insWriteOff());
+        if (dto.insPay() != null)       remit.setInsPay(dto.insPay());
+        if (dto.updateAllowed() != null)        remit.setUpdateAllowed(dto.updateAllowed());
+        if (dto.updateFlatPortion() != null)    remit.setUpdateFlatPortion(dto.updateFlatPortion());
+        if (dto.applyWriteoff() != null)        remit.setApplyWriteoff(dto.applyWriteoff());
+        remitRepo.save(remit);
+
+        // If the remit targets a line, recompute that line from submitted/allowed/insPay
+        if (dto.invoiceLineId() != null) {
+            PatientInvoiceLine line = lineRepo.findById(dto.invoiceLineId())
+                    .orElseThrow(() -> new IllegalArgumentException("Invoice line not found"));
+            if (!line.getInvoice().getId().equals(invoiceId)) throw new IllegalArgumentException("Line not in invoice");
+
+            BigDecimal submitted = nz(dto.submitted());
+            BigDecimal allowed   = nz(dto.allowed());
+            BigDecimal insPay    = nz(dto.insPay());
+
+            BigDecimal insWO  = submitted.subtract(allowed); if (insWO.signum() < 0) insWO = BigDecimal.ZERO;
+            BigDecimal ptResp = allowed.subtract(insPay);    if (ptResp.signum() < 0) ptResp = BigDecimal.ZERO;
+
+            line.setCharge(submitted);
+            line.setAllowed(allowed);
+            line.setInsWriteOff(insWO);
+            line.setInsPortion(BigDecimal.ZERO);
+            line.setPatientPortion(ptResp);
+            lineRepo.save(line);
+        }
+
+        invoice.recalcTotals();
+        return toInvoiceDto(invoice);
+    }
+
+
+    @Transactional
+    public PatientInvoiceDto voidInsurancePayment(
+            Long orgId, Long patientId, Long invoiceId, Long remitId, VoidReason reason) {
+
+        PatientInvoice invoice = getInvoiceOrThrow(orgId, patientId, invoiceId);
+        PatientInsuranceRemitLine original = remitRepo.findById(remitId)
+                .orElseThrow(() -> new IllegalArgumentException("Insurance remit not found"));
+
+        // Create a reversing remit line (negative insPay / allowed/writeoff as needed)
+        PatientInsuranceRemitLine reverse = new PatientInsuranceRemitLine();
+        reverse.setOrgId(orgId);
+        reverse.setPatientId(patientId);
+        reverse.setInvoiceId(invoiceId);
+        reverse.setInvoiceLineId(original.getInvoiceLineId());
+        reverse.setSubmitted(BigDecimal.ZERO);
+        reverse.setAllowed(BigDecimal.ZERO);
+        reverse.setInsWriteOff(BigDecimal.ZERO);
+        reverse.setInsPay(nz(original.getInsPay()).negate());
+        remitRepo.save(reverse);
+
+        // Optionally: mark original as voided if you have such fields
+        // original.setVoided(true); original.setVoidReason(reason != null ? reason.reason() : null);
+        // remitRepo.save(original);
+
+        invoice.recalcTotals();
+        return toInvoiceDto(invoice);
+    }
+
+    @Transactional
+    public PatientInvoiceDto refundInsurancePayment(
+            Long orgId, Long patientId, Long invoiceId, Long remitId, RefundRequest req) {
+
+        PatientInvoice invoice = getInvoiceOrThrow(orgId, patientId, invoiceId);
+        BigDecimal amount = Optional.ofNullable(req).map(RefundRequest::amount)
+                .orElseThrow(() -> new IllegalArgumentException("Refund amount required"));
+        if (amount.signum() <= 0) throw new IllegalArgumentException("Refund amount must be > 0");
+
+        // Record refund as negative insurance payment
+        PatientInsuranceRemitLine refund = new PatientInsuranceRemitLine();
+        refund.setOrgId(orgId);
+        refund.setPatientId(patientId);
+        refund.setInvoiceId(invoiceId);
+        // Set invoiceLineId to first line if available
+        if (invoice.getLines() != null && !invoice.getLines().isEmpty()) {
+            refund.setInvoiceLineId(invoice.getLines().get(0).getId());
+        } else {
+            throw new IllegalStateException("No invoice lines found for invoice " + invoiceId);
+        }
+        refund.setInsPay(amount.negate());
+        remitRepo.save(refund);
+
+        invoice.recalcTotals();
+        return toInvoiceDto(invoice);
+    }
+
+    @Transactional
+    public PatientInvoiceDto transferInsuranceCreditToPatient(
+            Long orgId, Long patientId, Long invoiceId, Long remitId, TransferCreditRequest req) {
+
+        PatientInvoice invoice = getInvoiceOrThrow(orgId, patientId, invoiceId);
+        BigDecimal amount = Optional.ofNullable(req).map(TransferCreditRequest::amount)
+                .orElseThrow(() -> new IllegalArgumentException("Transfer amount required"));
+        if (amount.signum() <= 0) throw new IllegalArgumentException("Transfer amount must be > 0");
+
+        // 1) Negative insurance payment to take credit off the invoice
+        PatientInsuranceRemitLine adj = new PatientInsuranceRemitLine();
+        adj.setOrgId(orgId);
+        adj.setPatientId(patientId);
+        adj.setInvoiceId(invoiceId);
+        // Set invoiceLineId to first line if available
+        if (invoice.getLines() != null && !invoice.getLines().isEmpty()) {
+            adj.setInvoiceLineId(invoice.getLines().get(0).getId());
+        } else {
+            throw new IllegalStateException("No invoice lines found for invoice " + invoiceId);
+        }
+        adj.setInsPay(amount.negate());
+        remitRepo.save(adj);
+
+        // 2) Add to patient account credit
+        addCredit(orgId, patientId, amount);
+
+        invoice.recalcTotals();
+        return toInvoiceDto(invoice);
+    }
 
 
 
@@ -816,6 +971,7 @@ public PatientInvoiceDto applyPatientPayment(
     }
 
     // 7️⃣ Persist invoice status updates
+
     invoiceRepo.save(invoice);
 
     // 8️⃣ Return latest DTO
@@ -884,8 +1040,112 @@ public PatientInvoiceDto applyPatientPayment(
                 .collect(Collectors.toList());
     }
 
+    @Transactional
+    public PatientInvoiceDto editPatientPayment(
+            Long orgId, Long patientId, Long invoiceId, Long paymentId, PatientPaymentDto dto) {
+
+        PatientInvoice invoice = getInvoiceOrThrow(orgId, patientId, invoiceId);
+        PatientPayment payment = paymentRepo.findById(paymentId)
+                .orElseThrow(() -> new IllegalArgumentException("Patient payment not found"));
+
+        // Adjust amount
+        if (dto.amount() != null) {
+            payment.setAmount(dto.amount());
+        }
+        if (dto.paymentMethod() != null) {
+            try {
+                // Flexible payment method mapping
+                String method = dto.paymentMethod().replace(" ", "_").replace("-", "_").toUpperCase();
+                payment.setPaymentMethod(PaymentMethod.valueOf(method));
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException("Unknown payment method: " + dto.paymentMethod() + ". Allowed: " + java.util.Arrays.toString(PaymentMethod.values()));
+            }
+        }
+        paymentRepo.save(payment);
+
+        invoice.recalcTotals();
+        return toInvoiceDto(invoice);
+    }
+
+    @Transactional
+    public PatientInvoiceDto voidPatientPayment(
+            Long orgId, Long patientId, Long invoiceId, Long paymentId, VoidReason reason) {
+
+        PatientInvoice invoice = getInvoiceOrThrow(orgId, patientId, invoiceId);
+        PatientPayment original = paymentRepo.findById(paymentId)
+                .orElseThrow(() -> new IllegalArgumentException("Patient payment not found"));
+
+        // Create a reversing negative payment
+        PatientPayment reverse = new PatientPayment(
+                original.getPatientId(),
+                original.getPaymentMethod(),
+                nz(original.getAmount()).negate()
+        );
+        reverse.setInvoiceId(invoiceId);
+        paymentRepo.save(reverse);
+
+        // Mirror allocations (negative) if present
+        List<PatientPaymentAllocation> allocs = findAllocationsByPaymentId(paymentId);
+        for (PatientPaymentAllocation a : allocs) {
+            PatientPaymentAllocation neg = new PatientPaymentAllocation(reverse, a.getInvoiceLine(), nz(a.getAmount()).negate());
+            allocationRepo.save(neg);
+        }
+
+        invoice.recalcTotals();
+        return toInvoiceDto(invoice);
+    }
 
 
+    @Transactional
+    public PatientInvoiceDto refundPatientPayment(
+            Long orgId, Long patientId, Long invoiceId, Long paymentId, RefundRequest req) {
+
+        PatientInvoice invoice = getInvoiceOrThrow(orgId, patientId, invoiceId);
+        BigDecimal amount = Optional.ofNullable(req).map(RefundRequest::amount)
+                .orElseThrow(() -> new IllegalArgumentException("Refund amount required"));
+        if (amount.signum() <= 0) throw new IllegalArgumentException("Refund amount must be > 0");
+
+        // Negative payment
+        PatientPayment refund = new PatientPayment(patientId, PaymentMethod.CASH, amount.negate());
+        refund.setInvoiceId(invoiceId);
+        paymentRepo.save(refund);
+
+        // If you want to un-allocate proportionally, add negative allocations here
+        invoice.recalcTotals();
+        return toInvoiceDto(invoice);
+    }
+    public PatientAccountCreditDto[] transferPatientCreditToPatient(Long orgId, Long fromPatientId, Long toPatientId, BigDecimal amount) {
+        if (fromPatientId.equals(toPatientId)) throw new IllegalArgumentException("Source and destination patients must differ");
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException("Amount must be positive");
+        // Get source credit
+        PatientAccountCredit fromCredit = creditRepo.findByOrgIdAndPatientId(orgId, fromPatientId)
+                .orElseThrow(() -> new IllegalArgumentException("Source patient has no credit account. Please ensure the patient has available credit before transferring."));
+        if (fromCredit.getBalance().compareTo(amount) < 0) throw new IllegalArgumentException("Insufficient credit in source account");
+        // Get or create destination credit
+        PatientAccountCredit toCredit = creditRepo.findByOrgIdAndPatientId(orgId, toPatientId)
+                .orElseGet(() -> {
+                    PatientAccountCredit ac = new PatientAccountCredit();
+                    ac.setOrgId(orgId);
+                    ac.setPatientId(toPatientId);
+                    ac.setBalance(BigDecimal.ZERO);
+                    return creditRepo.save(ac);
+                });
+        // Transfer
+        fromCredit.setBalance(fromCredit.getBalance().subtract(amount));
+        toCredit.setBalance(nz(toCredit.getBalance()).add(amount));
+        creditRepo.save(fromCredit);
+        creditRepo.save(toCredit);
+        return new PatientAccountCreditDto[] {
+                new PatientAccountCreditDto(fromPatientId, fromCredit.getBalance()),
+                new PatientAccountCreditDto(toPatientId, toCredit.getBalance())
+        };
+    }
+
+
+
+
+
+    /* ================ account Payment & Credit ================ */
 
 
     public PatientAccountCreditDto getAccountCredit(Long orgId, Long patientId) {
@@ -914,11 +1174,9 @@ public PatientInvoiceDto applyPatientPayment(
         invoiceRepo.delete(invoice);
     }
 
-
-
-
-
-
+    public List<PatientPaymentAllocation> findAllocationsByPaymentId(Long paymentId) {
+        return allocationRepo.findByPaymentId(paymentId);
+    }
 
 
 
@@ -991,23 +1249,7 @@ public PatientInvoiceDto applyPatientPayment(
         );
     }
 
-    public void uploadClaimAttachment(Long orgId, Long patientId, Long invoiceId, Long claimId, MultipartFile file) {
-        // Validate claim exists
-        PatientClaim claim = claimRepo.findById(claimId).orElseThrow(() -> new IllegalArgumentException("Claim not found"));
-        // Null-safe increment for attachments
-        Integer currentAttachments = claim.getAttachments();
-        claim.setAttachments((currentAttachments != null ? currentAttachments : 0) + 1);
-        claimRepo.save(claim);
-    }
 
-    public void uploadEobDocument(Long orgId, Long patientId, Long invoiceId, Long claimId, MultipartFile file) {
-        // Validate claim exists
-        PatientClaim claim = claimRepo.findById(claimId).orElseThrow(() -> new IllegalArgumentException("Claim not found"));
-        // TODO: Store file (local, cloud, or DB)
-        // For now, just set eob_attached to true
-        claim.setEobAttached(true);
-        claimRepo.save(claim);
-    }
 
     private PatientPaymentDto toPaymentDto(PatientPayment payment) {
         return new PatientPaymentDto(

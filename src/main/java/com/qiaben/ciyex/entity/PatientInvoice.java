@@ -34,6 +34,8 @@ public class PatientInvoice {
 
     @PreUpdate void touch() { updatedAt = LocalDateTime.now(); }
 
+
+
     // getters/setters
 
     public void recalcTotals() {
