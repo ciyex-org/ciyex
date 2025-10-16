@@ -478,7 +478,7 @@ public class TenantSchemaInitializer {
                     Object result = entityManager.createNativeQuery(checkTableQuery).getSingleResult();
                     boolean exists = false;
                     if (result instanceof Boolean) {
-                        exists = (Boolean) result;
+                            exists = (Boolean) result;
                     } else if (result instanceof Number) {
                         exists = ((Number) result).intValue() == 1;
                     } else if (result != null) {
