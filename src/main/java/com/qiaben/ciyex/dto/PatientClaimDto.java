@@ -17,6 +17,7 @@ public record PatientClaimDto(
         Status status,
         int attachments,
         boolean eobAttached,
-        LocalDate createdOn
-
+        LocalDate createdOn,
+        boolean hasAttachment,
+        boolean hasEob
 ) {}
