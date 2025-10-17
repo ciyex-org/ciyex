@@ -5,4 +5,5 @@ public enum NoteTargetType {
     CLAIM,
     INSURANCE_PAYMENT,   // remit line
     PATIENT_PAYMENT
+
 }
