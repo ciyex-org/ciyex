@@ -1,0 +1,15 @@
+package com.qiaben.ciyex.repository;
+
+import com.qiaben.ciyex.entity.NoteTargetType;
+import com.qiaben.ciyex.entity.PatientBillingNote;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+
+
+@Repository
+public interface PatientBillingNoteRepository extends JpaRepository<PatientBillingNote, Long> {
+    List<PatientBillingNote> findByPatientIdAndTargetTypeAndTargetIdOrderByCreatedAtAsc(
+            Long patientId, NoteTargetType type, Long targetId
+    );
+}

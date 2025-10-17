@@ -11,6 +11,7 @@
 //}
 
 
+
 package com.qiaben.ciyex.repository;
 
 import com.qiaben.ciyex.entity.PatientClaim;
@@ -37,7 +38,7 @@ public interface PatientClaimRepository extends JpaRepository<PatientClaim, Long
     List<PatientClaim> findAllByInvoiceIdAndOrgIdAndPatientId(Long invoiceId, Long orgId, Long patientId);
 
 
-    List<PatientClaim> findAllByIdAndOrgIdAndPatientId(Long claimId, Long orgId, Long patientId);
+//    List<PatientClaim> findAllByIdAndOrgIdAndPatientId(Long claimId, Long orgId, Long patientId);
 
 
 

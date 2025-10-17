@@ -1,7 +1,6 @@
 package com.qiaben.ciyex.entity;
 
 
-
 import jakarta.persistence.*;
 import java.time.LocalDate;
 
@@ -302,6 +301,16 @@ public class PatientClaim {
     private String attachmentTransmissionCode;
     private String claimSubmissionReasonCode;
 
+    // --- Attachment and EOB file storage (for demo: store as byte[]; in prod, use external storage and path/URL) ---
+    @Lob
+    private byte[] attachmentFile;
+    @Lob
+    private byte[] eobFile;
+
+    public byte[] getAttachmentFile() { return attachmentFile; }
+    public void setAttachmentFile(byte[] attachmentFile) { this.attachmentFile = attachmentFile; }
+    public byte[] getEobFile() { return eobFile; }
+    public void setEobFile(byte[] eobFile) { this.eobFile = eobFile; }
     // getters/setters
 }
 
