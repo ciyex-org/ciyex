@@ -4,6 +4,7 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -34,9 +35,16 @@ public class PatientInvoice {
 
     @PreUpdate void touch() { updatedAt = LocalDateTime.now(); }
 
+private LocalDate backdate;
 
+    public LocalDate getBackdate() {
+        return backdate;
+    }
 
-    // getters/setters
+    public void setBackdate(LocalDate backdate) {
+        this.backdate = backdate;
+    }
+// getters/setters
 
     public void recalcTotals() {
         BigDecimal sum = lines.stream()
