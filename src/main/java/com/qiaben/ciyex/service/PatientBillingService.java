@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.ArrayList;
@@ -53,8 +54,133 @@ public class PatientBillingService {
     public record VoidReason(String reason) {}
     public record RefundRequest(BigDecimal amount, String reason) {}
     public record TransferCreditRequest(BigDecimal amount, String note) {}
+        public record BackdateRequest(String date) {}
+    public record AccountAdjustmentRequest(String adjustmentType, BigDecimal flatRate, BigDecimal specificAmount, String description, Boolean includeCourtesyCredit) {
+        public BigDecimal flatRate() { return flatRate; }
+        public BigDecimal specificAmount() { return specificAmount; }
+        public Boolean includeCourtesyCredit() { return includeCourtesyCredit; }
+    }
 
     /* ===================== Invoices ===================== */
+
+        /** Backdate invoice date */
+        public PatientInvoiceDto backdateInvoice(Long orgId, Long patientId, Long invoiceId, BackdateRequest req) {
+            PatientInvoice invoice = getInvoiceOrThrow(orgId, patientId, invoiceId);
+            if (req != null && req.date() != null) {
+                invoice.setBackdate(LocalDate.parse(req.date()));
+                invoiceRepo.save(invoice);
+            }
+            return toInvoiceDto(invoice);
+        }
+
+    public PatientAccountCreditDto accountAdjustment(Long orgId, Long patientId, AccountAdjustmentRequest req) {
+        if (req == null || req.adjustmentType() == null) {
+            throw new IllegalArgumentException("Adjustment type is required");
+        }
+
+        PatientAccountCredit credit = creditRepo.findByOrgIdAndPatientId(orgId, patientId)
+                .orElseGet(() -> {
+                    PatientAccountCredit c = new PatientAccountCredit();
+                    c.setOrgId(orgId);
+                    c.setPatientId(patientId);
+                    c.setBalance(BigDecimal.ZERO);
+                    return c;
+                });
+
+        BigDecimal adjustmentAmount = BigDecimal.ZERO;
+
+        switch (req.adjustmentType()) {
+            case "Flat-rate" -> adjustmentAmount = nz(req.flatRate());
+            case "Total Outstanding" -> {
+                // Calculate total outstanding from all patient invoices
+                List<PatientInvoice> invoices = invoiceRepo.findByOrgIdAndPatientIdOrderByIdDesc(orgId, patientId);
+                BigDecimal totalOutstanding = invoices.stream()
+                        .map(inv -> nz(inv.getPtBalance()).add(nz(inv.getInsBalance())))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                adjustmentAmount = totalOutstanding;
+            }
+            case "Patient Outstanding" -> {
+                // Calculate only patient portion outstanding
+                List<PatientInvoice> invoices = invoiceRepo.findByOrgIdAndPatientIdOrderByIdDesc(orgId, patientId);
+                BigDecimal patientOutstanding = invoices.stream()
+                        .map(inv -> nz(inv.getPtBalance()))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                adjustmentAmount = patientOutstanding;
+            }
+            case "Specific" -> adjustmentAmount = nz(req.specificAmount());
+            default -> throw new IllegalArgumentException("Invalid adjustment type: " + req.adjustmentType());
+        }
+
+        // Apply courtesy credit if checkbox is selected
+        if (Boolean.TRUE.equals(req.includeCourtesyCredit())) {
+            log.info("Courtesy credit included in adjustment");
+        }
+
+        // Update credit balance
+        credit.setBalance(nz(credit.getBalance()).add(adjustmentAmount));
+        creditRepo.save(credit);
+
+        log.info("Account adjustment applied: type={}, amount={}, patientId={}",
+                req.adjustmentType(), adjustmentAmount, patientId);
+
+        return new PatientAccountCreditDto(credit.getPatientId(), credit.getBalance());
+    }
+
+
+
+    public PatientInvoiceDto adjustInvoice(Long orgId, Long patientId, Long invoiceId, InvoiceAdjustmentRequest req) {
+        PatientInvoice invoice = getInvoiceOrThrow(orgId, patientId, invoiceId);
+
+        if (req == null || req.adjustmentType() == null) {
+            throw new IllegalArgumentException("Adjustment type is required");
+        }
+
+        // Apply percentage discount if provided
+        if (req.percentageDiscount() != null && req.percentageDiscount() > 0) {
+            int percent = req.percentageDiscount();
+            BigDecimal discountFactor = BigDecimal.valueOf(percent)
+                    .divide(BigDecimal.valueOf(100), 8, RoundingMode.HALF_UP);
+
+            for (PatientInvoiceLine line : invoice.getLines()) {
+                BigDecimal originalCharge = line.getCharge();
+                BigDecimal discount = originalCharge.multiply(discountFactor);
+                BigDecimal newCharge = originalCharge.subtract(discount).max(BigDecimal.ZERO);
+
+                line.setCharge(newCharge);
+                line.setAllowed(newCharge);
+
+                // Recalculate portions proportionally
+                BigDecimal totalBefore = nz(line.getInsPortion()).add(nz(line.getPatientPortion()));
+                if (totalBefore.signum() > 0) {
+                    BigDecimal factor = newCharge.divide(totalBefore, 8, RoundingMode.HALF_UP);
+                    line.setInsPortion(nz(line.getInsPortion()).multiply(factor));
+                    line.setPatientPortion(nz(line.getPatientPortion()).multiply(factor));
+                } else {
+                    // Default: all to insurance
+                    line.setInsPortion(newCharge);
+                    line.setPatientPortion(BigDecimal.ZERO);
+                }
+
+                line.setInsWriteOff(BigDecimal.ZERO);
+                lineRepo.save(line);
+            }
+        }
+
+        // Apply adjustment amount if provided
+        if (req.adjustmentAmount() != null && req.adjustmentAmount().signum() != 0) {
+            // Create credit adjustment for the patient
+            addCredit(orgId, patientId, req.adjustmentAmount());
+        }
+
+        // Recalculate invoice totals
+        invoice.recalcTotals();
+        invoiceRepo.save(invoice);
+
+        log.info("Invoice adjusted: invoiceId={}, type={}, discount={}%, amount={}",
+                invoiceId, req.adjustmentType(), req.percentageDiscount(), req.adjustmentAmount());
+
+        return toInvoiceDto(invoice);
+    }
 
     public List<PatientInvoiceDto> listInvoices(Long orgId, Long patientId) {
         return invoiceRepo.findByOrgIdAndPatientIdOrderByIdDesc(orgId, patientId)
@@ -437,6 +563,10 @@ public class PatientBillingService {
         // If nothing is outstanding, entire payment becomes account credit
         if (outstanding.compareTo(BigDecimal.ZERO) <= 0) {
             addCredit(orgId, patientId, entered);
+            invoice.setPtBalance(BigDecimal.ZERO);
+            invoice.setInsBalance(BigDecimal.ZERO);
+            invoice.setStatus(PatientInvoice.Status.PAID);
+            invoiceRepo.save(invoice);
             return toInvoiceDto(invoice);
         }
 
@@ -481,8 +611,8 @@ public class PatientBillingService {
             }
         }
 
-        invoiceRepo.save(invoice);
-        return toInvoiceDto(invoice);
+    invoiceRepo.save(invoice);
+    return toInvoiceDto(invoice);
     }
 
     public List<PatientPatientPaymentAllocationDto> getAllPatientPayments(Long orgId, Long patientId) {
@@ -858,4 +988,6 @@ public class PatientBillingService {
                 payment.getCreatedAt()
         );
     }
+
+
 }

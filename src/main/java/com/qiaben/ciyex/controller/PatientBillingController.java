@@ -4,7 +4,7 @@ package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.*;
 import com.qiaben.ciyex.service.PatientBillingService;
-import com.qiaben.ciyex.dto.ApiResponse;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +23,45 @@ public class PatientBillingController {
     private final PatientBillingService service;
 
     /* ===================== Invoices ===================== */
+
+
+    @PostMapping("/invoices/{invoiceId}/backdate")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> backdateInvoice(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @RequestBody BackdateRequest body) {
+        var data = service.backdateInvoice(orgId, patientId, invoiceId,
+                new PatientBillingService.BackdateRequest(body.date()));
+        return ResponseEntity.ok(ApiResponse.ok("Invoice backdated", data));
+    }
+
+    @PostMapping("/account-adjustment")
+public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
+        @RequestHeader("x-org-id") Long orgId,
+        @PathVariable Long patientId,
+        @RequestBody AccountAdjustmentRequest body) {
+    var req = new PatientBillingService.AccountAdjustmentRequest(
+        body.adjustmentType(),
+        body.flatRate(),
+        body.specificAmount(),
+        body.description(),
+        body.includeCourtesyCredit()
+    );
+    var data = service.accountAdjustment(orgId, patientId, req);
+    return ResponseEntity.ok(ApiResponse.ok("Account adjusted", data));
+}
+
+    /** Adjust specific invoice with percentage discount and adjustment type */
+    @PostMapping("/invoices/{invoiceId}/adjust")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> adjustInvoice(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @RequestBody InvoiceAdjustmentRequest body) {
+        var data = service.adjustInvoice(orgId, patientId, invoiceId, body);
+        return ResponseEntity.ok(ApiResponse.ok("Invoice adjusted", data));
+    }
 
     @GetMapping("/invoices")
     public ResponseEntity<ApiResponse<List<PatientInvoiceDto>>> listInvoices(
