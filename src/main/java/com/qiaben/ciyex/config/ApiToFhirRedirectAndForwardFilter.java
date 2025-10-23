@@ -15,8 +15,10 @@ import java.io.IOException;
 /**
  * Handles API↔FHIR redirect and forward.
  * Transparently preserves whichever Org header the client sends.
+ * 
+ * DISABLED: This filter was redirecting all /api/* to /api/fhir/* which breaks auth endpoints
  */
-@Component
+// @Component
 @Order(1)
 public class ApiToFhirRedirectAndForwardFilter implements Filter {
 

@@ -74,6 +74,7 @@ public class SecurityConfig {
                     "/api/auth/register",
                     "/api/auth/encode-password/**",
                     "/api/auth/secret-key",
+                    "/api/auth/keycloak-callback",
 
                     // ✅ Portal-specific auth endpoints
                     "/api/portal/auth/login",

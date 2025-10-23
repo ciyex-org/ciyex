@@ -1,0 +1,225 @@
+package com.qiaben.ciyex.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.qiaben.ciyex.config.KeycloakConfig;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.*;
+
+@Service
+@Slf4j
+public class KeycloakAuthService {
+
+    @Autowired
+    private KeycloakConfig keycloakConfig;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /**
+     * Authenticate user with Keycloak and get access token
+     */
+    public Map<String, Object> authenticateWithKeycloak(String username, String password) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("grant_type", "password");
+            body.add("client_id", keycloakConfig.getResource());
+            body.add("client_secret", keycloakConfig.getClientSecret());
+            body.add("username", username);
+            body.add("password", password);
+
+            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                    keycloakConfig.getTokenEndpoint(),
+                    request,
+                    String.class
+            );
+
+            if (response.getStatusCode() == HttpStatus.OK) {
+                JsonNode tokenResponse = objectMapper.readTree(response.getBody());
+                
+                Map<String, Object> result = new HashMap<>();
+                result.put("access_token", tokenResponse.get("access_token").asText());
+                result.put("refresh_token", tokenResponse.get("refresh_token").asText());
+                result.put("expires_in", tokenResponse.get("expires_in").asInt());
+                result.put("token_type", tokenResponse.get("token_type").asText());
+                
+                return result;
+            } else {
+                log.error("Keycloak authentication failed with status: {}", response.getStatusCode());
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("Error authenticating with Keycloak", e);
+            return null;
+        }
+    }
+
+    /**
+     * Get user info from Keycloak using access token
+     */
+    public Map<String, Object> getUserInfo(String accessToken) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(accessToken);
+
+            HttpEntity<String> request = new HttpEntity<>(headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    keycloakConfig.getUserInfoEndpoint(),
+                    HttpMethod.GET,
+                    request,
+                    String.class
+            );
+
+            if (response.getStatusCode() == HttpStatus.OK) {
+                JsonNode userInfo = objectMapper.readTree(response.getBody());
+                
+                Map<String, Object> result = new HashMap<>();
+                result.put("sub", userInfo.get("sub").asText());
+                result.put("email", userInfo.has("email") ? userInfo.get("email").asText() : null);
+                result.put("preferred_username", userInfo.get("preferred_username").asText());
+                result.put("given_name", userInfo.has("given_name") ? userInfo.get("given_name").asText() : null);
+                result.put("family_name", userInfo.has("family_name") ? userInfo.get("family_name").asText() : null);
+                
+                // Extract groups (replacing tenant concept)
+                if (userInfo.has("groups")) {
+                    List<String> groups = new ArrayList<>();
+                    userInfo.get("groups").forEach(group -> groups.add(group.asText()));
+                    result.put("groups", groups);
+                }
+                
+                return result;
+            } else {
+                log.error("Failed to get user info from Keycloak: {}", response.getStatusCode());
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("Error getting user info from Keycloak", e);
+            return null;
+        }
+    }
+
+    /**
+     * Extract groups from Keycloak token (replaces tenant logic)
+     */
+    public List<String> extractGroupsFromToken(String accessToken) {
+        try {
+            // Decode JWT token to extract groups
+            String[] parts = accessToken.split("\\.");
+            if (parts.length < 2) {
+                return Collections.emptyList();
+            }
+
+            String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
+            JsonNode claims = objectMapper.readTree(payload);
+
+            List<String> groups = new ArrayList<>();
+            
+            // Check for groups in token
+            if (claims.has("groups")) {
+                claims.get("groups").forEach(group -> groups.add(group.asText()));
+            }
+            
+            // Check for realm roles
+            if (claims.has("realm_access") && claims.get("realm_access").has("roles")) {
+                claims.get("realm_access").get("roles").forEach(role -> groups.add(role.asText()));
+            }
+            
+            return groups;
+        } catch (Exception e) {
+            log.error("Error extracting groups from token", e);
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Exchange authorization code for access token (OAuth 2.0 Authorization Code Flow with PKCE)
+     */
+    public Map<String, Object> exchangeCodeForToken(String code, String redirectUri, String codeVerifier) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("grant_type", "authorization_code");
+            body.add("client_id", keycloakConfig.getResource());
+            body.add("client_secret", keycloakConfig.getClientSecret());
+            body.add("code", code);
+            body.add("redirect_uri", redirectUri);
+            
+            // Add PKCE code verifier if provided
+            if (codeVerifier != null && !codeVerifier.isEmpty()) {
+                body.add("code_verifier", codeVerifier);
+            }
+
+            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                    keycloakConfig.getTokenEndpoint(),
+                    request,
+                    String.class
+            );
+
+            if (response.getStatusCode() == HttpStatus.OK) {
+                JsonNode tokenResponse = objectMapper.readTree(response.getBody());
+                
+                Map<String, Object> result = new HashMap<>();
+                result.put("access_token", tokenResponse.get("access_token").asText());
+                result.put("refresh_token", tokenResponse.has("refresh_token") ? tokenResponse.get("refresh_token").asText() : null);
+                result.put("expires_in", tokenResponse.get("expires_in").asInt());
+                result.put("token_type", tokenResponse.get("token_type").asText());
+                
+                return result;
+            } else {
+                log.error("Token exchange failed with status: {}", response.getStatusCode());
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("Error exchanging code for token", e);
+            return null;
+        }
+    }
+
+    /**
+     * Logout user from Keycloak
+     */
+    public boolean logout(String refreshToken) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("client_id", keycloakConfig.getResource());
+            body.add("client_secret", keycloakConfig.getClientSecret());
+            body.add("refresh_token", refreshToken);
+
+            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                    keycloakConfig.getLogoutEndpoint(),
+                    request,
+                    String.class
+            );
+
+            return response.getStatusCode() == HttpStatus.NO_CONTENT || 
+                   response.getStatusCode() == HttpStatus.OK;
+        } catch (Exception e) {
+            log.error("Error logging out from Keycloak", e);
+            return false;
+        }
+    }
+}

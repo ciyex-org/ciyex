@@ -5,6 +5,7 @@ import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.entity.RoleName;
 import com.qiaben.ciyex.entity.User;
 import com.qiaben.ciyex.service.CiyexUserDetailsService;
+import com.qiaben.ciyex.service.KeycloakAuthService;
 import com.qiaben.ciyex.util.JwtTokenUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +44,10 @@ public class AuthController {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+    
+    @Autowired
+    private KeycloakAuthService keycloakAuthService;
+    
     private static final String RECAPTCHA_SECRET = "6Lc_DccrAAAAAHZoUYbMtwphxkj8objBewMTjEiR"; // v2 secret
     private static final String RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify";
 
@@ -469,6 +474,100 @@ public class AuthController {
                     ApiResponse.<Void>builder()
                             .success(false)
                             .message("An error occurred while updating the password.")
+                            .data(null)
+                            .build()
+            );
+        }
+    }
+
+    // Keycloak OAuth callback endpoint
+    public static class KeycloakCallbackRequest {
+        private String code;
+        private String redirectUri;
+        private String codeVerifier;
+
+        public String getCode() { return code; }
+        public void setCode(String code) { this.code = code; }
+        public String getRedirectUri() { return redirectUri; }
+        public void setRedirectUri(String redirectUri) { this.redirectUri = redirectUri; }
+        public String getCodeVerifier() { return codeVerifier; }
+        public void setCodeVerifier(String codeVerifier) { this.codeVerifier = codeVerifier; }
+    }
+
+    @PostMapping("/keycloak-callback")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> keycloakCallback(@RequestBody KeycloakCallbackRequest request) {
+        try {
+            log.info("Keycloak callback received with code");
+
+            // Exchange authorization code for access token
+            Map<String, Object> tokenData = keycloakAuthService.exchangeCodeForToken(
+                    request.getCode(),
+                    request.getRedirectUri(),
+                    request.getCodeVerifier()
+            );
+
+            if (tokenData == null) {
+                log.error("Failed to exchange code for token");
+                return ResponseEntity.status(400).body(
+                        ApiResponse.<Map<String, Object>>builder()
+                                .success(false)
+                                .message("Failed to authenticate with Keycloak")
+                                .data(null)
+                                .build()
+                );
+            }
+
+            String accessToken = (String) tokenData.get("access_token");
+
+            // Get user info from Keycloak
+            Map<String, Object> userInfo = keycloakAuthService.getUserInfo(accessToken);
+
+            if (userInfo == null) {
+                log.error("Failed to get user info from Keycloak");
+                return ResponseEntity.status(400).body(
+                        ApiResponse.<Map<String, Object>>builder()
+                                .success(false)
+                                .message("Failed to get user information")
+                                .data(null)
+                                .build()
+                );
+            }
+
+            // Extract user data
+            String email = (String) userInfo.get("email");
+            String username = (String) userInfo.get("preferred_username");
+            String firstName = (String) userInfo.get("given_name");
+            String lastName = (String) userInfo.get("family_name");
+            String userId = (String) userInfo.get("sub");
+            @SuppressWarnings("unchecked")
+            List<String> groups = (List<String>) userInfo.getOrDefault("groups", Collections.emptyList());
+
+            // Prepare response
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("token", accessToken);
+            responseData.put("email", email);
+            responseData.put("username", username);
+            responseData.put("firstName", firstName);
+            responseData.put("lastName", lastName);
+            responseData.put("userId", userId);
+            responseData.put("groups", groups);
+
+            log.info("Keycloak authentication successful for user: {}", username);
+
+            return ResponseEntity.ok(
+                    ApiResponse.<Map<String, Object>>builder()
+                            .success(true)
+                            .message("Authentication successful")
+                            .data(responseData)
+                            .build()
+            );
+
+        } catch (Exception e) {
+            log.error("Error in Keycloak callback", e);
+            return ResponseEntity.status(500).body(
+                    ApiResponse.<Map<String, Object>>builder()
+                            .success(false)
+                            .message("An error occurred during authentication")
                             .data(null)
                             .build()
             );
