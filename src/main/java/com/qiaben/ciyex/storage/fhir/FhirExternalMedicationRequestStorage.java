@@ -9,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.Bundle;
 import org.hl7.fhir.r4.model.MedicationRequest;
 import org.hl7.fhir.r4.model.Dosage;
-import org.hl7.fhir.r4.model.StringType;
 import org.hl7.fhir.r4.model.CodeableConcept;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -35,7 +34,7 @@ public class FhirExternalMedicationRequestStorage implements ExternalMedicationR
     @Override
     public String create(MedicationRequestDto dto) {
         try {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             MedicationRequest fhirMedicationRequest = mapToFhirMedicationRequest(dto);
             String externalId = client.create().resource(fhirMedicationRequest).execute().getId().getIdPart();
             log.info("Successfully created MedicationRequest in FHIR with externalId: {}", externalId);
@@ -49,7 +48,7 @@ public class FhirExternalMedicationRequestStorage implements ExternalMedicationR
     @Override
     public void update(MedicationRequestDto dto, String externalId) {
         try {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             MedicationRequest fhirMedicationRequest = mapToFhirMedicationRequest(dto);
             fhirMedicationRequest.setId(externalId);
             client.update().resource(fhirMedicationRequest).execute();
@@ -63,7 +62,7 @@ public class FhirExternalMedicationRequestStorage implements ExternalMedicationR
     @Override
     public MedicationRequestDto get(String externalId) {
         try {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             MedicationRequest fhirMedicationRequest = client.read().resource(MedicationRequest.class).withId(externalId).execute();
             return mapFromFhirMedicationRequest(fhirMedicationRequest);
         } catch (FhirClientConnectionException e) {
@@ -75,7 +74,7 @@ public class FhirExternalMedicationRequestStorage implements ExternalMedicationR
     @Override
     public void delete(String externalId) {
         try {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             client.delete().resourceById("MedicationRequest", externalId).execute();
             log.info("Successfully deleted MedicationRequest from FHIR with externalId: {}", externalId);
         } catch (FhirClientConnectionException e) {
@@ -87,7 +86,7 @@ public class FhirExternalMedicationRequestStorage implements ExternalMedicationR
     @Override
     public List<MedicationRequestDto> searchAll() {
         try {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             Bundle bundle = client.search().forResource(MedicationRequest.class).returnBundle(Bundle.class).execute();
             return bundle.getEntry().stream()
                     .map(entry -> {

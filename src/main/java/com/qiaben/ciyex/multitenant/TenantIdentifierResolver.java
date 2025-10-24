@@ -19,13 +19,14 @@ public class TenantIdentifierResolver implements CurrentTenantIdentifierResolver
     public String resolveCurrentTenantIdentifier() {
         RequestContext context = RequestContext.get();
         
-        if (context == null || context.getOrgId() == null) {
-            log.debug("No RequestContext or orgId found, using default tenant: {}", DEFAULT_TENANT);
+        if (context == null || context.getTenantName() == null) {
+            log.debug("No RequestContext or tenantName found, using default tenant: {}", DEFAULT_TENANT);
             return DEFAULT_TENANT;
         }
-        
-        String tenantId = "practice_" + context.getOrgId();
-        log.debug("Resolved tenant identifier: {}", tenantId);
+        String tenantName = context.getTenantName();
+        String sanitized = tenantName.toLowerCase().replaceAll("[^a-z0-9]+", "_").replaceAll("^_|_$", "");
+        String tenantId = "practice_" + sanitized;
+        log.debug("Resolved tenant identifier (tenantName={}): {}", tenantName, tenantId);
         return tenantId;
     }
 

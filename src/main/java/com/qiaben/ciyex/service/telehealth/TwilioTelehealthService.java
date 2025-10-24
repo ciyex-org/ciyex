@@ -1,7 +1,8 @@
 package com.qiaben.ciyex.service.telehealth;
 
 import com.qiaben.ciyex.dto.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+// Removed orgId usage; rely solely on tenantName
+import com.qiaben.ciyex.util.TenantContextUtil;
 import com.qiaben.ciyex.dto.integration.TelehealthConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 
@@ -31,8 +32,8 @@ public class TwilioTelehealthService implements TelehealthService {
 
     @Override
     public String startVideoCall(Long providerId, Long patientId, String roomName) {
-        Long orgId = RequestContext.get().getOrgId();
-        TelehealthConfig cfg = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
+        String tenantName = TenantContextUtil.getTenantName();
+        TelehealthConfig cfg = configProvider.getForCurrentTenant(IntegrationKey.TELEHEALTH);
         ensureTwilioConfigured(cfg);
 
         String accountSid = cfg.getTwilio().getAccountSid();
@@ -40,7 +41,7 @@ public class TwilioTelehealthService implements TelehealthService {
 
         Twilio.init(accountSid, authToken);
 
-        String uniqueName = roomName + "-" + orgId;
+        String uniqueName = roomName + "-" + (tenantName != null ? tenantName : "default");
 
         Room room = new RoomCreator()
                 .setUniqueName(uniqueName)
@@ -48,7 +49,7 @@ public class TwilioTelehealthService implements TelehealthService {
                 // .setRecordParticipantsOnConnect(true) // optional
                 .create();
 
-        log.info("Started Twilio video call for orgId={}, roomSid={}, uniqueName={}", orgId, room.getSid(), uniqueName);
+        log.info("Started Twilio video call for tenant={}, roomSid={}, uniqueName={}", tenantName, room.getSid(), uniqueName);
         return room.getSid();
     }
 
@@ -56,7 +57,7 @@ public class TwilioTelehealthService implements TelehealthService {
      * Mint a Twilio Video access token (JWT) so a client can join the room.
      */
     public String createJoinToken(String roomName, String identity, Integer ttlSecs) {
-        TelehealthConfig cfg = configProvider.get(RequestContext.get().getOrgId(), IntegrationKey.TELEHEALTH);
+        TelehealthConfig cfg = configProvider.getForCurrentTenant(IntegrationKey.TELEHEALTH);
         ensureTwilioConfigured(cfg);
 
         TelehealthConfig.Twilio t = cfg.getTwilio();
@@ -86,8 +87,7 @@ public class TwilioTelehealthService implements TelehealthService {
 
     @Override
     public String getCallStatus(String callId) {
-        Long orgId = RequestContext.get().getOrgId();
-        TelehealthConfig cfg = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
+        TelehealthConfig cfg = configProvider.getForCurrentTenant(IntegrationKey.TELEHEALTH);
         ensureTwilioConfigured(cfg);
 
         String accountSid = cfg.getTwilio().getAccountSid();
@@ -100,8 +100,8 @@ public class TwilioTelehealthService implements TelehealthService {
 
     public JoinTokenWithRoom ensureRoomAndCreateToken(Long providerId, Long patientId, String roomName, String identity, Integer ttlSecs) {
         String roomSid = startVideoCall(providerId, patientId, roomName);
-        Long orgId = RequestContext.get().getOrgId();
-        String uniqueName = roomName + "-" + orgId;
+        String tenantName = TenantContextUtil.getTenantName();
+        String uniqueName = roomName + "-" + (tenantName != null ? tenantName : "default");
         String token = createJoinToken(uniqueName, identity, ttlSecs);
         return new JoinTokenWithRoom(roomSid, identity, token);
     }

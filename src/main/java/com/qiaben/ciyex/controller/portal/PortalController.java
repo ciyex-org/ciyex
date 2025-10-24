@@ -9,7 +9,6 @@ import com.qiaben.ciyex.repository.portal.PortalUserRepository;
 import com.qiaben.ciyex.service.AppointmentService;
 import com.qiaben.ciyex.service.LocationService;
 import com.qiaben.ciyex.service.ProviderService;
-import com.qiaben.ciyex.dto.integration.RequestContext;
 import org.springframework.security.core.Authentication;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -57,26 +56,6 @@ public class PortalController {
         return Long.valueOf(value.toString());
     }
 //
-    // 🔹 Ensure orgId is set in RequestContext
-    private void setRequestContextOrg(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new IllegalStateException("User not authenticated");
-        }
-
-        try {
-            String email = authentication.getName();
-            PortalUser user = portalUserRepository.findByEmail(email)
-                    .orElseThrow(() -> new IllegalStateException("No user found for email: " + email));
-            
-            RequestContext ctx = new RequestContext();
-            ctx.setOrgId(user.getOrgId());
-            RequestContext.set(ctx);
-        } catch (Exception e) {
-            log.error("❌ Failed to set request context", e);
-            throw new IllegalStateException("Failed to set organization context");
-        }
-    }
-
     // 🔹 GET: Patient’s own appointments
 
 

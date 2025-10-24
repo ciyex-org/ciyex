@@ -45,8 +45,8 @@ public class JpaSchemaInterceptor implements Interceptor {
     
     private void setTenantSchema() {
         RequestContext context = RequestContext.get();
-        if (context != null && context.getOrgId() != null) {
-            String schemaName = "practice_" + context.getOrgId();
+        if (context != null && context.getTenantName() != null) {
+            String schemaName = sanitize(context.getTenantName());
             
             try (Connection connection = dataSource.getConnection();
                  Statement statement = connection.createStatement()) {
@@ -63,5 +63,9 @@ public class JpaSchemaInterceptor implements Interceptor {
                 log.error("JPA Interceptor: Failed to set schema: {}", schemaName, e);
             }
         }
+    }
+
+    private String sanitize(String tenantName) {
+        return tenantName.toLowerCase().replaceAll("[^a-z0-9]+", "_").replaceAll("^_|_$", "");
     }
 }

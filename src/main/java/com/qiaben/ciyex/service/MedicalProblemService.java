@@ -36,9 +36,9 @@ public class MedicalProblemService {
 
     @Transactional
     public MedicalProblemDto create(MedicalProblemDto dto) {
-        Long orgId = requireOrg("create");
+        String tenant = requireTenant("create");
         if (dto.getPatientId() == null) throw new IllegalArgumentException("patientId is required");
-        dto.setOrgId(orgId);
+        dto.setTenantName(tenant);
 
         String now = LocalDateTime.now().toString();
         List<MedicalProblem> rows = new ArrayList<>();
@@ -46,7 +46,6 @@ public class MedicalProblemService {
         if (dto.getProblemsList() != null) {
             for (var it : dto.getProblemsList()) {
                 MedicalProblem row = MedicalProblem.builder()
-                        .orgId(orgId)
                         .patientId(dto.getPatientId())
                         .title(it.getTitle())
                         .outcome(it.getOutcome())
@@ -64,23 +63,23 @@ public class MedicalProblemService {
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && !rows.isEmpty()) {
             ExternalStorage<MedicalProblemDto> ext = storageResolver.resolve(MedicalProblemDto.class);
-            MedicalProblemDto snapshot = toDto(orgId, dto.getPatientId(), rows, true);
+            MedicalProblemDto snapshot = toDto(dto.getPatientId(), rows, true);
             String externalId = ext.create(snapshot);
             for (MedicalProblem r : rows) {
                 r.setExternalId(externalId);
                 repo.save(r);
             }
         }
-        return toDto(orgId, dto.getPatientId(), rows, true);
+        return toDto(dto.getPatientId(), rows, true);
     }
 
     @Transactional(readOnly = true)
     public MedicalProblemDto getByPatientId(Long patientId) {
-        Long orgId = requireOrg("getByPatientId");
-        List<MedicalProblem> rows = repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
+        requireTenant("getByPatientId");
+        List<MedicalProblem> rows = repo.findAllByPatientId(patientId);
         if (rows.isEmpty()) throw new RuntimeException("No medical problems found for patientId=" + patientId);
 
-        MedicalProblemDto dto = toDto(orgId, patientId, rows, true);
+        MedicalProblemDto dto = toDto(patientId, rows, true);
 
         if (rows.get(0).getExternalId() != null) {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -95,21 +94,21 @@ public class MedicalProblemService {
 
     @Transactional
     public MedicalProblemDto updateByPatientId(Long patientId, MedicalProblemDto dto) {
-        Long orgId = requireOrg("updateByPatientId");
-        repo.deleteAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
-        dto.setOrgId(orgId);
+        String tenant = requireTenant("updateByPatientId");
+        repo.deleteAllByPatientId(patientId);
+        dto.setTenantName(tenant);
         dto.setPatientId(patientId);
         return create(dto); // replace strategy
     }
 
     @Transactional
     public void deleteByPatientId(Long patientId) {
-        Long orgId = requireOrg("deleteByPatientId");
-        List<MedicalProblem> rows = repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
+        requireTenant("deleteByPatientId");
+        List<MedicalProblem> rows = repo.findAllByPatientId(patientId);
         if (rows.isEmpty()) return;
 
         String externalId = rows.get(0).getExternalId();
-        repo.deleteAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
+        repo.deleteAllByPatientId(patientId);
 
         if (externalId != null) {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -124,8 +123,8 @@ public class MedicalProblemService {
 
     @Transactional(readOnly = true)
     public MedicalProblemDto.MedicalProblemItem getItem(Long patientId, Long problemId) {
-        Long orgId = requireOrg("getItem");
-        return repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId)).stream()
+    requireTenant("getItem");
+    return repo.findAllByPatientId(patientId).stream()
                 .filter(r -> r.getId().equals(problemId))
                 .findFirst()
                 .map(this::toItem)
@@ -135,8 +134,8 @@ public class MedicalProblemService {
     @Transactional
     public MedicalProblemDto.MedicalProblemItem updateItem(Long patientId, Long problemId,
                                                            MedicalProblemDto.MedicalProblemItem patch) {
-        Long orgId = requireOrg("updateItem");
-        List<MedicalProblem> rows = repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
+    requireTenant("updateItem");
+    List<MedicalProblem> rows = repo.findAllByPatientId(patientId);
 
         MedicalProblem row = rows.stream()
                 .filter(r -> r.getId().equals(problemId))
@@ -156,8 +155,8 @@ public class MedicalProblemService {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
             if (storageType != null) {
                 ExternalStorage<MedicalProblemDto> ext = storageResolver.resolve(MedicalProblemDto.class);
-                List<MedicalProblem> fresh = repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
-                ext.update(toDto(orgId, patientId, fresh, true), row.getExternalId());
+                List<MedicalProblem> fresh = repo.findAllByPatientId(patientId);
+                ext.update(toDto(patientId, fresh, true), row.getExternalId());
             }
         }
         return toItem(row);
@@ -165,20 +164,20 @@ public class MedicalProblemService {
 
     @Transactional
     public void deleteItem(Long patientId, Long problemId) {
-        Long orgId = requireOrg("deleteItem");
-        List<MedicalProblem> rows = repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
+        requireTenant("deleteItem");
+        List<MedicalProblem> rows = repo.findAllByPatientId(patientId);
         String externalId = rows.stream().findFirst().map(MedicalProblem::getExternalId).orElse(null);
 
-        int n = repo.deleteOneByIdAndPatientIdAndOrgIdText(String.valueOf(problemId), String.valueOf(patientId), String.valueOf(orgId));
+        int n = repo.deleteByIdAndPatientId(problemId, patientId);
         if (n == 0) throw new RuntimeException("Delete failed");
 
         if (externalId != null) {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
             if (storageType != null) {
                 ExternalStorage<MedicalProblemDto> ext = storageResolver.resolve(MedicalProblemDto.class);
-                List<MedicalProblem> fresh = repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
+                List<MedicalProblem> fresh = repo.findAllByPatientId(patientId);
                 if (fresh.isEmpty()) ext.delete(externalId);
-                else ext.update(toDto(orgId, patientId, fresh, true), externalId);
+                else ext.update(toDto(patientId, fresh, true), externalId);
             }
         }
     }
@@ -187,13 +186,13 @@ public class MedicalProblemService {
 
     @Transactional(readOnly = true)
     public ApiResponse<List<MedicalProblemDto>> searchAll() {
-        Long orgId = requireOrg("searchAll");
-        List<MedicalProblem> all = repo.findByOrgIdText(String.valueOf(orgId));
+        requireTenant("searchAll");
+        List<MedicalProblem> all = repo.findAll();
         Map<Long, List<MedicalProblem>> byPatient = all.stream().collect(Collectors.groupingBy(MedicalProblem::getPatientId));
 
         List<MedicalProblemDto> dtos = new ArrayList<>();
         for (var e : byPatient.entrySet()) {
-            dtos.add(toDto(orgId, e.getKey(), e.getValue(), true));
+            dtos.add(toDto(e.getKey(), e.getValue(), true));
         }
 
         return ApiResponse.<List<MedicalProblemDto>>builder()
@@ -205,15 +204,17 @@ public class MedicalProblemService {
 
     /* -------- Helpers -------- */
 
-    private Long requireOrg(String op) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        if (orgId == null) throw new SecurityException("No orgId in RequestContext during " + op);
-        return orgId;
+    private String requireTenant(String op) {
+        String tenant = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
+        if (tenant == null || tenant.isBlank()) {
+            throw new SecurityException("No tenantName in RequestContext during " + op);
+        }
+        return tenant;
     }
 
-    private MedicalProblemDto toDto(Long orgId, Long patientId, List<MedicalProblem> rows, boolean includeTopLevelPatientId) {
+    private MedicalProblemDto toDto(Long patientId, List<MedicalProblem> rows, boolean includeTopLevelPatientId) {
         MedicalProblemDto dto = new MedicalProblemDto();
-        dto.setOrgId(orgId);
+        dto.setTenantName(RequestContext.get() != null ? RequestContext.get().getTenantName() : null);
         if (includeTopLevelPatientId) dto.setPatientId(patientId);
 
         if (!rows.isEmpty()) {

@@ -27,14 +27,13 @@ public class TemplateService {
         Long currentOrgId = getCurrentOrgId();
         if (currentOrgId == null) throw new SecurityException("No orgId in RequestContext");
 
-        dto.setOrgId(currentOrgId);
-
-        Template entity = mapToEntity(dto);
+        Template entity = mapToEntity(dto, currentOrgId);
         entity = repository.save(entity);
 
         dto.setId(entity.getId());
         dto.setExternalId(entity.getExternalId());
         dto.setAudit(toAudit(entity));
+        dto.setTenantName(RequestContext.get() != null ? RequestContext.get().getTenantName() : null);
         return dto;
     }
 
@@ -46,7 +45,7 @@ public class TemplateService {
         if (!entity.getOrgId().equals(currentOrgId)) {
             throw new SecurityException("Access denied to template id " + id);
         }
-        return mapToDto(entity);
+    return mapToDto(entity);
     }
 
     @Transactional
@@ -63,7 +62,7 @@ public class TemplateService {
         if (dto.getBody() != null) entity.setBody(dto.getBody());
 
         entity = repository.save(entity);
-        return mapToDto(entity);
+    return mapToDto(entity);
     }
 
     @Transactional
@@ -81,7 +80,7 @@ public class TemplateService {
     public ApiResponse<List<TemplateDto>> getAllTemplates() {
         Long currentOrgId = getCurrentOrgId();
         List<Template> templates = repository.findAllByOrgId(currentOrgId);
-        List<TemplateDto> dtos = templates.stream().map(this::mapToDto).collect(Collectors.toList());
+    List<TemplateDto> dtos = templates.stream().map(this::mapToDto).collect(Collectors.toList());
 
         return ApiResponse.<List<TemplateDto>>builder()
                 .success(true)
@@ -90,10 +89,10 @@ public class TemplateService {
                 .build();
     }
 
-    private Template mapToEntity(TemplateDto dto) {
+    private Template mapToEntity(TemplateDto dto, Long orgId) {
         return Template.builder()
                 .id(dto.getId())
-                .orgId(dto.getOrgId())
+                .orgId(orgId)
                 .externalId(dto.getExternalId())
                 .templateName(dto.getTemplateName())
                 .subject(dto.getSubject())
@@ -104,12 +103,12 @@ public class TemplateService {
     private TemplateDto mapToDto(Template entity) {
         TemplateDto dto = new TemplateDto();
         dto.setId(entity.getId());
-        dto.setOrgId(entity.getOrgId());
         dto.setExternalId(entity.getExternalId());
         dto.setTemplateName(entity.getTemplateName());
         dto.setSubject(entity.getSubject());
         dto.setBody(entity.getBody());
         dto.setAudit(toAudit(entity));
+        dto.setTenantName(RequestContext.get() != null ? RequestContext.get().getTenantName() : null);
         return dto;
     }
 
@@ -121,6 +120,18 @@ public class TemplateService {
     }
 
     private Long getCurrentOrgId() {
-        return RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        RequestContext ctx = RequestContext.get();
+        if (ctx == null || ctx.getTenantName() == null) {
+            return null;
+        }
+        String digits = ctx.getTenantName().replaceAll("[^0-9]", "");
+        if (digits.isEmpty()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(digits);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 }

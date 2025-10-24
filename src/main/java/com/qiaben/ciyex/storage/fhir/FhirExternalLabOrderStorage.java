@@ -34,7 +34,7 @@ public class FhirExternalLabOrderStorage implements ExternalStorage<LabOrderDto>
     @Override
     public String create(LabOrderDto dto) {
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             ServiceRequest sr = mapToServiceRequest(dto);
 
             var outcome = client.create()
@@ -67,11 +67,11 @@ public class FhirExternalLabOrderStorage implements ExternalStorage<LabOrderDto>
 
     @Override
     public List<LabOrderDto> searchAll() {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        Bundle bundle = fhirClientProvider.getForCurrentOrg().search()
+        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
+        Bundle bundle = fhirClientProvider.getForCurrentTenant().search()
                 .forResource(ServiceRequest.class)
                 .where(new TokenClientParam("_tag").exactly()
-                        .systemAndCode("http://ciyex.com/tenant", orgId != null ? orgId.toString() : ""))
+                        .systemAndCode("http://ciyex.com/tenant", tenantName != null ? tenantName : ""))
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -105,9 +105,9 @@ public class FhirExternalLabOrderStorage implements ExternalStorage<LabOrderDto>
         ServiceRequest sr = new ServiceRequest();
 
         // tenant tag (from RequestContext)
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        if (orgId != null) {
-            sr.getMeta().addTag().setSystem("http://ciyex.com/tenant").setCode(orgId.toString());
+        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
+        if (tenantName != null) {
+            sr.getMeta().addTag().setSystem("http://ciyex.com/tenant").setCode(tenantName);
         }
 
         if (d.getPatientExternalId() != null) {
@@ -247,8 +247,8 @@ public class FhirExternalLabOrderStorage implements ExternalStorage<LabOrderDto>
 
         // d.setResult(...) is intentionally not populated from ServiceRequest.
 
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        d.setOrgId(orgId);
+        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
+        d.setTenantName(tenantName);
 
         return d;
     }

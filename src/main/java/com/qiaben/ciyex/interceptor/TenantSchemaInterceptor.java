@@ -47,8 +47,8 @@ public class TenantSchemaInterceptor implements Interceptor {
     
     private void setCurrentSchema() {
         RequestContext context = RequestContext.get();
-        if (context != null && context.getOrgId() != null) {
-            String schemaName = "practice_" + context.getOrgId();
+        if (context != null && context.getTenantName() != null) {
+            String schemaName = sanitize(context.getTenantName());
             try (Connection connection = dataSource.getConnection();
                  Statement statement = connection.createStatement()) {
                 
@@ -64,5 +64,9 @@ public class TenantSchemaInterceptor implements Interceptor {
                 log.error("Failed to set schema: {}", schemaName, e);
             }
         }
+    }
+
+    private String sanitize(String tenantName) {
+        return tenantName.toLowerCase().replaceAll("[^a-z0-9]+", "_").replaceAll("^_|_$", "");
     }
 }

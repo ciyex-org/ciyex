@@ -21,14 +21,14 @@ public class S3ClientProvider {
         this.configProvider = configProvider;
     }
 
-    public S3Client getForCurrentOrg() {
-        Long orgId = RequestContext.get().getOrgId();
-        if (orgId == null) {
-            throw new IllegalStateException("No orgId available in request context");
+    public S3Client getForCurrentTenant() {
+        String tenantName = RequestContext.get().getTenantName();
+        if (tenantName == null) {
+            throw new IllegalStateException("No tenant name available in request context");
         }
-        StorageConfig config = configProvider.getForCurrentOrg(IntegrationKey.DOCUMENT_STORAGE);
+        StorageConfig config = configProvider.getForCurrentTenant(IntegrationKey.DOCUMENT_STORAGE);
         if (config == null || config.getS3() == null) {
-            throw new IllegalStateException("S3 configuration missing for orgId: " + orgId);
+            throw new IllegalStateException("S3 configuration missing for tenant: " + tenantName);
         }
         StorageConfig.S3 s3Config = config.getS3();
         AwsBasicCredentials credentials = AwsBasicCredentials.create(s3Config.getAccessKey(), s3Config.getSecretKey());
@@ -39,8 +39,7 @@ public class S3ClientProvider {
     }
 
     public String getBucketForCurrentOrg() {
-        Long orgId = RequestContext.get().getOrgId();
-        StorageConfig config = configProvider.getForCurrentOrg(IntegrationKey.DOCUMENT_STORAGE);
+        StorageConfig config = configProvider.getForCurrentTenant(IntegrationKey.DOCUMENT_STORAGE);
         return config.getS3().getBucket();
     }
 }

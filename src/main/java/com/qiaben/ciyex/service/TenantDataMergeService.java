@@ -29,7 +29,7 @@ public class TenantDataMergeService {
             // Set tenant context
             String tenantSchema = "practice_" + orgId;
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+            ctx.setTenantName(tenantSchema);
             RequestContext.set(ctx);
             
             log.info("🔄 Merging approved data - Type: {}, Tenant: {}", update.getUpdateType(), tenantSchema);

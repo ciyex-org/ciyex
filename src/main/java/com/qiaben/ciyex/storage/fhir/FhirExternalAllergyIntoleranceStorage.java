@@ -39,72 +39,72 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
 
     @Override
     public String create(AllergyIntoleranceDto dto) {
-        Long orgId = orgId();
-        log.info("FHIR create AllergyIntolerance List for orgId={} patientId={}", orgId, dto.getPatientId());
+        String tenantName = tenantName();
+        log.info("FHIR create AllergyIntolerance List for tenantName={} patientId={}", tenantName, dto.getPatientId());
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
-            ListResource list = mapToFhir(dto, orgId);
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            ListResource list = mapToFhir(dto, tenantName);
             String externalId = client.create().resource(list).execute().getId().getIdPart();
-            log.info("FHIR create success externalId={} orgId={}", externalId, orgId);
+            log.info("FHIR create success externalId={} tenantName={}", externalId, tenantName);
             return externalId;
         });
     }
 
     @Override
     public void update(AllergyIntoleranceDto dto, String externalId) {
-        Long orgId = orgId();
-        log.info("FHIR update AllergyIntolerance List externalId={} orgId={}", externalId, orgId);
+        String tenantName = tenantName();
+        log.info("FHIR update AllergyIntolerance List externalId={} tenantName={}", externalId, tenantName);
         executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
-            ListResource list = mapToFhir(dto, orgId);
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            ListResource list = mapToFhir(dto, tenantName);
             list.setId(externalId);
             client.update().resource(list).execute();
-            log.info("FHIR update success externalId={} orgId={}", externalId, orgId);
+            log.info("FHIR update success externalId={} tenantName={}", externalId, tenantName);
             return null;
         });
     }
 
     @Override
     public AllergyIntoleranceDto get(String externalId) {
-        Long orgId = orgId();
-        log.info("FHIR get AllergyIntolerance List externalId={} orgId={}", externalId, orgId);
+        String tenantName = tenantName();
+        log.info("FHIR get AllergyIntolerance List externalId={} tenantName={}", externalId, tenantName);
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             ListResource list = client.read().resource(ListResource.class).withId(externalId).execute();
-            AllergyIntoleranceDto dto = mapFromFhir(list, orgId);
+            AllergyIntoleranceDto dto = mapFromFhir(list, tenantName);
             dto.setExternalId(externalId);
 
             Long pid = parsePatientIdFromTitle(list.getTitle());
             if (pid != null) dto.setPatientId(pid);
 
-            log.debug("FHIR get mapped dto externalId={} orgId={} patientId={}", externalId, orgId, dto.getPatientId());
+            log.debug("FHIR get mapped dto externalId={} tenantName={} patientId={}", externalId, tenantName, dto.getPatientId());
             return dto;
         });
     }
 
     @Override
     public void delete(String externalId) {
-        Long orgId = orgId();
-        log.info("FHIR delete AllergyIntolerance List externalId={} orgId={}", externalId, orgId);
+        String tenantName = tenantName();
+        log.info("FHIR delete AllergyIntolerance List externalId={} tenantName={}", externalId, tenantName);
         executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             client.delete().resourceById("List", externalId).execute();
-            log.info("FHIR delete success externalId={} orgId={}", externalId, orgId);
+            log.info("FHIR delete success externalId={} tenantName={}", externalId, tenantName);
             return null;
         });
     }
 
     @Override
     public List<AllergyIntoleranceDto> searchAll() {
-        Long orgId = orgId();
-        log.info("FHIR searchAll AllergyIntolerance Lists orgId={}", orgId);
+        String tenantName = tenantName();
+        log.info("FHIR searchAll AllergyIntolerance Lists tenantName={}", tenantName);
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
 
-            Bundle bundle = client.search()
+        Bundle bundle = client.search()
                     .forResource(ListResource.class)
-                    .where(new TokenClientParam("_tag").exactly()
-                            .systemAndCode(TENANT_TAG_SYSTEM, orgId != null ? String.valueOf(orgId) : ""))
+            .where(new TokenClientParam("_tag").exactly()
+                .systemAndCode(TENANT_TAG_SYSTEM, tenantName != null ? tenantName : ""))
                     .returnBundle(Bundle.class)
                     .execute();
 
@@ -117,7 +117,7 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
             List<AllergyIntoleranceDto> out = entries.stream()
                     .map(e -> (ListResource) e.getResource())
                     .map(list -> {
-                        AllergyIntoleranceDto dto = mapFromFhir(list, orgId);
+                        AllergyIntoleranceDto dto = mapFromFhir(list, tenantName);
                         dto.setExternalId(list.getIdElement().getIdPart());
                         Long pid = parsePatientIdFromTitle(list.getTitle());
                         if (pid != null) dto.setPatientId(pid);
@@ -125,7 +125,7 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
                     })
                     .collect(Collectors.toList());
 
-            log.info("FHIR searchAll found {} AllergyIntolerance Lists for orgId={}", out.size(), orgId);
+            log.info("FHIR searchAll found {} AllergyIntolerance Lists for tenantName={}", out.size(), tenantName);
             return out;
         });
     }
@@ -136,16 +136,16 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
     }
 
     /** Map DTO -> FHIR List with contained Basics; code.text = name|reaction|severity|status|startDate|endDate|comments */
-    private ListResource mapToFhir(AllergyIntoleranceDto dto, Long orgId) {
+    private ListResource mapToFhir(AllergyIntoleranceDto dto, String tenantName) {
         ListResource list = new ListResource();
         list.setStatus(ListResource.ListStatus.CURRENT);
         list.setMode(ListResource.ListMode.WORKING);
         list.setTitle("Allergy Intolerance – patientId " + dto.getPatientId());
 
-        list.getMeta()
+    list.getMeta()
                 .addTag()
                 .setSystem(TENANT_TAG_SYSTEM)
-                .setCode(orgId != null ? orgId.toString() : "");
+        .setCode(tenantName != null ? tenantName : "");
 
         if (dto.getAllergiesList() != null) {
             for (AllergyIntoleranceDto.AllergyItem d : dto.getAllergiesList()) {
@@ -169,9 +169,9 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
     }
 
     /** Map FHIR List -> DTO; supports 4-part (legacy), 6-part (dates), and 7-part (with comments) encodings. */
-    private AllergyIntoleranceDto mapFromFhir(ListResource list, Long orgId) {
+    private AllergyIntoleranceDto mapFromFhir(ListResource list, String tenantName) {
         AllergyIntoleranceDto dto = new AllergyIntoleranceDto();
-        dto.setOrgId(orgId);
+        // orgId deprecated; tenantName available via RequestContext
 
         final List<Resource> contained = list.getContained();
         final List<AllergyIntoleranceDto.AllergyItem> items = contained.stream()
@@ -198,13 +198,13 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
     }
 
     private <T> T executeWithRetry(Callable<T> op) {
-        Long orgId = orgId();
+        String tenantName = tenantName();
         try {
             return op.call();
         } catch (FhirClientConnectionException e) {
-            log.error("FHIR connection error orgId={} status={} msg={}", orgId, e.getStatusCode(), e.getMessage());
+            log.error("FHIR connection error tenantName={} status={} msg={}", tenantName, e.getStatusCode(), e.getMessage());
             if (e.getStatusCode() == 401) {
-                log.warn("401 unauthorized; retrying once with fresh client orgId={}", orgId);
+                log.warn("401 unauthorized; retrying once with fresh client tenantName={}", tenantName);
                 try {
                     return op.call();
                 } catch (Exception ex) {
@@ -213,13 +213,12 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
             }
             throw e;
         } catch (Exception e) {
-            log.error("Unexpected FHIR error orgId={} msg={}", orgId, e.getMessage(), e);
+            log.error("Unexpected FHIR error tenantName={} msg={}", tenantName, e.getMessage(), e);
             throw new RuntimeException(e);
         }
     }
-
-    private Long orgId() {
-        return RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+    private String tenantName() {
+        return RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
     }
 
     private static String safe(String s) {

@@ -44,8 +44,8 @@ public class TenantSchemaService {
     
     public void setTenantSchema() {
         RequestContext context = RequestContext.get();
-        if (context != null && context.getOrgId() != null) {
-            String schemaName = "practice_" + context.getOrgId();
+        if (context != null && context.getTenantName() != null) {
+            String schemaName = generateSchemaName(context.getTenantName());
             setSchema(schemaName);
         } else {
             setSchema("public");
@@ -76,8 +76,8 @@ public class TenantSchemaService {
     
     public String getCurrentSchema() {
         RequestContext context = RequestContext.get();
-        if (context != null && context.getOrgId() != null) {
-            return "practice_" + context.getOrgId();
+        if (context != null && context.getTenantName() != null) {
+            return generateSchemaName(context.getTenantName());
         }
         return "public";
     }

@@ -27,7 +27,7 @@ public class MedicalProblemController {
             @RequestHeader("orgId") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+            // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             MedicalProblemDto created = service.create(dto);
@@ -48,7 +48,7 @@ public class MedicalProblemController {
             @RequestHeader("orgId") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+            // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             MedicalProblemDto dto = service.getByPatientId(patientId);
@@ -70,7 +70,7 @@ public class MedicalProblemController {
             @RequestHeader("orgId") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+            // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             MedicalProblemDto updated = service.updateByPatientId(patientId, dto);
@@ -91,7 +91,7 @@ public class MedicalProblemController {
             @RequestHeader("orgId") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+            // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             service.deleteByPatientId(patientId);
@@ -111,7 +111,7 @@ public class MedicalProblemController {
     public ResponseEntity<ApiResponse<MedicalProblemDto.MedicalProblemItem>> getItem(
             @PathVariable Long patientId, @PathVariable Long problemId, @RequestHeader("orgId") Long orgId) {
         try {
-            RequestContext ctx = new RequestContext(); ctx.setOrgId(orgId); RequestContext.set(ctx);
+            RequestContext ctx = new RequestContext(); /* orgId deprecated */ RequestContext.set(ctx);
             var item = service.getItem(patientId, problemId);
             return ResponseEntity.ok(ApiResponse.<MedicalProblemDto.MedicalProblemItem>builder()
                     .success(true).message("Medical Problem retrieved successfully").data(item).build());
@@ -127,7 +127,7 @@ public class MedicalProblemController {
             @PathVariable Long patientId, @PathVariable Long problemId,
             @RequestBody MedicalProblemDto.MedicalProblemItem patch, @RequestHeader("orgId") Long orgId) {
         try {
-            RequestContext ctx = new RequestContext(); ctx.setOrgId(orgId); RequestContext.set(ctx);
+            RequestContext ctx = new RequestContext(); /* orgId deprecated */ RequestContext.set(ctx);
             var updated = service.updateItem(patientId, problemId, patch);
             return ResponseEntity.ok(ApiResponse.<MedicalProblemDto.MedicalProblemItem>builder()
                     .success(true).message("Medical Problem updated successfully").data(updated).build());
@@ -142,7 +142,7 @@ public class MedicalProblemController {
     public ResponseEntity<ApiResponse<Void>> deleteItem(
             @PathVariable Long patientId, @PathVariable Long problemId, @RequestHeader("orgId") Long orgId) {
         try {
-            RequestContext ctx = new RequestContext(); ctx.setOrgId(orgId); RequestContext.set(ctx);
+            RequestContext ctx = new RequestContext(); /* orgId deprecated */ RequestContext.set(ctx);
             service.deleteItem(patientId, problemId);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true).message("Medical Problem deleted successfully").build());
@@ -156,7 +156,7 @@ public class MedicalProblemController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<MedicalProblemDto>>> searchAll(@RequestHeader("orgId") Long orgId) {
         try {
-            RequestContext ctx = new RequestContext(); ctx.setOrgId(orgId); RequestContext.set(ctx);
+            RequestContext ctx = new RequestContext(); /* orgId deprecated */ RequestContext.set(ctx);
             return ResponseEntity.ok(service.searchAll());
         } catch (Exception e) {
             log.error("Failed to search all Medical Problems: {}", e.getMessage(), e);

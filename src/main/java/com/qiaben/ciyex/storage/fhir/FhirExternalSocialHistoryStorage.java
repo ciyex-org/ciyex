@@ -21,7 +21,7 @@ public class FhirExternalSocialHistoryStorage implements ExternalSocialHistorySt
     @Override
     public String create(SocialHistoryDto dto) {
         // Map entries to FHIR (e.g., Observation with category=social-history or QuestionnaireResponse)
-        // var client = fhirClientProvider.getForCurrentOrg();
+        // var client = fhirClientProvider.getForCurrentTenant();
         return null; // return created external/bundle id
     }
 

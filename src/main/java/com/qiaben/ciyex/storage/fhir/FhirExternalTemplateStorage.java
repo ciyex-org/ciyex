@@ -28,18 +28,18 @@ public class FhirExternalTemplateStorage implements ExternalTemplateStorage {
 
     @Override
     public String create(TemplateDto dto) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        IGenericClient client = fhirClientProvider.getForCurrentOrg();
+        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
+        IGenericClient client = fhirClientProvider.getForCurrentTenant();
 
         Communication comm = mapToFhir(dto);
         String externalId = client.create().resource(comm).execute().getId().getIdPart();
-        log.info("Created FHIR Template externalId={} orgId={}", externalId, orgId);
+        log.info("Created FHIR Template externalId={} tenantName={}", externalId, tenantName);
         return externalId;
     }
 
     @Override
     public void update(TemplateDto dto, String externalId) {
-        IGenericClient client = fhirClientProvider.getForCurrentOrg();
+        IGenericClient client = fhirClientProvider.getForCurrentTenant();
         Communication comm = mapToFhir(dto);
         comm.setId(externalId);
         client.update().resource(comm).execute();
@@ -48,21 +48,21 @@ public class FhirExternalTemplateStorage implements ExternalTemplateStorage {
 
     @Override
     public TemplateDto get(String externalId) {
-        IGenericClient client = fhirClientProvider.getForCurrentOrg();
+        IGenericClient client = fhirClientProvider.getForCurrentTenant();
         Communication comm = client.read().resource(Communication.class).withId(externalId).execute();
         return mapFromFhir(comm);
     }
 
     @Override
     public void delete(String externalId) {
-        IGenericClient client = fhirClientProvider.getForCurrentOrg();
+        IGenericClient client = fhirClientProvider.getForCurrentTenant();
         client.delete().resourceById("Communication", externalId).execute();
         log.info("Deleted FHIR Template externalId={}", externalId);
     }
 
     @Override
     public List<TemplateDto> searchAll() {
-        IGenericClient client = fhirClientProvider.getForCurrentOrg();
+        IGenericClient client = fhirClientProvider.getForCurrentTenant();
         return client.search()
                 .forResource(Communication.class)
                 .returnBundle(org.hl7.fhir.r4.model.Bundle.class)
@@ -106,7 +106,7 @@ public class FhirExternalTemplateStorage implements ExternalTemplateStorage {
         if (!comm.getPayload().isEmpty() && comm.getPayloadFirstRep().getContent() instanceof StringType) {
             dto.setBody(((StringType) comm.getPayloadFirstRep().getContent()).getValue());
         }
-        dto.setOrgId(RequestContext.get() != null ? RequestContext.get().getOrgId() : null);
+        dto.setTenantName(RequestContext.get() != null ? RequestContext.get().getTenantName() : null);
         return dto;
     }
 }

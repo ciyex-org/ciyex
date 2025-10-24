@@ -26,14 +26,14 @@ public class FhirResourceStorage {
 
     public <R extends IBaseResource> String create(R resource) {
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             return client.create().resource(resource).execute().getId().getIdPart();
         });
     }
 
     public <R extends IBaseResource> void update(R resource, String externalId) {
         executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             resource.setId(externalId);
             client.update().resource(resource).execute();
             return null;
@@ -42,14 +42,14 @@ public class FhirResourceStorage {
 
     public <R extends IBaseResource> R get(Class<R> resourceType, String externalId) {
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             return client.read().resource(resourceType).withId(externalId).execute();
         });
     }
 
     public void delete(String resourceType, String externalId) {
         executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             client.delete().resourceById(resourceType, externalId).execute();
             return null;
         });
@@ -58,16 +58,16 @@ public class FhirResourceStorage {
     @SuppressWarnings("unchecked")
     public <R extends IBaseResource> List<R> searchAll(Class<R> resourceType) {
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
-            Long orgId = RequestContext.get().getOrgId();
-            if (orgId == null) {
-                log.error("No orgId in RequestContext during searchAll");
-                throw new IllegalStateException("No orgId in request context");
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            String tenantName = RequestContext.get().getTenantName();
+            if (tenantName == null) {
+                log.error("No tenantName in RequestContext during searchAll");
+                throw new IllegalStateException("No tenantName in request context");
             }
 
             Bundle bundle = client.search()
                     .forResource(resourceType)
-                    .where(new TokenClientParam("_tag").exactly().systemAndCode("http://ciyex.com/tenant", orgId.toString()))
+                    .where(new TokenClientParam("_tag").exactly().systemAndCode("http://ciyex.com/tenant", tenantName))
                     .returnBundle(Bundle.class)
                     .execute();
 
@@ -82,7 +82,7 @@ public class FhirResourceStorage {
                     log.warn("Unexpected resource type or null in Bundle entry: {}", resource != null ? resource.getClass().getName() : "null");
                 }
             }
-            log.info("Retrieved {} resources for orgId: {}", resources.size(), orgId);
+            log.info("Retrieved {} resources for tenantName: {}", resources.size(), tenantName);
             return resources;
         });
     }
@@ -91,11 +91,11 @@ public class FhirResourceStorage {
     @SuppressWarnings("unchecked")
     public <R extends IBaseResource> List<R> getByIds(Class<R> resourceType, List<String> externalIds) {
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
-            Long orgId = RequestContext.get().getOrgId();
-            if (orgId == null) {
-                log.error("No orgId in RequestContext during getByIds");
-                throw new IllegalStateException("No orgId in request context");
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            String tenantName = RequestContext.get().getTenantName();
+            if (tenantName == null) {
+                log.error("No tenantName in RequestContext during getByIds");
+                throw new IllegalStateException("No tenantName in request context");
             }
 
             String[] idsArray = externalIds.toArray(new String[0]);
@@ -104,7 +104,7 @@ public class FhirResourceStorage {
                     .forResource(resourceType)
                     .where(new TokenClientParam("_id").exactly().codes(idsArray))
                     .and(new TokenClientParam("_tag").exactly()
-                            .systemAndCode("http://ciyex.com/tenant", orgId.toString()))
+                            .systemAndCode("http://ciyex.com/tenant", tenantName))
                     .returnBundle(Bundle.class)
                     .execute();
 

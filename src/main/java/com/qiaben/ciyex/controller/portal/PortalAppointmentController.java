@@ -63,13 +63,11 @@ public class PortalAppointmentController {
             log.info("Fetching appointments for portal user");
 
             setRequestContextOrg(request);
-            Long orgId = RequestContext.get().getOrgId();
+            String tenantName = RequestContext.get().getTenantName();
 
-            List<AppointmentDto> appointmentDtos = tenantAwareService.executeInTenantContext(orgId,
-                (Supplier<List<AppointmentDto>>) () -> {
-                    List<AppointmentDTO> appointments = appointmentService.getAll(org.springframework.data.domain.PageRequest.of(0, 10)).getContent();
-                    return appointments.stream().map(this::convertToDtoInContext).collect(Collectors.toList());
-                });
+            // RequestContext already set by interceptor, no need for executeInTenantContext
+            List<AppointmentDTO> appointments = appointmentService.getAll(org.springframework.data.domain.PageRequest.of(0, 10)).getContent();
+            List<AppointmentDto> appointmentDtos = appointments.stream().map(this::convertToDtoInContext).collect(Collectors.toList());
 
             return ResponseEntity.ok(ApiResponse.<List<AppointmentDto>>builder()
                     .success(true)
@@ -96,11 +94,10 @@ public class PortalAppointmentController {
             log.info("Fetching available slots for provider: {}, location: {}, date: {}", providerId, locationId, date);
 
             setRequestContextOrg(request);
-            Long orgId = RequestContext.get().getOrgId();
+            String tenantName = RequestContext.get().getTenantName();
 
-            List<SlotDto> availableSlots = tenantAwareService.executeInTenantContext(orgId, () -> {
-                return generateAvailableSlots(orgId, providerId, locationId, date);
-            });
+            // RequestContext already set by interceptor
+            List<SlotDto> availableSlots = generateAvailableSlots(tenantName, providerId, locationId, date);
 
             log.info("Retrieved {} available slots", availableSlots.size());
             return ResponseEntity.ok(ApiResponse.<List<SlotDto>>builder()
@@ -124,45 +121,43 @@ public class PortalAppointmentController {
             log.info("Processing appointment request");
 
             setRequestContextOrg(httpRequest);
-            Long orgId = RequestContext.get().getOrgId();
+            String tenantName = RequestContext.get().getTenantName();
 
-            AppointmentDTO createdAppointment = tenantAwareService.executeInTenantContext(orgId, () -> {
-                AppointmentDTO appointmentDTO = new AppointmentDTO();
-                appointmentDTO.setVisitType(request.getVisitType());
-                appointmentDTO.setProviderId(request.getProviderId());
-                appointmentDTO.setLocationId(request.getLocationId());
-                
-                // Parse date from mm/dd/yy format
-                LocalDate appointmentDate = parseDateFromMMDDYY(request.getDate());
-                appointmentDTO.setAppointmentStartDate(appointmentDate);
-                appointmentDTO.setAppointmentEndDate(appointmentDate);
-                
-                appointmentDTO.setAppointmentStartTime(java.time.LocalTime.parse(request.getTime()));
-                appointmentDTO.setReason(request.getReason());
-                appointmentDTO.setPriority(request.getPriority() != null ? request.getPriority() : "Routine");
-                appointmentDTO.setStatus("PENDING");
-                appointmentDTO.setOrgId(orgId);
-                appointmentDTO.setPatientId(1L);
+            // RequestContext already set by interceptor
+            AppointmentDTO appointmentDTO = new AppointmentDTO();
+            appointmentDTO.setVisitType(request.getVisitType());
+            appointmentDTO.setProviderId(request.getProviderId());
+            appointmentDTO.setLocationId(request.getLocationId());
+            
+            // Parse date from mm/dd/yy format
+            LocalDate appointmentDate = parseDateFromMMDDYY(request.getDate());
+            appointmentDTO.setAppointmentStartDate(appointmentDate);
+            appointmentDTO.setAppointmentEndDate(appointmentDate);
+            appointmentDTO.setAppointmentStartTime(java.time.LocalTime.parse(request.getTime()));
+            appointmentDTO.setReason(request.getReason());
+            appointmentDTO.setPriority(request.getPriority() != null ? request.getPriority() : "Routine");
+            appointmentDTO.setStatus("PENDING");
+            // orgId deprecated - tenantName used via RequestContext
+            appointmentDTO.setPatientId(1L);
 
-                // Generate Jitsi meeting URL for virtual appointments
-                if (isVirtualAppointment(request.getVisitType())) {
-                    try {
-                        TelehealthService telehealthService = telehealthResolver.resolve();
-                        if (telehealthService instanceof JitsiTelehealthService jitsiService) {
-                            String roomName = "apt" + System.currentTimeMillis(); // Generate unique room name
-                            JitsiTelehealthService.JoinTokenWithMeetingUrl result =
-                                jitsiService.createJoinTokenWithUrl(roomName, "patient-" + appointmentDTO.getPatientId(), 3600);
-                            // appointmentDTO.setMeetingUrl(result.meetingUrl()); // Meeting URLs generated dynamically via JOIN API
-                            log.info("Generated Jitsi meeting URL for virtual appointment: {}", result.meetingUrl());
-                        }
-                    } catch (Exception e) {
-                        log.warn("Failed to generate Jitsi meeting URL for appointment: {}", e.getMessage());
-                        // Continue without meeting URL - appointment can still be created
+            // Generate Jitsi meeting URL for virtual appointments
+            if (isVirtualAppointment(request.getVisitType())) {
+                try {
+                    TelehealthService telehealthService = telehealthResolver.resolve();
+                    if (telehealthService instanceof JitsiTelehealthService jitsiService) {
+                        String roomName = "apt" + System.currentTimeMillis(); // Generate unique room name
+                        JitsiTelehealthService.JoinTokenWithMeetingUrl result =
+                            jitsiService.createJoinTokenWithUrl(roomName, "patient-" + appointmentDTO.getPatientId(), 3600);
+                        // appointmentDTO.setMeetingUrl(result.meetingUrl()); // Meeting URLs generated dynamically via JOIN API
+                        log.info("Generated Jitsi meeting URL for virtual appointment: {}", result.meetingUrl());
                     }
+                } catch (Exception e) {
+                    log.warn("Failed to generate Jitsi meeting URL for appointment: {}", e.getMessage());
+                    // Continue without meeting URL - appointment can still be created
                 }
+            }
 
-                return appointmentService.create(appointmentDTO);
-            });
+            AppointmentDTO createdAppointment = appointmentService.create(appointmentDTO);
 
             AppointmentDto responseDto = convertToDtoInContext(createdAppointment);
 
@@ -248,7 +243,7 @@ public class PortalAppointmentController {
         return lower.contains("virtual") || lower.contains("telehealth") || lower.contains("video") || lower.contains("online");
     }
 
-    private List<SlotDto> generateAvailableSlots(Long orgId, Long providerId, Long locationId, String dateStr) {
+    private List<SlotDto> generateAvailableSlots(String tenantName, Long providerId, Long locationId, String dateStr) {
         List<SlotDto> availableSlots = new ArrayList<>();
 
         try {
@@ -275,7 +270,7 @@ public class PortalAppointmentController {
 
             // Generate slots for each provider (max 3 per provider)
             for (Provider provider : providers) {
-                List<SlotDto> providerSlots = generateSlotsForProvider(orgId, provider.getId(), locationId, date);
+                List<SlotDto> providerSlots = generateSlotsForProvider(tenantName, provider.getId(), locationId, date);
                 availableSlots.addAll(providerSlots);
 
                 // Limit to 3 slots per provider
@@ -296,7 +291,7 @@ public class PortalAppointmentController {
         return availableSlots;
     }
 
-    private List<SlotDto> generateSlotsForProvider(Long orgId, Long providerId, Long locationId, LocalDate date) {
+    private List<SlotDto> generateSlotsForProvider(String tenantName, Long providerId, Long locationId, LocalDate date) {
         List<SlotDto> slots = new ArrayList<>();
 
         // Generate 3 time slots for the day (9 AM, 10 AM, 2 PM)
@@ -312,7 +307,7 @@ public class PortalAppointmentController {
 
             SlotDto slot = new SlotDto();
             slot.setId((long) (providerId * 1000 + i)); // Generate a simple ID
-            slot.setOrgId(orgId);
+            slot.setTenantName(tenantName);
             slot.setProviderId(providerId);
             slot.setStart(startDateTime.toString());
             slot.setEnd(endDateTime.toString());

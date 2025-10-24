@@ -123,7 +123,7 @@ Updated all configuration loading methods to:
 ```java
 // Get config by integration key
 <T> T get(Long orgId, IntegrationKey key)
-<T> T getForCurrentOrg(IntegrationKey key)
+<T> T getForCurrentTenant(IntegrationKey key)
 
 // Backward compatibility
 GpsConfig getGpsForCurrentOrg()

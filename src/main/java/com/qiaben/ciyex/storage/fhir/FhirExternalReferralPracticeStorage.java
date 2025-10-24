@@ -33,7 +33,7 @@ public class FhirExternalReferralPracticeStorage implements ExternalReferralPrac
     @Override
     public String create(ReferralPracticeDto entityDto) {
         try {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             Organization fhirOrg = mapToFhirOrg(entityDto);
             return client.create().resource(fhirOrg).execute().getId().getIdPart();
         } catch (FhirClientConnectionException e) {
@@ -45,7 +45,7 @@ public class FhirExternalReferralPracticeStorage implements ExternalReferralPrac
     @Override
     public void update(ReferralPracticeDto entityDto, String externalId) {
         try {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             Organization fhirOrg = mapToFhirOrg(entityDto);
             fhirOrg.setId(externalId);
             client.update().resource(fhirOrg).execute();
@@ -58,7 +58,7 @@ public class FhirExternalReferralPracticeStorage implements ExternalReferralPrac
     @Override
     public ReferralPracticeDto get(String externalId) {
         try {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             Organization fhirOrg = client.read().resource(Organization.class).withId(externalId).execute();
             return mapFromFhirOrg(fhirOrg);
         } catch (FhirClientConnectionException e) {
@@ -70,7 +70,7 @@ public class FhirExternalReferralPracticeStorage implements ExternalReferralPrac
     @Override
     public void delete(String externalId) {
         try {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             client.delete().resourceById("Organization", externalId).execute();
         } catch (FhirClientConnectionException e) {
             log.error("FHIR Client connection failed during delete operation: {}", e.getMessage());
@@ -81,7 +81,7 @@ public class FhirExternalReferralPracticeStorage implements ExternalReferralPrac
     @Override
     public List<ReferralPracticeDto> searchAll() {
         try {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             Bundle bundle = client.search().forResource(Organization.class).returnBundle(Bundle.class).execute();
             List<ReferralPracticeDto> referralPracticeDtos = new ArrayList<>();
             for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {

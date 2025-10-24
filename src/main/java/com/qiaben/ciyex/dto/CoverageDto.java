@@ -12,7 +12,7 @@ public class CoverageDto {
     private String coverageStartDate;
     private String coverageEndDate;
     private Long patientId;
-    private Long orgId;
+    private String tenantName;
 
     // Additional fields from the screenshot
     private String provider;

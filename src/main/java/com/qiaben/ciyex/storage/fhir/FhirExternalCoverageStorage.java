@@ -30,7 +30,7 @@ public class FhirExternalCoverageStorage implements ExternalStorage<CoverageDto>
 
     // Keep these constants consistent across your project
     private static final String ORG_TAG_SYSTEM = "http://ciyex.com/tenant"; // used as _tag system
-    private static final String ORG_EXT_URL   = "http://ciyex.com/fhir/StructureDefinition/orgId";
+    private static final String ORG_EXT_URL   = "http://ciyex.com/fhir/StructureDefinition/tenantName";
     private static final String POLICY_ID_SYSTEM = "http://ciyex.com/coverage/policy-number";
 
     @Autowired
@@ -41,91 +41,91 @@ public class FhirExternalCoverageStorage implements ExternalStorage<CoverageDto>
 
     @Override
     public String create(CoverageDto entityDto) {
-        Long orgId = currentOrgId();
-        log.info("Entering create for orgId: {}, coveragePolicyNumber: {}", orgId, entityDto.getPolicyNumber());
+        String tenantName = currentTenantName();
+        log.info("Entering create for tenantName: {}, coveragePolicyNumber: {}", tenantName, entityDto.getPolicyNumber());
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
-            Coverage fhirCoverage = mapToFhirCoverage(entityDto, orgId);
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            Coverage fhirCoverage = mapToFhirCoverage(entityDto, tenantName);
             String externalId = client.create().resource(fhirCoverage).execute().getId().getIdPart();
-            log.info("Created Coverage with externalId: {} for orgId: {}", externalId, orgId);
+            log.info("Created Coverage with externalId: {} for tenantName: {}", externalId, tenantName);
             return externalId;
         });
     }
 
     @Override
     public void update(CoverageDto entityDto, String externalId) {
-        Long orgId = currentOrgId();
-        log.info("Entering update for orgId: {}, externalId: {}, policyNumber: {}", orgId, externalId, entityDto.getPolicyNumber());
+        String tenantName = currentTenantName();
+        log.info("Entering update for tenantName: {}, externalId: {}, policyNumber: {}", tenantName, externalId, entityDto.getPolicyNumber());
         executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
-            Coverage fhirCoverage = mapToFhirCoverage(entityDto, orgId);
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            Coverage fhirCoverage = mapToFhirCoverage(entityDto, tenantName);
             fhirCoverage.setId(externalId);
             client.update().resource(fhirCoverage).execute();
-            log.info("Updated Coverage with externalId: {} for orgId: {}", externalId, orgId);
+            log.info("Updated Coverage with externalId: {} for tenantName: {}", externalId, tenantName);
             return null;
         });
     }
 
     @Override
     public CoverageDto get(String externalId) {
-        Long orgId = currentOrgId();
-        log.info("Entering get for orgId: {}, externalId: {}", orgId, externalId);
+        String tenantName = currentTenantName();
+        log.info("Entering get for tenantName: {}, externalId: {}", tenantName, externalId);
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             Coverage fhirCoverage = client.read().resource(Coverage.class).withId(externalId).execute();
 
             // enforce tenant isolation via meta.tag OR extension
-            if (!resourceBelongsToOrg(fhirCoverage, orgId)) {
-                throw new SecurityException("Coverage does not belong to orgId=" + orgId);
+            if (!resourceBelongsToOrg(fhirCoverage, tenantName)) {
+                throw new SecurityException("Coverage does not belong to tenantName=" + tenantName);
             }
 
             CoverageDto coverageDto = mapFromFhirCoverage(fhirCoverage);
-            // carry orgId from RequestContext; you can also set it from tag if you prefer
-            coverageDto.setOrgId(orgId);
-            log.info("Retrieved CoverageDto with externalId: {} for orgId: {}", externalId, orgId);
+            // carry tenantName from RequestContext; you can also set it from tag if you prefer
+            coverageDto.setTenantName(tenantName);
+            log.info("Retrieved CoverageDto with externalId: {} for tenantName: {}", externalId, tenantName);
             return coverageDto;
         });
     }
 
     @Override
     public void delete(String externalId) {
-        Long orgId = currentOrgId();
-        log.info("Entering delete for orgId: {}, externalId: {}", orgId, externalId);
+        String tenantName = currentTenantName();
+        log.info("Entering delete for tenantName: {}, externalId: {}", tenantName, externalId);
         executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             // (Optional) read first and validate org before delete
             try {
                 Coverage existing = client.read().resource(Coverage.class).withId(externalId).execute();
-                if (!resourceBelongsToOrg(existing, orgId)) {
-                    throw new SecurityException("Coverage does not belong to orgId=" + orgId);
+                if (!resourceBelongsToOrg(existing, tenantName)) {
+                    throw new SecurityException("Coverage does not belong to tenantName=" + tenantName);
                 }
             } catch (Exception readErr) {
                 log.warn("Skip pre-delete read validation: {}", readErr.getMessage());
             }
             client.delete().resourceById("Coverage", externalId).execute();
-            log.info("Deleted Coverage with externalId: {} for orgId: {}", externalId, orgId);
+            log.info("Deleted Coverage with externalId: {} for tenantName: {}", externalId, tenantName);
             return null;
         });
     }
 
     @Override
     public List<CoverageDto> searchAll() {
-        Long orgId = currentOrgId();
-        log.info("Entering searchAll for orgId: {}", orgId);
-        Bundle bundle = fhirClientProvider.getForCurrentOrg().search()
+        String tenantName = currentTenantName();
+        log.info("Entering searchAll for tenantName: {}", tenantName);
+        Bundle bundle = fhirClientProvider.getForCurrentTenant().search()
                 .forResource(Coverage.class)
                 // this depends on the meta.tag, which we now set in mapToFhirCoverage(...)
-                .where(new TokenClientParam("_tag").exactly().systemAndCode(ORG_TAG_SYSTEM, String.valueOf(orgId)))
+                .where(new TokenClientParam("_tag").exactly().systemAndCode(ORG_TAG_SYSTEM, tenantName))
                 .returnBundle(Bundle.class)
                 .execute();
 
-        log.debug("Received Bundle with {} entries for orgId: {}", bundle.getEntry().size(), orgId);
+        log.debug("Received Bundle with {} entries for tenantName: {}", bundle.getEntry().size(), tenantName);
         return bundle.getEntry().stream()
                 .map(entry -> (Coverage) entry.getResource())
                 .map(cov -> {
                     CoverageDto dto = mapFromFhirCoverage(cov);
                     dto.setExternalId(cov.getIdElement().getIdPart());
-                    dto.setOrgId(orgId); // from RequestContext
+                    dto.setTenantName(tenantName); // from RequestContext
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -138,16 +138,16 @@ public class FhirExternalCoverageStorage implements ExternalStorage<CoverageDto>
 
     // -------- Helpers --------
 
-    private Long currentOrgId() {
+    private String currentTenantName() {
         return Optional.ofNullable(RequestContext.get())
-                .map(RequestContext::getOrgId)
-                .orElseThrow(() -> new SecurityException("No orgId in RequestContext"));
+                .map(RequestContext::getTenantName)
+                .orElseThrow(() -> new SecurityException("No tenantName in RequestContext"));
     }
 
-    private boolean resourceBelongsToOrg(Coverage cov, Long orgId) {
+    private boolean resourceBelongsToOrg(Coverage cov, String tenantName) {
         // Prefer meta.tag check
         boolean tagMatch = cov.getMeta() != null && cov.getMeta().getTag().stream()
-                .anyMatch(t -> ORG_TAG_SYSTEM.equals(t.getSystem()) && String.valueOf(orgId).equals(t.getCode()));
+                .anyMatch(t -> ORG_TAG_SYSTEM.equals(t.getSystem()) && tenantName.equals(t.getCode()));
 
         if (tagMatch) return true;
 
@@ -155,7 +155,7 @@ public class FhirExternalCoverageStorage implements ExternalStorage<CoverageDto>
         boolean extMatch = cov.getExtension().stream()
                 .anyMatch(ext -> ORG_EXT_URL.equals(ext.getUrl())
                         && ext.getValue() instanceof StringType
-                        && String.valueOf(orgId).equals(((StringType) ext.getValue()).getValue()));
+                        && tenantName.equals(((StringType) ext.getValue()).getValue()));
 
         return extMatch;
     }
@@ -175,11 +175,11 @@ public class FhirExternalCoverageStorage implements ExternalStorage<CoverageDto>
         T execute();
     }
 
-    private Coverage mapToFhirCoverage(CoverageDto dto, Long orgId) {
+    private Coverage mapToFhirCoverage(CoverageDto dto, String tenantName) {
         Coverage f = new Coverage();
 
         // --- Meta tag for tenant filtering ---
-        f.getMeta().addTag().setSystem(ORG_TAG_SYSTEM).setCode(String.valueOf(orgId));
+        f.getMeta().addTag().setSystem(ORG_TAG_SYSTEM).setCode(tenantName);
 
         // --- Identifier (policy number) ---
         if (dto.getPolicyNumber() != null) {
@@ -205,7 +205,7 @@ public class FhirExternalCoverageStorage implements ExternalStorage<CoverageDto>
         // --- OrgId extension (optional but useful) ---
         f.addExtension(new Extension()
                 .setUrl(ORG_EXT_URL)
-                .setValue(new StringType(String.valueOf(orgId))));
+                .setValue(new StringType(tenantName)));
 
         return f;
     }
@@ -232,9 +232,9 @@ public class FhirExternalCoverageStorage implements ExternalStorage<CoverageDto>
             }
         }
 
-        // (Optional) read orgId from meta tag or extension if you want
-        // Long orgId = extractOrgId(f);
-        // dto.setOrgId(orgId);
+        // (Optional) read tenantName from meta tag or extension if you want
+        // Long tenantName = extractOrgId(f);
+        // dto.setOrgId(tenantName);
 
         return dto;
     }

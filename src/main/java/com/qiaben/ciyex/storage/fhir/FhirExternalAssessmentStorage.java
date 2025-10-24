@@ -21,7 +21,7 @@ public class FhirExternalAssessmentStorage implements ExternalAssessmentStorage 
     @Override
     public String create(AssessmentDto dto) {
         log.info("FHIR ASSESSMENT create patientId={}, encounterId={}", dto.getPatientId(), dto.getEncounterId());
-        // var client = fhirClientProvider.getForCurrentOrg();
+        // var client = fhirClientProvider.getForCurrentTenant();
         // TODO: Map dto -> FHIR resources and return a bundle/primary id
         return null;
     }

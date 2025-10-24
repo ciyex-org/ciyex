@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 @Data
 public class TemplateDto {
     private Long id;
-    private Long orgId;
+    private String tenantName;
     private String externalId;
     private String templateName;
     private String subject;

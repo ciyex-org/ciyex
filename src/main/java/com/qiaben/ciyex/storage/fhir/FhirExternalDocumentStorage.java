@@ -3,7 +3,7 @@ package com.qiaben.ciyex.storage.fhir;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
 import ca.uhn.fhir.rest.client.exceptions.FhirClientConnectionException;
 import com.qiaben.ciyex.dto.DocumentDto;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.util.TenantContextUtil;
 import com.qiaben.ciyex.provider.FhirClientProvider;
 import com.qiaben.ciyex.provider.S3ClientProvider;
 import com.qiaben.ciyex.storage.ExternalStorage;
@@ -43,15 +43,15 @@ public class FhirExternalDocumentStorage implements ExternalStorage<DocumentDto>
 
     @Override
     public String create(DocumentDto dto) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        log.info("Entering create for orgId: {}, fileName: {}", orgId, dto.getFileName());
+    String tenantName = TenantContextUtil.getTenantName();
+    log.info("Entering create for tenant: {}, fileName: {}", tenantName, dto.getFileName());
 
         return executeWithRetry(() -> {
             // Compress and upload to S3
             byte[] compressedBytes = compress(dto.getContent());
-            String key = "documents/" + orgId + "/" + dto.getPatientId() + "/" + UUID.randomUUID() + "/" + dto.getFileName() + ".gz";
+            String key = "documents/" + (tenantName != null ? tenantName : "unknown") + "/" + dto.getPatientId() + "/" + UUID.randomUUID() + "/" + dto.getFileName() + ".gz";
             String bucket = s3ClientProvider.getBucketForCurrentOrg();
-            S3Client s3Client = s3ClientProvider.getForCurrentOrg();
+            S3Client s3Client = s3ClientProvider.getForCurrentTenant();
             PutObjectRequest putRequest = PutObjectRequest.builder()
                     .bucket(bucket)
                     .key(key)
@@ -59,13 +59,13 @@ public class FhirExternalDocumentStorage implements ExternalStorage<DocumentDto>
                     .contentLength((long) compressedBytes.length)
                     .build();
             s3Client.putObject(putRequest, RequestBody.fromBytes(compressedBytes));
-            log.info("Uploaded to S3: bucket={}, key={}, orgId={}", bucket, key, orgId);
+            log.info("Uploaded to S3: bucket={}, key={}, tenant={}", bucket, key, tenantName);
 
             // Create FHIR DocumentReference
-            IGenericClient fhirClient = fhirClientProvider.getForCurrentOrg();
+            IGenericClient fhirClient = fhirClientProvider.getForCurrentTenant();
             DocumentReference docRef = mapToFhirDocumentReference(dto, bucket, key);
             String fhirId = fhirClient.create().resource(docRef).execute().getId().getIdPart();
-            log.info("Created FHIR DocumentReference: id={}, orgId={}", fhirId, orgId);
+            log.info("Created FHIR DocumentReference: id={}, tenant={}", fhirId, tenantName);
 
             return fhirId;
         });
@@ -78,11 +78,11 @@ public class FhirExternalDocumentStorage implements ExternalStorage<DocumentDto>
 
     @Override
     public DocumentDto get(String externalId) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        log.info("Entering get for orgId: {}, externalId: {}", orgId, externalId);
+    String tenantName = TenantContextUtil.getTenantName();
+    log.info("Entering get for tenant: {}, externalId: {}", tenantName, externalId);
 
         return executeWithRetry(() -> {
-            IGenericClient fhirClient = fhirClientProvider.getForCurrentOrg();
+            IGenericClient fhirClient = fhirClientProvider.getForCurrentTenant();
             DocumentReference docRef = fhirClient.read().resource(DocumentReference.class).withId(externalId).execute();
             DocumentDto dto = mapFromFhirDocumentReference(docRef);
             // Set S3 paths for download
@@ -99,28 +99,28 @@ public class FhirExternalDocumentStorage implements ExternalStorage<DocumentDto>
 
     @Override
     public void delete(String externalId) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        log.info("Entering delete for orgId: {}, externalId: {}", orgId, externalId);
+    String tenantName = TenantContextUtil.getTenantName();
+    log.info("Entering delete for tenant: {}, externalId: {}", tenantName, externalId);
 
         executeWithRetry(() -> {
-            IGenericClient fhirClient = fhirClientProvider.getForCurrentOrg();
+            IGenericClient fhirClient = fhirClientProvider.getForCurrentTenant();
             DocumentReference docRef = fhirClient.read().resource(DocumentReference.class).withId(externalId).execute();
 
             String s3Bucket = docRef.getExtensionByUrl(EXT_S3_BUCKET).getValueAsPrimitive().getValueAsString();
             String s3Key = docRef.getExtensionByUrl(EXT_S3_KEY).getValueAsPrimitive().getValueAsString();
 
             // Delete from S3
-            S3Client s3Client = s3ClientProvider.getForCurrentOrg();
+            S3Client s3Client = s3ClientProvider.getForCurrentTenant();
             DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
                     .bucket(s3Bucket)
                     .key(s3Key)
                     .build();
             s3Client.deleteObject(deleteRequest);
-            log.info("Deleted from S3: bucket={}, key={}, orgId={}", s3Bucket, s3Key, orgId);
+            log.info("Deleted from S3: bucket={}, key={}, tenant={}", s3Bucket, s3Key, tenantName);
 
             // Delete from FHIR
             fhirClient.delete().resourceById("DocumentReference", externalId).execute();
-            log.info("Deleted FHIR DocumentReference: id={}, orgId={}", externalId, orgId);
+            log.info("Deleted FHIR DocumentReference: id={}, tenant={}", externalId, tenantName);
 
             return null;
         });

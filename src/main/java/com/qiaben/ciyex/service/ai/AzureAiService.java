@@ -30,8 +30,8 @@ public class AzureAiService implements AiService {
 
     @Override
     public String generateCompletion(String prompt) {
-        Long orgId = RequestContext.get().getOrgId();
-        AiConfig config = configProvider.get(orgId, IntegrationKey.AI);
+    String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
+    AiConfig config = configProvider.getForCurrentTenant(IntegrationKey.AI);
         ensureAzureConfigured(config);
 
         AiConfig.Azure azure = config.getAzure();
@@ -52,7 +52,7 @@ public class AzureAiService implements AiService {
         ChatResponseMessage response = client.getChatCompletions(azure.getDeployment(), options)
                 .getChoices().get(0).getMessage();
 
-        log.info("Generated Azure AI completion for orgId={}, prompt={}", orgId, prompt);
+    log.info("Generated Azure AI completion for tenantName={}, prompt={}", tenantName, prompt);
         return response.getContent();
     }
 

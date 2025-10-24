@@ -21,7 +21,7 @@ public class FhirExternalPatientMedicalHistoryStorage implements ExternalPatient
     @Override
     public String create(PatientMedicalHistoryDto dto) {
         // TODO: Map DTO -> FHIR (e.g., Observation/Condition/DocumentReference as per your model)
-        // var client = fhirClientProvider.getForCurrentOrg(); // or getForOrg(orgId) if you changed provider
+        // var client = fhirClientProvider.getForCurrentTenant(); // or getForOrg(orgId) if you changed provider
         log.info("FHIR PMH create for patientId={}, encounterId={}", dto.getPatientId(), dto.getEncounterId());
         // Return externalId from FHIR create outcome
         return null; // set real id

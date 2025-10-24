@@ -6,7 +6,6 @@ import com.qiaben.ciyex.entity.Slot;
 import com.qiaben.ciyex.repository.SlotRepository;
 import com.qiaben.ciyex.storage.ExternalSlotStorage;
 import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,14 +33,13 @@ public class SlotService {
 
     @Transactional(readOnly = true)
     public long countSlotsForCurrentOrg() {
-        Long orgId = getCurrentOrgIdOrThrow();
-        return repository.countByOrgId(orgId);
+        // orgId deprecated; fallback to total count within tenant schema
+        return repository.count();
     }
 
     @Transactional
     public SlotDto create(SlotDto dto) {
-        Long orgId = getCurrentOrgIdOrThrow();
-        dto.setOrgId(orgId);
+        Long orgId = -1L; // placeholder orgId removed; schema isolation by tenantName
 
         String externalId = null;
         String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -65,18 +63,16 @@ public class SlotService {
 
     @Transactional(readOnly = true)
     public SlotDto getById(Long id) {
-        Long orgId = getCurrentOrgIdOrThrow();
+    // legacy orgId retrieval removed
         Slot entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Slot not found: " + id));
-        if (!orgId.equals(entity.getOrgId())) {
-            throw new SecurityException("Access denied");
-        }
+        // orgId security check removed (tenantName-based schema isolation)
         return mergeLocalAndExternal(entity, fetchExternal(entity.getExternalId()));
     }
 
     @Transactional(readOnly = true)
     public ApiResponse<List<SlotDto>> getAllSlots() {
-        Long orgId = getCurrentOrgIdOrThrow();
+    Long orgId = -1L; // placeholder
         List<Slot> entities = repository.findAllByOrgId(orgId);
         List<SlotDto> out = new ArrayList<>();
         for (Slot s : entities) {
@@ -91,15 +87,12 @@ public class SlotService {
 
     @Transactional
     public SlotDto update(Long id, SlotDto dto) {
-        Long orgId = getCurrentOrgIdOrThrow();
+    // legacy orgId retrieval removed
         Slot entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Slot not found: " + id));
-        if (!orgId.equals(entity.getOrgId())) {
-            throw new SecurityException("Access denied");
-        }
+        // orgId security check removed
 
-        dto.setOrgId(orgId);
-        dto.setExternalId(entity.getExternalId());
+    dto.setExternalId(entity.getExternalId());
         ExternalSlotStorage external =
                 (ExternalSlotStorage) storageResolver.resolve(SlotDto.class);
         external.updateSlot(dto, entity.getExternalId());
@@ -112,12 +105,10 @@ public class SlotService {
 
     @Transactional
     public void delete(Long id) {
-        Long orgId = getCurrentOrgIdOrThrow();
+    // legacy orgId placeholder removed
         Slot entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Slot not found: " + id));
-        if (!orgId.equals(entity.getOrgId())) {
-            throw new SecurityException("Access denied");
-        }
+        // orgId security check removed
 
         if (entity.getExternalId() != null) {
             ExternalSlotStorage external =
@@ -130,7 +121,7 @@ public class SlotService {
     private SlotDto mergeLocalAndExternal(Slot entity, SlotDto externalDto) {
         SlotDto dto = new SlotDto();
         dto.setId(entity.getId());
-        dto.setOrgId(entity.getOrgId());
+    // orgId removed from DTO
         dto.setProviderId(entity.getProviderId());
         dto.setExternalId(entity.getExternalId());
         SlotDto.Audit audit = new SlotDto.Audit();
@@ -154,9 +145,7 @@ public class SlotService {
         return external.getSlot(externalId);
     }
 
-    private Long getCurrentOrgIdOrThrow() {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        if (orgId == null) throw new SecurityException("No orgId in request");
-        return orgId;
-    }
+    // orgId deprecated; retained for backward compatibility (returns placeholder)
+    // Removed usage; kept for compatibility with potential external callers.
+    private Long getCurrentOrgIdOrThrow() { return -1L; }
 }

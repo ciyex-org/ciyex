@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -101,19 +100,15 @@ public class ListOptionService {
 
     // Service method to fetch list options based on list_id
     public List<ListOptionDto> getListOptionsByListId(String listId) {
-        // Get current org_id from request context
-        Long orgId = RequestContext.get().getOrgId();
-        if (orgId == null) {
-            throw new IllegalStateException("No orgId found in request context");
+        // Use tenantName instead of orgId for context-based filtering.
+        RequestContext ctx = RequestContext.get();
+        String tenantName = ctx != null ? ctx.getTenantName() : null;
+        if (tenantName == null || tenantName.isBlank()) {
+            throw new IllegalStateException("No tenantName found in request context");
         }
-        
-        // Fetching list options based on org_id and list_id
-        List<ListOption> listOptions = repository.findByOrgIdAndListId(orgId.toString(), listId);
-
-        // Convert ListOption entities to ListOptionDto objects
-        return listOptions.stream()
-                .map(this::convertToDto)
-                .collect(Collectors.toList());
+        // Existing repository expects orgId String; pass tenantName directly (orgId deprecated).
+        List<ListOption> listOptions = repository.findByOrgIdAndListId(tenantName, listId);
+        return listOptions.stream().map(this::convertToDto).collect(Collectors.toList());
     }
 
     @Transactional

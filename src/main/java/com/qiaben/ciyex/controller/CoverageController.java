@@ -27,10 +27,10 @@ public class CoverageController {
             @RequestHeader("orgId") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
-            dto.setOrgId(orgId); // enforce header value
+            // orgId removed from DTO; tenant inferred from RequestContext.
 
             CoverageDto createdCoverage = service.create(dto);
             return ResponseEntity.ok(ApiResponse.<CoverageDto>builder()
@@ -55,7 +55,7 @@ public class CoverageController {
             @RequestHeader("orgId") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             CoverageDto coverage = service.getById(id);
@@ -82,10 +82,10 @@ public class CoverageController {
             @RequestHeader("orgId") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
-            dto.setOrgId(orgId);
+            // orgId removed from DTO; tenant inferred from RequestContext.
 
             CoverageDto updatedCoverage = service.update(id, dto);
             return ResponseEntity.ok(ApiResponse.<CoverageDto>builder()
@@ -110,7 +110,7 @@ public class CoverageController {
             @RequestHeader("orgId") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             service.delete(id);
@@ -138,7 +138,7 @@ public class CoverageController {
             @RequestHeader("orgId") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             CoverageDto dto = service.getByIdAndPatientId(id, patientId);
@@ -166,10 +166,10 @@ public class CoverageController {
             @RequestHeader("orgId") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
-            dto.setOrgId(orgId);
+            // orgId removed from DTO; tenant inferred from RequestContext.
             CoverageDto updated = service.updateByIdAndPatientId(id, patientId, dto);
             return ResponseEntity.ok(ApiResponse.<CoverageDto>builder()
                     .success(true)
@@ -194,7 +194,7 @@ public class CoverageController {
             @RequestHeader("orgId") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             service.deleteByIdAndPatientId(id, patientId);
@@ -218,7 +218,7 @@ public class CoverageController {
             @RequestHeader("orgId") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             List<CoverageDto> coverages = service.getAllCoverages();

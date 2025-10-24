@@ -12,9 +12,7 @@ public class RequestContextInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         RequestContext ctx = new RequestContext();
         ctx.setAuthToken(request.getHeader("Authorization"));
-        ctx.setOrgId(request.getHeader("X-Org-Id") != null ? Long.valueOf(request.getHeader("X-Org-Id")) : null);
-        ctx.setFacilityId(request.getHeader("X-Facility-Id") != null ? Long.valueOf(request.getHeader("X-Facility-Id")) : null);
-        ctx.setRole(request.getHeader("X-Role"));
+        ctx.setTenantName(request.getHeader("X-Tenant-Name"));
         RequestContext.set(ctx);
         return true;
     }

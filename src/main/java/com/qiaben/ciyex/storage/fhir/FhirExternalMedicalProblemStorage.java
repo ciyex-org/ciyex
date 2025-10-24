@@ -37,20 +37,20 @@ public class FhirExternalMedicalProblemStorage implements ExternalStorage<Medica
 
     @Override
     public String create(MedicalProblemDto dto) {
-        Long orgId = orgId();
+        String tenantName = tenantName();
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
-            ListResource list = mapToFhir(dto, orgId);
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            ListResource list = mapToFhir(dto, tenantName);
             return client.create().resource(list).execute().getId().getIdPart();
         });
     }
 
     @Override
     public void update(MedicalProblemDto dto, String externalId) {
-        Long orgId = orgId();
+        String tenantName = tenantName();
         executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
-            ListResource list = mapToFhir(dto, orgId);
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            ListResource list = mapToFhir(dto, tenantName);
             list.setId(externalId);
             client.update().resource(list).execute();
             return null;
@@ -59,11 +59,11 @@ public class FhirExternalMedicalProblemStorage implements ExternalStorage<Medica
 
     @Override
     public MedicalProblemDto get(String externalId) {
-        Long orgId = orgId();
+        String tenantName = tenantName();
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             ListResource list = client.read().resource(ListResource.class).withId(externalId).execute();
-            MedicalProblemDto dto = mapFromFhir(list, orgId);
+            MedicalProblemDto dto = mapFromFhir(list, tenantName);
             dto.setExternalId(externalId);
             Long pid = parsePatientIdFromTitle(list.getTitle());
             if (pid != null) dto.setPatientId(pid);
@@ -74,7 +74,7 @@ public class FhirExternalMedicalProblemStorage implements ExternalStorage<Medica
     @Override
     public void delete(String externalId) {
         executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             client.delete().resourceById("List", externalId).execute();
             return null;
         });
@@ -82,13 +82,13 @@ public class FhirExternalMedicalProblemStorage implements ExternalStorage<Medica
 
     @Override
     public List<MedicalProblemDto> searchAll() {
-        Long orgId = orgId();
+        String tenantName = tenantName();
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
 
             Bundle bundle = client.search()
                     .forResource(ListResource.class)
-                    .where(new TokenClientParam("_tag").exactly().systemAndCode(TENANT_TAG_SYSTEM, orgId != null ? String.valueOf(orgId) : ""))
+                    .where(new TokenClientParam("_tag").exactly().systemAndCode(TENANT_TAG_SYSTEM, tenantName != null ? tenantName : ""))
                     .returnBundle(Bundle.class)
                     .execute();
 
@@ -101,7 +101,7 @@ public class FhirExternalMedicalProblemStorage implements ExternalStorage<Medica
             return entries.stream()
                     .map(e -> (ListResource) e.getResource())
                     .map(list -> {
-                        MedicalProblemDto dto = mapFromFhir(list, orgId);
+                        MedicalProblemDto dto = mapFromFhir(list, tenantName);
                         dto.setExternalId(list.getIdElement().getIdPart());
                         Long pid = parsePatientIdFromTitle(list.getTitle());
                         if (pid != null) dto.setPatientId(pid);
@@ -116,13 +116,13 @@ public class FhirExternalMedicalProblemStorage implements ExternalStorage<Medica
     /* ---------------- Mapping ---------------- */
 
     // Pack into Basic.code.text as: title|outcome|verificationStatus|occurrence|note
-    private ListResource mapToFhir(MedicalProblemDto dto, Long orgId) {
+    private ListResource mapToFhir(MedicalProblemDto dto, String tenantName) {
         ListResource list = new ListResource();
         list.setStatus(ListResource.ListStatus.CURRENT);
         list.setMode(ListResource.ListMode.WORKING);
         list.setTitle("Medical Problem – patientId " + dto.getPatientId());
 
-        list.getMeta().addTag().setSystem(TENANT_TAG_SYSTEM).setCode(orgId != null ? orgId.toString() : "");
+        list.getMeta().addTag().setSystem(TENANT_TAG_SYSTEM).setCode(tenantName != null ? tenantName : "");
 
         if (dto.getProblemsList() != null) {
             for (MedicalProblemDto.MedicalProblemItem d : dto.getProblemsList()) {
@@ -142,9 +142,9 @@ public class FhirExternalMedicalProblemStorage implements ExternalStorage<Medica
         return list;
     }
 
-    private MedicalProblemDto mapFromFhir(ListResource list, Long orgId) {
+    private MedicalProblemDto mapFromFhir(ListResource list, String tenantName) {
         MedicalProblemDto dto = new MedicalProblemDto();
-        dto.setOrgId(orgId);
+        dto.setTenantName(tenantName);
 
         List<MedicalProblemDto.MedicalProblemItem> items = list.getContained().stream()
                 .filter(r -> r instanceof Basic)
@@ -179,7 +179,7 @@ public class FhirExternalMedicalProblemStorage implements ExternalStorage<Medica
         } catch (Exception e) { throw new RuntimeException(e); }
     }
 
-    private Long orgId() { return RequestContext.get() != null ? RequestContext.get().getOrgId() : null; }
+    private String tenantName() { return RequestContext.get() != null ? RequestContext.get().getTenantName() : null; }
     private static String safe(String s) { return s == null ? "" : s; }
     private static String partOrNull(String[] arr, int idx) {
         if (arr == null || idx < 0 || idx >= arr.length) return null;

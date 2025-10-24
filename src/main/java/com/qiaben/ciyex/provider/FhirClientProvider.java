@@ -31,11 +31,11 @@
 //        log.info("Initialized FhirClientProvider with dependencies");
 //    }
 //
-//    public IGenericClient getForCurrentOrg() {
+//    public IGenericClient getForCurrentTenant() {
 //        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-//        log.info("Entering getForCurrentOrg for orgId: {}", orgId);
+//        log.info("Entering getForCurrentTenant for orgId: {}", orgId);
 //        if (orgId == null) throw new IllegalStateException("No orgId in request context");
-//        FhirConfig config = configProvider.getForCurrentOrg(IntegrationKey.FHIR);
+//        FhirConfig config = configProvider.getForCurrentTenant(IntegrationKey.FHIR);
 //        if (config == null) throw new RuntimeException("No FHIR configuration found for the current organization");
 //        String accessToken = fhirAuthService.getCachedAccessToken();
 //        log.info("Obtained access token and FhirConfig for orgId: {}, apiUrl: {}", orgId, config.getApiUrl());
@@ -50,7 +50,7 @@
 //        FhirTenantInterceptor tenantInterceptor = new FhirTenantInterceptor(orgId, client, interceptorId, fhirContext);
 //        client.registerInterceptor(tenantInterceptor);
 //        log.info("Registered FhirTenantInterceptor with id: {}, orgId: {}, client hash: {}", interceptorId, orgId, Integer.toHexString(client.hashCode()));
-//        log.info("Exiting getForCurrentOrg with valid client for orgId: {}, client hash: {}", orgId, Integer.toHexString(client.hashCode()));
+//        log.info("Exiting getForCurrentTenant with valid client for orgId: {}, client hash: {}", orgId, Integer.toHexString(client.hashCode()));
 //        return client;
 //    }
 //
@@ -87,15 +87,15 @@ public class FhirClientProvider {
         this.fhirAuthService = fhirAuthService;
     }
 
-    /** Uses RequestContext’s orgId (must be populated upstream). */
-    public IGenericClient getForCurrentOrg() {
+    /** Uses RequestContext's tenantName (must be populated upstream). */
+    public IGenericClient getForCurrentTenant() {
         RequestContext rc = RequestContext.get();
-        Long orgId = (rc != null) ? rc.getOrgId() : null;
-        log.info("Entering getForCurrentOrg for orgId: {}", orgId);
-        if (orgId == null) throw new IllegalStateException("No orgId in request context");
+        String tenantName = (rc != null) ? rc.getTenantName() : null;
+        log.info("Entering getForCurrentTenant for tenantName: {}", tenantName);
+        if (tenantName == null) throw new IllegalStateException("No tenantName in request context");
 
-        FhirConfig config = configProvider.getForCurrentOrg(IntegrationKey.FHIR);
-        if (config == null) throw new RuntimeException("No FHIR configuration for orgId: " + orgId);
+        FhirConfig config = configProvider.getForCurrentTenant(IntegrationKey.FHIR);
+        if (config == null) throw new RuntimeException("No FHIR configuration for tenantName: " + tenantName);
 
         String accessToken = fhirAuthService.getCachedAccessToken();
 
@@ -104,30 +104,30 @@ public class FhirClientProvider {
         client.registerInterceptor(new BearerTokenAuthInterceptor(accessToken));
 
         String interceptorId = UUID.randomUUID().toString();
-        client.registerInterceptor(new FhirTenantInterceptor(orgId, client, interceptorId, fhirContext));
-        log.info("Exiting getForCurrentOrg with client hash {}", Integer.toHexString(client.hashCode()));
+        client.registerInterceptor(new FhirTenantInterceptor(tenantName, client, interceptorId, fhirContext));
+        log.info("Exiting getForCurrentTenant with client hash {}", Integer.toHexString(client.hashCode()));
         return client;
     }
 
     /**
-     * Build a client for the given orgId (without requiring RequestContext to already have it).
-     * Temporarily sets rc.orgId, delegates to getForCurrentOrg(), then restores the previous value.
+     * Build a client for the given tenantName (without requiring RequestContext to already have it).
+     * Temporarily sets rc.tenantName, delegates to getForCurrentTenant(), then restores the previous value.
      */
-    public IGenericClient getForOrg(Long orgId) {
-        if (orgId == null) throw new IllegalArgumentException("orgId must not be null");
+    public IGenericClient getForOrg(String tenantName) {
+        if (tenantName == null) throw new IllegalArgumentException("tenantName must not be null");
 
         RequestContext rc = RequestContext.get();
         if (rc == null) {
             throw new IllegalStateException(
-                    "RequestContext not initialized; add a filter to initialize it or call getForCurrentOrg().");
+                    "RequestContext not initialized; add a filter to initialize it or call getForCurrentTenant().");
         }
 
-        Long prev = rc.getOrgId();
+        String prev = rc.getTenantName();
         try {
-            rc.setOrgId(orgId);
-            return getForCurrentOrg();
+            rc.setTenantName(tenantName);
+            return getForCurrentTenant();
         } finally {
-            try { rc.setOrgId(prev); } catch (Exception ignored) {}
+            try { rc.setTenantName(prev); } catch (Exception ignored) {}
         }
     }
 }

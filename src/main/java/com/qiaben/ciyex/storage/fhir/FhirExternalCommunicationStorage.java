@@ -15,7 +15,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.stream.Collectors;
 
 @StorageType("fhir")
 @Component("fhirExternalCommunicationStorage")
@@ -32,7 +31,7 @@ public class FhirExternalCommunicationStorage implements ExternalStorage<Communi
     @Override
     public String create(CommunicationDto dto) {
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             ListResource list = mapToFhir(dto);
             return client.create().resource(list).execute().getId().getIdPart();
         });
@@ -41,7 +40,7 @@ public class FhirExternalCommunicationStorage implements ExternalStorage<Communi
     @Override
     public void update(CommunicationDto dto, String externalId) {
         executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             ListResource list = mapToFhir(dto);
             list.setId(externalId);
             client.update().resource(list).execute();
@@ -52,7 +51,7 @@ public class FhirExternalCommunicationStorage implements ExternalStorage<Communi
     @Override
     public CommunicationDto get(String externalId) {
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             ListResource list = client.read().resource(ListResource.class).withId(externalId).execute();
             return mapFromFhir(list);
         });
@@ -61,7 +60,7 @@ public class FhirExternalCommunicationStorage implements ExternalStorage<Communi
     @Override
     public void delete(String externalId) {
         executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             client.delete().resourceById("List", externalId).execute();
             return null;
         });
@@ -70,10 +69,10 @@ public class FhirExternalCommunicationStorage implements ExternalStorage<Communi
     @Override
     public List<CommunicationDto> searchAll() {
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
-            Bundle bundle = client.search()
-                    .forResource(ListResource.class)
-                    .where(new TokenClientParam("_tag").exactly().systemAndCode(TENANT_TAG_SYSTEM, orgIdStr()))
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+        Bundle bundle = client.search()
+            .forResource(ListResource.class)
+            .where(new TokenClientParam("_tag").exactly().systemAndCode(TENANT_TAG_SYSTEM, tenantNameStr()))
                     .returnBundle(Bundle.class)
                     .execute();
 
@@ -104,7 +103,7 @@ public class FhirExternalCommunicationStorage implements ExternalStorage<Communi
         list.setStatus(ListResource.ListStatus.CURRENT);
         list.setMode(ListResource.ListMode.WORKING);
         list.setTitle("Communication List for patientId " + dto.getPatientId());
-        list.getMeta().addTag().setSystem(TENANT_TAG_SYSTEM).setCode(orgIdStr());
+    list.getMeta().addTag().setSystem(TENANT_TAG_SYSTEM).setCode(tenantNameStr());
 
         Communication comm = new Communication();
         comm.setStatus(Communication.CommunicationStatus.COMPLETED);
@@ -143,9 +142,9 @@ public class FhirExternalCommunicationStorage implements ExternalStorage<Communi
         return dto;
     }
 
-    private String orgIdStr() {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        return orgId != null ? orgId.toString() : "";
+    private String tenantNameStr() {
+        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
+        return tenantName != null ? tenantName : "";
     }
 
     private <T> T executeWithRetry(Callable<T> op) {

@@ -55,7 +55,7 @@ public class PatientService {
             log.error("No orgId found in RequestContext during create");
             throw new SecurityException("No orgId available in request context");
         }
-        dto.setOrgId(currentOrgId); // Set orgId for the new patient
+        dto.setTenantName(currentTenantName());
 
         if (dto.getFirstName() == null || dto.getLastName() == null) {
             throw new IllegalArgumentException("First name and last name are required");
@@ -94,8 +94,9 @@ public class PatientService {
             throw new RuntimeException("Failed to generate id for new patient");
         }
 
-        dto.setId(patient.getId());
-        dto.setExternalId(externalId);
+    dto.setId(patient.getId());
+    dto.setExternalId(externalId);
+    dto.setTenantName(currentTenantName());
         log.info("Created patient with id: {} and externalId: {} in DB for orgId: {}", patient.getId(), externalId, currentOrgId);
 
         return dto;
@@ -174,8 +175,9 @@ public class PatientService {
         patient.setLastModifiedDate(LocalDateTime.now().toString());
         patient = repository.save(patient);
 
-        dto.setId(patient.getId());
-        dto.setExternalId(patient.getExternalId());
+    dto.setId(patient.getId());
+    dto.setExternalId(patient.getExternalId());
+    dto.setTenantName(currentTenantName());
         log.info("Updated patient with id: {} and externalId: {} in DB for orgId: {}", id, patient.getExternalId(), currentOrgId);
 
         return dto;
@@ -222,8 +224,8 @@ public class PatientService {
                     .build();
         }
 
-        List<Patient> patients = repository.findAllByOrgId(currentOrgId);
-        List<PatientDto> patientDtos = patients.stream().map(this::mapToDto).collect(Collectors.toList());
+    List<Patient> patients = repository.findAllByOrgId(currentOrgId);
+    List<PatientDto> patientDtos = patients.stream().map(this::mapToDto).collect(Collectors.toList());
 
         return ApiResponse.<List<PatientDto>>builder()
                 .success(true)
@@ -305,7 +307,7 @@ public class PatientService {
         dto.setAddress(patient.getAddress());
         dto.setStatus(patient.getStatus());
         dto.setMedicalRecordNumber(patient.getMedicalRecordNumber());
-        dto.setOrgId(patient.getOrgId());
+    dto.setTenantName(tenantNameFromOrgId(patient.getOrgId()));
         if (patient.getCreatedDate() != null || patient.getLastModifiedDate() != null) {
             PatientDto.Audit audit = new PatientDto.Audit();
             audit.setCreatedDate(patient.getCreatedDate());
@@ -330,11 +332,28 @@ public class PatientService {
     }
 
     private Long getCurrentOrgId() {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        if (orgId == null) {
-            log.warn("orgId is null in RequestContext");
+        String tenant = currentTenantName();
+        if (tenant == null || tenant.isBlank()) {
+            return null;
         }
-        return orgId;
+        String digits = tenant.replaceAll("[^0-9]", "");
+        if (digits.isEmpty()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(digits);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private String currentTenantName() {
+        RequestContext ctx = RequestContext.get();
+        return ctx != null ? ctx.getTenantName() : null;
+    }
+
+    private String tenantNameFromOrgId(Long orgId) {
+        return orgId == null ? null : "practice_" + orgId;
     }
 
     private String generateMrn() {

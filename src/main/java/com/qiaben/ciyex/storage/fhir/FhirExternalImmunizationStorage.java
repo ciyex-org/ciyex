@@ -2,7 +2,6 @@ package com.qiaben.ciyex.storage.fhir;
 
 import ca.uhn.fhir.rest.client.api.IGenericClient;
 import com.qiaben.ciyex.dto.ImmunizationDto;
-import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.provider.FhirClientProvider;
 import com.qiaben.ciyex.storage.ExternalStorage;
 import com.qiaben.ciyex.storage.StorageType;
@@ -26,14 +25,14 @@ public class FhirExternalImmunizationStorage implements ExternalStorage<Immuniza
 
     @Override
     public String create(ImmunizationDto dto) {
-        IGenericClient client = fhirClientProvider.getForCurrentOrg();
+        IGenericClient client = fhirClientProvider.getForCurrentTenant();
         Immunization fhir = mapToFhir(dto.getImmunizations().get(0));
         return client.create().resource(fhir).execute().getId().getIdPart();
     }
 
     @Override
     public void update(ImmunizationDto dto, String externalId) {
-        IGenericClient client = fhirClientProvider.getForCurrentOrg();
+        IGenericClient client = fhirClientProvider.getForCurrentTenant();
         Immunization fhir = mapToFhir(dto.getImmunizations().get(0));
         fhir.setId(externalId);
         client.update().resource(fhir).execute();
@@ -41,7 +40,7 @@ public class FhirExternalImmunizationStorage implements ExternalStorage<Immuniza
 
     @Override
     public ImmunizationDto get(String externalId) {
-        IGenericClient client = fhirClientProvider.getForCurrentOrg();
+        IGenericClient client = fhirClientProvider.getForCurrentTenant();
         Immunization fhir = client.read().resource(Immunization.class).withId(externalId).execute();
         ImmunizationDto dto = new ImmunizationDto();
         dto.setImmunizations(List.of(mapFromFhir(fhir)));
@@ -50,12 +49,12 @@ public class FhirExternalImmunizationStorage implements ExternalStorage<Immuniza
 
     @Override
     public void delete(String externalId) {
-        fhirClientProvider.getForCurrentOrg().delete().resourceById("Immunization", externalId).execute();
+        fhirClientProvider.getForCurrentTenant().delete().resourceById("Immunization", externalId).execute();
     }
 
     @Override
     public List<ImmunizationDto> searchAll() {
-        Bundle bundle = fhirClientProvider.getForCurrentOrg()
+        Bundle bundle = fhirClientProvider.getForCurrentTenant()
                 .search()
                 .forResource(Immunization.class)
                 .returnBundle(Bundle.class)

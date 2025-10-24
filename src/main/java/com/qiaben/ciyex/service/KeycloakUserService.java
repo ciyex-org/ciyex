@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 
 import java.util.HashMap;
 import java.util.List;
@@ -19,7 +19,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class KeycloakUserService {
     
-    private final RestTemplate restTemplate;
+    private final RestClient restClient;
     
     @Value("${keycloak.auth-server-url}")
     private String keycloakUrl;
@@ -73,8 +73,12 @@ public class KeycloakUserService {
             headers.setBearerAuth(accessToken);
             headers.setContentType(MediaType.APPLICATION_JSON);
             
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(userRep, headers);
-            ResponseEntity<Void> response = restTemplate.postForEntity(usersUrl, request, Void.class);
+            ResponseEntity<Void> response = restClient.post()
+                    .uri(usersUrl)
+                    .headers(h -> h.addAll(headers))
+                    .body(userRep)
+                    .retrieve()
+                    .toBodilessEntity();
             
             // Extract user ID from Location header
             String location = response.getHeaders().getFirst("Location");
@@ -109,8 +113,11 @@ public class KeycloakUserService {
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
             
-            HttpEntity<Void> request = new HttpEntity<>(headers);
-            restTemplate.put(url, request);
+            restClient.put()
+                    .uri(url)
+                    .headers(h -> h.addAll(headers))
+                    .retrieve()
+                    .toBodilessEntity();
             
             log.info("Added user {} to group {}", userId, groupPath);
         } catch (Exception e) {
@@ -130,9 +137,12 @@ public class KeycloakUserService {
             String rolesUrl = keycloakUrl + "/admin/realms/" + keycloakRealm + "/roles";
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
-            HttpEntity<Void> request = new HttpEntity<>(headers);
             
-            ResponseEntity<List> rolesResponse = restTemplate.exchange(rolesUrl, HttpMethod.GET, request, List.class);
+            ResponseEntity<List> rolesResponse = restClient.get()
+                    .uri(rolesUrl)
+                    .headers(h -> h.addAll(headers))
+                    .retrieve()
+                    .toEntity(List.class);
             
             // Filter roles to assign
             @SuppressWarnings("unchecked")
@@ -150,8 +160,12 @@ public class KeycloakUserService {
             assignHeaders.setBearerAuth(accessToken);
             assignHeaders.setContentType(MediaType.APPLICATION_JSON);
             
-            HttpEntity<List<Map<String, Object>>> assignRequest = new HttpEntity<>(rolesToAssign, assignHeaders);
-            restTemplate.postForEntity(userRolesUrl, assignRequest, Void.class);
+            restClient.post()
+                    .uri(userRolesUrl)
+                    .headers(h -> h.addAll(assignHeaders))
+                    .body(rolesToAssign)
+                    .retrieve()
+                    .toBodilessEntity();
             
             log.info("Assigned roles {} to user {}", roleNames, userId);
         } catch (Exception e) {
@@ -171,8 +185,11 @@ public class KeycloakUserService {
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
             
-            HttpEntity<Void> request = new HttpEntity<>(headers);
-            restTemplate.exchange(url, HttpMethod.DELETE, request, Void.class);
+            restClient.delete()
+                    .uri(url)
+                    .headers(h -> h.addAll(headers))
+                    .retrieve()
+                    .toBodilessEntity();
             
             log.info("Deleted Keycloak user: {}", userId);
         } catch (Exception e) {
@@ -197,8 +214,12 @@ public class KeycloakUserService {
             // Use client credentials grant type
             String body = "grant_type=client_credentials&client_id=" + clientId + "&client_secret=" + clientSecret;
             
-            HttpEntity<String> request = new HttpEntity<>(body, headers);
-            ResponseEntity<Map> response = restTemplate.postForEntity(tokenUrl, request, Map.class);
+            ResponseEntity<Map> response = restClient.post()
+                    .uri(tokenUrl)
+                    .headers(h -> h.addAll(headers))
+                    .body(body)
+                    .retrieve()
+                    .toEntity(Map.class);
             
             if (response.getBody() != null) {
                 return (String) response.getBody().get("access_token");
@@ -218,8 +239,11 @@ public class KeycloakUserService {
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
             
-            HttpEntity<Void> request = new HttpEntity<>(headers);
-            ResponseEntity<List> response = restTemplate.exchange(groupsUrl, HttpMethod.GET, request, List.class);
+            ResponseEntity<List> response = restClient.get()
+                    .uri(groupsUrl)
+                    .headers(h -> h.addAll(headers))
+                    .retrieve()
+                    .toEntity(List.class);
             
             if (response.getBody() != null) {
                 return findGroupIdByPath(response.getBody(), groupPath);

@@ -251,7 +251,9 @@ public class OrderService {
 
 
     private Long getCurrentOrgId() {
-        return RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        // Tenant isolation is now handled at schema level
+        // orgId is no longer tracked in RequestContext
+        return null;
     }
 
     private String now() {

@@ -15,7 +15,7 @@ public class MedicalProblemDto {
 
     private Long id;
     private String externalId;
-    private Long orgId;
+    private String tenantName;
     private Long patientId;
     private List<MedicalProblemItem> problemsList;
     private Audit audit;

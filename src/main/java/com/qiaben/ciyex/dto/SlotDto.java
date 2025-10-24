@@ -5,7 +5,7 @@ import lombok.Data;
 @Data
 public class SlotDto {
     private Long id;          // local DB id
-    private Long orgId;       // tenant/org
+    private String tenantName;       // tenant/org
     private Long providerId;  // practitioner
     private String externalId;// FHIR Slot id
 

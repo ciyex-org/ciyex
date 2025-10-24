@@ -27,14 +27,14 @@ public class TelehealthResolver implements ApplicationContextAware {
     }
 
     public TelehealthService resolve() {
-        Long orgId = RequestContext.get().getOrgId();
-        if (orgId == null) {
-            throw new IllegalStateException("No orgId available in request context");
+        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
+        if (tenantName == null || tenantName.isBlank()) {
+            throw new IllegalStateException("No tenantName available in request context");
         }
 
-        TelehealthConfig config = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
+        TelehealthConfig config = configProvider.getForCurrentTenant(IntegrationKey.TELEHEALTH);
         if (config == null || config.getVendor() == null) {
-            throw new IllegalArgumentException("No telehealth config or vendor found for orgId: " + orgId);
+            throw new IllegalArgumentException("No telehealth config or vendor found for tenantName: " + tenantName);
         }
 
         String vendor = config.getVendor();

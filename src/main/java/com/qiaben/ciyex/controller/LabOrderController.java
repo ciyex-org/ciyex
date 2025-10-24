@@ -109,7 +109,7 @@ public class LabOrderController {
             @RequestHeader(value = "X-Org-Id", required = false) String orgHeader,
             @PathVariable Long patientId,
             @RequestBody LabOrderDto dto) {
-        List<Long> orgIds = parseOrgIds(orgHeader, dto.getOrgId());
+        List<Long> orgIds = parseOrgIds(orgHeader, null); // orgId deprecated, using tenantName from context
         try {
             seedRequestContextFirst(orgIds);
 
@@ -144,7 +144,7 @@ public class LabOrderController {
             @PathVariable Long patientId,
             @PathVariable Long id,
             @RequestBody LabOrderDto dto) {
-        List<Long> orgIds = parseOrgIds(orgHeader, dto.getOrgId());
+        List<Long> orgIds = parseOrgIds(orgHeader, null); // orgId deprecated, using tenantName from context
         try {
             seedRequestContextFirst(orgIds);
 
@@ -233,6 +233,7 @@ public class LabOrderController {
             ctx = new RequestContext();
             RequestContext.set(ctx);
         }
-        ctx.setOrgId(first);
+        // Legacy orgId support - convert Long to String for tenantName
+        ctx.setTenantName("practice_" + first);
     }
 }

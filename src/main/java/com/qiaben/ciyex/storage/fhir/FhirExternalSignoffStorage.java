@@ -19,7 +19,7 @@ public class FhirExternalSignoffStorage implements ExternalSignoffStorage {
     @Override
     public String create(SignoffDto dto) {
         log.info("FHIR Signoff create patientId={}, target={}#{}", dto.getPatientId(), dto.getTargetType(), dto.getTargetId());
-        // var client = fhirClientProvider.getForCurrentOrg();
+        // var client = fhirClientProvider.getForCurrentTenant();
         // Build Provenance/Composition with signature; return id
         return null;
     }

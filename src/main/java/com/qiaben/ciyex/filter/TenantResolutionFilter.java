@@ -141,8 +141,7 @@ public class TenantResolutionFilter implements Filter {
                 
                 // Set tenant info in RequestContext
                 RequestContext context = new RequestContext();
-                context.setOrgId(orgId); // May be null for new tenants
-                // TODO: Add tenantName and schemaName to RequestContext
+                context.setTenantName(tenantName);
                 RequestContext.set(context);
                 
                 log.debug("Resolved tenant: {}, schema: {}, orgId: {} for URI: {}", 

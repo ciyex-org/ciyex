@@ -6,7 +6,7 @@ import lombok.Data;
 public class PatientDto {
     private Long id; // Database ID
     private String externalId; // ID from external storage (e.g., FHIR Patient ID)
-    private Long orgId; // Tenant identifier
+    private String tenantName; // Tenant identifier
     private String firstName;
     private String lastName;
     private String middleName;

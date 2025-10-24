@@ -20,13 +20,13 @@ public class MockAiService implements AiService {
 
     @Override
     public String generateCompletion(String prompt) {
-        Long orgId = RequestContext.get().getOrgId();
-        AiConfig config = configProvider.get(orgId, IntegrationKey.AI);
+    String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
+    AiConfig config = configProvider.getForCurrentTenant(IntegrationKey.AI);
         ensureMockConfigured(config);
 
         String response = config.getMock().getFixedResponse() != null ? config.getMock().getFixedResponse() : "Mock response to: " + prompt;
 
-        log.info("Generated Mock AI completion for orgId={}, prompt={}", orgId, prompt);
+    log.info("Generated Mock AI completion for tenantName={}, prompt={}", tenantName, prompt);
         return response;
     }
 

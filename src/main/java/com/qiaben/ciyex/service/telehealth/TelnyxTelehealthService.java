@@ -3,7 +3,7 @@ package com.qiaben.ciyex.service.telehealth;
 import com.qiaben.ciyex.dto.integration.IntegrationKey;
 import com.qiaben.ciyex.dto.integration.TelehealthConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.util.TenantContextUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -22,8 +22,8 @@ public class TelnyxTelehealthService implements TelehealthService {
 
     @Override
     public String startVideoCall(Long providerId, Long patientId, String roomName) {
-        Long orgId = RequestContext.get().getOrgId();
-        TelehealthConfig config = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
+    String tenantName = TenantContextUtil.getTenantName();
+    TelehealthConfig config = configProvider.getForCurrentTenant(IntegrationKey.TELEHEALTH);
         String apiKey = config.getTelnyx().getApiKey();
        /* TelephonyCredentialApi telephonyApi = new TelephonyCredentialApi(apiKey);
         TelephonyCredential credential = telephonyApi.createTelephonyCredential(new TelephonyCredential().name(roomName + "-" + orgId));
@@ -35,11 +35,11 @@ public class TelnyxTelehealthService implements TelehealthService {
 
     @Override
     public String getCallStatus(String callId) {
-        Long orgId = RequestContext.get().getOrgId();
-        TelehealthConfig config = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
+    String tenantName = TenantContextUtil.getTenantName();
+    TelehealthConfig config = configProvider.getForCurrentTenant(IntegrationKey.TELEHEALTH);
         String apiKey = config.getTelnyx().getApiKey();
         // Placeholder; Telnyx call status requires call control API integration
-        log.info("Get call status for orgId: {}, callId: {}", orgId, callId);
+    log.info("Get call status for tenant: {}, callId: {}", tenantName, callId);
         return "active"; // Example
     }
 

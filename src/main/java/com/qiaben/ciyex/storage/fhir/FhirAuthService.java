@@ -28,8 +28,8 @@ public class FhirAuthService {
     private final RestClient restClient;
     private final OrgIntegrationConfigProvider integrationConfigProvider;
 
-    // --- Caffeine per-org token cache ---
-    private final Cache<Long, TokenCache> tokenCacheMap = Caffeine.newBuilder()
+    // --- Caffeine per-tenant token cache ---
+    private final Cache<String, TokenCache> tokenCacheMap = Caffeine.newBuilder()
             .expireAfterWrite(3, TimeUnit.MINUTES)
             .maximumSize(1000)
             .build();
@@ -40,16 +40,16 @@ public class FhirAuthService {
     }
 
     public String getCachedAccessToken()  {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        if (orgId == null) throw new IllegalStateException("No orgId in request context");
-        FhirConfig config = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
+        if (tenantName == null) throw new IllegalStateException("No tenantName in request context");
+        FhirConfig config = integrationConfigProvider.getForCurrentTenant(IntegrationKey.FHIR);
 
-        TokenCache cache = tokenCacheMap.get(orgId, k -> new TokenCache());
+        TokenCache cache = tokenCacheMap.get(tenantName, k -> new TokenCache());
         synchronized (cache) {
             long now = System.currentTimeMillis();
             // Refresh if token is missing/expired/about to expire (30s buffer)
             if (cache.accessToken == null || now > (cache.expiryMillis - 30_000)) {
-                log.info("[Org:{}] FHIR cached token is missing/expired, requesting new token...", orgId);
+                log.info("[Tenant:{}] FHIR cached token is missing/expired, requesting new token...", tenantName);
                 FhirTokenResponse tokenResponse = null;
                 try {
                     tokenResponse = getAccessToken(config);
@@ -59,9 +59,9 @@ public class FhirAuthService {
 
                 cache.accessToken = tokenResponse.getAccessToken();
                 cache.expiryMillis = now + tokenResponse.getExpiresIn() * 1000L;
-                log.info("[Org:{}] Cached new FHIR access token, expires in {} seconds", orgId, tokenResponse.getExpiresIn());
+                log.info("[Tenant:{}] Cached new FHIR access token, expires in {} seconds", tenantName, tokenResponse.getExpiresIn());
             } else {
-                log.debug("[Org:{}] Returning cached FHIR access token", orgId);
+                log.debug("[Tenant:{}] Returning cached FHIR access token", tenantName);
             }
             return cache.accessToken;
         }

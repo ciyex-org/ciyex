@@ -37,23 +37,13 @@ public class AutoTenantTestController {
      */
     @GetMapping("/patient-count/{orgId}")
     public ResponseEntity<Map<String, Object>> testPatientCount(@PathVariable Long orgId) {
-        // Set the org ID in RequestContext (normally done by authentication/authorization)
-        RequestContext ctx = new RequestContext();
-        ctx.setOrgId(orgId);
-        RequestContext.set(ctx);
-        
-        try {
-            long count = patientService.countPatientsForCurrentOrg();
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("orgId", orgId);
-            response.put("patientCount", count);
-            response.put("message", "Automatically switched to tenant schema for org " + orgId);
-            
-            return ResponseEntity.ok(response);
-        } finally {
-            RequestContext.clear();
-        }
+        // orgId-based context deprecated; relying on tenantName resolution elsewhere
+        long count = patientService.countPatientsForCurrentOrg();
+        Map<String, Object> response = new HashMap<>();
+        response.put("orgId", orgId);
+        response.put("patientCount", count);
+        response.put("message", "Automatically switched to tenant schema for org " + orgId);
+        return ResponseEntity.ok(response);
     }
     
     /**
@@ -88,32 +78,19 @@ public class AutoTenantTestController {
      */
     @GetMapping("/tenant-operation/{orgId}")
     public ResponseEntity<Map<String, Object>> testTenantOperation(@PathVariable Long orgId) {
-        RequestContext ctx = new RequestContext();
-        ctx.setOrgId(orgId);
-        RequestContext.set(ctx);
-        
-        try {
-            // Test if tenant schema exists
-            boolean schemaExists = tenantAwareService.tenantSchemaExists(orgId);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("orgId", orgId);
-            response.put("tenantSchema", "practice_" + orgId);
-            response.put("schemaExists", schemaExists);
-            
-            if (schemaExists) {
-                // Get table count from tenant schema
-                int tableCount = getTenantTableCount(orgId);
-                response.put("tableCount", tableCount);
-                response.put("message", "Automatically switched to tenant schema practice_" + orgId);
-            } else {
-                response.put("message", "Tenant schema does not exist for org " + orgId);
-            }
-            
-            return ResponseEntity.ok(response);
-        } finally {
-            RequestContext.clear();
+        boolean schemaExists = tenantAwareService.tenantSchemaExists(orgId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("orgId", orgId);
+        response.put("tenantSchema", "practice_" + orgId);
+        response.put("schemaExists", schemaExists);
+        if (schemaExists) {
+            int tableCount = getTenantTableCount(orgId);
+            response.put("tableCount", tableCount);
+            response.put("message", "Automatically switched to tenant schema practice_" + orgId);
+        } else {
+            response.put("message", "Tenant schema does not exist for org " + orgId);
         }
+        return ResponseEntity.ok(response);
     }
     
     /**
@@ -131,9 +108,6 @@ public class AutoTenantTestController {
             });
             
             // Test tenant schema
-            RequestContext ctx = new RequestContext();
-        ctx.setOrgId(orgId);
-        RequestContext.set(ctx);
             int tenantTableCount = tenantAwareService.executeInTenantContext(orgId, () -> {
                 return getTenantTableCount(orgId);
             });
@@ -154,7 +128,7 @@ public class AutoTenantTestController {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", e.getMessage()));
         } finally {
-            RequestContext.clear();
+            // No per-request orgId context to clear
         }
     }
     

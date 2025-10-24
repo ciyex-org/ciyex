@@ -80,8 +80,8 @@ public class TenantAwareJpaConfig {
 
         private void setTenantSchema(Connection connection) {
             RequestContext context = RequestContext.get();
-            if (context != null && context.getOrgId() != null) {
-                String schemaName = "practice_" + context.getOrgId();
+            if (context != null && context.getTenantName() != null) {
+                String schemaName = sanitize(context.getTenantName());
                 try (Statement statement = connection.createStatement()) {
                     // Create schema if it doesn't exist
                     statement.execute("CREATE SCHEMA IF NOT EXISTS " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
@@ -97,6 +97,10 @@ public class TenantAwareJpaConfig {
             } else {
                 log.debug("No tenant context, using default schema");
             }
+        }
+
+        private String sanitize(String tenantName) {
+            return tenantName.toLowerCase().replaceAll("[^a-z0-9]+", "_").replaceAll("^_|_$", "");
         }
 
         // Delegate all other methods

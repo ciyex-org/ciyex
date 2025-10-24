@@ -27,14 +27,14 @@ public class AiResolver implements ApplicationContextAware {
     }
 
     public AiService resolve() {
-        Long orgId = RequestContext.get().getOrgId();
-        if (orgId == null) {
-            throw new IllegalStateException("No orgId available in request context");
+        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
+        if (tenantName == null || tenantName.isBlank()) {
+            throw new IllegalStateException("No tenantName available in request context");
         }
 
-        AiConfig config = configProvider.get(orgId, IntegrationKey.AI);
+        AiConfig config = configProvider.getForCurrentTenant(IntegrationKey.AI);
         if (config == null || config.getVendor() == null) {
-            throw new IllegalArgumentException("No AI config or vendor found for orgId: " + orgId);
+            throw new IllegalArgumentException("No AI config or vendor found for tenantName: " + tenantName);
         }
 
         String vendor = config.getVendor();

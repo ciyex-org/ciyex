@@ -2,7 +2,7 @@ package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.AllergyIntoleranceDto;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+// Removed orgId usage; RequestContext (tenantName) is set upstream if needed
 import com.qiaben.ciyex.service.AllergyIntoleranceService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -23,13 +23,8 @@ public class AllergyIntoleranceController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<AllergyIntoleranceDto>> create(
-            @RequestBody AllergyIntoleranceDto dto,
-            @RequestHeader("orgId") Long orgId) {
+            @RequestBody AllergyIntoleranceDto dto) {
         try {
-            RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
-            RequestContext.set(ctx);
-
             AllergyIntoleranceDto created = service.create(dto);
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto>builder()
                     .success(true)
@@ -42,20 +37,13 @@ public class AllergyIntoleranceController {
                     .success(false)
                     .message("Failed to create Allergy Intolerance: " + e.getMessage())
                     .build());
-        } finally {
-            RequestContext.clear();
         }
     }
 
     @GetMapping("/{patientId}")
     public ResponseEntity<ApiResponse<AllergyIntoleranceDto>> getByPatient(
-            @PathVariable Long patientId,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long patientId) {
         try {
-            RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
-            RequestContext.set(ctx);
-
             AllergyIntoleranceDto dto = service.getByPatientId(patientId);
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto>builder()
                     .success(true)
@@ -68,21 +56,14 @@ public class AllergyIntoleranceController {
                     .success(false)
                     .message("Failed to retrieve Allergy Intolerance: " + e.getMessage())
                     .build());
-        } finally {
-            RequestContext.clear();
         }
     }
 
     @PutMapping("/{patientId}")
     public ResponseEntity<ApiResponse<AllergyIntoleranceDto>> updateByPatient(
             @PathVariable Long patientId,
-            @RequestBody AllergyIntoleranceDto dto,
-            @RequestHeader("orgId") Long orgId) {
+            @RequestBody AllergyIntoleranceDto dto) {
         try {
-            RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
-            RequestContext.set(ctx);
-
             AllergyIntoleranceDto updated = service.updateByPatientId(patientId, dto);
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto>builder()
                     .success(true)
@@ -95,20 +76,13 @@ public class AllergyIntoleranceController {
                     .success(false)
                     .message("Failed to update Allergy Intolerance: " + e.getMessage())
                     .build());
-        } finally {
-            RequestContext.clear();
         }
     }
 
     @DeleteMapping("/{patientId}")
     public ResponseEntity<ApiResponse<Void>> deleteByPatient(
-            @PathVariable Long patientId,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long patientId) {
         try {
-            RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
-            RequestContext.set(ctx);
-
             service.deleteByPatientId(patientId);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)
@@ -120,8 +94,6 @@ public class AllergyIntoleranceController {
                     .success(false)
                     .message("Failed to delete Allergy Intolerance: " + e.getMessage())
                     .build());
-        } finally {
-            RequestContext.clear();
         }
     }
 
@@ -130,13 +102,8 @@ public class AllergyIntoleranceController {
     @GetMapping("/{patientId}/{intoleranceId}")
     public ResponseEntity<ApiResponse<AllergyIntoleranceDto.AllergyItem>> getItem(
             @PathVariable Long patientId,
-            @PathVariable Long intoleranceId,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long intoleranceId) {
         try {
-            RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
-            RequestContext.set(ctx);
-
             var item = service.getItem(patientId, intoleranceId);
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto.AllergyItem>builder()
                     .success(true)
@@ -149,8 +116,6 @@ public class AllergyIntoleranceController {
                     .success(false)
                     .message("Failed to retrieve allergy: " + e.getMessage())
                     .build());
-        } finally {
-            RequestContext.clear();
         }
     }
 
@@ -158,13 +123,8 @@ public class AllergyIntoleranceController {
     public ResponseEntity<ApiResponse<AllergyIntoleranceDto.AllergyItem>> updateItem(
             @PathVariable Long patientId,
             @PathVariable Long intoleranceId,
-            @RequestBody AllergyIntoleranceDto.AllergyItem patch,
-            @RequestHeader("orgId") Long orgId) {
+            @RequestBody AllergyIntoleranceDto.AllergyItem patch) {
         try {
-            RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
-            RequestContext.set(ctx);
-
             var updated = service.updateItem(patientId, intoleranceId, patch);
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto.AllergyItem>builder()
                     .success(true)
@@ -177,21 +137,14 @@ public class AllergyIntoleranceController {
                     .success(false)
                     .message("Failed to update allergy: " + e.getMessage())
                     .build());
-        } finally {
-            RequestContext.clear();
         }
     }
 
     @DeleteMapping("/{patientId}/{intoleranceId}")
     public ResponseEntity<ApiResponse<Void>> deleteItem(
             @PathVariable Long patientId,
-            @PathVariable Long intoleranceId,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long intoleranceId) {
         try {
-            RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
-            RequestContext.set(ctx);
-
             service.deleteItem(patientId, intoleranceId);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)
@@ -203,19 +156,12 @@ public class AllergyIntoleranceController {
                     .success(false)
                     .message("Failed to delete allergy: " + e.getMessage())
                     .build());
-        } finally {
-            RequestContext.clear();
         }
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<AllergyIntoleranceDto>>> searchAll(
-            @RequestHeader("orgId") Long orgId) {
+    public ResponseEntity<ApiResponse<List<AllergyIntoleranceDto>>> searchAll() {
         try {
-            RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
-            RequestContext.set(ctx);
-
             ApiResponse<List<AllergyIntoleranceDto>> res = service.searchAll();
             return ResponseEntity.ok(res);
         } catch (Exception e) {
@@ -224,8 +170,6 @@ public class AllergyIntoleranceController {
                     .success(false)
                     .message("Failed to retrieve Allergy Intolerances: " + e.getMessage())
                     .build());
-        } finally {
-            RequestContext.clear();
         }
     }
 }

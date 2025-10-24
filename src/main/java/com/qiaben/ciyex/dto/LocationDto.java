@@ -6,7 +6,7 @@ import lombok.Data;
 public class LocationDto {
     private Long id; // Database ID
     private String externalId; // ID from external storage (e.g., FHIR Location ID)
-    private Long orgId;
+    private String tenantName;
     private String name;
     private String address;
     private String city;

@@ -29,7 +29,7 @@ public class CommunicationController {
             @RequestHeader("x-org-id") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+            // orgId deprecated; tenantName populated by interceptor.
             RequestContext.set(ctx);
 
             CommunicationDto created = service.create(dto);
@@ -56,7 +56,7 @@ public class CommunicationController {
             @RequestHeader("x-org-id") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+            // orgId deprecated; tenantName populated by interceptor.
             RequestContext.set(ctx);
 
             List<CommunicationDto> list = service.getByPatientId(patientId);
@@ -83,7 +83,7 @@ public class CommunicationController {
             @RequestHeader("x-org-id") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+            // orgId deprecated; tenantName populated by interceptor.
             RequestContext.set(ctx);
 
             CommunicationDto dto = service.searchAll().stream()
@@ -115,7 +115,7 @@ public class CommunicationController {
             @RequestHeader("x-org-id") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+            // orgId deprecated; tenantName populated by interceptor.
             RequestContext.set(ctx);
 
             CommunicationDto updated = service.updateItem(null, id, dto);
@@ -142,7 +142,7 @@ public class CommunicationController {
             @RequestHeader("x-org-id") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+            // orgId deprecated; tenantName populated by interceptor.
             RequestContext.set(ctx);
 
             CommunicationDto dto = service.setStatus(id, CommunicationStatus.ARCHIVED);
@@ -170,7 +170,7 @@ public class CommunicationController {
             @RequestHeader("x-org-id") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+            // orgId deprecated; tenantName populated by interceptor.
             RequestContext.set(ctx);
 
             CommunicationDto dto = service.setStatus(id, CommunicationStatus.SENT);
@@ -198,7 +198,7 @@ public class CommunicationController {
             @RequestHeader("x-org-id") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+            // orgId deprecated; tenantName populated by interceptor.
             RequestContext.set(ctx);
 
             service.deleteItemById(id);
@@ -223,7 +223,7 @@ public class CommunicationController {
             @RequestHeader("x-org-id") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
+            // orgId deprecated; tenantName populated by interceptor.
             RequestContext.set(ctx);
 
             List<CommunicationDto> all = service.searchAll();

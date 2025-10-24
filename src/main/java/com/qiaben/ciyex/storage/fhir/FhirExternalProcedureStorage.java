@@ -21,7 +21,7 @@ public class FhirExternalProcedureStorage implements ExternalProcedureStorage {
     @Override
     public String create(ProcedureDto dto) {
         log.info("FHIR Procedure create patientId={}, encounterId={}, CPT={}", dto.getPatientId(), dto.getEncounterId(), dto.getCpt4());
-        // var client = fhirClientProvider.getForCurrentOrg();
+        // var client = fhirClientProvider.getForCurrentTenant();
         // Build Procedure resource; set coding system to CPT if you maintain that system
         return null;
     }

@@ -5,7 +5,7 @@ import lombok.Data;
 @Data
 public class LabOrderDto {
     private Long id;
-    private Long orgId;
+    private String tenantName;
 
     // Patient linkage
     private Long patientId;

@@ -7,7 +7,6 @@ import com.qiaben.ciyex.repository.LabOrderRepository;
 import com.qiaben.ciyex.storage.ExternalStorage;
 import com.qiaben.ciyex.storage.ExternalStorageResolver;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.dto.integration.RequestContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,30 +37,29 @@ public class LabOrderService {
 
     @Transactional
     public LabOrderDto create(LabOrderDto dto, List<Long> allowedOrgIds) {
-        Long chosenOrgId = resolveOrgIdForCreate(dto, allowedOrgIds);
-        if (chosenOrgId == null) throw new SecurityException("No allowed orgId available in request");
-
-        ensureRequestContextOrg(chosenOrgId);
-        dto.setOrgId(chosenOrgId);
+        // Tenant isolation is now handled at schema level
+        // Long chosenOrgId = resolveOrgIdForCreate(dto, allowedOrgIds);
+        // if (chosenOrgId == null) throw new SecurityException("No allowed orgId available in request");
+        // ensureRequestContextOrg(chosenOrgId);
+        // dto.setOrgId(chosenOrgId);
 
         if (dto.getTestCode() == null) {
             throw new IllegalArgumentException("testCode is required");
         }
 
         LabOrder order = mapToEntity(dto);
-        order.setOrgId(chosenOrgId);
+        order.setOrgId(null); // Tenant isolation handled at schema level
         order.setCreatedDate(LocalDateTime.now().toString());
         order.setLastModifiedDate(LocalDateTime.now().toString());
 
         String storageType = safeStorageType();
         if (storageType != null) {
             try {
-                @SuppressWarnings("unchecked")
                 ExternalStorage<LabOrderDto> es = storageResolver.resolve(LabOrderDto.class);
                 es.create(dto); // Create in external system (no externalId stored)
-                log.info("External create OK (no externalId stored). orgId={}", chosenOrgId);
+                log.info("External create OK (no externalId stored).");
             } catch (Exception e) {
-                log.warn("External create skipped (DB-only). orgId={}, reason={}", chosenOrgId, rootMessage(e));
+                log.warn("External create skipped (DB-only). reason={}", rootMessage(e));
             }
         }
 
@@ -155,22 +152,10 @@ public class LabOrderService {
 
     // ---- internals ----
 
-    private Long resolveOrgIdForCreate(LabOrderDto dto, List<Long> allowedOrgIds) {
-        Long fromDto = dto.getOrgId();
-        if (fromDto != null && allowedOrgIds != null && allowedOrgIds.contains(fromDto)) return fromDto;
-        return (allowedOrgIds == null || allowedOrgIds.isEmpty()) ? null : allowedOrgIds.get(0);
-    }
-
     private void ensureRequestContextOrg(Long orgId) {
         if (orgId == null) return;
-        var ctx = RequestContext.get();
-        if (ctx == null) {
-            ctx = new RequestContext();
-            RequestContext.set(ctx);
-        }
-        if (!Objects.equals(ctx.getOrgId(), orgId)) {
-            ctx.setOrgId(orgId);
-        }
+        // Tenant isolation is now handled at schema level
+        // orgId is no longer tracked in RequestContext - schema-based isolation handles this
     }
 
     private void authorize(Long recordOrgId, Collection<Long> allowedOrgIds) {
@@ -199,7 +184,7 @@ public class LabOrderService {
 
     private LabOrder mapToEntity(LabOrderDto dto) {
         LabOrder e = new LabOrder();
-        e.setOrgId(dto.getOrgId());
+        e.setOrgId(null); // Tenant isolation handled at schema level
         e.setPatientId(dto.getPatientId());
         e.setPatientExternalId(dto.getPatientExternalId());
         e.setMrn(dto.getMrn());
@@ -228,7 +213,7 @@ public class LabOrderService {
     private LabOrderDto mapToDto(LabOrder e) {
         LabOrderDto d = new LabOrderDto();
         d.setId(e.getId());
-        d.setOrgId(e.getOrgId());
+        // d.setOrgId(e.getOrgId()); // Removed - using tenantName now
         d.setPatientId(e.getPatientId());
         d.setPatientExternalId(e.getPatientExternalId());
         d.setMrn(e.getMrn());
@@ -262,7 +247,7 @@ public class LabOrderService {
     }
 
     private void updateEntityFromDto(LabOrder e, LabOrderDto d) {
-        if (d.getOrgId() != null) e.setOrgId(d.getOrgId());
+        // if (d.getOrgId() != null) e.setOrgId(d.getOrgId()); // Removed - using tenantName now
         if (d.getPatientId() != null) e.setPatientId(d.getPatientId());
         if (d.getPatientExternalId() != null) e.setPatientExternalId(d.getPatientExternalId());
         if (d.getMrn() != null) e.setMrn(d.getMrn());

@@ -36,12 +36,12 @@ public class FhirExternalAppointmentStorage implements ExternalAppointmentStorag
 
     @Override
     public String create(AppointmentDTO dto) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             Appointment fhirAppointment = mapToFhir(dto);
             String externalId = client.create().resource(fhirAppointment).execute().getId().getIdPart();
-            log.info("Created Appointment with externalId {} for orgId {}", externalId, orgId);
+            log.info("Created Appointment with externalId {} for tenant {}", externalId, tenantName);
             return externalId;
         });
     }
@@ -49,7 +49,7 @@ public class FhirExternalAppointmentStorage implements ExternalAppointmentStorag
     @Override
     public void update(AppointmentDTO dto, String externalId) {
         executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             Appointment fhirAppointment = mapToFhir(dto);
             fhirAppointment.setId(externalId);
             client.update().resource(fhirAppointment).execute();
@@ -61,7 +61,7 @@ public class FhirExternalAppointmentStorage implements ExternalAppointmentStorag
     @Override
     public AppointmentDTO get(String externalId) {
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             Appointment fhirAppointment = client.read().resource(Appointment.class).withId(externalId).execute();
             return mapFromFhir(fhirAppointment);
         });
@@ -70,7 +70,7 @@ public class FhirExternalAppointmentStorage implements ExternalAppointmentStorag
     @Override
     public void delete(String externalId) {
         executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             client.delete().resourceById("Appointment", externalId).execute();
             log.info("Deleted Appointment {} in FHIR", externalId);
             return null;
@@ -79,7 +79,7 @@ public class FhirExternalAppointmentStorage implements ExternalAppointmentStorag
 
     @Override
     public List<AppointmentDTO> searchAll() {
-        Bundle bundle = fhirClientProvider.getForCurrentOrg()
+        Bundle bundle = fhirClientProvider.getForCurrentTenant()
                 .search()
                 .forResource(Appointment.class)
                 .returnBundle(Bundle.class)

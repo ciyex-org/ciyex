@@ -55,16 +55,16 @@ public class FhirExternalSlotStorage implements ExternalSlotStorage {
 
     @Transactional
     public String create(SlotDto dto) {
-        Long currentOrgId = requireOrg();
-        log.debug("Creating Slot for orgId={}, dto={}", currentOrgId, dto);
+        String currentTenantName = requireTenantName();
+        log.debug("Creating Slot for orgId={}, dto={}", currentTenantName, dto);
 
         Slot slot = toFhir(dto);
         String externalId;
         try {
             externalId = fhirResourceStorage.create(slot);
-            log.info("Successfully created Slot in external storage with externalId={} for orgId={}", externalId, currentOrgId);
+            log.info("Successfully created Slot in external storage with externalId={} for orgId={}", externalId, currentTenantName);
         } catch (Exception e) {
-            log.error("Failed to create Slot in external storage for orgId={}, error={}", currentOrgId, e.getMessage(), e);
+            log.error("Failed to create Slot in external storage for orgId={}, error={}", currentTenantName, e.getMessage(), e);
             throw new RuntimeException("Failed to sync with external storage", e);
         }
         return externalId;
@@ -72,59 +72,59 @@ public class FhirExternalSlotStorage implements ExternalSlotStorage {
 
     @Transactional
     public void update(SlotDto dto, String externalId) {
-        Long currentOrgId = requireOrg();
-        log.debug("Updating Slot with externalId={} for orgId={}, dto={}", externalId, currentOrgId, dto);
+        String currentTenantName = requireTenantName();
+        log.debug("Updating Slot with externalId={} for orgId={}, dto={}", externalId, currentTenantName, dto);
 
         Slot slot = toFhir(dto);
         slot.setId(externalId);
         try {
             fhirResourceStorage.update(slot, externalId);
-            log.info("Successfully updated Slot in external storage with externalId={} for orgId={}", externalId, currentOrgId);
+            log.info("Successfully updated Slot in external storage with externalId={} for orgId={}", externalId, currentTenantName);
         } catch (Exception e) {
-            log.error("Failed to update Slot in external storage for orgId={}, externalId={}, error={}", currentOrgId, externalId, e.getMessage(), e);
+            log.error("Failed to update Slot in external storage for orgId={}, externalId={}, error={}", currentTenantName, externalId, e.getMessage(), e);
             throw new RuntimeException("Failed to sync with external storage", e);
         }
     }
 
     @Transactional(readOnly = true)
     public SlotDto get(String externalId) {
-        Long currentOrgId = requireOrg();
-        log.debug("Fetching Slot with externalId={} for orgId={}", externalId, currentOrgId);
+        String currentTenantName = requireTenantName();
+        log.debug("Fetching Slot with externalId={} for orgId={}", externalId, currentTenantName);
 
         Slot slot = fhirResourceStorage.get(Slot.class, externalId);
         if (slot == null) {
-            log.warn("No FHIR Slot found with externalId={} for orgId={}", externalId, currentOrgId);
+            log.warn("No FHIR Slot found with externalId={} for orgId={}", externalId, currentTenantName);
             throw new RuntimeException("Slot not found with externalId: " + externalId);
         }
         SlotDto dto = fromFhir(slot);
-        log.info("Retrieved SlotDto with externalId={} for orgId={}", externalId, currentOrgId);
+        log.info("Retrieved SlotDto with externalId={} for orgId={}", externalId, currentTenantName);
         return dto;
     }
 
     @Transactional
     public void delete(String externalId) {
-        Long currentOrgId = requireOrg();
-        log.debug("Deleting Slot with externalId={} for orgId={}", externalId, currentOrgId);
+        String currentTenantName = requireTenantName();
+        log.debug("Deleting Slot with externalId={} for orgId={}", externalId, currentTenantName);
 
         try {
             fhirResourceStorage.delete("Slot", externalId);
-            log.info("Successfully deleted Slot in external storage with externalId={} for orgId={}", externalId, currentOrgId);
+            log.info("Successfully deleted Slot in external storage with externalId={} for orgId={}", externalId, currentTenantName);
         } catch (Exception e) {
-            log.error("Failed to delete Slot in external storage for orgId={}, externalId={}, error={}", currentOrgId, externalId, e.getMessage(), e);
+            log.error("Failed to delete Slot in external storage for orgId={}, externalId={}, error={}", currentTenantName, externalId, e.getMessage(), e);
             throw new RuntimeException("Failed to sync with external storage", e);
         }
     }
 
     @Transactional(readOnly = true)
     public List<SlotDto> searchAll() {
-        Long currentOrgId = requireOrg();
-        log.debug("Searching all Slots for orgId={}", currentOrgId);
+        String currentTenantName = requireTenantName();
+        log.debug("Searching all Slots for orgId={}", currentTenantName);
 
         List<Slot> slots = fhirResourceStorage.searchAll(Slot.class);
-        log.debug("Retrieved {} Slots from external storage for orgId={}", slots.size(), currentOrgId);
+        log.debug("Retrieved {} Slots from external storage for orgId={}", slots.size(), currentTenantName);
 
         List<SlotDto> dtos = slots.stream().map(this::fromFhir).collect(Collectors.toList());
-        log.info("Returning {} SlotDtos for orgId={}", dtos.size(), currentOrgId);
+        log.info("Returning {} SlotDtos for orgId={}", dtos.size(), currentTenantName);
         return dtos;
     }
 
@@ -135,13 +135,13 @@ public class FhirExternalSlotStorage implements ExternalSlotStorage {
 
     /* --- Mapping --- */
 
-    private Long requireOrg() {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        if (orgId == null) {
-            log.warn("orgId is null in RequestContext");
-            throw new SecurityException("No orgId available in request context");
+    private String requireTenantName() {
+        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
+        if (tenantName == null) {
+            log.warn("tenantName is null in RequestContext");
+            throw new SecurityException("No tenantName available in request context");
         }
-        return orgId;
+        return tenantName;
     }
 
     private Slot toFhir(SlotDto dto) {
@@ -178,11 +178,11 @@ public class FhirExternalSlotStorage implements ExternalSlotStorage {
         }
 
         // ⬇️ Add this block at the end of toFhir()
-        Long currentOrgId = requireOrg();
+        String currentTenantName = requireTenantName();
         slot.getMeta().addTag()
                 .setSystem("http://ciyex.org/tenant")
-                .setCode(currentOrgId.toString())
-                .setDisplay("Tenant Org " + currentOrgId);
+                .setCode(currentTenantName)
+                .setDisplay("Tenant Org " + currentTenantName);
         return slot;
     }
 
@@ -192,7 +192,7 @@ public class FhirExternalSlotStorage implements ExternalSlotStorage {
 
         SlotDto dto = new SlotDto();
         dto.setExternalId(externalId);
-        dto.setOrgId(RequestContext.get() != null ? RequestContext.get().getOrgId() : null);
+        dto.setTenantName(RequestContext.get() != null ? RequestContext.get().getTenantName() : null);
 
         if (s.hasStart()) {
             String start = ZonedDateTime.ofInstant(s.getStart().toInstant(), ZoneId.systemDefault())

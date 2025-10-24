@@ -1,9 +1,9 @@
 package com.qiaben.ciyex.service.notification;
 
 import com.qiaben.ciyex.dto.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.dto.integration.SmtpConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.util.TenantContextUtil;
 
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
@@ -24,8 +24,12 @@ public class EmailNotificationService {
     }
 
     public void sendEmail(String to, String subject, String body) {
-        Long orgId = RequestContext.get().getOrgId();
-        SmtpConfig smtp = configProvider.get(orgId, IntegrationKey.SMTP);
+        String tenantName = TenantContextUtil.getTenantName();
+        SmtpConfig smtp = configProvider.getForCurrentTenant(IntegrationKey.SMTP);
+        // Log helpful context
+        if (tenantName == null) {
+            log.warn("Email send attempted with no tenantName in context");
+        }
 
         // --- Apply safe defaults if DB has only server/username/password ---
         String host = smtp.getServer() != null ? smtp.getServer() : "smtp.sendgrid.net";

@@ -31,23 +31,23 @@ public class CiyexAppConfig {
     public RestClient restClient(OrgIntegrationConfigProvider integrationConfigProvider) {
         return RestClient.builder()
                 .requestInterceptor((request, body, execution) -> {
-                    FhirConfig fhirConfig = integrationConfigProvider.getForCurrentOrg(IntegrationKey.FHIR);
+                    FhirConfig fhirConfig = integrationConfigProvider.getForCurrentTenant(IntegrationKey.FHIR);
                     String fhirApiUrl = fhirConfig.getApiUrl(); // this is the actual String you need
 
                     String reqUrl = request.getURI().toString();
                     if (reqUrl.startsWith(fhirApiUrl)) {
-                        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-                        if (orgId == null) {
-                            throw new IllegalStateException("No orgId found in RequestContext for FHIR request to: " + reqUrl);
+                        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
+                        if (tenantName == null || tenantName.isBlank()) {
+                            throw new IllegalStateException("No tenantName found in RequestContext for FHIR request to: " + reqUrl);
                         }
-                        URI uriWithOrgId = UriComponentsBuilder.fromUri(request.getURI())
-                                .queryParam("_tag", orgId)
+                        URI uriWithTenant = UriComponentsBuilder.fromUri(request.getURI())
+                                .queryParam("_tag", tenantName)
                                 .build(true)
                                 .toUri();
                         HttpRequestWrapper wrapper = new HttpRequestWrapper(request) {
                             @Override
                             public URI getURI() {
-                                return uriWithOrgId;
+                                return uriWithTenant;
                             }
                         };
                         return execution.execute(wrapper, body);

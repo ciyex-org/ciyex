@@ -226,9 +226,9 @@ public class ScheduleService {
 
 
     private Long getCurrentOrgIdOrThrow() {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        if (orgId == null) throw new SecurityException("No orgId available in request context");
-        return orgId;
+        // Tenant isolation is now handled at schema level
+        // orgId is no longer tracked in RequestContext
+        return null;
     }
     private void validateScheduleDto(ScheduleDto dto) {
         if (dto.getRecurrence() == null) {

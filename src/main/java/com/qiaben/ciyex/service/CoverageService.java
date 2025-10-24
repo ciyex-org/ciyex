@@ -2,7 +2,6 @@ package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.CoverageDto;
 import com.qiaben.ciyex.dto.InsuranceCompanyDto;
-import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.entity.Coverage;
 import com.qiaben.ciyex.entity.InsuranceCompany;
 import com.qiaben.ciyex.repository.CoverageRepository;
@@ -31,9 +30,7 @@ public class CoverageService {
 
     @Transactional
     public CoverageDto create(CoverageDto dto) {
-        Long orgId = getCurrentOrgIdOrThrow("create");
-        dto.setOrgId(orgId); // enforce header value
-
+        // orgId deprecated; tenantName-based isolation handled at schema level.
         Coverage coverage = mapToEntity(dto);
 
         // Attach insurance company only if the client provided it
@@ -52,21 +49,18 @@ public class CoverageService {
 
     @Transactional(readOnly = true)
     public CoverageDto getById(Long id) {
-        Long orgId = getCurrentOrgIdOrThrow("getById");
         Coverage coverage = coverageRepository
-                .findByIdAndOrgIdText(String.valueOf(id), String.valueOf(orgId))
+                .findById(id)
                 .orElseThrow(() -> new RuntimeException("Coverage not found with id: " + id));
         return mapToDto(coverage);
     }
 
     @Transactional
     public CoverageDto update(Long id, CoverageDto dto) {
-        Long orgId = getCurrentOrgIdOrThrow("update");
         Coverage coverage = coverageRepository
-                .findByIdAndOrgIdText(String.valueOf(id), String.valueOf(orgId))
+                .findById(id)
                 .orElseThrow(() -> new RuntimeException("Coverage not found with id: " + id));
 
-        dto.setOrgId(orgId);
         updateEntityFromDto(coverage, dto);
 
         // If payload mentions insurance company, reflect that; if null object provided, detach
@@ -87,17 +81,15 @@ public class CoverageService {
 
     @Transactional
     public void delete(Long id) {
-        Long orgId = getCurrentOrgIdOrThrow("delete");
         Coverage coverage = coverageRepository
-                .findByIdAndOrgIdText(String.valueOf(id), String.valueOf(orgId))
+                .findById(id)
                 .orElseThrow(() -> new RuntimeException("Coverage not found with id: " + id));
         coverageRepository.delete(coverage);
     }
 
     @Transactional(readOnly = true)
     public List<CoverageDto> getAllCoverages() {
-        Long orgId = getCurrentOrgIdOrThrow("getAllCoverages");
-        List<Coverage> coverages = coverageRepository.findAllByOrgIdText(String.valueOf(orgId));
+        List<Coverage> coverages = coverageRepository.findAll();
         return coverages.stream().map(this::mapToDto).collect(Collectors.toList());
     }
 
@@ -105,23 +97,18 @@ public class CoverageService {
 
     @Transactional(readOnly = true)
     public CoverageDto getByIdAndPatientId(Long id, Long patientId) {
-        Long orgId = getCurrentOrgIdOrThrow("getByIdAndPatientId");
         Coverage coverage = coverageRepository
-                .findByIdAndPatientIdAndOrgIdText(String.valueOf(id), String.valueOf(patientId), String.valueOf(orgId))
-                .orElseThrow(() ->
-                        new RuntimeException("Coverage not found for id=" + id + ", patientId=" + patientId));
+                .findById(id)
+                .orElseThrow(() -> new RuntimeException("Coverage not found for id=" + id + ", patientId=" + patientId));
         return mapToDto(coverage);
     }
 
     @Transactional
     public CoverageDto updateByIdAndPatientId(Long id, Long patientId, CoverageDto dto) {
-        Long orgId = getCurrentOrgIdOrThrow("updateByIdAndPatientId");
         Coverage coverage = coverageRepository
-                .findByIdAndPatientIdAndOrgIdText(String.valueOf(id), String.valueOf(patientId), String.valueOf(orgId))
-                .orElseThrow(() ->
-                        new RuntimeException("Coverage not found for id=" + id + ", patientId=" + patientId));
+                .findById(id)
+                .orElseThrow(() -> new RuntimeException("Coverage not found for id=" + id + ", patientId=" + patientId));
 
-        dto.setOrgId(orgId);
         updateEntityFromDto(coverage, dto);
 
         if (dto.getInsuranceCompany() != null) {
@@ -141,24 +128,20 @@ public class CoverageService {
 
     @Transactional
     public void deleteByIdAndPatientId(Long id, Long patientId) {
-        Long orgId = getCurrentOrgIdOrThrow("deleteByIdAndPatientId");
         Coverage coverage = coverageRepository
-                .findByIdAndPatientIdAndOrgIdText(String.valueOf(id), String.valueOf(patientId), String.valueOf(orgId))
-                .orElseThrow(() ->
-                        new RuntimeException("Coverage not found for id=" + id + ", patientId=" + patientId));
+                .findById(id)
+                .orElseThrow(() -> new RuntimeException("Coverage not found for id=" + id + ", patientId=" + patientId));
         coverageRepository.delete(coverage);
     }
 
     // ---- helpers ----
 
-    private Long getCurrentOrgIdOrThrow(String op) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        if (orgId == null) throw new SecurityException("No orgId in RequestContext during " + op);
-        return orgId;
-    }
+    // orgId deprecated: tenant isolation via schema. Method retained for backward compatibility.
+    // getCurrentOrgIdOrThrow retained for legacy callers; returns placeholder since orgId deprecated.
+    private Long getCurrentOrgIdOrThrow(String op) { return -1L; }
 
     private Coverage mapToEntity(CoverageDto dto) {
-        return Coverage.builder()
+    return Coverage.builder()
                 .externalId(dto.getExternalId())
                 .coverageType(dto.getCoverageType())
                 .planName(dto.getPlanName())
@@ -166,7 +149,6 @@ public class CoverageService {
                 .coverageStartDate(dto.getCoverageStartDate())
                 .coverageEndDate(dto.getCoverageEndDate())
                 .patientId(dto.getPatientId())
-                .orgId(dto.getOrgId())
                 .provider(dto.getProvider())
                 .effectiveDate(dto.getEffectiveDate())
                 .effectiveDateEnd(dto.getEffectiveDateEnd())
@@ -202,7 +184,7 @@ public class CoverageService {
         dto.setCoverageStartDate(coverage.getCoverageStartDate());
         dto.setCoverageEndDate(coverage.getCoverageEndDate());
         dto.setPatientId(coverage.getPatientId());
-        dto.setOrgId(coverage.getOrgId());
+    // orgId removed from DTO
         dto.setProvider(coverage.getProvider());
         dto.setEffectiveDate(coverage.getEffectiveDate());
         dto.setEffectiveDateEnd(coverage.getEffectiveDateEnd());
@@ -253,7 +235,7 @@ public class CoverageService {
         if (dto.getCoverageStartDate() != null) coverage.setCoverageStartDate(dto.getCoverageStartDate());
         if (dto.getCoverageEndDate() != null) coverage.setCoverageEndDate(dto.getCoverageEndDate());
         if (dto.getPatientId() != null) coverage.setPatientId(dto.getPatientId());
-        if (dto.getOrgId() != null) coverage.setOrgId(dto.getOrgId());
+    // orgId removed from DTO
         if (dto.getProvider() != null) coverage.setProvider(dto.getProvider());
         if (dto.getEffectiveDate() != null) coverage.setEffectiveDate(dto.getEffectiveDate());
         if (dto.getEffectiveDateEnd() != null) coverage.setEffectiveDateEnd(dto.getEffectiveDateEnd());

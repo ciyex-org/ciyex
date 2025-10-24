@@ -40,7 +40,7 @@ public class FhirExternalReferralProviderStorage implements ExternalReferralProv
             entityDto.getAudit().setCreatedDate(java.time.LocalDate.now().toString());
             entityDto.getAudit().setLastModifiedDate(java.time.LocalDate.now().toString());
 
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             Organization fhirOrg = mapToFhirOrg(entityDto);
 
             // Create resource in FHIR
@@ -60,7 +60,7 @@ public class FhirExternalReferralProviderStorage implements ExternalReferralProv
             }
             entityDto.getAudit().setLastModifiedDate(java.time.LocalDate.now().toString());
 
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             Organization fhirOrg = mapToFhirOrg(entityDto);
             fhirOrg.setId(externalId);
 
@@ -75,7 +75,7 @@ public class FhirExternalReferralProviderStorage implements ExternalReferralProv
     @Override
     public ReferralProviderDto get(String externalId) {
         try {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             Organization fhirOrg = client.read().resource(Organization.class).withId(externalId).execute();
             return mapFromFhirOrg(fhirOrg);
         } catch (FhirClientConnectionException e) {
@@ -87,7 +87,7 @@ public class FhirExternalReferralProviderStorage implements ExternalReferralProv
     @Override
     public void delete(String externalId) {
         try {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             client.delete().resourceById("Organization", externalId).execute();
         } catch (FhirClientConnectionException e) {
             log.error("FHIR Client connection failed during delete operation: {}", e.getMessage());
@@ -98,7 +98,7 @@ public class FhirExternalReferralProviderStorage implements ExternalReferralProv
     @Override
     public List<ReferralProviderDto> searchAll() {
         try {
-            IGenericClient client = fhirClientProvider.getForCurrentOrg();
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             Bundle bundle = client.search().forResource(Organization.class).returnBundle(Bundle.class).execute();
             List<ReferralProviderDto> referralProviderDtos = new ArrayList<>();
             for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {

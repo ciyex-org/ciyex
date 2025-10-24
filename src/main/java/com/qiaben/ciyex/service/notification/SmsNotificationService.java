@@ -1,9 +1,9 @@
     package com.qiaben.ciyex.service.notification;
 
     import com.qiaben.ciyex.dto.integration.IntegrationKey;
-    import com.qiaben.ciyex.dto.integration.RequestContext;
     import com.qiaben.ciyex.dto.integration.TwilioConfig;
     import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+    import com.qiaben.ciyex.util.TenantContextUtil;
 
     import com.twilio.Twilio;
     import com.twilio.rest.api.v2010.account.Message;
@@ -21,8 +21,11 @@
         }
 
         public void sendSms(String to, String body) {
-            Long orgId = RequestContext.get().getOrgId();
-            TwilioConfig twilio = configProvider.get(orgId, IntegrationKey.TWILIO);
+            String tenantName = TenantContextUtil.getTenantName();
+            TwilioConfig twilio = configProvider.getForCurrentTenant(IntegrationKey.TWILIO);
+            if (tenantName == null) {
+                log.warn("SMS send attempted with no tenantName in context");
+            }
 
             Twilio.init(twilio.getAccountSid(), twilio.getAuthToken());
 

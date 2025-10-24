@@ -32,15 +32,16 @@ public class JitsiTelehealthService implements TelehealthService {
     public String startVideoCall(Long providerId, Long patientId, String roomName) {
         TelehealthConfig config = null;
         try {
-            Long orgId = getCurrentOrgId();
-            config = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
+            String tenantName = getCurrentTenantName();
+            config = configProvider.get(tenantName, IntegrationKey.TELEHEALTH);
         } catch (Exception e) {
             log.warn("Failed to get telehealth config, proceeding without config: {}", e.getMessage());
         }
 
         // For Jitsi, we don't need to create a room via API - rooms are created on-demand
         // We just return a unique room identifier that will be used for the meeting URL
-        String uniqueRoomName = generateUniqueRoomName(roomName, getCurrentOrgId(), providerId, patientId);
+        String tenantName = getCurrentTenantName();
+        String uniqueRoomName = generateUniqueRoomName(roomName, tenantName, providerId, patientId);
 
         log.info("Started Jitsi video call for roomName={}, providerId={}, patientId={}",
                 uniqueRoomName, providerId, patientId);
@@ -57,8 +58,8 @@ public class JitsiTelehealthService implements TelehealthService {
     public String createJoinToken(String roomName, String identity, Integer ttlSecs) {
         TelehealthConfig config = null;
         try {
-            Long orgId = getCurrentOrgId();
-            config = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
+            String tenantName = getCurrentTenantName();
+            config = configProvider.get(tenantName, IntegrationKey.TELEHEALTH);
         } catch (Exception e) {
             log.warn("Failed to get telehealth config, using defaults: {}", e.getMessage());
         }
@@ -123,10 +124,11 @@ public class JitsiTelehealthService implements TelehealthService {
     /**
      * Generate a unique room name that includes organization context
      */
-    private String generateUniqueRoomName(String baseRoomName, Long orgId, Long providerId, Long patientId) {
+    private String generateUniqueRoomName(String baseRoomName, String tenantName, Long providerId, Long patientId) {
         // Sanitize room name - Jitsi rooms should only contain alphanumeric characters and hyphens
         String sanitizedBase = baseRoomName.replaceAll("[^a-zA-Z0-9-]", "-");
-        return String.format("org%d-%s-p%d-pt%d", orgId, sanitizedBase, providerId, patientId);
+        String sanitizedTenant = tenantName != null ? tenantName.replaceAll("[^a-zA-Z0-9-]", "-") : "default";
+        return String.format("%s-%s-p%d-pt%d", sanitizedTenant, sanitizedBase, providerId, patientId);
     }
 
     /**
@@ -135,8 +137,8 @@ public class JitsiTelehealthService implements TelehealthService {
     public String getMeetingUrl(String roomName) {
         TelehealthConfig config = null;
         try {
-            Long orgId = getCurrentOrgId();
-            config = configProvider.get(orgId, IntegrationKey.TELEHEALTH);
+            String tenantName = getCurrentTenantName();
+            config = configProvider.get(tenantName, IntegrationKey.TELEHEALTH);
         } catch (Exception e) {
             log.warn("Failed to get telehealth config for meeting URL, using defaults: {}", e.getMessage());
         }
@@ -188,16 +190,17 @@ public class JitsiTelehealthService implements TelehealthService {
     }
 
     /**
-     * Get the current organization ID from RequestContext, with fallback for when context is not set.
+     * Get the current tenant name from RequestContext, with fallback for when context is not set.
      * This allows the service to work in scenarios where tenant context is not available (e.g., patient joins).
      */
-    private Long getCurrentOrgId() {
+    private String getCurrentTenantName() {
         try {
-            return RequestContext.get().getOrgId();
+            RequestContext rc = RequestContext.get();
+            return rc != null ? rc.getTenantName() : null;
         } catch (Exception e) {
-            // Fallback to default org ID when RequestContext is not available
-            log.debug("RequestContext not available, using default org ID for Jitsi configuration");
-            return 1L; // Default organization ID
+            // Fallback to default tenant when RequestContext is not available
+            log.debug("RequestContext not available, using default tenant for Jitsi configuration");
+            return "practice_1"; // Default tenant
         }
     }
 }

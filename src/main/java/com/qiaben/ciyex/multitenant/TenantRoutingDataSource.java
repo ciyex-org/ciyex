@@ -19,15 +19,15 @@ public class TenantRoutingDataSource extends AbstractRoutingDataSource {
     protected Object determineCurrentLookupKey() {
         RequestContext context = RequestContext.get();
         
-        if (context == null || context.getOrgId() == null) {
-            log.debug("No RequestContext or orgId found, using master datasource");
+        if (context == null || context.getTenantName() == null) {
+            log.debug("No RequestContext or tenantName found, using master datasource");
             return "master";
         }
-        
-        Long orgId = context.getOrgId();
-        String tenantKey = "practice_" + orgId;
-        
-        log.debug("Routing to tenant datasource: {}", tenantKey);
+        String tenantName = context.getTenantName();
+        String sanitized = tenantName.toLowerCase().replaceAll("[^a-z0-9]+", "_").replaceAll("^_|_$", "");
+        String tenantKey = "practice_" + sanitized;
+
+        log.debug("Routing to tenant datasource (tenantName={}): {}", tenantName, tenantKey);
         return tenantKey;
     }
 

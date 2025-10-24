@@ -26,8 +26,8 @@ public class TenantSchemaManager {
     
     public void executeWithTenantSchema(Runnable operation) {
         RequestContext context = RequestContext.get();
-        if (context != null && context.getOrgId() != null) {
-            String schemaName = "practice_" + context.getOrgId();
+        if (context != null && context.getTenantName() != null) {
+            String schemaName = generateSchemaName(context.getTenantName());
             
             try {
                 // Create schema using a separate connection so it doesn't participate in caller's txn
@@ -58,8 +58,8 @@ public class TenantSchemaManager {
     
     public <T> T executeWithTenantSchema(Supplier<T> operation) {
         RequestContext context = RequestContext.get();
-        if (context != null && context.getOrgId() != null) {
-            String schemaName = "practice_" + context.getOrgId();
+        if (context != null && context.getTenantName() != null) {
+            String schemaName = generateSchemaName(context.getTenantName());
             
             try {
                 try (Connection conn = dataSource.getConnection()) {
@@ -87,9 +87,16 @@ public class TenantSchemaManager {
     
     public String getCurrentTenantSchema() {
         RequestContext context = RequestContext.get();
-        if (context != null && context.getOrgId() != null) {
-            return "practice_" + context.getOrgId();
+        if (context != null && context.getTenantName() != null) {
+            return generateSchemaName(context.getTenantName());
         }
         return "public";
+    }
+
+    private String generateSchemaName(String tenantName) {
+        if (tenantName == null || tenantName.isBlank()) return "public";
+        return tenantName.toLowerCase()
+                .replaceAll("[^a-z0-9]+", "_")
+                .replaceAll("^_|_$", "");
     }
 }

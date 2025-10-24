@@ -126,9 +126,9 @@ public class FhirExternalScheduleStorage implements ExternalScheduleStorage {
 
     /* ---------------- Helpers ---------------- */
 
-    private void requireOrg() {
-        if (RequestContext.get() == null || RequestContext.get().getOrgId() == null) {
-            throw new SecurityException("No orgId available in request context");
+    private void requireOrg() { // retains name for minimal change footprint
+        if (RequestContext.get() == null || RequestContext.get().getTenantName() == null) {
+            throw new SecurityException("No tenantName available in request context");
         }
     }
 
@@ -196,7 +196,8 @@ public class FhirExternalScheduleStorage implements ExternalScheduleStorage {
 
         ScheduleDto dto = new ScheduleDto();
         dto.setExternalId(a.getIdElement() != null ? a.getIdElement().getIdPart() : null);
-        dto.setOrgId(RequestContext.get() != null ? RequestContext.get().getOrgId() : null);
+    // orgId deprecated at context level; keep field null (will be removed in future refactor)
+    dto.setOrgId(null);
 
         // status
         dto.setStatus(a.getStatus() == Appointment.AppointmentStatus.CANCELLED ? "inactive" : "active");

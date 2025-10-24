@@ -20,7 +20,7 @@ public class FhirExternalPhysicalExamStorage implements ExternalPhysicalExamStor
 
     @Override
     public String create(PhysicalExamDto dto) {
-        // var client = fhirClientProvider.getForCurrentOrg();
+        // var client = fhirClientProvider.getForCurrentTenant();
         // TODO: Map each SectionDto to FHIR (Observation or Composition section); return external id.
         return null;
     }

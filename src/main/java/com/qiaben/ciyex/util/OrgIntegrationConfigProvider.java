@@ -19,16 +19,10 @@ import java.util.Map;
 @Component
 public class OrgIntegrationConfigProvider {
 
-    private final ObjectMapper objectMapper;
     private final KeycloakOrgService keycloakOrgService;
-    private final DataSource dataSource;
 
-    public OrgIntegrationConfigProvider(ObjectMapper objectMapper, 
-                                       KeycloakOrgService keycloakOrgService,
-                                       DataSource dataSource) {
-        this.objectMapper = objectMapper;
+    public OrgIntegrationConfigProvider(KeycloakOrgService keycloakOrgService) {
         this.keycloakOrgService = keycloakOrgService;
-        this.dataSource = dataSource;
     }
 
     /**
@@ -259,12 +253,7 @@ public class OrgIntegrationConfigProvider {
      */
     public String getStorageTypeForCurrentOrg() {
         try {
-            Long orgId = getCurrentOrgId();
-            if (orgId == null) {
-                return null;
-            }
-            
-            String tenantGroup = getTenantGroupForOrgId(orgId);
+            String tenantGroup = getCurrentTenant();
             return keycloakOrgService.getStorageType(tenantGroup);
         } catch (Exception e) {
             log.error("Failed to get storage type for current org", e);
@@ -277,12 +266,7 @@ public class OrgIntegrationConfigProvider {
      */
     public FhirConfig getFhirConfigForCurrentOrg() {
         try {
-            Long orgId = getCurrentOrgId();
-            if (orgId == null) {
-                return null;
-            }
-            
-            String tenantGroup = getTenantGroupForOrgId(orgId);
+            String tenantGroup = getCurrentTenant();
             Map<String, Object> attributes = keycloakOrgService.getAllAttributes(tenantGroup);
             
             FhirConfig config = new FhirConfig();
@@ -304,12 +288,7 @@ public class OrgIntegrationConfigProvider {
      */
     public StorageConfig getStorageConfigForCurrentOrg() {
         try {
-            Long orgId = getCurrentOrgId();
-            if (orgId == null) {
-                return null;
-            }
-            
-            String tenantGroup = getTenantGroupForOrgId(orgId);
+            String tenantGroup = getCurrentTenant();
             Map<String, Object> attributes = keycloakOrgService.getAllAttributes(tenantGroup);
             
             StorageConfig config = new StorageConfig();
@@ -334,16 +313,11 @@ public class OrgIntegrationConfigProvider {
      */
     public TelehealthConfig getTelehealthConfigForCurrentOrg() {
         try {
-            Long orgId = getCurrentOrgId();
-            if (orgId == null) {
-                return null;
-            }
-            
-            String tenantGroup = getTenantGroupForOrgId(orgId);
+            String tenantGroup = getCurrentTenant();
             Map<String, Object> attributes = keycloakOrgService.getAllAttributes(tenantGroup);
             
             TelehealthConfig config = new TelehealthConfig();
-            config.setOrgId(orgId);
+            //config.setOrgId(orgId);
             config.setVendor((String) attributes.get("telehealth_vendor"));
             
             // Telnyx Config
@@ -397,16 +371,11 @@ public class OrgIntegrationConfigProvider {
      */
     public AiConfig getAiConfigForCurrentOrg() {
         try {
-            Long orgId = getCurrentOrgId();
-            if (orgId == null) {
-                return null;
-            }
-            
-            String tenantGroup = getTenantGroupForOrgId(orgId);
+            String tenantGroup = getCurrentTenant();
             Map<String, Object> attributes = keycloakOrgService.getAllAttributes(tenantGroup);
             
             AiConfig config = new AiConfig();
-            config.setOrgId(orgId);
+            //config.setOrgId(orgId);
             config.setVendor((String) attributes.get("ai_vendor"));
             
             // Azure Config
@@ -474,12 +443,7 @@ public class OrgIntegrationConfigProvider {
      */
     public GpsConfig getGpsConfigForCurrentOrg() {
         try {
-            Long orgId = getCurrentOrgId();
-            if (orgId == null) {
-                return null;
-            }
-            
-            String tenantGroup = getTenantGroupForOrgId(orgId);
+String tenantGroup = getCurrentTenant();
             Map<String, Object> attributes = keycloakOrgService.getAllAttributes(tenantGroup);
             
             GpsConfig config = new GpsConfig();
@@ -502,12 +466,7 @@ public class OrgIntegrationConfigProvider {
      */
     public TwilioConfig getTwilioConfigForCurrentOrg() {
         try {
-            Long orgId = getCurrentOrgId();
-            if (orgId == null) {
-                return null;
-            }
-            
-            String tenantGroup = getTenantGroupForOrgId(orgId);
+String tenantGroup = getCurrentTenant();
             Map<String, Object> attributes = keycloakOrgService.getAllAttributes(tenantGroup);
             
             TwilioConfig config = new TwilioConfig();
@@ -525,9 +484,7 @@ public class OrgIntegrationConfigProvider {
     /**
      * Generic method to get configuration by integration key
      */
-    public <T> T get(Long orgId, IntegrationKey key) {
-        String tenantGroup = getTenantGroupForOrgId(orgId);
-        
+    public <T> T get(String tenantGroup, IntegrationKey key) {
         switch (key) {
             case FHIR:
                 return (T) getFhirConfig(tenantGroup);
@@ -549,12 +506,8 @@ public class OrgIntegrationConfigProvider {
     /**
      * Get configuration for current org by integration key
      */
-    public <T> T getForCurrentOrg(IntegrationKey key) {
-        Long orgId = getCurrentOrgId();
-        if (orgId == null) {
-            return null;
-        }
-        return get(orgId, key);
+    public <T> T getForCurrentTenant(IntegrationKey key) {
+        return get(getCurrentTenant(), key);
     }
     
     /**
@@ -569,12 +522,7 @@ public class OrgIntegrationConfigProvider {
      */
     public Map<String, Object> getStripeForCurrentOrg() {
         try {
-            Long orgId = getCurrentOrgId();
-            if (orgId == null) {
-                return null;
-            }
-            
-            String tenantGroup = getTenantGroupForOrgId(orgId);
+String tenantGroup = getCurrentTenant();
             return keycloakOrgService.getAllAttributes(tenantGroup);
         } catch (Exception e) {
             log.error("Failed to get Stripe config for current org", e);
@@ -587,7 +535,7 @@ public class OrgIntegrationConfigProvider {
      */
     public S3Config getS3DocumentStorage(Long orgId) {
         try {
-            String tenantGroup = getTenantGroupForOrgId(orgId);
+            String tenantGroup = getCurrentTenant();
             Map<String, Object> attributes = keycloakOrgService.getAllAttributes(tenantGroup);
             
             S3Config config = new S3Config();
@@ -661,15 +609,9 @@ public class OrgIntegrationConfigProvider {
     
     // Helper methods
     
-    private Long getCurrentOrgId() {
+    private String getCurrentTenant() {
         RequestContext context = RequestContext.get();
-        return context != null ? context.getOrgId() : null;
-    }
-    
-    private String getTenantGroupForOrgId(Long orgId) {
-        // Convert orgId to tenant group path
-        // This assumes tenant groups are named like "/Tenants/practice_1"
-        return "/Tenants/practice_" + orgId;
+        return context != null ? context.getTenantName() : null;
     }
 
     // Inner classes for backward compatibility

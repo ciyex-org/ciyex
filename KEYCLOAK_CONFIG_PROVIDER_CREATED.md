@@ -41,7 +41,7 @@ String fhirUrl = config.getServerUrl();
 
 ### Generic Methods:
 - `get(Long orgId, IntegrationKey key)` - Get config by integration key
-- `getForCurrentOrg(IntegrationKey key)` - Get config for current org
+- `getForCurrentTenant(IntegrationKey key)` - Get config for current org
 
 ### Backward Compatibility:
 - `getGpsForCurrentOrg()` - Alias for GPS config
