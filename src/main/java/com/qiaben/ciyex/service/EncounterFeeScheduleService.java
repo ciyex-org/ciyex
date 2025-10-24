@@ -33,7 +33,7 @@ public class EncounterFeeScheduleService {
     // ----- Schedules -----
     public FeeScheduleDto create(Long orgId, Long patientId, Long encounterId, FeeScheduleDto in) {
         EncounterFeeSchedule s = EncounterFeeSchedule.builder()
-                .orgId(orgId).patientId(patientId).encounterId(encounterId)
+                .patientId(patientId).encounterId(encounterId)
                 .name(in.getName())
                 .payer(in.getPayer())
                 .currency(in.getCurrency())
@@ -59,7 +59,7 @@ public class EncounterFeeScheduleService {
                 .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
 
         // optionally verify scope:
-        if (!s.getOrgId().equals(orgId) || !s.getPatientId().equals(patientId) || !s.getEncounterId().equals(encounterId))
+        if (!s.getPatientId().equals(patientId) || !s.getEncounterId().equals(encounterId))
             throw new IllegalArgumentException("Schedule not in this encounter scope");
 
         s.setName(in.getName());
@@ -84,7 +84,7 @@ public class EncounterFeeScheduleService {
         EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
                 .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
 
-        if (!s.getOrgId().equals(orgId) || !s.getPatientId().equals(patientId) || !s.getEncounterId().equals(encounterId))
+        if (!s.getPatientId().equals(patientId) || !s.getEncounterId().equals(encounterId))
             throw new IllegalArgumentException("Schedule not in this encounter scope");
 
         external.ifPresent(ext -> { if (s.getExternalId() != null) ext.delete(s.getExternalId()); });
@@ -94,7 +94,7 @@ public class EncounterFeeScheduleService {
     public FeeScheduleDto getOne(Long orgId, Long patientId, Long encounterId, Long scheduleId) {
         EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
                 .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
-        if (!s.getOrgId().equals(orgId) || !s.getPatientId().equals(patientId) || !s.getEncounterId().equals(encounterId))
+        if (!s.getPatientId().equals(patientId) || !s.getEncounterId().equals(encounterId))
             throw new IllegalArgumentException("Schedule not in this encounter scope");
         return mapScheduleToDto(s, true);
     }
@@ -175,7 +175,7 @@ public class EncounterFeeScheduleService {
     private FeeScheduleDto mapScheduleToDto(EncounterFeeSchedule s, boolean includeEntries) {
         FeeScheduleDto dto = new FeeScheduleDto();
         dto.setId(s.getId()); dto.setExternalId(s.getExternalId());
-        dto.setOrgId(s.getOrgId()); dto.setPatientId(s.getPatientId()); dto.setEncounterId(s.getEncounterId());
+        dto.setPatientId(s.getPatientId()); dto.setEncounterId(s.getEncounterId());
         dto.setName(s.getName()); dto.setPayer(s.getPayer()); dto.setCurrency(s.getCurrency());
         dto.setEffectiveFrom(s.getEffectiveFrom()); dto.setEffectiveTo(s.getEffectiveTo());
         dto.setStatus(s.getStatus()); dto.setNotes(s.getNotes());
@@ -201,7 +201,7 @@ public class EncounterFeeScheduleService {
     }
 
     private void verifyScope(EncounterFeeSchedule s, Long orgId, Long patientId, Long encounterId) {
-        if (!s.getOrgId().equals(orgId) || !s.getPatientId().equals(patientId) || !s.getEncounterId().equals(encounterId))
+        if ( !s.getPatientId().equals(patientId) || !s.getEncounterId().equals(encounterId))
             throw new IllegalArgumentException("Resource not in this encounter scope");
     }
 }

@@ -175,7 +175,6 @@ public class DateTimeFinalizedService {
     // Create
     public DateTimeFinalizedDto create(Long orgId, Long patientId, Long encounterId, DateTimeFinalizedDto dto) {
         DateTimeFinalized e = new DateTimeFinalized();
-        e.setOrgId(orgId);
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
         applyDto(e, dto);
@@ -308,7 +307,6 @@ public class DateTimeFinalizedService {
         DateTimeFinalizedDto d = new DateTimeFinalizedDto();
         d.setId(e.getId());
         d.setExternalId(e.getExternalId());
-        d.setOrgId(e.getOrgId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
         d.setTargetType(e.getTargetType());

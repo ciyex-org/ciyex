@@ -32,8 +32,7 @@ public class PortalUserDto {
     private String securityQuestion;
     private String securityAnswer;
     private String uuid;
-
-    private Long orgId;      // ✅ always return orgId
+      // ✅ always return orgId
     private String orgName;  // ✅ always return orgName
 
     private String role;     // "PATIENT"
@@ -46,7 +45,6 @@ public class PortalUserDto {
                 .lastName(user.getLastName())
                 .phoneNumber(user.getPhoneNumber())
                 .uuid(user.getUuid() != null ? user.getUuid().toString() : null)
-                .orgId(user.getOrgId())
                 .role("PATIENT") // Portal users are always patients
                 .build();
     }

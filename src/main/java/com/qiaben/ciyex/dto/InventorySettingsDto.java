@@ -8,7 +8,6 @@ import lombok.*;
 @Builder
 public class InventorySettingsDto {
     private Long id;
-    private Long orgId;
     private boolean lowStockAlerts;
     private boolean autoReorderSuggestions;
     private int criticalLowPercentage;

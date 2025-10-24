@@ -66,7 +66,6 @@ public class EncounterBrowserService {
         // IDs & scope
         dto.setId(e.getId());
         dto.setPatientId(e.getPatientId());
-        dto.setOrgId(e.getOrgId());
 
         // Core encounter info
         dto.setVisitCategory(e.getVisitCategory());               // e.g., "OPD", "ER"

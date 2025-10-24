@@ -35,9 +35,6 @@ public class MaintenanceService {
 
     @Transactional
     public MaintenanceDto create(MaintenanceDto dto) {
-        Long orgId = getCurrentOrgId();
-        dto.setOrgId(orgId);
-
         Maintenance maintenance = mapToEntity(dto);
         maintenance.setCreatedDate(LocalDateTime.now().toString());
         maintenance.setLastModifiedDate(LocalDateTime.now().toString());
@@ -87,7 +84,7 @@ public class MaintenanceService {
 
     @Transactional(readOnly = true)
     public List<MaintenanceDto> getAll() {
-        return repository.findByOrgId(getCurrentOrgId())
+        return repository.findAll()
                 .stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
@@ -95,7 +92,7 @@ public class MaintenanceService {
 
     @Transactional(readOnly = true)
     public Page<MaintenanceDto> getAll(Pageable pageable) {
-        return repository.findAllByOrgId(getCurrentOrgId(), pageable)
+        return repository.findAll(pageable)
                 .map(this::mapToDto);
     }
 
@@ -112,7 +109,6 @@ public class MaintenanceService {
     private Maintenance mapToEntity(MaintenanceDto dto) {
         return Maintenance.builder()
                 .id(dto.getId())
-                .orgId(dto.getOrgId())
                 .equipment(dto.getEquipment())
                 .category(dto.getCategory())
                 .location(dto.getLocation())
@@ -129,7 +125,6 @@ public class MaintenanceService {
     private MaintenanceDto mapToDto(Maintenance maintenance) {
         MaintenanceDto dto = new MaintenanceDto();
         dto.setId(maintenance.getId());
-        dto.setOrgId(maintenance.getOrgId());
         dto.setEquipment(maintenance.getEquipment());
         dto.setCategory(maintenance.getCategory());
         dto.setLocation(maintenance.getLocation());
@@ -142,9 +137,5 @@ public class MaintenanceService {
         dto.setNotes(maintenance.getNotes());
         dto.setFhirId(maintenance.getExternalId());
         return dto;
-    }
-
-    private Long getCurrentOrgId() {
-        return RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
     }
 }

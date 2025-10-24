@@ -172,7 +172,6 @@ public class CodeService {
     // CREATE
     public CodeDto create(Long orgId, Long patientId, Long encounterId, CodeDto dto) {
         Code e = new Code();
-        e.setOrgId(orgId);
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
         applyDto(e, dto);
@@ -315,7 +314,6 @@ public class CodeService {
         CodeDto d = new CodeDto();
         d.setId(e.getId());
         d.setExternalId(e.getExternalId());
-        d.setOrgId(e.getOrgId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
 

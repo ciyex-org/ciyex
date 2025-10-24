@@ -5,7 +5,6 @@ import lombok.Data;
 @Data
 public class MaintenanceDto {
     private Long id;
-    private Long orgId;
 
     private String equipment;
     private String category;   // Preventive, Corrective, Calibration, Cleaning

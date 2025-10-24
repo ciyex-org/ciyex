@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.DocumentSettingsDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.entity.DocumentSettings;
 import com.qiaben.ciyex.repository.DocumentSettingsRepo;
 import lombok.RequiredArgsConstructor;
@@ -45,10 +46,9 @@ public class DocumentSettingsService {
      */
     @Transactional
     public DocumentSettingsDto save(DocumentSettingsDto dto, String updatedBy) {
-        DocumentSettings entity = repository.findByOrgId(dto.getOrgId())
-                .orElse(new DocumentSettings());
+        //TODO: Fix
+        DocumentSettings entity = repository.findAll().get(0);
         
-        entity.setOrgId(dto.getOrgId());
         entity.setMaxUploadBytes(dto.getMaxUploadSizeMB() * 1024L * 1024L);
         entity.setEnableAudio(dto.isEnableAudio());
         entity.setEncryptionEnabled(dto.isEncryptionEnabled());
@@ -114,7 +114,6 @@ public class DocumentSettingsService {
 
     private DocumentSettings createDefaultSettings(Long orgId) {
         DocumentSettings settings = new DocumentSettings();
-        settings.setOrgId(orgId);
         settings.setMaxUploadBytes(10 * 1024 * 1024); // 10 MB default
         settings.setEnableAudio(false);
         settings.setEncryptionEnabled(false);
@@ -138,7 +137,6 @@ public class DocumentSettingsService {
 
     private DocumentSettingsDto toDto(DocumentSettings entity) {
         DocumentSettingsDto dto = new DocumentSettingsDto();
-        dto.setOrgId(entity.getOrgId());
         dto.setMaxUploadSizeMB((int) (entity.getMaxUploadBytes() / (1024 * 1024)));
         dto.setEnableAudio(entity.isEnableAudio());
         dto.setEncryptionEnabled(entity.isEncryptionEnabled());

@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.storage.fhir;
 
 import com.qiaben.ciyex.dto.FeeScheduleDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.provider.FhirClientProvider;
 import com.qiaben.ciyex.storage.ExternalEncounterFeeScheduleStorage;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +20,7 @@ public class FhirExternalEncounterFeeScheduleStorage implements ExternalEncounte
     @Override
     public String create(FeeScheduleDto dto) {
         log.info("FHIR EncounterFeeSchedule create org={}, patient={}, enc={}, name={}",
-                dto.getOrgId(), dto.getPatientId(), dto.getEncounterId(), dto.getName());
+                RequestContext.get().getTenantName(), dto.getPatientId(), dto.getEncounterId(), dto.getName());
         // Map to FHIR ChargeItemDefinition or Contract (encounter-scoped) as per your design
         return null;
     }

@@ -13,7 +13,6 @@ import java.time.LocalDateTime;
 @Builder
 public class InvoiceBillDto {
     private Long id;
-    private Long orgId;
     private Long userId;
     private Long subscriptionId;
 

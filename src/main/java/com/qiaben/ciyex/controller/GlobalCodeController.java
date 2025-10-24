@@ -22,16 +22,15 @@ public class GlobalCodeController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<GlobalCodeDto>>> getAll(
             @RequestHeader("orgId") Long orgId) {
-        var list = service.getAll(orgId);
+        var list = service.getAll();
         return ResponseEntity.ok(ApiResponse.<List<GlobalCodeDto>>builder()
                 .success(true).message("Codes fetched").data(list).build());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<GlobalCodeDto>> getOne(
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
-        var dto = service.getOne(orgId, id);
+            @PathVariable Long id){
+        var dto = service.getOne(id);
         return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
                 .success(true).message("Code fetched").data(dto).build());
     }
@@ -48,18 +47,16 @@ public class GlobalCodeController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<GlobalCodeDto>> update(
             @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId,
             @Valid @RequestBody GlobalCodeDto dto) {
-        var updated = service.update(orgId, id, dto);
+        var updated = service.update( id, dto);
         return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
                 .success(true).message("Code updated").data(updated).build());
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
-        service.delete(orgId, id);
+            @PathVariable Long id) {
+        service.delete(id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .success(true).message("Code deleted").build());
     }

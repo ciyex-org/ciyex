@@ -24,7 +24,7 @@
 //    @GeneratedValue(strategy = GenerationType.IDENTITY)
 //    private Long id;
 //
-//    @Column(name = "org_id", nullable = false)
+//    
 //    private Long orgId;
 //
 //    @Column(name = "patient_id", nullable = false)
@@ -121,7 +121,7 @@ public class Plan {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "org_id", nullable = false)     private Long orgId;
+         private Long orgId;
     @Column(name = "patient_id", nullable = false) private Long patientId;
     @Column(name = "encounter_id", nullable = false) private Long encounterId;
 

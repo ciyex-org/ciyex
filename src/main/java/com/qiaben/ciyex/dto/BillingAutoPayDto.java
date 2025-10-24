@@ -10,7 +10,6 @@ import java.time.LocalDate;
 @Builder
 public class BillingAutoPayDto {
     private Long id;
-    private Long orgId;
     private Long userId;
     private Boolean enabled;
     private LocalDate startDate;

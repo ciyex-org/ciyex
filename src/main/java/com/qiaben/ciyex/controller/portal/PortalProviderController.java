@@ -42,11 +42,9 @@ public class PortalProviderController {
             
             // Set tenant context from JWT token
             setRequestContextOrg(request);
-            Long orgId = RequestContext.get().getOrgId();
-            
+
             // Use TenantAwareService to ensure proper schema switching
-            List<Provider> providers = tenantAwareService.executeInTenantContext(orgId, 
-                () -> providerRepository.findAll());
+            List<Provider> providers = null;
             List<ProviderDto> providerDtos = providers.stream()
                     .map(this::convertToDto)
                     .collect(Collectors.toList());

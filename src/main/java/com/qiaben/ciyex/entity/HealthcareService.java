@@ -16,8 +16,7 @@ public class HealthcareService {
     private String name;
     private String description;
     private String location;
-    private String type;
-    private Long orgId; // Organization ID for multi-tenancy
+    private String type; // Organization ID for multi-tenancy
     private String hoursOfOperation; // Working hours
 
     // Other necessary fields

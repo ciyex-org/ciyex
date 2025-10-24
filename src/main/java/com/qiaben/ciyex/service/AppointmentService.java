@@ -45,11 +45,7 @@ public class AppointmentService {
     // -------- Create --------
     @Transactional
     public AppointmentDTO create(AppointmentDTO dto) {
-        Long orgId = getCurrentOrgId();
-        if (orgId == null) throw new SecurityException("No orgId available in request context");
-
         Appointment entity = mapToEntity(dto);
-        entity.setOrgId(orgId);
         entity.setCreatedDate(LocalDateTime.now().toString());
         entity.setLastModifiedDate(LocalDateTime.now().toString());
 
@@ -62,35 +58,39 @@ public class AppointmentService {
     // -------- Retrieve --------
     @Transactional(readOnly = true)
     public AppointmentDTO getById(Long id) {
-        Long orgId = getCurrentOrgId();
-        Appointment entity = repository.findByIdAndOrgId(id, orgId)
+/*        Appointment entity = repository.findByIdAndOrgId(id)
                 .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
-        return mapToDto(entity);
+        return mapToDto(entity);*/
+        return null;
     }
 
     @Transactional(readOnly = true)
     public Page<AppointmentDTO> getAll(Pageable pageable) {
-        Long orgId = getCurrentOrgId();
+        return null;
+/*
         return repository.findAllByOrgId(orgId, pageable).map(this::mapToDto);
+*/
     }
 
     @Transactional(readOnly = true)
     public List<AppointmentDTO> getByPatientId(Long patientId) {
-        Long orgId = getCurrentOrgId();
-        return repository.findAllByPatientIdAndOrgId(patientId, orgId)
-                .stream().map(this::mapToDto).toList();
+/*        return repository.findAllByPatientIdAndOrgId(patientId, orgId)
+                .stream().map(this::mapToDto).toList();*/
+        return null;
     }
 
     @Transactional(readOnly = true)
     public Page<AppointmentDTO> getByPatientId(Long patientId, Pageable pageable) {
-        Long orgId = getCurrentOrgId();
+        return null;
+        /*
         return repository.findAllByPatientIdAndOrgId(patientId, orgId, pageable).map(this::mapToDto);
+*/
     }
 
     // -------- Update --------
     @Transactional
     public AppointmentDTO update(Long id, AppointmentDTO dto) {
-        Long orgId = getCurrentOrgId();
+/*        Long orgId = getCurrentOrgId();
         Appointment entity = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
 
@@ -100,18 +100,20 @@ public class AppointmentService {
         entity = repository.save(entity);
         syncExternalUpdate(entity, dto);
 
-        return mapToDto(entity);
+        return mapToDto(entity);*/
+        return null;
     }
 
     // -------- Delete --------
     @Transactional
     public void delete(Long id) {
-        Long orgId = getCurrentOrgId();
+ /*       Long orgId = getCurrentOrgId();
         Appointment entity = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
 
         syncExternalDelete(entity);
-        repository.delete(entity);
+        repository.delete(entity);*/
+
     }
 
     // -------- First Available Slots --------
@@ -123,7 +125,7 @@ public class AppointmentService {
     // -------- Available Slots: N days ahead --------
     @Transactional(readOnly = true)
     public List<AppointmentDTO> getAvailableSlots(Long providerId, int daysAhead, int limit) {
-        Long orgId = getCurrentOrgId();
+        /*Long orgId = getCurrentOrgId();
         if (orgId == null) throw new SecurityException("No orgId available in request context");
 
         List<AppointmentDTO> slots = new ArrayList<>();
@@ -133,16 +135,18 @@ public class AppointmentService {
             LocalDate date = today.plusDays(i);
             slots.addAll(generateSlotsForDate(providerId, orgId, date, limit - slots.size()));
         }
-        return slots.stream().limit(limit).toList();
+        return slots.stream().limit(limit).toList();*/
+        return null;
     }
 
     // -------- Available Slots: Single Date --------
     @Transactional(readOnly = true)
     public List<AppointmentDTO> getAvailableSlotsForDate(Long providerId, LocalDate date, int limit) {
-        Long orgId = getCurrentOrgId();
+        /*Long orgId = getCurrentOrgId();
         if (orgId == null) throw new SecurityException("No orgId available in request context");
 
-        return generateSlotsForDate(providerId, orgId, date, limit);
+        return generateSlotsForDate(providerId, orgId, date, limit);*/
+        return null;
     }
 
     // -------- Slot Generator --------
@@ -180,7 +184,6 @@ public class AppointmentService {
                 if (!booked) {
                     AppointmentDTO slot = new AppointmentDTO();
                     slot.setProviderId(providerId);
-                    slot.setOrgId(orgId);
                     slot.setAppointmentStartDate(date);
                     slot.setAppointmentEndDate(date);
                     slot.setAppointmentStartTime(slotStart);
@@ -202,11 +205,12 @@ public class AppointmentService {
 
     @Transactional(readOnly = true)
     public long count() {
-        Long orgId = getCurrentOrgId();
+       /* Long orgId = getCurrentOrgId();
         if (orgId == null) {
             throw new SecurityException("No orgId available in request context");
         }
-        return repository.countByOrgId(orgId);
+        return repository.countByOrgId(orgId);*/
+        return -1;
     }
 
     // -------- Mapping Helpers --------
@@ -232,7 +236,6 @@ public class AppointmentService {
     private AppointmentDTO mapToDto(Appointment entity) {
         AppointmentDTO dto = new AppointmentDTO();
         dto.setId(entity.getId());
-        dto.setOrgId(entity.getOrgId());
         dto.setVisitType(entity.getVisitType());
         dto.setPatientId(entity.getPatientId());
         dto.setProviderId(entity.getProviderId());
@@ -273,9 +276,6 @@ public class AppointmentService {
         // if (dto.getMeetingUrl() != null) entity.setMeetingUrl(dto.getMeetingUrl());
     }
 
-    private Long getCurrentOrgId() {
-        return RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-    }
 
     // -------- External Sync Methods --------
     private void syncExternalCreate(Appointment entity) {
@@ -324,7 +324,7 @@ public class AppointmentService {
     // =========================================================
     @Transactional
     public AppointmentDTO updateStatus(Long id, String newStatus) {
-        Long orgId = getCurrentOrgId();
+        /*Long orgId = getCurrentOrgId();
         Appointment entity = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id + " for org " + orgId));
 
@@ -353,6 +353,7 @@ public class AppointmentService {
             }
         }
 
-        return mapToDto(entity);
+        return mapToDto(entity);*/
+        return null;
     }
 }

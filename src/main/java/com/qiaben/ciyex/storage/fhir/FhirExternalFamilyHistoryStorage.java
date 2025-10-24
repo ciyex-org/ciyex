@@ -21,7 +21,7 @@ public class FhirExternalFamilyHistoryStorage implements ExternalFamilyHistorySt
     @Override
     public String create(FamilyHistoryDto dto) {
         log.info("FHIR FH create patientId={}, encounterId={}", dto.getPatientId(), dto.getEncounterId());
-        // var client = fhirClientProvider.getForCurrentTenant(); // or getForOrg(dto.getOrgId())
+        // var client = fhirClientProvider.getForCurrentTenant(); // or getForOrg(RequestContext.get().getTenantName())
         // TODO: Map DTO -> FHIR FamilyMemberHistory resources (one per Entry) and return a bundle id or first id
         return null;
     }

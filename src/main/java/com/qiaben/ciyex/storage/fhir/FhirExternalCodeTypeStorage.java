@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.storage.fhir;
 
 import com.qiaben.ciyex.dto.CodeTypeDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.provider.FhirClientProvider;
 import com.qiaben.ciyex.storage.ExternalStorage;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +20,7 @@ public class FhirExternalCodeTypeStorage implements ExternalStorage<CodeTypeDto>
     @Override
     public String create(CodeTypeDto dto) {
         log.info("FHIR CodeType create: org={}, patient={}, encounter={}, key={}, id={}, label={}",
-                dto.getOrgId(), dto.getPatientId(), dto.getEncounterId(),
+                RequestContext.get().getTenantName(), dto.getPatientId(), dto.getEncounterId(),
                 dto.getCodeTypeKey(), dto.getCodeTypeId(), dto.getLabel());
         // TODO: Map dto -> FHIR CodeSystem or ValueSet
         return null; // return generated externalId
@@ -28,7 +29,7 @@ public class FhirExternalCodeTypeStorage implements ExternalStorage<CodeTypeDto>
     @Override
     public void update(CodeTypeDto dto, String externalId) {
         log.info("FHIR CodeType update: externalId={}, org={}, patient={}, encounter={}, key={}, id={}, label={}",
-                externalId, dto.getOrgId(), dto.getPatientId(), dto.getEncounterId(),
+                externalId, RequestContext.get().getTenantName(), dto.getPatientId(), dto.getEncounterId(),
                 dto.getCodeTypeKey(), dto.getCodeTypeId(), dto.getLabel());
         // TODO: implement update
     }

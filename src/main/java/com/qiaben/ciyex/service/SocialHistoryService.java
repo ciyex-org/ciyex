@@ -184,7 +184,6 @@ public class SocialHistoryService {
     // CREATE (container + entries)
     public SocialHistoryDto create(Long orgId, Long patientId, Long encounterId, SocialHistoryDto dto) {
         SocialHistory e = new SocialHistory();
-        e.setOrgId(orgId);
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
         applyEntries(e, dto.getEntries());
@@ -314,7 +313,6 @@ public class SocialHistoryService {
         SocialHistoryDto d = new SocialHistoryDto();
         d.setId(e.getId());
         d.setExternalId(e.getExternalId());
-        d.setOrgId(e.getOrgId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
 

@@ -48,7 +48,6 @@ public class LabOrderService {
         }
 
         LabOrder order = mapToEntity(dto);
-        order.setOrgId(null); // Tenant isolation handled at schema level
         order.setCreatedDate(LocalDateTime.now().toString());
         order.setLastModifiedDate(LocalDateTime.now().toString());
 
@@ -71,8 +70,6 @@ public class LabOrderService {
     public LabOrderDto getById(Long id, Collection<Long> allowedOrgIds) {
         LabOrder order = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id));
-        authorize(order.getOrgId(), allowedOrgIds);
-        ensureRequestContextOrg(order.getOrgId());
         return mapToDto(order);
     }
 
@@ -80,9 +77,6 @@ public class LabOrderService {
     public LabOrderDto update(Long id, LabOrderDto dto, Collection<Long> allowedOrgIds) {
         LabOrder order = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id));
-        authorize(order.getOrgId(), allowedOrgIds);
-        ensureRequestContextOrg(order.getOrgId());
-
         updateEntityFromDto(order, dto);
         order.setLastModifiedDate(LocalDateTime.now().toString());
         order = repository.save(order);
@@ -93,8 +87,6 @@ public class LabOrderService {
     public void delete(Long id, Collection<Long> allowedOrgIds) {
         LabOrder order = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id));
-        authorize(order.getOrgId(), allowedOrgIds);
-        ensureRequestContextOrg(order.getOrgId());
         repository.delete(order);
     }
 
@@ -136,8 +128,6 @@ public class LabOrderService {
     public LabOrderDto getByIdForPatient(Long id, Long patientId, Collection<Long> allowedOrgIds) {
         LabOrder order = repository.findByIdAndPatientId(id, patientId)
                 .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id + " for patient: " + patientId));
-        authorize(order.getOrgId(), allowedOrgIds);
-        ensureRequestContextOrg(order.getOrgId());
         return mapToDto(order);
     }
 
@@ -145,8 +135,6 @@ public class LabOrderService {
     public void deleteForPatient(Long id, Long patientId, Collection<Long> allowedOrgIds) {
         LabOrder order = repository.findByIdAndPatientId(id, patientId)
                 .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id + " for patient: " + patientId));
-        authorize(order.getOrgId(), allowedOrgIds);
-        ensureRequestContextOrg(order.getOrgId());
         repository.delete(order);
     }
 
@@ -184,7 +172,6 @@ public class LabOrderService {
 
     private LabOrder mapToEntity(LabOrderDto dto) {
         LabOrder e = new LabOrder();
-        e.setOrgId(null); // Tenant isolation handled at schema level
         e.setPatientId(dto.getPatientId());
         e.setPatientExternalId(dto.getPatientExternalId());
         e.setMrn(dto.getMrn());

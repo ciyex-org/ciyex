@@ -21,8 +21,7 @@ public class Location {
     @Column(name = "external_id")
     private String externalId;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId; // Add orgId for tenant isolation
+     // Add orgId for tenant isolation
 
     private String name;
     private String address;

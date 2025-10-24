@@ -12,7 +12,6 @@ import java.util.List;
 public class FeeScheduleDto {
     private Long id;
     private String externalId;     // optional (remote/FHIR id)
-    private Long orgId;
     private Long patientId;
     private Long encounterId;
 

@@ -52,7 +52,6 @@ public class ScheduleService {
         if (dto.getProviderId() == null) {
             throw new IllegalArgumentException("providerId is required");
         }
-        dto.setOrgId(orgId);
         validateScheduleDto(dto);
 
 
@@ -69,7 +68,6 @@ public class ScheduleService {
 
 // Persist minimal linkage locally
         Schedule entity = Schedule.builder()
-                .orgId(orgId)
                 .providerId(dto.getProviderId())
                 .externalId(externalId)
                 .createdDate(LocalDateTime.now().toString())
@@ -87,9 +85,6 @@ public class ScheduleService {
         Long orgId = getCurrentOrgIdOrThrow();
         Schedule entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
-        if (!orgId.equals(entity.getOrgId())) {
-            throw new SecurityException("Access denied: Schedule does not belong to current org");
-        }
         return mergeLocalAndExternal(entity, fetchExternal(entity.getExternalId()));
     }
 
@@ -146,15 +141,12 @@ public class ScheduleService {
         Long orgId = getCurrentOrgIdOrThrow();
         Schedule entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
-        if (!orgId.equals(entity.getOrgId())) {
-            throw new SecurityException("Access denied: Schedule does not belong to current org");
-        }
+
 
         // allow providerId update locally (all other details live in external)
         if (dto.getProviderId() != null) entity.setProviderId(dto.getProviderId());
 
         // sync to external
-        dto.setOrgId(orgId);
         dto.setExternalId(entity.getExternalId());
         ExternalScheduleStorage external =
                 (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
@@ -170,12 +162,8 @@ public class ScheduleService {
 
     @Transactional
     public void delete(Long id) {
-        Long orgId = getCurrentOrgIdOrThrow();
         Schedule entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
-        if (!orgId.equals(entity.getOrgId())) {
-            throw new SecurityException("Access denied: Schedule does not belong to current org");
-        }
 
         if (entity.getExternalId() != null) {
             ExternalScheduleStorage external =
@@ -192,7 +180,6 @@ public class ScheduleService {
     private ScheduleDto mergeLocalAndExternal(Schedule entity, ScheduleDto externalDto) {
         ScheduleDto dto = new ScheduleDto();
         dto.setId(entity.getId());
-        dto.setOrgId(entity.getOrgId());
         dto.setProviderId(entity.getProviderId());
         dto.setExternalId(entity.getExternalId());
         if (entity.getCreatedDate() != null || entity.getLastModifiedDate() != null) {

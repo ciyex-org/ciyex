@@ -33,9 +33,6 @@ public class PatientEducationService {
 
     @Transactional
     public PatientEducationDto create(PatientEducationDto dto) {
-        Long orgId = getCurrentOrgId();
-        dto.setOrgId(orgId);
-
         PatientEducation entity = mapToEntity(dto);
         entity.setCreatedDate(LocalDateTime.now().toString());
         entity.setLastModifiedDate(LocalDateTime.now().toString());
@@ -81,15 +78,13 @@ public class PatientEducationService {
 
     @Transactional(readOnly = true)
     public Page<PatientEducationDto> getAll(Pageable pageable) {
-        Long orgId = getCurrentOrgId();
-        return repository.findAllByOrgId(orgId, pageable)
+        return repository.findAll(pageable)
                 .map(this::mapToDto);
     }
 
     private PatientEducation mapToEntity(PatientEducationDto dto) {
         return PatientEducation.builder()
                 .id(dto.getId())
-                .orgId(dto.getOrgId())
                 .title(dto.getTitle())
                 .summary(dto.getSummary())
                 .category(dto.getCategory())
@@ -102,7 +97,6 @@ public class PatientEducationService {
     private PatientEducationDto mapToDto(PatientEducation entity) {
         PatientEducationDto dto = new PatientEducationDto();
         dto.setId(entity.getId());
-        dto.setOrgId(entity.getOrgId());
         dto.setTitle(entity.getTitle());
         dto.setSummary(entity.getSummary());
         dto.setCategory(entity.getCategory());
@@ -117,9 +111,5 @@ public class PatientEducationService {
         dto.setAudit(audit);
 
         return dto;
-    }
-
-    private Long getCurrentOrgId() {
-        return RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
     }
 }

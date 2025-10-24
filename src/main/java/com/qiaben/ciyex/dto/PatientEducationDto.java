@@ -5,7 +5,6 @@ import lombok.Data;
 @Data
 public class PatientEducationDto {
     private Long id;
-    private Long orgId;
 
     private String title;
     private String summary;

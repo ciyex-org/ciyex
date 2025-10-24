@@ -35,9 +35,6 @@ public class SupplierService {
 
     @Transactional
     public SupplierDto create(SupplierDto dto) {
-        Long orgId = getCurrentOrgId();
-        dto.setOrgId(orgId);
-
         Supplier supplier = mapToEntity(dto);
         supplier.setCreatedDate(LocalDateTime.now().toString());
         supplier.setLastModifiedDate(LocalDateTime.now().toString());
@@ -81,7 +78,7 @@ public class SupplierService {
 
     @Transactional(readOnly = true)
     public List<SupplierDto> getAll() {
-        return repository.findByOrgId(getCurrentOrgId())
+        return repository.findAll()
                 .stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
@@ -89,20 +86,19 @@ public class SupplierService {
 
     @Transactional(readOnly = true)
     public Page<SupplierDto> getAll(Pageable pageable) {
-        return repository.findAllByOrgId(getCurrentOrgId(), pageable)
+        return repository.findAll(pageable)
                 .map(this::mapToDto);
     }
 
     @Transactional(readOnly = true)
     public Long countByOrg() {
-        return repository.countByOrgId(getCurrentOrgId());
+        return repository.count();
     }
 
 
     private Supplier mapToEntity(SupplierDto dto) {
         return Supplier.builder()
                 .id(dto.getId())
-                .orgId(dto.getOrgId())
                 .name(dto.getName())
                 .contact(dto.getContact())
                 .phone(dto.getPhone())
@@ -116,7 +112,6 @@ public class SupplierService {
     private SupplierDto mapToDto(Supplier supplier) {
         SupplierDto dto = new SupplierDto();
         dto.setId(supplier.getId());
-        dto.setOrgId(supplier.getOrgId());
         dto.setName(supplier.getName());
         dto.setContact(supplier.getContact());
         dto.setPhone(supplier.getPhone());
@@ -125,9 +120,5 @@ public class SupplierService {
         dto.setLastModifiedDate(supplier.getLastModifiedDate());
         dto.setExternalId(supplier.getExternalId());
         return dto;
-    }
-
-    private Long getCurrentOrgId() {
-        return RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
     }
 }

@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.storage.fhir;
 
 import com.qiaben.ciyex.dto.ReviewOfSystemDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.provider.FhirClientProvider;
 import com.qiaben.ciyex.storage.ExternalReviewOfSystemStorage;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +20,7 @@ public class FhirExternalReviewOfSystemStorage implements ExternalReviewOfSystem
     @Override
     public String create(ReviewOfSystemDto dto) {
         log.info("FHIR ROS create org={} patient={} enc={} system={}",
-                dto.getOrgId(), dto.getPatientId(), dto.getEncounterId(), dto.getSystemName());
+                RequestContext.get().getTenantName(), dto.getPatientId(), dto.getEncounterId(), dto.getSystemName());
         // Map one system to an Observation or QR item group
         return null;
     }

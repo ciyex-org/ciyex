@@ -10,7 +10,6 @@ import java.util.List;
 public class CommunicationDto {
     private Long id;
     private String externalId;
-    private Long orgId;
 
     private CommunicationStatus status;
     private String category;

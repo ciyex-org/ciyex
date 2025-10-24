@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.storage.fhir;
 
 import com.qiaben.ciyex.dto.CodeDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.provider.FhirClientProvider;
 import com.qiaben.ciyex.storage.ExternalCodeStorage;
 import lombok.RequiredArgsConstructor;
@@ -19,14 +20,14 @@ public class FhirExternalCodeStorage implements ExternalCodeStorage {
     @Override
     public String create(CodeDto dto) {
         log.info("FHIR Code create: org={}, type={}, code={}",
-                dto.getOrgId(), dto.getCodeType(), dto.getCode());
+                RequestContext.get().getTenantName(), dto.getCodeType(), dto.getCode());
         return null;
     }
 
     @Override
     public void update(String externalId, CodeDto dto) {
         log.info("FHIR Code update: id={}, org={}, type={}, code={}",
-                externalId, dto.getOrgId(), dto.getCodeType(), dto.getCode());
+                externalId, RequestContext.get().getTenantName(), dto.getCodeType(), dto.getCode());
     }
 
     @Override

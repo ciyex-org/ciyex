@@ -8,8 +8,7 @@ public class ProviderDto {
     // Core Identification (Master DB)
     private Long id; // System-generated unique identifier
     private String npi; // National Provider Identifier
-    private Identification identification;
-    private Long orgId; // Add orgId to DTO
+    private Identification identification; // Add orgId to DTO
 
     // Contact Information
     private Contact contact;

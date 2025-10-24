@@ -10,7 +10,6 @@ public class Document {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long orgId;
     private Long patientId;
     private String category;
     private String type;

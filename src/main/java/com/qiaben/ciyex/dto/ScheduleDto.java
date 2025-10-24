@@ -12,8 +12,7 @@ import java.util.List;
 @Data
 public class ScheduleDto {
     // Locally stored identifiers
-    private Long id; // DB id
-    private Long orgId; // tenant (from RequestContext typically)
+    private Long id; // DB id // tenant (from RequestContext typically)
     private Long providerId; // internal provider/practitioner id
     private String externalId; // FHIR Schedule id
 

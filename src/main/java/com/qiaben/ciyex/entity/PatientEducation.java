@@ -13,7 +13,6 @@ public class PatientEducation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long orgId;
 
     private String title;
     private String summary;

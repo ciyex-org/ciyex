@@ -21,9 +21,8 @@ public class VitalsService {
     private final VitalsRepository repository;
     private final ExternalVitalsStorage externalStorage;
 
-    public VitalsDto create(Long orgId, Long patientId, Long encounterId, VitalsDto dto) {
+    public VitalsDto create( Long patientId, Long encounterId, VitalsDto dto) {
         Vitals entity = toEntity(dto);
-        entity.setOrgId(orgId);
         entity.setPatientId(patientId);
         entity.setEncounterId(encounterId);
         Vitals saved = repository.save(entity);
@@ -31,10 +30,9 @@ public class VitalsService {
         return toDto(saved);
     }
 
-    public VitalsDto get(Long orgId, Long patientId, Long encounterId, Long id) {
+    public VitalsDto get(Long patientId, Long encounterId, Long id) {
         return repository.findById(id)
-                .filter(v -> v.getOrgId().equals(orgId)
-                        && v.getPatientId().equals(patientId)
+                .filter(v -> v.getPatientId().equals(patientId)
                         && v.getEncounterId().equals(encounterId))
                 .map(this::toDto)
                 .orElse(null);
@@ -42,18 +40,12 @@ public class VitalsService {
 
     public List<VitalsDto> getByEncounter(Long orgId, Long patientId, Long encounterId) {
         return repository.findByPatientIdAndEncounterId(patientId, encounterId).stream()
-                .filter(v -> v.getOrgId().equals(orgId))
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
 
     public VitalsDto update(Long orgId, Long patientId, Long encounterId, Long id, VitalsDto dto) {
         Vitals existing = repository.findById(id).orElseThrow();
-        if (!existing.getOrgId().equals(orgId)
-                || !existing.getPatientId().equals(patientId)
-                || !existing.getEncounterId().equals(encounterId)) {
-            throw new IllegalArgumentException("Vitals does not belong to org/patient/encounter");
-        }
         existing.setWeightKg(dto.getWeightKg());
         existing.setBpSystolic(dto.getBpSystolic());
         existing.setBpDiastolic(dto.getBpDiastolic());
@@ -69,8 +61,7 @@ public class VitalsService {
 
     public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
         Vitals existing = repository.findById(id).orElseThrow();
-        if (existing.getOrgId().equals(orgId)
-                && existing.getPatientId().equals(patientId)
+        if (existing.getPatientId().equals(patientId)
                 && existing.getEncounterId().equals(encounterId)) {
             repository.delete(existing);
             externalStorage.delete(id);
@@ -79,8 +70,7 @@ public class VitalsService {
 
     public VitalsDto eSign(Long orgId, Long patientId, Long encounterId, Long id) {
         Vitals vitals = repository.findById(id).orElseThrow();
-        if (!vitals.getOrgId().equals(orgId)
-                || !vitals.getPatientId().equals(patientId)
+        if (!vitals.getPatientId().equals(patientId)
                 || !vitals.getEncounterId().equals(encounterId)) {
             throw new IllegalArgumentException("Vitals does not belong to org/patient/encounter");
         }
@@ -92,8 +82,7 @@ public class VitalsService {
 
     public byte[] print(Long orgId, Long patientId, Long encounterId, Long id) {
         Vitals vitals = repository.findById(id).orElseThrow();
-        if (!vitals.getOrgId().equals(orgId)
-                || !vitals.getPatientId().equals(patientId)
+        if (!vitals.getPatientId().equals(patientId)
                 || !vitals.getEncounterId().equals(encounterId)) {
             throw new IllegalArgumentException("Vitals does not belong to org/patient/encounter");
         }
@@ -103,7 +92,6 @@ public class VitalsService {
     private Vitals toEntity(VitalsDto dto) {
         return Vitals.builder()
                 .id(dto.getId())
-                .orgId(dto.getOrgId())
                 .patientId(dto.getPatientId())
                 .encounterId(dto.getEncounterId())
                 .weightKg(dto.getWeightKg())
@@ -124,7 +112,6 @@ public class VitalsService {
     private VitalsDto toDto(Vitals entity) {
         return VitalsDto.builder()
                 .id(entity.getId())
-                .orgId(entity.getOrgId())
                 .patientId(entity.getPatientId())
                 .encounterId(entity.getEncounterId())
                 .weightKg(entity.getWeightKg())

@@ -21,8 +21,7 @@ public class Immunization {
     @Column(name = "patient_id", nullable = false)
     private Long patientId;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
     private String cvxCode;
     private String dateTimeAdministered;

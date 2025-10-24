@@ -20,7 +20,7 @@
 //    @Column(name = "external_id")
 //    private String externalId; // optional FHIR id
 //
-//    @Column(name = "org_id", nullable = false)
+//    
 //    private Long orgId;
 //
 //    @Column(name = "patient_id", nullable = false)
@@ -82,8 +82,7 @@ public class Assessment {
     @Column(name = "external_id", length = 128)
     private String externalId;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
     @Column(name = "patient_id", nullable = false)
     private Long patientId;

@@ -9,8 +9,7 @@ import java.util.List;
 @Data
 public class AllergyIntoleranceDto {
 
-    private String externalId;
-    private Long orgId;           // tenant
+    private String externalId;           // tenant
     private Long patientId;       // EHR patient id (omitted in API responses)
     private List<AllergyItem> allergiesList;
     private Audit audit;

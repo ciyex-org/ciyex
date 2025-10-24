@@ -172,7 +172,6 @@ import lombok.Data;
 @Data
 public class ChiefComplaintDto {
     private Long id;
-    private Long orgId;
     private Long patientId;
     private Long encounterId;
 

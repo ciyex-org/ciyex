@@ -45,7 +45,6 @@ public class OrderService {
     @Transactional
     public OrderDto create(OrderDto dto) {
         Long orgId = getCurrentOrgId();
-        dto.setOrgId(orgId);
 
         Order entity = mapToEntity(dto);
         entity.setCreatedDate(now());
@@ -160,8 +159,7 @@ public class OrderService {
     @Transactional
     public OrderDto createOrder(Inventory inventory, Integer stock, String supplier) {
         Order entity = Order.builder()
-                .orgId(inventory.getOrgId())
-                .orderNumber("PO-" + (repository.countByOrgId(inventory.getOrgId()) + 1))
+                .orderNumber("PO-" + (repository.count() + 1))
                 .supplier(supplier)
                 .date(LocalDateTime.now().toLocalDate().toString())
                 .status("Pending")
@@ -210,7 +208,6 @@ public class OrderService {
     private Order mapToEntity(OrderDto dto) {
         return Order.builder()
                 .id(dto.getId())
-                .orgId(dto.getOrgId())
                 .orderNumber(dto.getOrderNumber())
                 .supplier(dto.getSupplier())
                 .date(dto.getDate())
@@ -225,7 +222,6 @@ public class OrderService {
     private OrderDto mapToDto(Order e) {
         OrderDto dto = new OrderDto();
         dto.setId(e.getId());
-        dto.setOrgId(e.getOrgId());
         dto.setOrderNumber(e.getOrderNumber());
         dto.setSupplier(e.getSupplier());
         dto.setDate(e.getDate());

@@ -203,8 +203,6 @@ public class PortalAppointmentController {
         dto.setProviderId(appointment.getProviderId());
         dto.setLocationId(appointment.getLocationId());
         dto.setPatientId(appointment.getPatientId());
-        dto.setOrgId(appointment.getOrgId());
-        // dto.setMeetingUrl(appointment.getMeetingUrl());
 
         if (appointment.getProviderId() != null) {
             try {

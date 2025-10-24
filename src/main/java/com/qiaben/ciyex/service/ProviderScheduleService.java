@@ -180,7 +180,7 @@
 //    private ProviderSchedule toEntity(ScheduleDto dto) {
 //        return ProviderSchedule.builder()
 //                .id(dto.getId())
-//                .orgId(dto.getOrgId())
+//                .orgId(RequestContext.get().getTenantName())
 //                .providerId(dto.getProviderId())
 //                .title(dto.getTitle())
 //                .location(dto.getLocation())

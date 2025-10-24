@@ -34,7 +34,6 @@ public class AppointmentDTO {
     private Long locationId;   // Location reference
     private String status;     // PENDING / CONFIRMED / AVAILABLE
     private String reason;
-    private Long orgId;
 
     // Telehealth
     // private String meetingUrl;

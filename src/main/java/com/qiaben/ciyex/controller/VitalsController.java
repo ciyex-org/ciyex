@@ -28,7 +28,7 @@ public class VitalsController {
         return ApiResponse.<VitalsDto>builder()
                 .success(true)
                 .message("Vitals recorded")
-                .data(service.create(orgId, patientId, encounterId, dto))
+                .data(service.create(patientId, encounterId, dto))
                 .build();
     }
 
@@ -41,7 +41,7 @@ public class VitalsController {
         return ApiResponse.<VitalsDto>builder()
                 .success(true)
                 .message("Vitals retrieved")
-                .data(service.get(orgId, patientId, encounterId, id))
+                .data(service.get(patientId, encounterId, id))
                 .build();
     }
 

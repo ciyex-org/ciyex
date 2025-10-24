@@ -49,17 +49,9 @@ public class CommunicationService {
         this.emailService = emailService;
     }
 
-    private Long requireOrg(String op) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        if (orgId == null) throw new SecurityException("No orgId in RequestContext during " + op);
-        return orgId;
-    }
-
     /* ------------------- CREATE ------------------- */
     @Transactional
     public CommunicationDto create(CommunicationDto dto) {
-        Long orgId = requireOrg("create");
-        dto.setOrgId(orgId);
         String now = LocalDateTime.now().toString();
 
         Long providerId = dto.getProviderId();
@@ -85,7 +77,6 @@ public class CommunicationService {
         }
 
         Communication entity = Communication.builder()
-                .orgId(orgId)
                 .status(dto.getStatus() != null ? dto.getStatus() : CommunicationStatus.SENT)
                 .category(dto.getCategory())
                 .sentDate(dto.getSentDate() != null ? dto.getSentDate() : now)
@@ -143,28 +134,25 @@ public class CommunicationService {
     /* ------------------- GET ------------------- */
     @Transactional(readOnly = true)
     public List<CommunicationDto> getByPatientId(Long patientId) {
-        Long orgId = requireOrg("getByPatientId");
-        return repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId))
+        return null; /*repo.findAllByPatientId(Collections.singleton(patientId))
                 .stream()
                 .map(this::toDto)
-                .collect(Collectors.toList());
+                .collect(Collectors.toList());*/
     }
 
     @Transactional(readOnly = true)
     public CommunicationDto getItem(Long patientId, Long id) {
-        Long orgId = requireOrg("getItem");
-        return repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId))
+        return null;/*repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId))
                 .stream()
                 .filter(c -> c.getId().equals(id))
                 .findFirst()
                 .map(this::toDto)
-                .orElseThrow(() -> new RuntimeException("Communication not found: " + id));
+                .orElseThrow(() -> new RuntimeException("Communication not found: " + id));*/
     }
 
     /* ------------------- UPDATE ------------------- */
     @Transactional
-    public CommunicationDto updateItem(Long patientId, Long id, CommunicationDto patch) {
-        Long orgId = requireOrg("updateItem");
+    public CommunicationDto updateItem(Long patientId, Long id, CommunicationDto patch) {/*
         List<Communication> rows = repo.findAllByPatientIdAndOrgIdText(
                 String.valueOf(patientId), String.valueOf(orgId));
         Communication row = rows.stream()
@@ -184,15 +172,14 @@ public class CommunicationService {
                 ext.update(toDto(row), row.getExternalId());
             }
         }
-        return toDto(row);
+        return toDto(row);*/
+        return null;
     }
 
     /* ------------------- SET STATUS ------------------- */
     @Transactional
     public CommunicationDto setStatus(Long id, CommunicationStatus status) {
-        Long orgId = requireOrg("setStatus");
         Communication comm = repo.findById(id)
-                .filter(c -> Objects.equals(c.getOrgId(), orgId))
                 .orElseThrow(() -> new RuntimeException("Communication not found id=" + id));
 
         comm.setStatus(status);
@@ -212,8 +199,7 @@ public class CommunicationService {
     /* ------------------- DELETE ------------------- */
     @Transactional
     public void deleteItem(Long patientId, Long id) {
-        Long orgId = requireOrg("deleteItem");
-        List<Communication> rows = repo.findAllByPatientIdAndOrgIdText(
+      /*  List<Communication> rows = repo.findAllByPatientIdAndOrgIdText(
                 String.valueOf(patientId), String.valueOf(orgId));
         String externalId = rows.stream().findFirst().map(Communication::getExternalId).orElse(null);
 
@@ -230,14 +216,12 @@ public class CommunicationService {
                 if (fresh.isEmpty()) ext.delete(externalId);
                 else ext.update(toDto(fresh.get(0)), externalId);
             }
-        }
+        }*/
     }
 
     @Transactional
     public void deleteItemById(Long id) {
-        Long orgId = requireOrg("deleteItemById");
         Communication row = repo.findById(id)
-                .filter(c -> Objects.equals(c.getOrgId(), orgId))
                 .orElseThrow(() -> new RuntimeException("Delete failed: not found"));
 
         String externalId = row.getExternalId();
@@ -255,11 +239,11 @@ public class CommunicationService {
     /* ------------------- SEARCH ------------------- */
     @Transactional(readOnly = true)
     public List<CommunicationDto> searchAll() {
-        Long orgId = requireOrg("searchAll");
-        return repo.findByOrgIdText(String.valueOf(orgId))
+        /*return repo.findByOrgIdText(String.valueOf(orgId))
                 .stream()
                 .map(this::toDto)
-                .collect(Collectors.toList());
+                .collect(Collectors.toList());*/
+        return null;
     }
 
     /* ------------------- MAPPER ------------------- */
@@ -267,7 +251,6 @@ public class CommunicationService {
         CommunicationDto dto = new CommunicationDto();
         dto.setId(r.getId());
         dto.setExternalId(r.getExternalId());
-        dto.setOrgId(r.getOrgId());
         dto.setStatus(r.getStatus());
         dto.setCategory(r.getCategory());
         dto.setSentDate(r.getSentDate());

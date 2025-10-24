@@ -267,7 +267,7 @@ public class PlanService {
 
     private PlanDto toDto(Plan e) {
         PlanDto d = new PlanDto();
-        d.setId(e.getId()); d.setOrgId(e.getOrgId()); d.setPatientId(e.getPatientId()); d.setEncounterId(e.getEncounterId());
+        d.setId(e.getId()); d.setPatientId(e.getPatientId()); d.setEncounterId(e.getEncounterId());
         d.setDiagnosticPlan(e.getDiagnosticPlan()); d.setPlan(e.getPlan()); d.setNotes(e.getNotes());
         d.setFollowUpVisit(e.getFollowUpVisit()); d.setReturnWorkSchool(e.getReturnWorkSchool());
         d.setSectionsJson(e.getSectionsJson());

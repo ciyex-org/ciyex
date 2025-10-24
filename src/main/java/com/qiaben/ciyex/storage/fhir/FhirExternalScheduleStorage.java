@@ -196,8 +196,6 @@ public class FhirExternalScheduleStorage implements ExternalScheduleStorage {
 
         ScheduleDto dto = new ScheduleDto();
         dto.setExternalId(a.getIdElement() != null ? a.getIdElement().getIdPart() : null);
-    // orgId deprecated at context level; keep field null (will be removed in future refactor)
-    dto.setOrgId(null);
 
         // status
         dto.setStatus(a.getStatus() == Appointment.AppointmentStatus.CANCELLED ? "inactive" : "active");

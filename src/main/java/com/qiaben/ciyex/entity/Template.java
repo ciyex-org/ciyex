@@ -19,8 +19,7 @@ public class Template {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
     @Column(name = "external_id")
     private String externalId;

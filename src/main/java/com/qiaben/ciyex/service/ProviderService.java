@@ -42,7 +42,6 @@ public class ProviderService {
             throw new SecurityException("No orgId available in request context");
         }
         log.debug("Verifying access for orgId: {} to create new provider", currentOrgId);
-        dto.setOrgId(currentOrgId); // Set orgId for the new provider
 
         // Validate the required fields
         if (dto.getNpi() == null || dto.getIdentification() == null || dto.getIdentification().getFirstName() == null ||
@@ -53,7 +52,6 @@ public class ProviderService {
 
         // Map DTO to Entity
         Provider provider = mapToEntity(dto);
-        provider.setOrgId(currentOrgId);
         provider.setCreatedDate(LocalDateTime.now().toString());
         provider.setLastModifiedDate(LocalDateTime.now().toString());
 
@@ -99,13 +97,7 @@ public class ProviderService {
         // Fetch provider from the database
         Provider provider = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
-        log.debug("Fetched provider from DB: id={}, externalId={}, orgId={}", provider.getId(), provider.getExternalId(), provider.getOrgId());
-
-        // Check if the provider belongs to the current organization
-        if (!currentOrgId.equals(provider.getOrgId())) {
-            throw new SecurityException("Access denied: Provider id " + id + " does not belong to orgId " + currentOrgId);
-        }
-        log.info("Found provider in DB with id: {} for orgId: {}", id, currentOrgId);
+        log.debug("Fetched provider from DB: id={}, externalId={}, Tenant={}", provider.getId(), provider.getExternalId(), RequestContext.get().getTenantName());
 
         // Default mapping from DB data
         ProviderDto resultDto = mapToDto(provider);
@@ -121,7 +113,7 @@ public class ProviderService {
 
                 if (extendedProviderDto != null) {
                     log.info("Successfully loaded extended details for provider id: {} from external storage for orgId: {}", id, currentOrgId);
-                    log.debug("Extended ProviderDto: id={}, fhirId={}, orgId={}", extendedProviderDto.getId(), extendedProviderDto.getFhirId(), extendedProviderDto.getOrgId());
+                    log.debug("Extended ProviderDto: id={}, fhirId={}, orgId={}", extendedProviderDto.getId(), extendedProviderDto.getFhirId(), RequestContext.get().getTenantName());
 
                     extendedProviderDto.setId(provider.getId()); // Preserve DB ID
                     // Manually map fields from Provider to extendedProviderDto
@@ -143,7 +135,7 @@ public class ProviderService {
         }
 
         log.info("Returning provider dto for id: {} and orgId: {}", id, currentOrgId);
-        log.debug("Returning ProviderDto: id={}, fhirId={}, orgId={}", resultDto.getId(), resultDto.getFhirId(), resultDto.getOrgId());
+        log.debug("Returning ProviderDto: id={}, fhirId={}, orgId={}", resultDto.getId(), resultDto.getFhirId(), RequestContext.get().getTenantName());
 
         return resultDto;
     }
@@ -186,10 +178,6 @@ public class ProviderService {
 
         Provider provider = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
-        if (!currentOrgId.equals(provider.getOrgId())) {
-            throw new SecurityException("Access denied: Provider id " + id + " does not belong to orgId " + currentOrgId);
-        }
-
         provider.setNpi(dto.getNpi());
         if (dto.getIdentification() != null) {
             provider.setFirstName(dto.getIdentification().getFirstName());
@@ -244,9 +232,6 @@ public class ProviderService {
 
         Provider provider = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
-        if (!currentOrgId.equals(provider.getOrgId())) {
-            throw new SecurityException("Access denied: Provider id " + id + " does not belong to orgId " + currentOrgId);
-        }
 
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && provider.getExternalId() != null) {
@@ -325,7 +310,6 @@ public class ProviderService {
     ProviderDto dto = new ProviderDto();
     dto.setId(provider.getId());
     dto.setNpi(provider.getNpi());
-    dto.setOrgId(provider.getOrgId());
 
     // ✅ Always populate Identification (avoid nulls)
     ProviderDto.Identification identification = new ProviderDto.Identification();
@@ -421,11 +405,6 @@ public class ProviderService {
         
         Provider provider = repository.findById(providerId)
                 .orElseThrow(() -> new RuntimeException("Provider not found with id: " + providerId));
-                
-        if (!currentOrgId.equals(provider.getOrgId())) {
-            throw new SecurityException("Access denied: Provider id " + providerId + " does not belong to orgId " + currentOrgId);
-        }
-        
         // Implementation depends on your password storage strategy
         // This is a placeholder - you should implement proper password hashing
         log.info("Password reset requested for provider id: {} in org: {}", providerId, currentOrgId);

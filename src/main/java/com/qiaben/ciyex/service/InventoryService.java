@@ -48,9 +48,6 @@ public class InventoryService {
 
     @Transactional
     public InventoryDto create(InventoryDto dto) {
-        Long orgId = getCurrentOrgId();
-        dto.setOrgId(orgId);
-
         Inventory entity = mapToEntity(dto);
         entity.setCreatedDate(now());
         entity.setLastModifiedDate(now());
@@ -212,7 +209,6 @@ public class InventoryService {
     private Inventory mapToEntity(InventoryDto dto) {
         return Inventory.builder()
                 .id(dto.getId())
-                .orgId(dto.getOrgId())
                 .name(dto.getName())
                 .category(dto.getCategory())
                 .lot(dto.getLot())
@@ -230,7 +226,6 @@ public class InventoryService {
     private InventoryDto mapToDto(Inventory e) {
         InventoryDto dto = new InventoryDto();
         dto.setId(e.getId());
-        dto.setOrgId(e.getOrgId());
         dto.setName(e.getName());
         dto.setCategory(e.getCategory());
         dto.setLot(e.getLot());

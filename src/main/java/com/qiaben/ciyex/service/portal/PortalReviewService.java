@@ -120,7 +120,7 @@ public class PortalReviewService {
                     .orElseThrow(() -> new IllegalArgumentException("User not found: " + update.getUserId()));
 
             // Merge data into appropriate EHR tenant schema
-            tenantDataMergeService.mergeApprovedData(user.getOrgId(), update);
+            tenantDataMergeService.mergeApprovedData(update);
 
             // Mark as approved
             update.approve(approverEmail, approverNotes);

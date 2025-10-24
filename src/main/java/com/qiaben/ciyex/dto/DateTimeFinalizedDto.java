@@ -52,7 +52,6 @@ import java.time.OffsetDateTime;
 public class DateTimeFinalizedDto {
     private Long id;
     private String externalId;
-    private Long orgId;
     private Long patientId;
     private Long encounterId;
 

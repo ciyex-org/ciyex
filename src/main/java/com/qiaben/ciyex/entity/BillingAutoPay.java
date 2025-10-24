@@ -19,7 +19,6 @@ public class BillingAutoPay {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long orgId;
     private Long userId;
 
     private Boolean enabled;

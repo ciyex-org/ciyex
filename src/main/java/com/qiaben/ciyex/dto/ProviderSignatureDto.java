@@ -40,7 +40,6 @@ import lombok.Data;
 public class ProviderSignatureDto {
     private Long id;
     private String externalId;
-    private Long orgId;
     private Long patientId;
     private Long encounterId;
 

@@ -8,8 +8,7 @@ import java.math.BigDecimal;
 @Data
 public class GlobalCodeDto {
     private Long id;
-    private String externalId; // optional
-    private Long orgId;        // tenant
+    private String externalId; // optional        // tenant
 
     @NotBlank(message = "Code type is required")
     private String codeType;   // ICD9 | ICD10 | CPT4 | HCPCS | CUSTOM

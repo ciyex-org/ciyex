@@ -4,8 +4,7 @@ import lombok.Data;
 
 @Data
 public class AiConfig {
-
-    private Long orgId; // Will be set by OrgIntegrationConfigProvider if needed
+ // Will be set by OrgIntegrationConfigProvider if needed
     private String vendor; // e.g., "azure", "openai", "mock"
     private Azure azure;
     private OpenAi openai;

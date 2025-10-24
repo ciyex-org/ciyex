@@ -220,8 +220,7 @@ public class ChiefComplaint {
     @Column(name = "status", length = 255)
     private String status;
 
-    @Column(name = "org_id")
-    private Long orgId;
+    
 
     @Column(name = "patient_id")
     private Long patientId;

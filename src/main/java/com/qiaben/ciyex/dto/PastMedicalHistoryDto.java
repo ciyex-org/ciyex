@@ -36,7 +36,6 @@ import java.time.OffsetDateTime;
 public class PastMedicalHistoryDto {
     private Long id;
     private String externalId;
-    private Long orgId;
     private Long patientId;
     private Long encounterId;
 

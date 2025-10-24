@@ -10,7 +10,6 @@ import java.math.BigDecimal;
 @Builder
 public class SubscriptionDto {
     private Long id;
-    private Long orgId;
     private Long userId;
 
     private String service;

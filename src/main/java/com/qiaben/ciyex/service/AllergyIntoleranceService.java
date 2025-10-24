@@ -39,7 +39,6 @@ public class AllergyIntoleranceService {
     public AllergyIntoleranceDto create(AllergyIntoleranceDto dto) {
         Long orgId = requireOrg("create");
         if (dto.getPatientId() == null) throw new IllegalArgumentException("patientId is required");
-        dto.setOrgId(orgId);
 
         String now = LocalDateTime.now().toString();
         List<AllergyIntolerance> rows = new ArrayList<>();
@@ -49,7 +48,6 @@ public class AllergyIntoleranceService {
                 validateDates(it.getStartDate(), it.getEndDate());
 
                 AllergyIntolerance row = AllergyIntolerance.builder()
-                        .orgId(orgId)
                         .patientId(dto.getPatientId())
                         .allergyName(it.getAllergyName())
                         .reaction(it.getReaction())
@@ -109,7 +107,6 @@ public class AllergyIntoleranceService {
     public AllergyIntoleranceDto updateByPatientId(Long patientId, AllergyIntoleranceDto dto) {
         Long orgId = requireOrg("updateByPatientId");
         repo.deleteAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
-        dto.setOrgId(orgId);
         dto.setPatientId(patientId);
         return create(dto);
     }
@@ -239,7 +236,6 @@ public class AllergyIntoleranceService {
     private AllergyIntoleranceDto toDto(Long orgId, Long patientId, List<AllergyIntolerance> rows,
                                         boolean includeTopLevelPatientId) {
         AllergyIntoleranceDto dto = new AllergyIntoleranceDto();
-        dto.setOrgId(orgId);
         if (includeTopLevelPatientId) {
             dto.setPatientId(patientId);
         }

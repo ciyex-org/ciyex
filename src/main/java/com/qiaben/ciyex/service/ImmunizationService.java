@@ -28,7 +28,6 @@ public class ImmunizationService {
     @Transactional
     public ImmunizationDto create(ImmunizationDto dto) {
         Long orgId = getCurrentOrgId();
-        dto.setOrgId(orgId);
 
         ImmunizationDto.ImmunizationItem item = dto.getImmunizations().get(0);
         Immunization entity = mapToEntity(dto.getPatientId(), orgId, item);
@@ -135,7 +134,6 @@ public class ImmunizationService {
     private Immunization mapToEntity(Long patientId, Long orgId, ImmunizationDto.ImmunizationItem item) {
         return Immunization.builder()
                 .patientId(patientId)
-                .orgId(orgId)
                 .externalId(item.getExternalId())
                 .cvxCode(item.getCvxCode())
                 .dateTimeAdministered(item.getDateTimeAdministered())
@@ -209,7 +207,6 @@ public class ImmunizationService {
     private ImmunizationDto buildDtoFromEntity(Immunization entity) {
         ImmunizationDto dto = new ImmunizationDto();
         dto.setPatientId(entity.getPatientId());
-        dto.setOrgId(entity.getOrgId());
 
         ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
         audit.setCreatedDate(entity.getCreatedDate());
@@ -223,7 +220,6 @@ public class ImmunizationService {
     private ImmunizationDto buildDtoFromEntities(Long patientId, Long orgId, List<Immunization> entities) {
         ImmunizationDto dto = new ImmunizationDto();
         dto.setPatientId(patientId);
-        dto.setOrgId(orgId);
 
         if (!entities.isEmpty()) {
             Immunization latest = entities.get(entities.size() - 1);

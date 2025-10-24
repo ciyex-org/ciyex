@@ -45,7 +45,6 @@ import lombok.Data;
 @Data
 public class PlanDto {
     private Long id;
-    private Long orgId;
     private Long patientId;
     private Long encounterId;
 

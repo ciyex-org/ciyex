@@ -29,7 +29,6 @@ public class Encounter {
     private String dischargeDisposition;
     private String reasonForVisit;
     private Boolean inCollection;
-    private Long orgId;
 
     @Enumerated(EnumType.STRING)
     private EncounterStatus status = EncounterStatus.UNSIGNED; // default

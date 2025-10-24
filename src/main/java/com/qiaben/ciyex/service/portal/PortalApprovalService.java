@@ -1,5 +1,6 @@
 package com.qiaben.ciyex.service.portal;
 
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalUserDto;
 import com.qiaben.ciyex.entity.Patient;
@@ -221,8 +222,7 @@ public class PortalApprovalService {
             attributes.put("state", portalPatient.getState());
             attributes.put("postalCode", portalPatient.getPostalCode());
             attributes.put("country", portalPatient.getCountry());
-            attributes.put("orgId", String.valueOf(portalUser.getOrgId()));
-            
+
             // Create user in Keycloak
             String keycloakUserId = keycloakUserService.createUser(
                     portalUser.getEmail(),
@@ -233,7 +233,7 @@ public class PortalApprovalService {
             );
             
             // Add user to tenant group
-            String tenantGroup = "/Tenants/practice_" + portalUser.getOrgId();
+            String tenantGroup = RequestContext.get().getTenantName();
             keycloakUserService.addUserToGroup(keycloakUserId, tenantGroup);
             
             // Assign patient role
@@ -241,7 +241,6 @@ public class PortalApprovalService {
             
             // Create tenant patient in database
             Patient tenantPatient = Patient.builder()
-                    .orgId(portalUser.getOrgId())
                     .firstName(portalUser.getFirstName())
                     .lastName(portalUser.getLastName())
                     .email(portalUser.getEmail())

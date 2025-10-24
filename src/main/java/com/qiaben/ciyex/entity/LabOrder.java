@@ -14,8 +14,7 @@ public class LabOrder {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
     // Patient linkage
     @Column(name = "patient_id")

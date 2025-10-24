@@ -10,7 +10,6 @@ import lombok.Data;
 public class ProcedureDto {
     private Long id;
     private String externalId;           // optional FHIR id
-    private Long orgId;
     private Long patientId;
     private Long encounterId;
 

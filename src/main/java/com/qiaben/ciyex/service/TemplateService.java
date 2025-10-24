@@ -42,9 +42,6 @@ public class TemplateService {
         Long currentOrgId = getCurrentOrgId();
         Template entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Template not found"));
-        if (!entity.getOrgId().equals(currentOrgId)) {
-            throw new SecurityException("Access denied to template id " + id);
-        }
     return mapToDto(entity);
     }
 
@@ -53,9 +50,6 @@ public class TemplateService {
         Long currentOrgId = getCurrentOrgId();
         Template entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Template not found"));
-        if (!entity.getOrgId().equals(currentOrgId)) {
-            throw new SecurityException("Access denied");
-        }
 
         if (dto.getTemplateName() != null) entity.setTemplateName(dto.getTemplateName());
         if (dto.getSubject() != null) entity.setSubject(dto.getSubject());
@@ -70,17 +64,13 @@ public class TemplateService {
         Long currentOrgId = getCurrentOrgId();
         Template entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Template not found"));
-        if (!entity.getOrgId().equals(currentOrgId)) {
-            throw new SecurityException("Access denied");
-        }
         repository.delete(entity);
     }
 
     @Transactional(readOnly = true)
     public ApiResponse<List<TemplateDto>> getAllTemplates() {
-        Long currentOrgId = getCurrentOrgId();
-        List<Template> templates = repository.findAllByOrgId(currentOrgId);
-    List<TemplateDto> dtos = templates.stream().map(this::mapToDto).collect(Collectors.toList());
+        List<Template> templates = repository.findAll();
+        List<TemplateDto> dtos = templates.stream().map(this::mapToDto).collect(Collectors.toList());
 
         return ApiResponse.<List<TemplateDto>>builder()
                 .success(true)
@@ -92,7 +82,6 @@ public class TemplateService {
     private Template mapToEntity(TemplateDto dto, Long orgId) {
         return Template.builder()
                 .id(dto.getId())
-                .orgId(orgId)
                 .externalId(dto.getExternalId())
                 .templateName(dto.getTemplateName())
                 .subject(dto.getSubject())

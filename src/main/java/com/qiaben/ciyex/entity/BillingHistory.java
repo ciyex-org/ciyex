@@ -19,8 +19,7 @@ public class BillingHistory {
     private Long id;
 
     /** Org and user */
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
     @Column(name = "user_id", nullable = false)
     private Long userId;

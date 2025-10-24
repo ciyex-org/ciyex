@@ -9,7 +9,6 @@ import java.time.LocalDateTime;
 @Builder
 public class GpsBillingCardDto {
     private Long id;
-    private Long orgId;
     private Long userId;
     private String gpsCustomerVaultId;
 

@@ -38,7 +38,6 @@ public class PatientMedicalHistoryDto {
     private Long id;
     private Long patientId;
     private Long encounterId;
-    private Long orgId;
     private String externalId;
 
     private String medicalCondition;

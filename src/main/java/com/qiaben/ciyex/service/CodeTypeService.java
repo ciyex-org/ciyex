@@ -27,7 +27,7 @@ public class CodeTypeService {
     // CREATE
     public CodeTypeDto create(Long orgId, Long patientId, Long encounterId, CodeTypeDto in) {
         CodeType e = CodeType.builder()
-                .orgId(orgId).patientId(patientId).encounterId(encounterId)
+                .patientId(patientId).encounterId(encounterId)
                 .codeTypeKey(in.getCodeTypeKey())
                 .codeTypeId(in.getCodeTypeId())
                 .sequenceNumber(in.getSequenceNumber())
@@ -136,7 +136,6 @@ public class CodeTypeService {
         CodeTypeDto dto = new CodeTypeDto();
         dto.setId(e.getId());
         dto.setExternalId(e.getExternalId());
-        dto.setOrgId(e.getOrgId());
         dto.setPatientId(e.getPatientId());
         dto.setEncounterId(e.getEncounterId());
         dto.setCodeTypeKey(e.getCodeTypeKey());

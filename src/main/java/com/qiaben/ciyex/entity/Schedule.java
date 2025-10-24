@@ -23,8 +23,7 @@ public class Schedule {
     private Long providerId;
 
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
 
     @Column(name = "external_id")

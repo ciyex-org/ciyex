@@ -7,7 +7,6 @@ import java.util.List;
 public class InvoiceDto {
     private Long id;
     private String externalId;      // FHIR Invoice id (optional)
-    private Long orgId;
     private Long patientId;
 
     public Long getId() {
@@ -24,14 +23,6 @@ public class InvoiceDto {
 
     public void setExternalId(String externalId) {
         this.externalId = externalId;
-    }
-
-    public Long getOrgId() {
-        return orgId;
-    }
-
-    public void setOrgId(Long orgId) {
-        this.orgId = orgId;
     }
 
     public Long getPatientId() {

@@ -8,7 +8,6 @@ public class HealthcareServiceDto {
     private String name;
     private String description;
     private String location;
-    private String type;
-    private Long orgId; // Organization ID passed in header
+    private String type; // Organization ID passed in header
     private String hoursOfOperation;
 }

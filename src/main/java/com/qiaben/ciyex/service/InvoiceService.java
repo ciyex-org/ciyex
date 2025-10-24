@@ -157,7 +157,8 @@ public class InvoiceService {
     private InvoiceDto mapToDto(Invoice e) {
         InvoiceDto dto = new InvoiceDto();
         dto.setId(e.getId()); dto.setExternalId(e.getExternalId());
-        dto.setOrgId(e.getOrgId()); dto.setPatientId(e.getPatientId()); dto.setEncounterId(e.getEncounterId());
+        dto.setPatientId(e.getPatientId());
+        dto.setEncounterId(e.getEncounterId());
         dto.setInvoiceNumber(e.getInvoiceNumber());
         dto.setStatus(e.getStatus()); dto.setCurrency(e.getCurrency());
         dto.setIssueDate(e.getIssueDate()); dto.setDueDate(e.getDueDate());

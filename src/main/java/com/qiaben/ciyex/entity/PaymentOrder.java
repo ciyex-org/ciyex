@@ -19,8 +19,7 @@ public class PaymentOrder {
     @Column(name = "stripe_payment_intent_id", length = 100, unique = true)
     private String stripePaymentIntentId;
 
-    @Column(name = "org_id")
-    private Long orgId;
+    
 
     @Column(nullable = false)
     private Long amount; // total in cents

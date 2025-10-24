@@ -25,8 +25,7 @@ public class GlobalCode {
     @Column(name = "external_id")
     private String externalId;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
     @Column(name = "code_type", length = 16, nullable = false)
     private String codeType; // ICD9 | ICD10 | CPT4 | HCPCS | CUSTOM

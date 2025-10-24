@@ -5,7 +5,6 @@ import lombok.Data;
 @Data
 public class InventoryDto {
     private Long id;
-    private Long orgId;
 
     private String name;       // e.g., "Syringes 5ml"
     private String category;   // "Consumable" | "Device"

@@ -186,7 +186,6 @@ public class ProviderNoteService {
     // Create
     public ProviderNoteDto create(Long orgId, Long patientId, Long encounterId, ProviderNoteDto dto) {
         ProviderNote e = new ProviderNote();
-        e.setOrgId(orgId);
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
         applyDto(e, dto);
@@ -324,7 +323,6 @@ public class ProviderNoteService {
     private ProviderNoteDto toDto(ProviderNote e) {
         ProviderNoteDto d = new ProviderNoteDto();
         d.setId(e.getId());
-        d.setOrgId(e.getOrgId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
 

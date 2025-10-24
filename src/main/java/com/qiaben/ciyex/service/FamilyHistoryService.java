@@ -200,7 +200,6 @@ public class FamilyHistoryService {
     // Create container (and optional entries)
     public FamilyHistoryDto create(Long orgId, Long patientId, Long encounterId, FamilyHistoryDto dto) {
         FamilyHistory fh = new FamilyHistory();
-        fh.setOrgId(orgId);
         fh.setPatientId(patientId);
         fh.setEncounterId(encounterId);
         applyEntries(fh, dto.getEntries());
@@ -338,7 +337,6 @@ public class FamilyHistoryService {
         FamilyHistoryDto d = new FamilyHistoryDto();
         d.setId(fh.getId());
         d.setExternalId(fh.getExternalId());
-        d.setOrgId(fh.getOrgId());
         d.setPatientId(fh.getPatientId());
         d.setEncounterId(fh.getEncounterId());
 

@@ -13,7 +13,6 @@ public class Recall {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long orgId;
     private Long patientId;
     private Long providerId;
 

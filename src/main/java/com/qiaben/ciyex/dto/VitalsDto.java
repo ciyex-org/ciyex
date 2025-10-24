@@ -13,7 +13,6 @@ import java.time.LocalDateTime;
 @Builder
 public class VitalsDto {
     private Long id;
-    private Long orgId;
     private Long patientId;
     private Long encounterId;
 

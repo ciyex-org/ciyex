@@ -22,7 +22,6 @@ public class GpsBillingCardService {
     @Transactional
     public GpsBillingCardDto create(GpsBillingCardDto dto, Long orgId) {
         GpsBillingCard entity = toEntity(dto);
-        entity.setOrgId(orgId);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
 
@@ -125,7 +124,6 @@ public class GpsBillingCardService {
     private GpsBillingCardDto toDto(GpsBillingCard entity) {
         return GpsBillingCardDto.builder()
                 .id(entity.getId())
-                .orgId(entity.getOrgId())
                 .userId(entity.getUserId())
                 .gpsCustomerVaultId(entity.getGpsCustomerVaultId())
                 .brand(entity.getBrand())
@@ -148,7 +146,6 @@ public class GpsBillingCardService {
     private GpsBillingCard toEntity(GpsBillingCardDto dto) {
         return GpsBillingCard.builder()
                 .id(dto.getId())
-                .orgId(dto.getOrgId())
                 .userId(dto.getUserId())
                 .gpsCustomerVaultId(dto.getGpsCustomerVaultId())
                 .brand(dto.getBrand())

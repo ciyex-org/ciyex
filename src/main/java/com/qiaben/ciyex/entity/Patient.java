@@ -24,8 +24,7 @@ public class Patient {
     @Column(name = "status")
     private String status;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId; // Tenant identifier
+     // Tenant identifier
 
     @Column(name = "first_name")
     private String firstName;

@@ -20,7 +20,7 @@
 //    @Column(name = "external_id")
 //    private String externalId; // FHIR id (nullable)
 //
-//    @Column(name = "org_id", nullable = false)
+//    
 //    private Long orgId;
 //
 //    @Column(name = "patient_id", nullable = false)
@@ -72,8 +72,7 @@ public class PatientMedicalHistory {
     @Column(name = "encounter_id", nullable = false)
     private Long encounterId;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
     @Column(name = "external_id", length = 255)
     private String externalId;

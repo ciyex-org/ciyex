@@ -45,7 +45,6 @@ import java.util.List;
 public class SocialHistoryDto {
     private Long id;
     private String externalId;
-    private Long orgId;
     private Long patientId;
     private Long encounterId;
 

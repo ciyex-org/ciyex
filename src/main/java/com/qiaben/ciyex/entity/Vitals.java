@@ -18,7 +18,6 @@ public class Vitals {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long orgId;
     private Long patientId;
     private Long encounterId;
 

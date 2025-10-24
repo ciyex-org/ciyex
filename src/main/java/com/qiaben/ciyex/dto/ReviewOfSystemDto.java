@@ -36,7 +36,6 @@ import java.util.List;
 @Data
 public class ReviewOfSystemDto {
     private Long id;
-    private Long orgId;
     private Long patientId;
     private Long encounterId;
 

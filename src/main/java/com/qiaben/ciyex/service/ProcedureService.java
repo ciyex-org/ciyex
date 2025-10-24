@@ -30,7 +30,6 @@ public class ProcedureService {
 
     public ProcedureDto create(Long orgId, Long patientId, Long encounterId, ProcedureDto in) {
         Procedure p = Procedure.builder()
-                .orgId(orgId).patientId(patientId).encounterId(encounterId)
                 .cpt4(in.getCpt4()).description(in.getDescription())
                 .units(in.getUnits()).rate(in.getRate())
                 .relatedIcds(in.getRelatedIcds())
@@ -121,7 +120,6 @@ public class ProcedureService {
         ProcedureDto dto = new ProcedureDto();
         dto.setId(e.getId());
         dto.setExternalId(e.getExternalId());
-        dto.setOrgId(e.getOrgId());
         dto.setPatientId(e.getPatientId());
         dto.setEncounterId(e.getEncounterId());
 

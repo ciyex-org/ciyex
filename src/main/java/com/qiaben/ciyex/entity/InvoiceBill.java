@@ -17,8 +17,7 @@ public class InvoiceBill {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "org_id")
-    private Long orgId;
+    
 
     @Column(name = "user_id")
     private Long userId;

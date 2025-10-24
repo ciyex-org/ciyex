@@ -35,9 +35,6 @@ public class RecallService {
 
     @Transactional
     public RecallDto create(RecallDto dto) {
-        Long orgId = getCurrentOrgId();
-        dto.setOrgId(orgId);
-
         Recall recall = mapToEntity(dto);
         recall.setCreatedDate(LocalDateTime.now().toString());
         recall.setLastModifiedDate(LocalDateTime.now().toString());
@@ -87,7 +84,7 @@ public class RecallService {
 
     @Transactional(readOnly = true)
     public List<RecallDto> getAll() {
-        return repository.findByOrgId(getCurrentOrgId())
+        return repository.findAll()
                 .stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
@@ -95,15 +92,13 @@ public class RecallService {
 
     @Transactional(readOnly = true)
     public Page<RecallDto> getAll(Pageable pageable) {
-        Long orgId = getCurrentOrgId();
-        return repository.findAllByOrgId(orgId, pageable)
+        return repository.findAll(pageable)
                 .map(this::mapToDto);
     }
 
     private Recall mapToEntity(RecallDto dto) {
         return Recall.builder()
                 .id(dto.getId())
-                .orgId(dto.getOrgId())
                 .patientId(dto.getPatientId())
                 .providerId(dto.getProviderId())
                 .patientName(dto.getPatientName())
@@ -125,7 +120,6 @@ public class RecallService {
     private RecallDto mapToDto(Recall recall) {
         RecallDto dto = new RecallDto();
         dto.setId(recall.getId());
-        dto.setOrgId(recall.getOrgId());
         dto.setPatientId(recall.getPatientId());
         dto.setProviderId(recall.getProviderId());
         dto.setPatientName(recall.getPatientName());
@@ -143,9 +137,5 @@ public class RecallService {
         dto.setEmailConsent(recall.isEmailConsent());
         dto.setFhirId(recall.getExternalId());
         return dto;
-    }
-
-    private Long getCurrentOrgId() {
-        return RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
     }
 }

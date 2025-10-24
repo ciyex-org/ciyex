@@ -5,7 +5,6 @@ import lombok.Data;
 @Data
 public class RecallDto {
     private Long id;
-    private Long orgId;
     private Long patientId;
     private Long providerId;
 

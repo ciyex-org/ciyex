@@ -14,7 +14,6 @@ public class Maintenance {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long orgId;
 
     private String equipment;
     private String category;

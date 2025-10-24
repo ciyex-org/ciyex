@@ -14,7 +14,6 @@ public class InventorySettings {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long orgId;
 
     private boolean lowStockAlerts;
     private boolean autoReorderSuggestions;

@@ -25,7 +25,6 @@ public class GlobalCodeService {
 
     public GlobalCodeDto create(Long orgId, GlobalCodeDto in) {
         GlobalCode e = GlobalCode.builder()
-                .orgId(orgId)
                 .codeType(in.getCodeType()).code(in.getCode()).modifier(in.getModifier())
                 .active(in.getActive())
                 .description(in.getDescription()).shortDescription(in.getShortDescription())
@@ -47,9 +46,8 @@ public class GlobalCodeService {
         return mapToDto(saved);
     }
 
-    public GlobalCodeDto update(Long orgId, Long id, GlobalCodeDto in) {
+    public GlobalCodeDto update(Long id, GlobalCodeDto in) {
         GlobalCode e = repo.findById(id)
-                .filter(c -> c.getOrgId().equals(orgId))
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
 
         e.setCodeType(in.getCodeType());
@@ -75,9 +73,8 @@ public class GlobalCodeService {
         return mapToDto(updated);
     }
 
-    public void delete(Long orgId, Long id) {
+    public void delete(Long id) {
         GlobalCode e = repo.findById(id)
-                .filter(c -> c.getOrgId().equals(orgId))
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
 
         external.ifPresent(ext -> {
@@ -86,15 +83,14 @@ public class GlobalCodeService {
         repo.delete(e);
     }
 
-    public GlobalCodeDto getOne(Long orgId, Long id) {
+    public GlobalCodeDto getOne(Long id) {
         return repo.findById(id)
-                .filter(c -> c.getOrgId().equals(orgId))
                 .map(this::mapToDto)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
     }
 
-    public List<GlobalCodeDto> getAll(Long orgId) {
-        return repo.findByOrgId(orgId).stream().map(this::mapToDto).toList();
+    public List<GlobalCodeDto> getAll() {
+        return repo.findAll().stream().map(this::mapToDto).toList();
     }
 
     public List<GlobalCodeDto> search(Long orgId, String codeType, Boolean active, String q) {
@@ -105,7 +101,6 @@ public class GlobalCodeService {
         GlobalCodeDto dto = new GlobalCodeDto();
         dto.setId(e.getId());
         dto.setExternalId(e.getExternalId());
-        dto.setOrgId(e.getOrgId());
         dto.setCodeType(e.getCodeType());
         dto.setCode(e.getCode());
         dto.setModifier(e.getModifier());

@@ -14,7 +14,7 @@ public class ListOption {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "org_id", nullable = false)
+    
     private String orgId;
 
     @Column(name = "list_id", nullable = false)

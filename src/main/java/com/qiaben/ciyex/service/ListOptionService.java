@@ -26,7 +26,7 @@ public class ListOptionService {
     @Transactional
     public ListOptionDto create(ListOptionDto dto) {
         ListOption entity = new ListOption();
-        entity.setOrgId(dto.getOrgId());
+        entity.setOrgId(RequestContext.get().getTenantName());
         entity.setListId(dto.getListId());
         entity.setOptionId(dto.getOptionId());
         entity.setTitle(dto.getTitle());

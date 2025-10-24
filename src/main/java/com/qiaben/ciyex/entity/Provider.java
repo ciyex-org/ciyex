@@ -18,9 +18,6 @@ public class Provider {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "org_id")
-    private Long orgId;
-
     @Column(name = "npi")
     private String npi;
 

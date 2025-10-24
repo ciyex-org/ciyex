@@ -4,8 +4,7 @@ import lombok.Data;
 
 @Data
 public class TelehealthConfig {
-
-    private Long orgId; // Will be set by OrgIntegrationConfigProvider
+ // Will be set by OrgIntegrationConfigProvider
     private String vendor; // e.g., "twilio", "telnyx", "jitsi"
     private Twilio twilio;
     private Telnyx telnyx;

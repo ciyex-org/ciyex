@@ -21,7 +21,7 @@ public class FhirExternalPastMedicalHistoryStorage implements ExternalPastMedica
     @Override
     public String create(PastMedicalHistoryDto dto) {
         log.info("FHIR PMH create patientId={}, encounterId={}", dto.getPatientId(), dto.getEncounterId());
-        // var client = fhirClientProvider.getForCurrentTenant(); // or getForOrg(dto.getOrgId())
+        // var client = fhirClientProvider.getForCurrentTenant(); // or getForOrg(RequestContext.get().getTenantName())
         // TODO: Build & create FHIR resource; return externalId
         return null;
     }

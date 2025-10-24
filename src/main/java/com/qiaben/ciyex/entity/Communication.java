@@ -18,8 +18,7 @@ public class Communication {
     @Column(name = "external_id")
     private String externalId;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status")

@@ -25,7 +25,7 @@
 ////        chiefComplaint.setComplaint(dto.getComplaint());
 ////        chiefComplaint.setDetails(dto.getDetails());
 ////        chiefComplaint.setEncounterId(dto.getEncounterId());
-////        chiefComplaint.setOrgId(dto.getOrgId());  // Set orgId
+////        chiefComplaint.setOrgId(RequestContext.get().getTenantName());  // Set orgId
 ////        chiefComplaint.setPatientId(dto.getPatientId());
 ////        chiefComplaint = chiefComplaintRepository.save(chiefComplaint);
 ////        return mapToDto(chiefComplaint);
@@ -52,7 +52,7 @@
 ////        // Set the updated data
 ////        chiefComplaint.setComplaint(dto.getComplaint());
 ////        chiefComplaint.setDetails(dto.getDetails());
-////        chiefComplaint.setOrgId(dto.getOrgId());  // Update orgId
+////        chiefComplaint.setOrgId(RequestContext.get().getTenantName());  // Update orgId
 ////        chiefComplaint.setPatientId(dto.getPatientId());
 ////
 ////        // Save the updated chief complaint
@@ -118,7 +118,7 @@
 //        chiefComplaint.setComplaint(dto.getComplaint());
 //        chiefComplaint.setDetails(dto.getDetails());
 //        chiefComplaint.setEncounterId(dto.getEncounterId());
-//        chiefComplaint.setOrgId(dto.getOrgId());
+//        chiefComplaint.setOrgId(RequestContext.get().getTenantName());
 //        chiefComplaint.setPatientId(dto.getPatientId());
 //        chiefComplaint.setCreatedAt(dto.getCreatedAt());
 //        chiefComplaint.setUpdatedAt(dto.getUpdatedAt());
@@ -246,7 +246,6 @@ public class ChiefComplaintService {
     // CREATE
     public ChiefComplaintDto create(Long orgId, Long patientId, Long encounterId, ChiefComplaintDto dto) {
         ChiefComplaint e = new ChiefComplaint();
-        e.setOrgId(orgId);
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
         applyEditable(e, dto);
@@ -367,7 +366,6 @@ public class ChiefComplaintService {
     private ChiefComplaintDto toDto(ChiefComplaint e) {
         ChiefComplaintDto d = new ChiefComplaintDto();
         d.setId(e.getId());
-        d.setOrgId(e.getOrgId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
         d.setComplaint(e.getComplaint());

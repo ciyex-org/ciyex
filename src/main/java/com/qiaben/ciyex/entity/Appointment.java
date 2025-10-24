@@ -16,8 +16,7 @@ public class Appointment {
     private Long id;
 
     // Org reference
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
     // Visit details
     @Column(name = "visit_type", nullable = false)

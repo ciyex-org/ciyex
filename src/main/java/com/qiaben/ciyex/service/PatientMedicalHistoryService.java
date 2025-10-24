@@ -159,7 +159,6 @@ public class PatientMedicalHistoryService {
     // Create
     public PatientMedicalHistoryDto create(Long orgId, Long patientId, Long encounterId, PatientMedicalHistoryDto dto) {
         PatientMedicalHistory e = new PatientMedicalHistory();
-        e.setOrgId(orgId);
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
         applyDto(e, dto);
@@ -276,7 +275,6 @@ public class PatientMedicalHistoryService {
         d.setId(e.getId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
-        d.setOrgId(e.getOrgId());
         d.setExternalId(e.getExternalId());
 
         d.setMedicalCondition(e.getMedicalCondition());

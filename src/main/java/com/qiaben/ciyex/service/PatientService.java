@@ -67,7 +67,6 @@ public class PatientService {
         }
 
         Patient patient = mapToEntity(dto);
-        patient.setOrgId(currentOrgId);
         patient.setCreatedDate(LocalDateTime.now().toString());
         patient.setLastModifiedDate(LocalDateTime.now().toString());
 
@@ -114,10 +113,6 @@ public class PatientService {
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
 
-        if (!currentOrgId.equals(patient.getOrgId())) {
-            throw new SecurityException("Access denied: Patient id " + id + " does not belong to orgId " + currentOrgId);
-        }
-
         PatientDto patientDto = mapToDto(patient);
         if (patient.getExternalId() != null) {
             PatientDto fhirPatientDto = getPatientFromFhir(patient.getExternalId());
@@ -155,10 +150,6 @@ public class PatientService {
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
 
-        if (!currentOrgId.equals(patient.getOrgId())) {
-            throw new SecurityException("Access denied: Patient id " + id + " does not belong to orgId " + currentOrgId);
-        }
-
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && patient.getExternalId() != null) {
             try {
@@ -194,10 +185,6 @@ public class PatientService {
 
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
-
-        if (!currentOrgId.equals(patient.getOrgId())) {
-            throw new SecurityException("Access denied: Patient id " + id + " does not belong to orgId " + currentOrgId);
-        }
 
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && patient.getExternalId() != null) {
@@ -307,7 +294,6 @@ public class PatientService {
         dto.setAddress(patient.getAddress());
         dto.setStatus(patient.getStatus());
         dto.setMedicalRecordNumber(patient.getMedicalRecordNumber());
-    dto.setTenantName(tenantNameFromOrgId(patient.getOrgId()));
         if (patient.getCreatedDate() != null || patient.getLastModifiedDate() != null) {
             PatientDto.Audit audit = new PatientDto.Audit();
             audit.setCreatedDate(patient.getCreatedDate());

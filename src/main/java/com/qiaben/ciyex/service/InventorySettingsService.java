@@ -20,7 +20,6 @@ public class InventorySettingsService {
         InventorySettings entity = repository.findByOrgId(orgId)
                 .orElseGet(() -> {
                     InventorySettings defaults = InventorySettings.builder()
-                            .orgId(orgId)
                             .lowStockAlerts(true)
                             .autoReorderSuggestions(false)
                             .criticalLowPercentage(10)
@@ -35,7 +34,7 @@ public class InventorySettingsService {
     @Transactional
     public InventorySettingsDto updateSettings(Long orgId, InventorySettingsDto dto) {
         InventorySettings entity = repository.findByOrgId(orgId)
-                .orElse(InventorySettings.builder().orgId(orgId).build());
+                .orElse(InventorySettings.builder().build());
 
         entity.setLowStockAlerts(dto.isLowStockAlerts());
         entity.setAutoReorderSuggestions(dto.isAutoReorderSuggestions());
@@ -48,7 +47,6 @@ public class InventorySettingsService {
     private InventorySettingsDto toDto(InventorySettings entity) {
         return InventorySettingsDto.builder()
                 .id(entity.getId())
-                .orgId(entity.getOrgId())
                 .lowStockAlerts(entity.isLowStockAlerts())
                 .autoReorderSuggestions(entity.isAutoReorderSuggestions())
                 .criticalLowPercentage(entity.getCriticalLowPercentage())

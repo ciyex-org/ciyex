@@ -15,8 +15,7 @@ public class Slot {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
     @Column(name = "provider_id", nullable = false)
     private Long providerId;

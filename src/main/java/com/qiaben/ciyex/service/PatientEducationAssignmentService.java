@@ -41,7 +41,6 @@ public class PatientEducationAssignmentService {
         if (edu != null) {
             PatientEducationAssignmentDto.TopicDto topic = new PatientEducationAssignmentDto.TopicDto();
             topic.setId(edu.getId());
-            topic.setOrgId(edu.getOrgId());
             topic.setTitle(edu.getTitle());
             topic.setSummary(edu.getSummary());
             topic.setCategory(edu.getCategory());

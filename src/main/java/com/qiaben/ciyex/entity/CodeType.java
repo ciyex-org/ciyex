@@ -25,8 +25,7 @@ public class CodeType {
     @Column(name = "external_id")
     private String externalId;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
     @Column(name = "patient_id", nullable = false)
     private Long patientId;

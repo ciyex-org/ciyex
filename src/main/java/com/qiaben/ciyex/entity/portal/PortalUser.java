@@ -45,8 +45,7 @@ public class PortalUser {
     @Builder.Default
     private PortalStatus status = PortalStatus.PENDING;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
     @Column(length = 500)
     private String reason; // Rejection reason or admin notes

@@ -35,7 +35,6 @@ public class EncounterService {
         Encounter encounter = mapToEntity(dto);
         encounter.setId(null);
         encounter.setPatientId(patientId);                 // NEW
-        encounter.setOrgId(orgId);
         long now = System.currentTimeMillis();
         encounter.setCreatedAt(now);
         encounter.setUpdatedAt(now);
@@ -129,7 +128,6 @@ public class EncounterService {
         e.setSensitivity(dto.getSensitivity());
         e.setDischargeDisposition(dto.getDischargeDisposition());
         e.setReasonForVisit(dto.getReasonForVisit());
-        e.setOrgId(dto.getOrgId());
         e.setEncounterDate(dto.getEncounterDate());
         e.setCreatedAt(dto.getCreatedAt() != null ? dto.getCreatedAt() : 0L);
         e.setUpdatedAt(dto.getUpdatedAt() != null ? dto.getUpdatedAt() : 0L);
@@ -147,7 +145,6 @@ public class EncounterService {
         dto.setSensitivity(e.getSensitivity());
         dto.setDischargeDisposition(e.getDischargeDisposition());
         dto.setReasonForVisit(e.getReasonForVisit());
-        dto.setOrgId(e.getOrgId());
         dto.setEncounterDate(e.getEncounterDate());
 
         dto.setCreatedAt(e.getCreatedAt());

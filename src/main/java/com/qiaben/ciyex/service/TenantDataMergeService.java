@@ -24,10 +24,10 @@ public class TenantDataMergeService {
      * Merge approved portal data into appropriate EHR tenant schema
      */
     @Transactional
-    public void mergeApprovedData(Long orgId, PortalPendingUpdate update) {
+    public void mergeApprovedData(PortalPendingUpdate update) {
         try {
             // Set tenant context
-            String tenantSchema = "practice_" + orgId;
+            String tenantSchema = "practice_";
             RequestContext ctx = new RequestContext();
             ctx.setTenantName(tenantSchema);
             RequestContext.set(ctx);
@@ -57,8 +57,8 @@ public class TenantDataMergeService {
             log.info("✅ Data merged successfully - Type: {}, Tenant: {}", update.getUpdateType(), tenantSchema);
 
         } catch (Exception e) {
-            log.error("❌ Failed to merge approved data - Type: {}, OrgId: {}", 
-                    update.getUpdateType(), orgId, e);
+            log.error("❌ Failed to merge approved data - Type: {}, Tenant: {}",
+                    update.getUpdateType(), RequestContext.get().getTenantName(), e);
             throw new RuntimeException("Failed to merge approved data: " + e.getMessage());
         } finally {
             RequestContext.clear();

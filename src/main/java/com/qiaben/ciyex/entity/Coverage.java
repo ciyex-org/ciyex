@@ -39,8 +39,7 @@ public class Coverage {
     @Column(name = "patient_id")
     private Long patientId;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
     @ManyToOne
     @JoinColumn(name = "insurance_company_id")

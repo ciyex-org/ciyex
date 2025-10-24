@@ -13,7 +13,6 @@ import java.time.LocalDateTime;
 @Builder
 public class BillingHistoryDto {
     private Long id;
-    private Long orgId;
     private Long userId;
 
     /** Payment provider: STRIPE or GPS */

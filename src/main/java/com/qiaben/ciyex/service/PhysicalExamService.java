@@ -199,7 +199,6 @@ public class PhysicalExamService {
     // Create
     public PhysicalExamDto create(Long orgId, Long patientId, Long encounterId, PhysicalExamDto dto) {
         PhysicalExam e = new PhysicalExam();
-        e.setOrgId(orgId);
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
         applySections(e, dto.getSections());
@@ -326,7 +325,6 @@ public class PhysicalExamService {
         PhysicalExamDto d = new PhysicalExamDto();
         d.setId(e.getId());
         d.setExternalId(e.getExternalId());
-        d.setOrgId(e.getOrgId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
 

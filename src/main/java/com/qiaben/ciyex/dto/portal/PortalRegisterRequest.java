@@ -26,6 +26,5 @@ public class PortalRegisterRequest {
     private String postalCode;
     private String profileImage;
     private String securityQuestion;
-    private String securityAnswer;
-    private Long orgId;   // 🔹 Added orgId for organization association
+    private String securityAnswer;   // 🔹 Added orgId for organization association
 }

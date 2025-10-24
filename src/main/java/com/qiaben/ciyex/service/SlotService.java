@@ -50,7 +50,6 @@ public class SlotService {
         }
 
         Slot entity = Slot.builder()
-                .orgId(orgId)
                 .providerId(dto.getProviderId())
                 .externalId(externalId)
                 .createdDate(LocalDateTime.now().toString())

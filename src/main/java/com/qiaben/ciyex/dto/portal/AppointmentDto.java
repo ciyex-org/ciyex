@@ -27,7 +27,6 @@ public class AppointmentDto {
     private Long locationId;
     private String status;
     private String reason;
-    private Long orgId;
     private String providerName;
     private String locationName;
     private String patientName;

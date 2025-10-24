@@ -21,8 +21,7 @@ public class DocumentSettings {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
+    
 
     @Column(name = "max_upload_bytes", nullable = false)
     private long maxUploadBytes;

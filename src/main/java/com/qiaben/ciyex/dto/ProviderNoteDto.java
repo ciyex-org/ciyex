@@ -40,7 +40,6 @@ import lombok.Data;
 @Data
 public class ProviderNoteDto {
     private Long id;
-    private Long orgId;
     private Long patientId;
     private Long encounterId;
 

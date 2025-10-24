@@ -21,7 +21,7 @@ public class FhirExternalHistoryOfPresentIllnessStorage implements ExternalHisto
     @Override
     public String create(HistoryOfPresentIllnessDto dto) {
         log.info("FHIR HPI create patientId={}, encounterId={}", dto.getPatientId(), dto.getEncounterId());
-        // var client = fhirClientProvider.getForCurrentTenant(); // or getForOrg(dto.getOrgId()) if you prefer
+        // var client = fhirClientProvider.getForCurrentTenant(); // or getForOrg(RequestContext.get().getTenantName()) if you prefer
         // TODO: build and create FHIR resource, return externalId
         return null;
     }

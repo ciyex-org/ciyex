@@ -126,7 +126,6 @@ public class PatientCodeListService {
     // ---- mapping helpers ----
 
     private PatientCodeList fromDto(Long orgId, PatientCodeListDto dto, PatientCodeList e) {
-        e.setOrgId(orgId);
         if (dto.title != null) e.setTitle(dto.title);
         if (dto.order != null) e.setOrderIndex(dto.order);
         e.setDefault(dto.isDefault);
@@ -139,7 +138,6 @@ public class PatientCodeListService {
     private PatientCodeListDto toDto(PatientCodeList e) {
         PatientCodeListDto d = new PatientCodeListDto();
         d.id = e.getId();
-        d.orgId = e.getOrgId();
         d.title = e.getTitle();
         d.order = e.getOrderIndex();
         d.isDefault = e.isDefault();

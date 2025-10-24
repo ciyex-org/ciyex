@@ -124,7 +124,6 @@ public class DocumentService {
         dto.setS3Key(key);
 
         Document entity = mapToEntity(dto);
-        entity.setOrgId(orgId);
         entity.setCreatedDate(LocalDateTime.now().toString());
         entity.setLastModifiedDate(LocalDateTime.now().toString());
         entity.setEncryptionKey(base64Key);

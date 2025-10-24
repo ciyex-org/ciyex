@@ -21,7 +21,6 @@ public class HealthcareServiceService {
 
     public HealthcareServiceDto create(HealthcareServiceDto dto, Long orgId) {
         HealthcareService entity = mapToEntity(dto);
-        entity.setOrgId(orgId);  // Ensure orgId is set properly
         HealthcareService savedEntity = repository.save(entity);
         return mapToDto(savedEntity);
     }
@@ -67,7 +66,6 @@ public class HealthcareServiceService {
         dto.setDescription(entity.getDescription());
         dto.setLocation(entity.getLocation());
         dto.setType(entity.getType());
-        dto.setOrgId(entity.getOrgId());
         dto.setHoursOfOperation(entity.getHoursOfOperation());
         return dto;
     }

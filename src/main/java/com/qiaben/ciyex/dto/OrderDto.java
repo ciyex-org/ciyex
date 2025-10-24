@@ -5,7 +5,6 @@ import lombok.Data;
 @Data
 public class OrderDto {
     private Long id;
-    private Long orgId;
     private String orderNumber;
     private String supplier;
     private String date;

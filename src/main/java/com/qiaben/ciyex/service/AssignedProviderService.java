@@ -154,7 +154,6 @@ public class AssignedProviderService {
     // Create
     public AssignedProviderDto create(Long orgId, Long patientId, Long encounterId, AssignedProviderDto dto) {
         AssignedProvider e = new AssignedProvider();
-        e.setOrgId(orgId);
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
         applyDto(e, dto);
@@ -277,7 +276,6 @@ public class AssignedProviderService {
         AssignedProviderDto d = new AssignedProviderDto();
         d.setId(e.getId());
         d.setExternalId(e.getExternalId());
-        d.setOrgId(e.getOrgId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
         d.setProviderId(e.getProviderId());
