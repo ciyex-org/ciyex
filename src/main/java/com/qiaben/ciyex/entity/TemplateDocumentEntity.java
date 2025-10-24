@@ -74,3 +74,4 @@ public class TemplateDocumentEntity {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }
+

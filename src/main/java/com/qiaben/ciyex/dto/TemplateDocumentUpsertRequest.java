@@ -13,3 +13,4 @@ public class TemplateDocumentUpsertRequest {
     @NotBlank public String content;               // full HTML
     @NotNull public Map<String, Object> options;   // JSONB
 }
+

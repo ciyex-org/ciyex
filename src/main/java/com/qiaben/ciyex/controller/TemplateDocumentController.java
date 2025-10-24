@@ -73,7 +73,7 @@ public class TemplateDocumentController {
             @RequestParam(value = "context", required = false) TemplateContext context,
             @RequestParam(value = "q", required = false) String q) {
         RequestContext ctx = RequestContext.get();
-         = (ctx != null ? ctx.getOrgId() : null);
+        Long orgId = (ctx != null ? ctx.getOrgId() : null);
         if (orgId == null) orgId = orgIdParam;
         if (orgId == null) throw new ResponseStatusException(BAD_REQUEST, "X-Org-Id header or orgId query parameter required to scope request");
 
