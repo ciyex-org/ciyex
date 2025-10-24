@@ -543,8 +543,10 @@ public class AuthController {
             String firstName = (String) userInfo.get("given_name");
             String lastName = (String) userInfo.get("family_name");
             String userId = (String) userInfo.get("sub");
-            @SuppressWarnings("unchecked")
-            List<String> groups = (List<String>) userInfo.getOrDefault("groups", Collections.emptyList());
+            
+            // Extract groups from JWT token (not from userInfo, as Keycloak doesn't include them there by default)
+            List<String> groups = keycloakAuthService.extractGroupsFromToken(accessToken);
+            log.info("Extracted {} groups from token for user {}", groups.size(), username);
 
             // Determine tenant access
             boolean hasFullAccess = tenantAccessService.hasAccessToAllTenants(groups);

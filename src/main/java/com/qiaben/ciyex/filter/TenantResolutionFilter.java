@@ -3,6 +3,7 @@ package com.qiaben.ciyex.filter;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.service.KeycloakAuthService;
 import com.qiaben.ciyex.service.TenantAccessService;
+import com.qiaben.ciyex.service.TenantSchemaService;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -33,11 +34,15 @@ public class TenantResolutionFilter implements Filter {
 
     @Autowired
     private TenantAccessService tenantAccessService;
+    
+    @Autowired
+    private TenantSchemaService tenantSchemaService;
 
     // Paths that don't require tenant resolution
     private static final String[] EXCLUDED_PATHS = {
         "/api/auth/",
         "/api/portal/auth/",
+        "/api/tenants/accessible",  // Allow users to discover their accessible tenants
         "/actuator/",
         "/error"
     };
@@ -73,38 +78,75 @@ public class TenantResolutionFilter implements Filter {
                         keycloakAuthService.extractGroupAttributesFromToken(token);
                 log.debug("Group attributes: {}", groupAttributes);
 
-                // Get X-Org-Id header if present
-                String orgIdHeader = req.getHeader("X-Org-Id");
-                Long requestedOrgId = null;
-                if (orgIdHeader != null && !orgIdHeader.isBlank()) {
-                    try {
-                        requestedOrgId = Long.parseLong(orgIdHeader);
-                    } catch (NumberFormatException e) {
-                        log.warn("Invalid X-Org-Id header: {}", orgIdHeader);
-                    }
-                }
-
-                // Resolve org ID based on groups, attributes, and header
-                Long resolvedOrgId = tenantAccessService.resolveOrgId(groups, groupAttributes, requestedOrgId);
-
-                if (resolvedOrgId != null) {
-                    // Set org ID in RequestContext
-                    RequestContext context = new RequestContext();
-                    context.setOrgId(resolvedOrgId);
-                    RequestContext.set(context);
-                    log.debug("Resolved org ID: {} for URI: {}", resolvedOrgId, uri);
-                } else {
-                    // Check if org ID is required for this user
-                    if (tenantAccessService.requiresOrgIdHeader(groups)) {
-                        log.warn("X-Org-Id header required but not provided or invalid for URI: {}", uri);
+                // Get X-Tenant-Name header if present (optional, for multi-tenant users)
+                String tenantNameHeader = req.getHeader("X-Tenant-Name");
+                
+                // Determine tenant name
+                String tenantName = null;
+                
+                if (tenantAccessService.hasAccessToAllTenants(groups)) {
+                    // User has full access, must specify tenant
+                    if (tenantNameHeader == null || tenantNameHeader.isBlank()) {
+                        log.warn("X-Tenant-Name header required for users with full access");
                         res.setStatus(HttpServletResponse.SC_BAD_REQUEST);
                         res.setContentType("application/json");
-                        res.getWriter().write("{\"error\":\"X-Org-Id header is required\",\"message\":\"You have access to multiple tenants. Please specify X-Org-Id header.\"}");
+                        res.getWriter().write("{\"error\":\"X-Tenant-Name header is required\",\"message\":\"You have access to all tenants. Please specify X-Tenant-Name header.\"}");
                         return;
+                    }
+                    tenantName = tenantNameHeader;
+                } else {
+                    // Get accessible tenants
+                    List<String> accessibleTenants = tenantAccessService.getAccessibleTenants(groups);
+                    
+                    if (accessibleTenants.isEmpty()) {
+                        log.warn("User has no tenant access for URI: {}", uri);
+                        res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                        res.setContentType("application/json");
+                        res.getWriter().write("{\"error\":\"No tenant access\",\"message\":\"You do not have access to any tenants.\"}");
+                        return;
+                    }
+                    
+                    if (accessibleTenants.size() == 1) {
+                        // Single tenant, use it
+                        tenantName = accessibleTenants.get(0);
                     } else {
-                        log.warn("Could not resolve org ID for URI: {}", uri);
+                        // Multiple tenants, must specify
+                        if (tenantNameHeader == null || tenantNameHeader.isBlank()) {
+                            log.warn("X-Tenant-Name header required for users with multiple tenant access");
+                            res.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                            res.setContentType("application/json");
+                            res.getWriter().write("{\"error\":\"X-Tenant-Name header is required\",\"message\":\"You have access to multiple tenants. Please specify X-Tenant-Name header. Accessible tenants: " + String.join(", ", accessibleTenants) + "\"}");
+                            return;
+                        }
+                        
+                        // Validate tenant access
+                        if (!tenantAccessService.hasAccessToTenant(groups, tenantNameHeader)) {
+                            log.warn("User does not have access to tenant: {}", tenantNameHeader);
+                            res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            res.setContentType("application/json");
+                            res.getWriter().write("{\"error\":\"Access denied\",\"message\":\"You do not have access to tenant: " + tenantNameHeader + "\"}");
+                            return;
+                        }
+                        
+                        tenantName = tenantNameHeader;
                     }
                 }
+                
+                // Ensure schema exists for tenant and get schema name
+                String schemaName = tenantSchemaService.ensureSchemaForTenant(tenantName);
+                
+                // Get org_id from group attributes (for backward compatibility)
+                String tenantGroupPath = "/Tenants/" + tenantName;
+                Long orgId = tenantAccessService.getOrgIdFromGroupAttributes(groupAttributes, tenantGroupPath);
+                
+                // Set tenant info in RequestContext
+                RequestContext context = new RequestContext();
+                context.setOrgId(orgId); // May be null for new tenants
+                // TODO: Add tenantName and schemaName to RequestContext
+                RequestContext.set(context);
+                
+                log.debug("Resolved tenant: {}, schema: {}, orgId: {} for URI: {}", 
+                        tenantName, schemaName, orgId, uri);
             }
 
             // Continue with the request

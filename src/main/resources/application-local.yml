@@ -1,0 +1,12 @@
+# Local development environment configuration
+ciyex:
+  env: local
+  tenant:
+    auto-init: false
+    auto-create-on-request: true  # Enable auto-creation in local
+
+logging:
+  level:
+    root: debug
+    com.qiaben.ciyex: debug
+    com.qiaben.ciyex.service.TenantSchemaService: debug

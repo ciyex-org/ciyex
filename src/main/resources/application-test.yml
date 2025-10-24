@@ -1,0 +1,11 @@
+# Test environment configuration
+ciyex:
+  env: test
+  tenant:
+    auto-init: false
+    auto-create-on-request: true  # Enable auto-creation in test
+
+logging:
+  level:
+    root: info
+    com.qiaben.ciyex: debug

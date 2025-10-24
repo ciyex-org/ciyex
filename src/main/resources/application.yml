@@ -36,6 +36,9 @@ keycloak:
   resource: ${KEYCLOAK_RESOURCE:ciyex-app}
   credentials:
     secret: ${KEYCLOAK_CLIENT_SECRET:LgDl38nUg6leUfB9DCG5LDglC75bxpOp}
+  admin:
+    username: ${KEYCLOAK_ADMIN_USERNAME:aran-admin}
+    password: ${KEYCLOAK_ADMIN_PASSWORD:Kc@2024!Secure#Pass}
 
 cors:
   allowed-origins: http://localhost:3000
@@ -52,6 +55,9 @@ ciyex:
   # migrations manually or when using external provisioning).
   tenant:
     auto-init: ${CIYEX_TENANT_AUTO_INIT:false}
+    # Controls automatic schema creation on-demand when tenant is accessed
+    # Set to false in production to prevent automatic schema creation
+    auto-create-on-request: ${CIYEX_TENANT_AUTO_CREATE:true}
   
   # ONC-Compliant Audit Configuration
   audit:

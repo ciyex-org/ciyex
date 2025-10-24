@@ -1,0 +1,12 @@
+# Production environment configuration
+ciyex:
+  env: prod
+  tenant:
+    auto-init: false
+    auto-create-on-request: false  # DISABLE auto-creation in production
+
+logging:
+  level:
+    root: warn
+    com.qiaben.ciyex: info
+    com.qiaben.ciyex.audit: info

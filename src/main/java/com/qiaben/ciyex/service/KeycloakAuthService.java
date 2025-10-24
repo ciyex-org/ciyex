@@ -145,6 +145,36 @@ public class KeycloakAuthService {
             return Collections.emptyList();
         }
     }
+    
+    /**
+     * Extract email from Keycloak JWT token
+     */
+    public String extractEmailFromToken(String accessToken) {
+        try {
+            // Decode JWT token to extract email
+            String[] parts = accessToken.split("\\.");
+            if (parts.length < 2) {
+                return null;
+            }
+
+            String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
+            JsonNode claims = objectMapper.readTree(payload);
+
+            // Try to get email from various claims
+            if (claims.has("email")) {
+                return claims.get("email").asText();
+            } else if (claims.has("preferred_username")) {
+                return claims.get("preferred_username").asText();
+            } else if (claims.has("sub")) {
+                return claims.get("sub").asText();
+            }
+            
+            return null;
+        } catch (Exception e) {
+            log.error("Error extracting email from token", e);
+            return null;
+        }
+    }
 
     /**
      * Extract group attributes from Keycloak token

@@ -1,19 +1,18 @@
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.service.TenantProvisionService;
+import com.qiaben.ciyex.service.KeycloakAuthService;
+import com.qiaben.ciyex.service.TenantAccessService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RequestPart;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.util.List;
+import java.util.Map;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 
@@ -23,9 +22,71 @@ import com.qiaben.ciyex.dto.ApiResponse;
 public class TenantController {
 
     private final TenantProvisionService provisionService;
+    
+    @Autowired
+    private KeycloakAuthService keycloakAuthService;
+    
+    @Autowired
+    private TenantAccessService tenantAccessService;
 
     public TenantController(TenantProvisionService provisionService) {
         this.provisionService = provisionService;
+    }
+    
+    /**
+     * Get accessible tenants for the current user
+     * Used by frontend to show practice selection page
+     */
+    @GetMapping("/accessible")
+    public ResponseEntity<ApiResponse<AccessibleTenantsResponse>> getAccessibleTenants(
+            @RequestHeader("Authorization") String authHeader) {
+        
+        try {
+            String token = authHeader.substring(7); // Remove "Bearer "
+            List<String> groups = keycloakAuthService.extractGroupsFromToken(token);
+            
+            boolean hasFullAccess = tenantAccessService.hasAccessToAllTenants(groups);
+            List<String> tenants = tenantAccessService.getAccessibleTenants(groups);
+            
+            // If user has full access, they can access any tenant (return empty list to indicate "ALL")
+            boolean requiresSelection = (hasFullAccess || tenants.size() > 1);
+            
+            AccessibleTenantsResponse data = new AccessibleTenantsResponse(
+                hasFullAccess,
+                hasFullAccess ? List.of() : tenants, // Empty list means "ALL" for full access users
+                requiresSelection
+            );
+            
+            ApiResponse<AccessibleTenantsResponse> response = ApiResponse.<AccessibleTenantsResponse>builder()
+                    .success(true)
+                    .message("Accessible tenants retrieved")
+                    .data(data)
+                    .build();
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Failed to get accessible tenants", e);
+            ApiResponse<AccessibleTenantsResponse> response = ApiResponse.<AccessibleTenantsResponse>builder()
+                    .success(false)
+                    .message("Failed to get accessible tenants: " + e.getMessage())
+                    .data(null)
+                    .build();
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    @Data
+    public static class AccessibleTenantsResponse {
+        private final boolean hasFullAccess;
+        private final List<String> tenants;
+        private final boolean requiresSelection;
+        
+        public AccessibleTenantsResponse(boolean hasFullAccess, List<String> tenants, boolean requiresSelection) {
+            this.hasFullAccess = hasFullAccess;
+            this.tenants = tenants;
+            this.requiresSelection = requiresSelection;
+        }
     }
 
     @PostMapping("/{orgId}")
