@@ -6,6 +6,7 @@ import com.qiaben.ciyex.entity.RoleName;
 import com.qiaben.ciyex.entity.User;
 import com.qiaben.ciyex.service.CiyexUserDetailsService;
 import com.qiaben.ciyex.service.KeycloakAuthService;
+import com.qiaben.ciyex.service.TenantAccessService;
 import com.qiaben.ciyex.util.JwtTokenUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +48,9 @@ public class AuthController {
     
     @Autowired
     private KeycloakAuthService keycloakAuthService;
+    
+    @Autowired
+    private TenantAccessService tenantAccessService;
     
     private static final String RECAPTCHA_SECRET = "6Lc_DccrAAAAAHZoUYbMtwphxkj8objBewMTjEiR"; // v2 secret
     private static final String RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify";
@@ -542,6 +546,12 @@ public class AuthController {
             @SuppressWarnings("unchecked")
             List<String> groups = (List<String>) userInfo.getOrDefault("groups", Collections.emptyList());
 
+            // Determine tenant access
+            boolean hasFullAccess = tenantAccessService.hasAccessToAllTenants(groups);
+            List<String> accessibleTenants = tenantAccessService.getAccessibleTenants(groups);
+            boolean requiresOrgId = tenantAccessService.requiresOrgIdHeader(groups);
+            String defaultTenant = tenantAccessService.getDefaultTenant(groups);
+
             // Prepare response
             Map<String, Object> responseData = new HashMap<>();
             responseData.put("token", accessToken);
@@ -551,8 +561,15 @@ public class AuthController {
             responseData.put("lastName", lastName);
             responseData.put("userId", userId);
             responseData.put("groups", groups);
+            
+            // Add tenant access information
+            responseData.put("hasFullAccess", hasFullAccess);
+            responseData.put("accessibleTenants", accessibleTenants);
+            responseData.put("requiresOrgId", requiresOrgId);
+            responseData.put("defaultTenant", defaultTenant);
 
-            log.info("Keycloak authentication successful for user: {}", username);
+            log.info("Keycloak authentication successful for user: {} (Full Access: {}, Tenants: {})", 
+                    username, hasFullAccess, accessibleTenants);
 
             return ResponseEntity.ok(
                     ApiResponse.<Map<String, Object>>builder()

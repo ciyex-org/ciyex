@@ -147,6 +147,59 @@ public class KeycloakAuthService {
     }
 
     /**
+     * Extract group attributes from Keycloak token
+     * Returns a map of group path to group attributes
+     */
+    public Map<String, Map<String, Object>> extractGroupAttributesFromToken(String accessToken) {
+        try {
+            String[] parts = accessToken.split("\\.");
+            if (parts.length < 2) {
+                return Collections.emptyMap();
+            }
+
+            String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
+            JsonNode claims = objectMapper.readTree(payload);
+
+            Map<String, Map<String, Object>> groupAttributes = new HashMap<>();
+            
+            // Check for group_attributes in token
+            if (claims.has("group_attributes")) {
+                JsonNode groupAttrsNode = claims.get("group_attributes");
+                groupAttrsNode.fields().forEachRemaining(entry -> {
+                    String groupPath = entry.getKey();
+                    Map<String, Object> attrs = new HashMap<>();
+                    entry.getValue().fields().forEachRemaining(attr -> {
+                        attrs.put(attr.getKey(), attr.getValue().asText());
+                    });
+                    groupAttributes.put(groupPath, attrs);
+                });
+            }
+            
+            return groupAttributes;
+        } catch (Exception e) {
+            log.error("Error extracting group attributes from token", e);
+            return Collections.emptyMap();
+        }
+    }
+
+    /**
+     * Get org ID from group attributes
+     */
+    public Long getOrgIdFromGroupAttributes(Map<String, Map<String, Object>> groupAttributes, String groupPath) {
+        if (groupAttributes.containsKey(groupPath)) {
+            Map<String, Object> attrs = groupAttributes.get(groupPath);
+            if (attrs.containsKey("org_id")) {
+                try {
+                    return Long.parseLong(attrs.get("org_id").toString());
+                } catch (NumberFormatException e) {
+                    log.error("Invalid org_id in group attributes: {}", attrs.get("org_id"));
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * Exchange authorization code for access token (OAuth 2.0 Authorization Code Flow with PKCE)
      */
     public Map<String, Object> exchangeCodeForToken(String code, String redirectUri, String codeVerifier) {
