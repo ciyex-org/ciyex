@@ -4,7 +4,6 @@ import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.entity.User;
 import com.qiaben.ciyex.entity.UserOrgRole;
 import com.qiaben.ciyex.service.OrganizationAuthService;
-import com.qiaben.ciyex.service.TenantSchemaInitializer;
 import com.qiaben.ciyex.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -20,7 +19,6 @@ public class TenantContextInterceptor implements HandlerInterceptor {
     
     private final UserService userService;
     private final OrganizationAuthService organizationAuthService;
-    private final TenantSchemaInitializer tenantSchemaInitializer;
     
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
@@ -40,15 +38,6 @@ public class TenantContextInterceptor implements HandlerInterceptor {
                         }
                         context.setOrgId(orgId);
                         log.debug("Set orgId {} in RequestContext from X-Org-Id header", orgId);
-
-                        // Ensure tenant schema (and tables) are initialized on first use. This is idempotent.
-                        try {
-                            log.debug("Initializing tenant schema for orgId: {} before handling request", orgId);
-                            tenantSchemaInitializer.initializeTenantSchema(orgId);
-                            log.debug("Tenant schema initialization completed for orgId: {}", orgId);
-                        } catch (Exception e) {
-                            log.warn("Failed to initialize tenant schema for org {}: {}", orgId, e.getMessage());
-                        }
                 } else {
                     log.warn("User does not have access to organization: {}", orgId);
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);

@@ -26,17 +26,14 @@ public class PatientService {
     private final PatientRepository repository;
     private final ExternalStorageResolver storageResolver;
     private final OrgIntegrationConfigProvider configProvider;
-    private final TenantSchemaInitializer tenantSchemaInitializer;
 
     @Autowired
     public PatientService(PatientRepository repository,
                           ExternalStorageResolver storageResolver,
-                          OrgIntegrationConfigProvider configProvider,
-                          TenantSchemaInitializer tenantSchemaInitializer) {
+                          OrgIntegrationConfigProvider configProvider) {
         this.repository = repository;
         this.storageResolver = storageResolver;
         this.configProvider = configProvider;
-        this.tenantSchemaInitializer = tenantSchemaInitializer;
     }
 
     @Transactional(readOnly = true)
@@ -88,9 +85,8 @@ public class PatientService {
         }
 
         patient.setExternalId(externalId);
-        tenantSchemaInitializer.initializeTenantSchema(currentOrgId);
 
-        // Save within tenant schema (AutoSchemaAspect sets search_path)
+        // Save within tenant schema
         patient = repository.save(patient);
         
         if (patient.getId() == null) {

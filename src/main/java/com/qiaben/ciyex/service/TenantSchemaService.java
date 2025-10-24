@@ -3,7 +3,6 @@ package com.qiaben.ciyex.service;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -120,11 +119,11 @@ public class TenantSchemaService {
     }
     
     /**
-     * Create schema and run Flyway migrations for tenant
+     * Create schema for tenant (migrations removed)
      */
-    public void createSchemaWithMigrations(String schemaName) {
+    public void createSchema(String schemaName) {
         try {
-            log.info("Creating schema and running migrations for: {}", schemaName);
+            log.info("Creating schema for: {}", schemaName);
             
             // Create schema if it doesn't exist
             try (Connection connection = dataSource.getConnection();
@@ -133,19 +132,8 @@ public class TenantSchemaService {
                 log.info("Schema created: {}", schemaName);
             }
             
-            // Run Flyway migrations for this schema
-            Flyway flyway = Flyway.configure()
-                    .dataSource(dataSource)
-                    .schemas(schemaName)
-                    .locations("classpath:db/migration/tenant")
-                    .baselineOnMigrate(true)
-                    .load();
-            
-            flyway.migrate();
-            log.info("Flyway migrations completed for schema: {}", schemaName);
-            
         } catch (Exception e) {
-            log.error("Failed to create schema with migrations: {}", schemaName, e);
+            log.error("Failed to create schema: {}", schemaName, e);
             throw new RuntimeException("Failed to create tenant schema", e);
         }
     }
@@ -238,7 +226,7 @@ public class TenantSchemaService {
                 log.info("Schema '{}' does not exist for tenant '{}', creating...", 
                         schemaName, tenantGroupName);
                 
-                createSchemaWithMigrations(schemaName);
+                createSchema(schemaName);
                 updateKeycloakGroupAttribute(tenantGroupName, schemaName);
             } else {
                 log.error("Schema '{}' does not exist for tenant '{}' and auto-create is disabled", 
