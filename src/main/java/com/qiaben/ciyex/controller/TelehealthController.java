@@ -12,7 +12,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.web.bind.annotation.*;
-import com.qiaben.ciyex.util.JwtTokenUtil;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -30,13 +29,11 @@ public class TelehealthController {
 
     private final TelehealthGateway gateway;
     private final TelehealthResolver resolver;
-    private final JwtTokenUtil jwtTokenUtil;
     private final ApplicationContext applicationContext;
 
-    public TelehealthController(TelehealthGateway gateway, TelehealthResolver resolver, JwtTokenUtil jwtTokenUtil, ApplicationContext applicationContext) {
+    public TelehealthController(TelehealthGateway gateway, TelehealthResolver resolver, ApplicationContext applicationContext) {
         this.gateway = gateway;
         this.resolver = resolver;
-        this.jwtTokenUtil = jwtTokenUtil;
         this.applicationContext = applicationContext;
     }
 
@@ -91,34 +88,20 @@ public class TelehealthController {
 
     @PostMapping("/jitsi/join")
     public ResponseEntity<JitsiJoinResponse> jitsiJoin(@RequestBody JoinTokenRequest req, HttpServletRequest request) {
-        // Manual JWT validation for both providers and patients
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(401).body(null);
-        }
-
-        String token = authHeader.substring(7);
-
-        // Validate token is not expired
-        if (!jwtTokenUtil.validateToken(token, jwtTokenUtil.getEmailFromToken(token))) {
+        // Validate authentication using Spring Security
+        org.springframework.security.core.Authentication authentication = 
+            org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        
+        if (authentication == null || !authentication.isAuthenticated()) {
             return ResponseEntity.status(401).body(null);
         }
 
         // Check if user has PROVIDER or PATIENT role
-        java.util.List<java.util.Map<String, Object>> orgs = jwtTokenUtil.getOrgsFromToken(token);
-        System.out.println("🔍 DEBUG: orgs from token: " + orgs);
-        boolean hasValidRole = false;
-        if (orgs != null) {
-            for (java.util.Map<String, Object> org : orgs) {
-                @SuppressWarnings("unchecked")
-                java.util.List<String> roles = (java.util.List<String>) org.get("roles");
-                System.out.println("🔍 DEBUG: roles for org: " + roles);
-                if (roles != null && (roles.contains("ROLE_PATIENT") || roles.contains("ROLE_PROVIDER") || roles.contains("ROLE_ADMIN"))) {
-                    hasValidRole = true;
-                    break;
-                }
-            }
-        }
+        boolean hasValidRole = authentication.getAuthorities().stream()
+            .anyMatch(auth -> {
+                String role = auth.getAuthority();
+                return role.contains("ROLE_PATIENT") || role.contains("ROLE_PROVIDER") || role.contains("ROLE_ADMIN");
+            });
 
         System.out.println("🔍 DEBUG: hasValidRole: " + hasValidRole);
 
@@ -162,25 +145,8 @@ public class TelehealthController {
             throw new IllegalStateException("Missing or invalid Authorization header");
         }
 
-        String token = authHeader.substring(7);
-        
-        // Extract email for logging
-        String email = jwtTokenUtil.getEmailFromToken(token);
-        System.out.println("✅ Telehealth request from user: " + email);
-        
-        java.util.List<?> orgIds = jwtTokenUtil.getOrgIdsFromToken(token);
-        System.out.println("✅ OrgIds extracted from token: " + orgIds);
-
-        if (orgIds == null || orgIds.isEmpty()) {
-            throw new IllegalStateException("No orgId found in patient token");
-        }
-
-        Long orgId = toLong(orgIds.get(0));
-        System.out.println("✅ Using orgId: " + orgId + " for tenant context in telehealth");
-        
-        RequestContext ctx = new RequestContext();
-        ctx.setOrgId(orgId);
-        RequestContext.set(ctx);
+        // RequestContext is now set by TenantContextInterceptor
+        // This method is kept for backward compatibility but does nothing
     }
 
     @GetMapping("/rooms/{id}/status")

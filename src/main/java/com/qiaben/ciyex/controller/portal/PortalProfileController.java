@@ -1,6 +1,8 @@
 package com.qiaben.ciyex.controller.portal;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -10,31 +12,25 @@ import org.springframework.web.bind.annotation.RestController;
 import com.qiaben.ciyex.dto.portal.PortalUserDto;
 import com.qiaben.ciyex.entity.portal.PortalUser;
 import com.qiaben.ciyex.repository.portal.PortalUserRepository;
-import com.qiaben.ciyex.util.JwtTokenUtil;
-
-import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/portal/profile")
+@RequiredArgsConstructor
 public class PortalProfileController {
 
     private final PortalUserRepository userRepository;
-    private final JwtTokenUtil jwtUtil;
-
-    public PortalProfileController(PortalUserRepository userRepository, JwtTokenUtil jwtUtil) {
-        this.userRepository = userRepository;
-        this.jwtUtil = jwtUtil;
-    }
 
     /**
      * GET /api/portal/profile - returns current portal user's profile
      */
     @GetMapping
-    public ResponseEntity<PortalUserDto> me(HttpServletRequest request) {
-        String token = resolveToken(request);
-        if (token == null) return ResponseEntity.status(401).build();
-        Long userId = jwtUtil.getUserIdFromToken(token);
-        PortalUser user = userRepository.findById(userId).orElse(null);
+    public ResponseEntity<PortalUserDto> me(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(401).build();
+        }
+        
+        String email = authentication.getName();
+        PortalUser user = userRepository.findByEmail(email).orElse(null);
         if (user == null) return ResponseEntity.notFound().build();
         PortalUserDto dto = PortalUserDto.fromEntity(user);
         return ResponseEntity.ok(dto);
@@ -44,11 +40,13 @@ public class PortalProfileController {
      * PUT /api/portal/profile - update current portal user's profile (partial/full)
      */
     @PutMapping
-    public ResponseEntity<PortalUserDto> update(HttpServletRequest request, @RequestBody PortalUserDto updated) {
-        String token = resolveToken(request);
-        if (token == null) return ResponseEntity.status(401).build();
-        Long userId = jwtUtil.getUserIdFromToken(token);
-        PortalUser user = userRepository.findById(userId).orElse(null);
+    public ResponseEntity<PortalUserDto> update(Authentication authentication, @RequestBody PortalUserDto updated) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(401).build();
+        }
+        
+        String email = authentication.getName();
+        PortalUser user = userRepository.findByEmail(email).orElse(null);
         if (user == null) return ResponseEntity.notFound().build();
 
         // minimal safe update: allow certain fields to be updated
@@ -59,13 +57,5 @@ public class PortalProfileController {
         PortalUser saved = userRepository.save(user);
         PortalUserDto dto = PortalUserDto.fromEntity(saved);
         return ResponseEntity.ok(dto);
-    }
-
-    private String resolveToken(HttpServletRequest request) {
-        String bearerToken = request.getHeader("Authorization");
-        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
-        }
-        return null;
     }
 }

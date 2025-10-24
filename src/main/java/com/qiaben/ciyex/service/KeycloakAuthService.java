@@ -9,7 +9,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 
 import java.util.*;
 
@@ -21,7 +21,7 @@ public class KeycloakAuthService {
     private KeycloakConfig keycloakConfig;
 
     @Autowired
-    private RestTemplate restTemplate;
+    private RestClient restClient;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -40,16 +40,15 @@ public class KeycloakAuthService {
             body.add("username", username);
             body.add("password", password);
 
-            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
+            String response = restClient.post()
+                    .uri(keycloakConfig.getTokenEndpoint())
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
 
-            ResponseEntity<String> response = restTemplate.postForEntity(
-                    keycloakConfig.getTokenEndpoint(),
-                    request,
-                    String.class
-            );
-
-            if (response.getStatusCode() == HttpStatus.OK) {
-                JsonNode tokenResponse = objectMapper.readTree(response.getBody());
+            if (response != null) {
+                JsonNode tokenResponse = objectMapper.readTree(response);
                 
                 Map<String, Object> result = new HashMap<>();
                 result.put("access_token", tokenResponse.get("access_token").asText());
@@ -59,7 +58,7 @@ public class KeycloakAuthService {
                 
                 return result;
             } else {
-                log.error("Keycloak authentication failed with status: {}", response.getStatusCode());
+                log.error("Keycloak authentication failed");
                 return null;
             }
         } catch (Exception e) {
@@ -76,17 +75,14 @@ public class KeycloakAuthService {
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
 
-            HttpEntity<String> request = new HttpEntity<>(headers);
+            String response = restClient.get()
+                    .uri(keycloakConfig.getUserInfoEndpoint())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .retrieve()
+                    .body(String.class);
 
-            ResponseEntity<String> response = restTemplate.exchange(
-                    keycloakConfig.getUserInfoEndpoint(),
-                    HttpMethod.GET,
-                    request,
-                    String.class
-            );
-
-            if (response.getStatusCode() == HttpStatus.OK) {
-                JsonNode userInfo = objectMapper.readTree(response.getBody());
+            if (response != null) {
+                JsonNode userInfo = objectMapper.readTree(response);
                 
                 Map<String, Object> result = new HashMap<>();
                 result.put("sub", userInfo.get("sub").asText());
@@ -104,7 +100,7 @@ public class KeycloakAuthService {
                 
                 return result;
             } else {
-                log.error("Failed to get user info from Keycloak: {}", response.getStatusCode());
+                log.error("Failed to get user info from Keycloak");
                 return null;
             }
         } catch (Exception e) {
@@ -249,16 +245,15 @@ public class KeycloakAuthService {
                 body.add("code_verifier", codeVerifier);
             }
 
-            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
+            String response = restClient.post()
+                    .uri(keycloakConfig.getTokenEndpoint())
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
 
-            ResponseEntity<String> response = restTemplate.postForEntity(
-                    keycloakConfig.getTokenEndpoint(),
-                    request,
-                    String.class
-            );
-
-            if (response.getStatusCode() == HttpStatus.OK) {
-                JsonNode tokenResponse = objectMapper.readTree(response.getBody());
+            if (response != null) {
+                JsonNode tokenResponse = objectMapper.readTree(response);
                 
                 Map<String, Object> result = new HashMap<>();
                 result.put("access_token", tokenResponse.get("access_token").asText());
@@ -268,7 +263,7 @@ public class KeycloakAuthService {
                 
                 return result;
             } else {
-                log.error("Token exchange failed with status: {}", response.getStatusCode());
+                log.error("Token exchange failed");
                 return null;
             }
         } catch (Exception e) {
@@ -290,16 +285,14 @@ public class KeycloakAuthService {
             body.add("client_secret", keycloakConfig.getClientSecret());
             body.add("refresh_token", refreshToken);
 
-            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
+            restClient.post()
+                    .uri(keycloakConfig.getLogoutEndpoint())
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(body)
+                    .retrieve()
+                    .toBodilessEntity();
 
-            ResponseEntity<String> response = restTemplate.postForEntity(
-                    keycloakConfig.getLogoutEndpoint(),
-                    request,
-                    String.class
-            );
-
-            return response.getStatusCode() == HttpStatus.NO_CONTENT || 
-                   response.getStatusCode() == HttpStatus.OK;
+            return true;
         } catch (Exception e) {
             log.error("Error logging out from Keycloak", e);
             return false;

@@ -2,28 +2,29 @@ package com.qiaben.ciyex.service.portal;
 
 import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalUserDto;
-import com.qiaben.ciyex.entity.User;
 import com.qiaben.ciyex.entity.Patient;
 import com.qiaben.ciyex.entity.portal.PortalUser;
 import com.qiaben.ciyex.entity.portal.PortalPatient;
 import com.qiaben.ciyex.enums.PortalStatus;
-import com.qiaben.ciyex.repository.UserRepository;
 import com.qiaben.ciyex.repository.PatientRepository;
 import com.qiaben.ciyex.repository.portal.PortalUserRepository;
 import com.qiaben.ciyex.repository.portal.PortalPatientRepository;
 import com.qiaben.ciyex.service.TenantProvisionService;
+import com.qiaben.ciyex.service.KeycloakUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
  * Service to handle portal user approval workflow
+ * Users are now managed in Keycloak instead of database
  */
 @Slf4j
 @Service
@@ -32,10 +33,9 @@ public class PortalApprovalService {
 
     private final PortalUserRepository portalUserRepository;
     private final PortalPatientRepository portalPatientRepository;
-    private final UserRepository userRepository;
     private final PatientRepository patientRepository;
     private final TenantProvisionService tenantProvisionService;
-    private final PasswordEncoder passwordEncoder;
+    private final KeycloakUserService keycloakUserService;
 
     /**
      * Get all pending portal users waiting for approval
@@ -204,30 +204,42 @@ public class PortalApprovalService {
     }
 
     /**
-     * Create tenant user and patient from portal data
+     * Create tenant user in Keycloak and patient in database from portal data
      */
     private Long createTenantPatient(PortalUser portalUser, PortalPatient portalPatient) {
         try {
-            // Create tenant user
-            User tenantUser = User.builder()
-                    .uuid(portalUser.getUuid())
-                    .email(portalUser.getEmail())
-                    .password(portalUser.getPassword()) // Already encoded
-                    .firstName(portalUser.getFirstName())
-                    .lastName(portalUser.getLastName())
-                    .dateOfBirth(portalPatient.getDateOfBirth())
-                    .phoneNumber(portalUser.getPhoneNumber())
-                    .street(portalPatient.getAddressLine1())
-                    .street2(portalPatient.getAddressLine2())
-                    .city(portalPatient.getCity())
-                    .state(portalPatient.getState())
-                    .postalCode(portalPatient.getPostalCode())
-                    .country(portalPatient.getCountry())
-                    .build();
-
-            User savedUser = userRepository.save(tenantUser);
-
-            // Create tenant patient
+            // Prepare user attributes for Keycloak
+            Map<String, String> attributes = new HashMap<>();
+            attributes.put("uuid", portalUser.getUuid().toString());
+            attributes.put("dateOfBirth", portalPatient.getDateOfBirth().toString());
+            attributes.put("phoneNumber", portalUser.getPhoneNumber());
+            attributes.put("street", portalPatient.getAddressLine1());
+            if (portalPatient.getAddressLine2() != null) {
+                attributes.put("street2", portalPatient.getAddressLine2());
+            }
+            attributes.put("city", portalPatient.getCity());
+            attributes.put("state", portalPatient.getState());
+            attributes.put("postalCode", portalPatient.getPostalCode());
+            attributes.put("country", portalPatient.getCountry());
+            attributes.put("orgId", String.valueOf(portalUser.getOrgId()));
+            
+            // Create user in Keycloak
+            String keycloakUserId = keycloakUserService.createUser(
+                    portalUser.getEmail(),
+                    portalUser.getFirstName(),
+                    portalUser.getLastName(),
+                    portalUser.getPassword(), // Already encoded
+                    attributes
+            );
+            
+            // Add user to tenant group
+            String tenantGroup = "/Tenants/practice_" + portalUser.getOrgId();
+            keycloakUserService.addUserToGroup(keycloakUserId, tenantGroup);
+            
+            // Assign patient role
+            keycloakUserService.assignRolesToUser(keycloakUserId, List.of("patient"));
+            
+            // Create tenant patient in database
             Patient tenantPatient = Patient.builder()
                     .orgId(portalUser.getOrgId())
                     .firstName(portalUser.getFirstName())
@@ -244,8 +256,8 @@ public class PortalApprovalService {
 
             Patient savedPatient = patientRepository.save(tenantPatient);
 
-            log.info("Created tenant user {} and patient {} for portal user {}", 
-                    savedUser.getId(), savedPatient.getId(), portalUser.getEmail());
+            log.info("Created Keycloak user {} and patient {} for portal user {}", 
+                    keycloakUserId, savedPatient.getId(), portalUser.getEmail());
 
             return savedPatient.getId();
 

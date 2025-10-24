@@ -33,7 +33,6 @@ import com.qiaben.ciyex.service.telehealth.JitsiTelehealthService;
 import com.qiaben.ciyex.service.telehealth.TelehealthResolver;
 import com.qiaben.ciyex.service.telehealth.TelehealthService;
 import com.qiaben.ciyex.service.TenantAwareService;
-import com.qiaben.ciyex.util.JwtTokenUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,7 +50,6 @@ import lombok.extern.slf4j.Slf4j;
 public class PortalAppointmentController {
 
     private final PortalUserRepository portalUserRepository;
-    private final JwtTokenUtil jwtTokenUtil;
     private final TenantAwareService tenantAwareService;
     private final AppointmentService appointmentService;
     private final ProviderRepository providerRepository;
@@ -184,24 +182,8 @@ public class PortalAppointmentController {
     }
 
     private void setRequestContextOrg(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new IllegalStateException("Missing or invalid Authorization header");
-        }
-
-        String token = authHeader.substring(7);
-        List<?> orgIds = jwtTokenUtil.getOrgIdsFromToken(token);
-
-        if (orgIds == null || orgIds.isEmpty()) {
-            throw new IllegalStateException("No orgId found in patient token");
-        }
-
-        Long orgId = toLong(orgIds.get(0));
-        RequestContext ctx = new RequestContext();
-        ctx.setOrgId(orgId);
-        RequestContext.set(ctx);
-
-        log.debug("Set tenant context with orgId: {}", orgId);
+        // RequestContext is now set by TenantContextInterceptor
+        // This method is kept for backward compatibility but does nothing
     }
 
     private Long toLong(Object value) {

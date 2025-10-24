@@ -9,9 +9,8 @@ import com.qiaben.ciyex.repository.portal.PortalUserRepository;
 import com.qiaben.ciyex.service.AppointmentService;
 import com.qiaben.ciyex.service.LocationService;
 import com.qiaben.ciyex.service.ProviderService;
-import com.qiaben.ciyex.util.JwtTokenUtil;
 import com.qiaben.ciyex.dto.integration.RequestContext;
-import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.security.core.Authentication;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -32,27 +31,22 @@ public class PortalController {
     private final AppointmentService appointmentService;
     private final ProviderService providerService;
     private final LocationService locationService;
-    private final JwtTokenUtil jwtTokenUtil;
     private final PortalUserRepository portalUserRepository;
 
-    // 🔹 Extract patientId from JWT or PortalUser
-    private Long extractPatientIdFromToken(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new IllegalStateException("Missing or invalid Authorization header");
+    // 🔹 Extract patientId from Authentication
+    private Long extractPatientIdFromAuth(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new IllegalStateException("User not authenticated");
         }
-        String token = authHeader.substring(7);
+        
         try {
-            Long userId = jwtTokenUtil.getUserIdFromToken(token);
-            if (userId != null) return userId;
-
-            String email = jwtTokenUtil.getEmailFromToken(token);
+            String email = authentication.getName();
             return portalUserRepository.findByEmail(email)
                     .map(PortalUser::getId)
                     .orElseThrow(() -> new IllegalStateException("No user found for email: " + email));
         } catch (Exception e) {
-            log.error("❌ Token validation failed", e);
-            throw new IllegalStateException("Invalid or expired token");
+            log.error("❌ Failed to extract user from authentication", e);
+            throw new IllegalStateException("Failed to get user information");
         }
     }
 
@@ -64,18 +58,23 @@ public class PortalController {
     }
 //
     // 🔹 Ensure orgId is set in RequestContext
-    private void setRequestContextOrg(HttpServletRequest request) {
-        String token = request.getHeader("Authorization").substring(7);
-        List<?> orgIds = jwtTokenUtil.getOrgIdsFromToken(token);
-
-        if (orgIds == null || orgIds.isEmpty()) {
-            throw new IllegalStateException("No orgId found in patient token");
+    private void setRequestContextOrg(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new IllegalStateException("User not authenticated");
         }
 
-        Long orgId = toLong(orgIds.get(0));
-        RequestContext ctx = new RequestContext();
-        ctx.setOrgId(orgId);
-        RequestContext.set(ctx);
+        try {
+            String email = authentication.getName();
+            PortalUser user = portalUserRepository.findByEmail(email)
+                    .orElseThrow(() -> new IllegalStateException("No user found for email: " + email));
+            
+            RequestContext ctx = new RequestContext();
+            ctx.setOrgId(user.getOrgId());
+            RequestContext.set(ctx);
+        } catch (Exception e) {
+            log.error("❌ Failed to set request context", e);
+            throw new IllegalStateException("Failed to set organization context");
+        }
     }
 
     // 🔹 GET: Patient’s own appointments

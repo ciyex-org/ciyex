@@ -11,7 +11,6 @@ import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.service.ListOptionService;
 import com.qiaben.ciyex.service.TenantAwareService;
-import com.qiaben.ciyex.util.JwtTokenUtil;
 
 import java.util.List;
 
@@ -29,7 +28,6 @@ public class PortalListOptionsController {
 
     private final ListOptionService listOptionService;
     private final TenantAwareService tenantAwareService;
-    private final JwtTokenUtil jwtTokenUtil;
 
     /**
      * GET /api/portal/list-options/list/{listId}
@@ -118,32 +116,8 @@ public class PortalListOptionsController {
     }
 
     private void setRequestContextOrg(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new IllegalStateException("Missing or invalid Authorization header");
-        }
-
-        String token = authHeader.substring(7);
-
-        // Extract email for logging
-        String email = jwtTokenUtil.getEmailFromToken(token);
-        log.info("Portal request from user: {}", email);
-
-        // Get orgIds from token
-        List<Long> orgIds = jwtTokenUtil.getOrgIdsFromToken(token);
-        log.info("OrgIds extracted from token: {}", orgIds);
-
-        if (orgIds == null || orgIds.isEmpty()) {
-            throw new IllegalStateException("No orgId found in token");
-        }
-        // Safely convert to Long in case JWT parsing returns Integer
-        Long orgId = toLong(orgIds.get(0));
-        log.info("Using orgId: {} for tenant context", orgId);
-
-        com.qiaben.ciyex.dto.integration.RequestContext ctx = new com.qiaben.ciyex.dto.integration.RequestContext();
-        ctx.setOrgId(orgId);
-        com.qiaben.ciyex.dto.integration.RequestContext.set(ctx);
-        log.info("✅ Set tenant context with orgId: {} from token for schema practice_{}", orgId, orgId);
+        // RequestContext is now set by TenantContextInterceptor
+        // This method is kept for backward compatibility but does nothing
     }
 
 }

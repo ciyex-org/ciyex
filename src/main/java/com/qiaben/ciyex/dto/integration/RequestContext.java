@@ -8,6 +8,7 @@ public class RequestContext {
 
     private String authToken;
     private Long orgId;
+    private String tenantName;  // Tenant name (e.g., "practice_1", "hinisoft")
     private Long facilityId;
     private String role;
 

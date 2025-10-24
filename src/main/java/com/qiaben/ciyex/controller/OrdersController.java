@@ -2,7 +2,6 @@ package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.OrderDto;
-import com.qiaben.ciyex.security.RequireScope;
 import com.qiaben.ciyex.service.OrderService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,7 +13,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/orders")
-@RequireScope("labs:read")  // Orders are related to labs
 public class OrdersController {
 
     private final OrderService service;
@@ -24,7 +22,6 @@ public class OrdersController {
     }
 
     @PostMapping
-    @RequireScope("labs:write")
     public ResponseEntity<ApiResponse<OrderDto>> create(@RequestBody OrderDto dto) {
         return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
                 .success(true)

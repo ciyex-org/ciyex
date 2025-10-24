@@ -1,154 +1,161 @@
 package com.qiaben.ciyex.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.DocumentSettingsDto;
 import com.qiaben.ciyex.entity.DocumentSettings;
 import com.qiaben.ciyex.repository.DocumentSettingsRepo;
-import com.qiaben.ciyex.repository.OrgRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class DocumentSettingsService {
 
-    private final DocumentSettingsRepo repo;
-    private final OrgRepository orgRepo;
-    private final ObjectMapper om = new ObjectMapper();
+    private final DocumentSettingsRepo repository;
+    private final ObjectMapper objectMapper;
 
-    public DocumentSettingsService(DocumentSettingsRepo repo, OrgRepository orgRepo) {
-        this.repo = repo;
-        this.orgRepo = orgRepo;
-    }
-
-    /** Get settings for an org (with defaults if none exist) */
-    @Transactional(readOnly = true)
+    /**
+     * Get document settings for an organization
+     */
     public DocumentSettingsDto get(Long orgId) {
-        if (!orgRepo.existsById(orgId)) {
-            throw new IllegalArgumentException("OrgId " + orgId + " does not exist.");
-        }
-        return repo.findByOrgId(orgId)
-                .map(this::toDto)
-                .orElse(defaultsFor(orgId));
+        DocumentSettings entity = repository.findByOrgId(orgId)
+                .orElse(createDefaultSettings(orgId));
+        
+        return toDto(entity);
     }
 
-    /** Save or update settings */
-    @Transactional
-    public DocumentSettingsDto save(DocumentSettingsDto dto, String user) {
-        if (!orgRepo.existsById(dto.getOrgId())) {
-            throw new IllegalArgumentException("OrgId " + dto.getOrgId() + " does not exist.");
-        }
+    /**
+     * Get document settings for an organization (alias)
+     */
+    public DocumentSettingsDto getByOrgId(Long orgId) {
+        return get(orgId);
+    }
 
-        DocumentSettings s = repo.findByOrgId(dto.getOrgId())
+    /**
+     * Create or update document settings
+     */
+    @Transactional
+    public DocumentSettingsDto save(DocumentSettingsDto dto, String updatedBy) {
+        DocumentSettings entity = repository.findByOrgId(dto.getOrgId())
                 .orElse(new DocumentSettings());
-
-        s.setOrgId(dto.getOrgId());
-        s.setMaxUploadBytes(Math.max(1, dto.getMaxUploadSizeMB()) * 1024L * 1024L);
-        s.setEnableAudio(dto.isEnableAudio());
-        s.setEncryptionEnabled(dto.isEncryptionEnabled()); // ✅ NEW: persist encryption flag
-
-        // Always clean MP3 depending on audio toggle
-        List<String> types = dto.getAllowedFileTypes() != null
-                ? new ArrayList<>(dto.getAllowedFileTypes())
-                : new ArrayList<>();
-
-        if (s.isEnableAudio()) {
-            if (!types.contains("MP3")) {
-                types.add("MP3");
-            }
-        } else {
-            types.remove("MP3");
+        
+        entity.setOrgId(dto.getOrgId());
+        entity.setMaxUploadBytes(dto.getMaxUploadSizeMB() * 1024L * 1024L);
+        entity.setEnableAudio(dto.isEnableAudio());
+        entity.setEncryptionEnabled(dto.isEncryptionEnabled());
+        
+        try {
+            entity.setAllowedFileTypesJson(objectMapper.writeValueAsString(dto.getAllowedFileTypes()));
+            entity.setCategoriesJson(objectMapper.writeValueAsString(dto.getCategories()));
+        } catch (JsonProcessingException e) {
+            log.error("Error serializing document settings", e);
+            throw new RuntimeException("Failed to save document settings", e);
         }
-
-        s.setAllowedFileTypesJson(writeJson(types));
-        s.setCategoriesJson(writeJson(dto.getCategories()));
-        s.setUpdatedBy(user);
-        s.setUpdatedAt(Instant.now());
-
-        repo.save(s);
-        return toDto(s);
+        
+        entity.setUpdatedBy(updatedBy);
+        entity.setUpdatedAt(Instant.now());
+        
+        DocumentSettings saved = repository.save(entity);
+        return toDto(saved);
     }
 
-    /** Get categories only */
-    @Transactional(readOnly = true)
-    public List<DocumentSettingsDto.Category> getCategories(Long orgId) {
-        if (!orgRepo.existsById(orgId)) {
-            throw new IllegalArgumentException("OrgId " + orgId + " does not exist.");
-        }
-        DocumentSettings s = repo.findByOrgId(orgId).orElseThrow();
-        return parseList(s.getCategoriesJson(), new TypeReference<>() {});
-    }
-
-    /** Add category */
+    /**
+     * Delete document settings for an organization
+     */
     @Transactional
-    public List<DocumentSettingsDto.Category> addCategory(Long orgId, String name, boolean active, String user) {
-        if (!orgRepo.existsById(orgId)) {
-            throw new IllegalArgumentException("OrgId " + orgId + " does not exist.");
-        }
-
-        DocumentSettings s = repo.findByOrgId(orgId).orElseThrow();
-        var categories = parseList(s.getCategoriesJson(),
-                new TypeReference<List<DocumentSettingsDto.Category>>() {});
-
-        boolean exists = categories.stream().anyMatch(c -> c.getName().equalsIgnoreCase(name));
-        if (!exists) {
-            categories.add(new DocumentSettingsDto.Category(name, active));
-            s.setCategoriesJson(writeJson(categories));
-            s.setUpdatedBy(user);
-            s.setUpdatedAt(Instant.now());
-            repo.save(s);
-        }
-        return categories;
+    public void deleteByOrgId(Long orgId) {
+        repository.findByOrgId(orgId).ifPresent(repository::delete);
     }
 
-    // ---------- helpers ----------
-
-    private DocumentSettingsDto defaultsFor(Long orgId) {
-        return DocumentSettingsDto.builder()
-                .orgId(orgId)
-                .maxUploadSizeMB(50)      // default 50 MB
-                .enableAudio(false)       // default false
-                .encryptionEnabled(false) // ✅ NEW: default encryption off
-                .allowedFileTypes(List.of()) // empty until user selects
-                .categories(List.of())       // empty until user adds
-                .build();
+    /**
+     * Get all document settings
+     */
+    public List<DocumentSettingsDto> getAll() {
+        return repository.findAll().stream()
+                .map(this::toDto)
+                .toList();
     }
 
-    private DocumentSettingsDto toDto(DocumentSettings s) {
-        int mb = (int) Math.max(1, Math.round(s.getMaxUploadBytes() / 1024.0 / 1024.0));
-        var types = parseList(s.getAllowedFileTypesJson(), new TypeReference<List<String>>() {});
+    /**
+     * Get categories for an organization
+     */
+    public List<DocumentSettingsDto.Category> getCategories(Long orgId) {
+        DocumentSettingsDto dto = get(orgId);
+        return dto.getCategories();
+    }
 
-        // Normalize MP3 based on enableAudio
-        if (s.isEnableAudio() && !types.contains("MP3")) {
-            types = new ArrayList<>(types);
-            types.add("MP3");
+    /**
+     * Add a category to an organization's document settings
+     */
+    @Transactional
+    public List<DocumentSettingsDto.Category> addCategory(Long orgId, String name, boolean active, String updatedBy) {
+        DocumentSettingsDto dto = get(orgId);
+        
+        // Add new category
+        DocumentSettingsDto.Category newCategory = new DocumentSettingsDto.Category(name, active);
+        dto.getCategories().add(newCategory);
+        
+        // Save updated settings
+        save(dto, updatedBy);
+        
+        return dto.getCategories();
+    }
+
+    // Private helper methods
+
+    private DocumentSettings createDefaultSettings(Long orgId) {
+        DocumentSettings settings = new DocumentSettings();
+        settings.setOrgId(orgId);
+        settings.setMaxUploadBytes(10 * 1024 * 1024); // 10 MB default
+        settings.setEnableAudio(false);
+        settings.setEncryptionEnabled(false);
+        
+        try {
+            settings.setAllowedFileTypesJson(objectMapper.writeValueAsString(
+                    List.of("PDF", "JPG", "JPEG", "PNG", "DOC", "DOCX")));
+            settings.setCategoriesJson(objectMapper.writeValueAsString(
+                    List.of(
+                            new DocumentSettingsDto.Category("Medical Records", true),
+                            new DocumentSettingsDto.Category("Lab Results", true),
+                            new DocumentSettingsDto.Category("Insurance", true),
+                            new DocumentSettingsDto.Category("Other", true)
+                    )));
+        } catch (JsonProcessingException e) {
+            log.error("Error creating default settings", e);
         }
-        if (!s.isEnableAudio() && types.contains("MP3")) {
-            types = new ArrayList<>(types);
-            types.remove("MP3");
+        
+        return settings;
+    }
+
+    private DocumentSettingsDto toDto(DocumentSettings entity) {
+        DocumentSettingsDto dto = new DocumentSettingsDto();
+        dto.setOrgId(entity.getOrgId());
+        dto.setMaxUploadSizeMB((int) (entity.getMaxUploadBytes() / (1024 * 1024)));
+        dto.setEnableAudio(entity.isEnableAudio());
+        dto.setEncryptionEnabled(entity.isEncryptionEnabled());
+        
+        try {
+            dto.setAllowedFileTypes(objectMapper.readValue(
+                    entity.getAllowedFileTypesJson(), 
+                    new TypeReference<List<String>>() {}));
+            dto.setCategories(objectMapper.readValue(
+                    entity.getCategoriesJson(), 
+                    new TypeReference<List<DocumentSettingsDto.Category>>() {}));
+        } catch (JsonProcessingException e) {
+            log.error("Error deserializing document settings", e);
+            dto.setAllowedFileTypes(new ArrayList<>());
+            dto.setCategories(new ArrayList<>());
         }
-
-        var cats  = parseList(s.getCategoriesJson(), new TypeReference<List<DocumentSettingsDto.Category>>() {});
-        return DocumentSettingsDto.builder()
-                .orgId(s.getOrgId())
-                .maxUploadSizeMB(mb)
-                .enableAudio(s.isEnableAudio())
-                .encryptionEnabled(s.isEncryptionEnabled()) // ✅ NEW: return encryption flag
-                .allowedFileTypes(types)
-                .categories(cats)
-                .build();
-    }
-
-    private <T> List<T> parseList(String json, TypeReference<List<T>> type) {
-        try { return om.readValue(Optional.ofNullable(json).orElse("[]"), type); }
-        catch (Exception e) { return List.of(); }
-    }
-
-    private String writeJson(Object value) {
-        try { return om.writeValueAsString(value == null ? List.of() : value); }
-        catch (Exception e) { return "[]"; }
+        
+        return dto;
     }
 }

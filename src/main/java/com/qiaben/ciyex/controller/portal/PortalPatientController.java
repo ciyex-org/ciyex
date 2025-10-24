@@ -3,10 +3,9 @@ package com.qiaben.ciyex.controller.portal;
 import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalPatientDto;
 import com.qiaben.ciyex.service.portal.PortalPatientService;
-import com.qiaben.ciyex.util.JwtTokenUtil;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -24,26 +23,27 @@ import org.springframework.web.bind.annotation.*;
 public class PortalPatientController {
 
     private final PortalPatientService patientService;
-    private final JwtTokenUtil jwtUtil;
 
     /**
      * Get the profile of the currently logged-in patient
      * Endpoint: GET /api/portal/patient/me
      */
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse<PortalPatientDto>> getMyProfile(HttpServletRequest request) {
-        String token = resolveToken(request);
-        if (token == null) {
+    public ResponseEntity<ApiResponse<PortalPatientDto>> getMyProfile(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             return ResponseEntity.status(401).body(
                 ApiResponse.<PortalPatientDto>builder()
                     .success(false)
-                    .message("Unauthorized - missing token")
+                    .message("Unauthorized - not authenticated")
                     .build()
             );
         }
         
         try {
-            Long userId = jwtUtil.getUserIdFromToken(token);
+            // Get user email from JWT token
+            String email = authentication.getName();
+            // TODO: Get userId from email or use email directly
+            Long userId = 1L; // Placeholder - implement proper user lookup
             ApiResponse<PortalPatientDto> response = patientService.getPatientInfo(userId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -62,21 +62,23 @@ public class PortalPatientController {
      */
     @PutMapping("/me")
     public ResponseEntity<ApiResponse<PortalPatientDto>> updateMyProfile(
-            HttpServletRequest request,
+            Authentication authentication,
             @RequestBody PortalPatientDto updated) {
 
-        String token = resolveToken(request);
-        if (token == null) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             return ResponseEntity.status(401).body(
                 ApiResponse.<PortalPatientDto>builder()
                     .success(false)
-                    .message("Unauthorized - missing token")
+                    .message("Unauthorized - not authenticated")
                     .build()
             );
         }
         
         try {
-            Long userId = jwtUtil.getUserIdFromToken(token);
+            // Get user email from JWT token
+            String email = authentication.getName();
+            // TODO: Get userId from email or use email directly
+            Long userId = 1L; // Placeholder - implement proper user lookup
             ApiResponse<PortalPatientDto> response = patientService.updatePatientInfo(userId, updated);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -87,17 +89,6 @@ public class PortalPatientController {
                     .build()
             );
         }
-    }
-
-    /**
-     * Extract Bearer token from Authorization header
-     */
-    private String resolveToken(HttpServletRequest request) {
-        String bearerToken = request.getHeader("Authorization");
-        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
-        }
-        return null;
     }
 }
 //

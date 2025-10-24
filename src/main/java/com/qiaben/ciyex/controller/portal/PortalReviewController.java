@@ -6,7 +6,6 @@ import com.qiaben.ciyex.dto.portal.PortalUpdateRequest;
 import com.qiaben.ciyex.entity.portal.PortalUser;
 import com.qiaben.ciyex.repository.portal.PortalUserRepository;
 import com.qiaben.ciyex.service.portal.PortalReviewService;
-import com.qiaben.ciyex.util.JwtTokenUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,29 +32,27 @@ import java.util.List;
 public class PortalReviewController {
 
     private final PortalReviewService reviewService;
-    private final JwtTokenUtil jwtTokenUtil;
     private final PortalUserRepository portalUserRepository;
 
     /**
      * Extract patient ID from JWT token
      */
     private Long extractPatientIdFromToken(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new IllegalStateException("Missing or invalid Authorization header");
-        }
-        
-        String token = authHeader.substring(7);
         try {
-            Long userId = jwtTokenUtil.getUserIdFromToken(token);
-            if (userId != null) return userId;
-
-            String email = jwtTokenUtil.getEmailFromToken(token);
+            // Get email from Spring Security context
+            org.springframework.security.core.Authentication authentication = 
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            
+            if (authentication == null || authentication.getName() == null) {
+                throw new IllegalStateException("No authentication found");
+            }
+            
+            String email = authentication.getName();
             return portalUserRepository.findByEmail(email)
                     .map(PortalUser::getId)
                     .orElseThrow(() -> new IllegalStateException("No user found for email: " + email));
         } catch (Exception e) {
-            log.error("❌ Token validation failed", e);
+            log.error("❌ Failed to extract patient ID", e);
             throw new IllegalStateException("Invalid or expired token");
         }
     }
@@ -153,9 +150,10 @@ public class PortalReviewController {
             @RequestParam(required = false) String approverNotes,
             HttpServletRequest request) {
         try {
-            // Get approver info from JWT
-            String token = request.getHeader("Authorization").substring(7);
-            String approverEmail = jwtTokenUtil.getEmailFromToken(token);
+            // Get approver info from Spring Security context
+            org.springframework.security.core.Authentication authentication = 
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            String approverEmail = authentication != null ? authentication.getName() : null;
             
             reviewService.approveUpdate(id, approverEmail, approverNotes);
             
@@ -183,9 +181,10 @@ public class PortalReviewController {
             @RequestParam String reason,
             HttpServletRequest request) {
         try {
-            // Get approver info from JWT
-            String token = request.getHeader("Authorization").substring(7);
-            String approverEmail = jwtTokenUtil.getEmailFromToken(token);
+            // Get approver info from Spring Security context
+            org.springframework.security.core.Authentication authentication = 
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            String approverEmail = authentication != null ? authentication.getName() : null;
             
             reviewService.rejectUpdate(id, approverEmail, reason);
             

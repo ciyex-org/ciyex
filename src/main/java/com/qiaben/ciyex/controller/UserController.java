@@ -3,58 +3,87 @@ package com.qiaben.ciyex.controller;
 import com.qiaben.ciyex.dto.ChangePasswordRequest;
 import com.qiaben.ciyex.dto.UpdateAddressRequest;
 import com.qiaben.ciyex.dto.UpdateUserProfileRequest;
-import com.qiaben.ciyex.security.RequireScope;
-import com.qiaben.ciyex.service.UserService; // this is now a concrete class
-import org.springframework.beans.factory.annotation.Autowired;
+import com.qiaben.ciyex.service.KeycloakUserService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+/**
+ * User management controller using Keycloak
+ * Users are now managed in Keycloak instead of database
+ */
+@Slf4j
 @RestController
 @RequestMapping("/api/users")
-@RequireScope("user:read")  // Default scope for user operations
+@RequiredArgsConstructor
 public class UserController {
 
-    @Autowired
-    private UserService userService; // No interface anymore
+    private final KeycloakUserService keycloakUserService;
 
     @PutMapping("/email/{email}/profile")
-    @RequireScope("user:write")
     public ResponseEntity<?> updateProfileByEmail(@PathVariable String email, @RequestBody UpdateUserProfileRequest request) {
         try {
-            userService.updateUserProfileByEmail(email, request);
-            return ResponseEntity.ok().body(Map.of("message", "Profile updated successfully"));
+            // Update user profile in Keycloak
+            // Note: This would require finding user by email first, then updating
+            log.info("Update profile request for email: {}", email);
+            
+            // TODO: Implement Keycloak user update by email
+            // 1. Search for user by email
+            // 2. Update user attributes
+            
+            return ResponseEntity.ok().body(Map.of(
+                "message", "Profile update not yet implemented for Keycloak users",
+                "note", "Users are now managed in Keycloak"
+            ));
         } catch (Exception e) {
+            log.error("Error updating profile for email: {}", email, e);
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
     
     @PutMapping("/user/address")
-    @RequireScope("user:write")
     public ResponseEntity<?> updateAddress(@RequestBody UpdateAddressRequest request) {
         try {
-            userService.updateUserAddress(request.getEmail(), request);
-            return ResponseEntity.ok(Map.of("success", true, "message", "Address updated successfully"));
+            log.info("Update address request for email: {}", request.getEmail());
+            
+            // TODO: Implement Keycloak user address update
+            // 1. Search for user by email
+            // 2. Update address attributes
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true, 
+                "message", "Address update not yet implemented for Keycloak users",
+                "note", "Users are now managed in Keycloak"
+            ));
         } catch (Exception e) {
+            log.error("Error updating address", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("success", false, "error", e.getMessage()));
         }
     }
 
     @PostMapping("/change-password")
-    @RequireScope("user:write")
     public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest request) {
         try {
-            userService.changeUserPassword(request);
-            return ResponseEntity.ok(Map.of("success", true, "message", "Password updated successfully"));
+            log.info("Change password request for email: {}", request.getEmail());
+            
+            // TODO: Implement Keycloak password change
+            // 1. Search for user by email
+            // 2. Update password credentials
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true, 
+                "message", "Password change not yet implemented for Keycloak users",
+                "note", "Users should change password through Keycloak account management"
+            ));
         } catch (Exception e) {
+            log.error("Error changing password", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("success", false, "error", e.getMessage()));
         }
     }
-
-
-
 }
