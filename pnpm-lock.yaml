@@ -14,6 +14,7 @@ importers:
       framer-motion:
         specifier: ^12.23.12
         version: 12.23.16
+
       html2canvas:
         specifier: ^1.4.1
         version: 1.4.1
