@@ -1,10 +1,16 @@
 package com.qiaben.ciyex.util;
 
 import com.qiaben.ciyex.entity.*;
+import com.qiaben.ciyex.auth.scope.Scope;
+import com.qiaben.ciyex.auth.scope.ScopeRepository;
+import com.qiaben.ciyex.auth.scope.UserScopeService;
+import com.qiaben.ciyex.auth.scope.RoleScopeTemplateRepository;
+import com.qiaben.ciyex.security.SuperAdminConfig;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -22,12 +28,28 @@ public class JwtTokenUtil {
     @Value("${jwt.expiration}")
     private long jwtExpirationInMs;
 
+    @Autowired
+    private UserScopeService userScopeService;
+
+    @Autowired
+    private ScopeRepository scopeRepository;
+
+    @Autowired
+    private RoleScopeTemplateRepository roleScopeTemplateRepository;
+
+    @Autowired
+    private SuperAdminConfig superAdminConfig;
+    
+    @Autowired
+    private com.qiaben.ciyex.service.RoleScopeManagementService roleScopeManagementService;
+
     private Key getSigningKey() {
         return Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
-     * Generate JWT for the given user, including all orgs and roles. No facilities.
+     * Generate JWT for the given user, including orgs, roles, and scopes.
+     * Super admin gets implicit full access (all active scopes) and "isSuperAdmin": true.
      */
     public String generateToken(User user) {
         Map<String, Object> claims = new HashMap<>();
@@ -38,7 +60,22 @@ public class JwtTokenUtil {
         claims.put("lastName", user.getLastName());
         claims.put("uuid", user.getUuid());
 
-        // Group roles by org
+        // === Scopes ===
+        List<String> scopes;
+        boolean isSa = superAdminConfig != null && superAdminConfig.isSuperAdmin(user);
+        if (isSa) {
+            scopes = scopeRepository.findAll().stream()
+                    .filter(Scope::isActive)
+                    .map(Scope::getCode)
+                    .toList();
+            claims.put("isSuperAdmin", true);
+        } else {
+            scopes = userScopeService.getActiveScopeCodesByUserId(user.getId());
+            claims.put("isSuperAdmin", false);
+        }
+    // Do not emit a global 'scope' claim; scopes are assigned per-org only.
+
+        // === Per-org roles and scopes ===
         Map<Long, Map<String, Object>> orgsMap = new LinkedHashMap<>();
         for (UserOrgRole uor : user.getUserOrgRoles()) {
             Org org = uor.getOrg();
@@ -47,20 +84,44 @@ public class JwtTokenUtil {
                 m.put("orgId", org.getId());
                 m.put("orgName", org.getOrgName());
                 m.put("roles", new LinkedHashSet<String>());
+                m.put("scopes", new LinkedHashSet<String>());
                 return m;
             });
             @SuppressWarnings("unchecked")
             Set<String> roles = (Set<String>) orgEntry.get("roles");
+            @SuppressWarnings("unchecked")
+            Set<String> orgScopes = (Set<String>) orgEntry.get("scopes");
             roles.add(uor.getRole().name());
+            
+            // Use the new RoleScopeManagementService to get all scopes for user in this org
+            // This includes both default role scopes and any additional user-specific scopes
+            Set<String> userOrgScopes = roleScopeManagementService.getUserScopesForOrg(user, org.getId());
+            orgScopes.addAll(userOrgScopes);
         }
 
-        // Convert roles set to list for JSON
-        List<Map<String, Object>> orgList = orgsMap.values().stream()
-                .peek(orgEntry -> {
-                    Set<String> roles = (Set<String>) orgEntry.get("roles");
-                    orgEntry.put("roles", new ArrayList<>(roles));
-                })
-                .collect(Collectors.toList());
+        // Build org list and only keep scopes that the user actually has
+        List<Map<String, Object>> orgList = new ArrayList<>();
+        Set<String> userScopeSet = new LinkedHashSet<>(scopes);
+        for (Map<String, Object> orgEntry : orgsMap.values()) {
+            Object rolesObj = orgEntry.get("roles");
+            Object scopesObj = orgEntry.get("scopes");
+            List<String> rolesList = new ArrayList<>();
+            List<String> orgScopesList = new ArrayList<>();
+            if (rolesObj instanceof Set) {
+                for (Object r : (Set<?>) rolesObj) rolesList.add(String.valueOf(r));
+            }
+            if (scopesObj instanceof Set) {
+                for (Object s : (Set<?>) scopesObj) {
+                    String code = String.valueOf(s);
+                    if (userScopeSet.contains(code)) orgScopesList.add(code);
+                }
+            }
+            Map<String, Object> copy = new LinkedHashMap<>(orgEntry);
+            copy.put("roles", rolesList);
+            // Emit org scopes as a single space-delimited string (empty string if none)
+            copy.put("scopes", String.join(" ", orgScopesList));
+            orgList.add(copy);
+        }
 
         claims.put("orgs", orgList);
         claims.put("orgIds", orgList.stream().map(o -> o.get("orgId")).collect(Collectors.toList()));
@@ -79,9 +140,8 @@ public class JwtTokenUtil {
                 .compact();
     }
 
-    /**
-     * Validate token against given email.
-     */
+    // === Existing methods unchanged ===
+
     public boolean validateToken(String token, String email) {
         String tokenEmail = getEmailFromToken(token);
         return (email.equals(tokenEmail) && !isTokenExpired(token));

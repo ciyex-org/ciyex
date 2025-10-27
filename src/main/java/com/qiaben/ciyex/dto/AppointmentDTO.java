@@ -36,6 +36,9 @@ public class AppointmentDTO {
     private String reason;
     private Long orgId;
 
+    // Telehealth
+    // private String meetingUrl;
+
     // ✅ Track audit metadata
     private Audit audit = new Audit();
 

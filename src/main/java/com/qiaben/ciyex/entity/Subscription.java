@@ -3,6 +3,9 @@ package com.qiaben.ciyex.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "subscriptions")
 @Data
@@ -15,13 +18,24 @@ public class Subscription {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long orgId;     // 🔹 Track organization
-    private Long userId;    // 🔹 Optional (who owns it)
+    @Column(name = "org_id", nullable = false)
+    private Long orgId;
 
-    private String service;       // EHR, Telehealth, etc.
-    private String billingCycle;  // Yearly | Monthly
-    private String scope;         // Per Provider | Per Encounter
-    private String status;        // Active | Cancelled
-    private String startDate;     // Store as ISO string
-    private Double price;
+    @Column(name = "user_id")
+    private Long userId;
+
+    @Column(nullable = false)
+    private String service;
+
+    @Column(name = "billing_cycle", nullable = false)
+    private String billingCycle; // "Yearly" or "Monthly"
+
+    @Column(name = "start_date")
+    private LocalDateTime startDate;
+
+    @Column(name = "status")
+    private String status;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal price;
 }

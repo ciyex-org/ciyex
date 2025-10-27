@@ -55,6 +55,10 @@ public class Appointment {
     @Column(length = 2000)
     private String reason;
 
+    // Telehealth
+    // @Column(name = "meeting_url")
+    // private String meetingUrl;
+
     // Audit
     @Column(name = "created_date")
     private String createdDate;

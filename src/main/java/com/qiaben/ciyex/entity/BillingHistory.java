@@ -3,12 +3,12 @@ package com.qiaben.ciyex.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "billing_history")
-@Getter
-@Setter
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -18,32 +18,89 @@ public class BillingHistory {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Org and user */
+    @Column(name = "org_id", nullable = false)
     private Long orgId;
+
+    @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    /** Stripe PaymentIntent ID (pi_xxx) */
+    /** Provider type: STRIPE or GPS */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "provider", nullable = false, length = 20)
+    private BillingProvider provider;
+
+    /* ------------------- Stripe fields ------------------- */
+    @Column(name = "stripe_payment_intent_id")
     private String stripePaymentIntentId;
 
-    /** Stripe PaymentMethod ID (pm_xxx) */
-    @Column(nullable = false)
+    @Column(name = "stripe_payment_method_id")
     private String stripePaymentMethodId;
 
-    private Double amount;
+    /* ------------------- GPS fields ------------------- */
+    @Column(name = "gps_transaction_id", length = 64)
+    private String gpsTransactionId;
 
-    /** SUCCESS, FAILED, PENDING, ARCHIVED, etc. */
-    private String status;
+    @Column(name = "gps_customer_vault_id", length = 64)
+    private String gpsCustomerVaultId;
 
-    /** FK to InvoiceBill */
-    @Column(name = "invoice_bill_id", insertable = false, updatable = false)
-    private Long invoiceBillId;
+    /* ------------------- Common fields ------------------- */
+    @Column(nullable = false, precision = 10, scale = 2)
+    private BigDecimal amount;
 
-    /** Relation to InvoiceBill entity */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private BillingStatus status; // SUCCESS, FAILED, PENDING, etc.
+
+    @Column(name = "response_message", length = 500)
+    private String responseMessage;
+
+    @Column(name = "response_code")
+    private Integer responseCode;
+
+    /** Link to invoice record */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "invoice_bill_id", referencedColumnName = "id")
+    @JoinColumn(name = "invoice_bill_id")
     private InvoiceBill invoiceBill;
 
+    @Column(name = "invoice_url")
+    private String invoiceUrl;
+
+    @Column(name = "receipt_url")
+    private String receiptUrl;
+
+    /** Audit fields */
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    /* ------------------- Lifecycle hooks ------------------- */
+    @PrePersist
+    public void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        if (createdAt == null) createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+
+    /* ------------------- Enums ------------------- */
+    public enum BillingProvider {
+        STRIPE, GPS, INVOICE
+    }
+
+    public enum BillingStatus {
+        SUCCEEDED,
+        FAILED,
+        PENDING,
+        PROCESSING,
+        CANCELED,
+        ARCHIVED,
+        DECLINED
+    }
 }
-
-

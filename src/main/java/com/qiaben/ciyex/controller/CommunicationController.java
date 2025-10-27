@@ -52,7 +52,7 @@ public class CommunicationController {
     /* ------------------- GET BY PATIENT ------------------- */
     @GetMapping("/patient/{patientId}")
     public ResponseEntity<ApiResponse<List<CommunicationDto>>> getByPatient(
-            @PathVariable Long patientId,
+            @PathVariable("patientId") Long patientId,
             @RequestHeader("x-org-id") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
@@ -79,7 +79,7 @@ public class CommunicationController {
     /* ------------------- GET ONE ------------------- */
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<CommunicationDto>> getOne(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestHeader("x-org-id") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
@@ -110,7 +110,7 @@ public class CommunicationController {
     /* ------------------- UPDATE ------------------- */
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<CommunicationDto>> update(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestBody CommunicationDto dto,
             @RequestHeader("x-org-id") Long orgId) {
         try {
@@ -138,7 +138,7 @@ public class CommunicationController {
     /* ------------------- ARCHIVE ------------------- */
     @PutMapping("/archive/{id}")
     public ResponseEntity<ApiResponse<CommunicationDto>> archive(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestHeader("x-org-id") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
@@ -163,28 +163,28 @@ public class CommunicationController {
         }
     }
 
-    /* ------------------- RESTORE ------------------- */
-    @PutMapping("/restore/{id}")
-    public ResponseEntity<ApiResponse<CommunicationDto>> restore(
-            @PathVariable Long id,
+    /* ------------------- MARK AS READ ------------------- */
+    @PutMapping("/read/{id}")
+    public ResponseEntity<ApiResponse<CommunicationDto>> markAsRead(
+            @PathVariable("id") Long id,
             @RequestHeader("x-org-id") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();
             ctx.setOrgId(orgId);
             RequestContext.set(ctx);
 
-            CommunicationDto dto = service.setStatus(id, CommunicationStatus.SENT);
+            CommunicationDto dto = service.markAsRead(id, "provider");
 
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
                     .success(true)
-                    .message("Communication restored successfully")
+                    .message("Message marked as read successfully")
                     .data(dto)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to restore Communication id {}: {}", id, e.getMessage(), e);
+            log.error("Failed to mark message as read id {}: {}", id, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
                     .success(false)
-                    .message("Failed to restore Communication: " + e.getMessage())
+                    .message("Failed to mark message as read: " + e.getMessage())
                     .build());
         } finally {
             RequestContext.clear();
@@ -194,7 +194,7 @@ public class CommunicationController {
     /* ------------------- DELETE ------------------- */
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestHeader("x-org-id") Long orgId) {
         try {
             RequestContext ctx = new RequestContext();

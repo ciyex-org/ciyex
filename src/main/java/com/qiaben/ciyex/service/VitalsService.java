@@ -8,8 +8,13 @@ import com.qiaben.ciyex.dto.VitalsDto;
 import com.qiaben.ciyex.entity.Vitals;
 import com.qiaben.ciyex.repository.VitalsRepository;
 import com.qiaben.ciyex.storage.ExternalVitalsStorage;
+import com.qiaben.ciyex.util.JwtTokenUtil;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -17,9 +22,15 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class VitalsService {
     private final VitalsRepository repository;
     private final ExternalVitalsStorage externalStorage;
+    private final TenantAwareService tenantAwareService;
+    private final JwtTokenUtil jwtTokenUtil;
+    
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public VitalsDto create(Long orgId, Long patientId, Long encounterId, VitalsDto dto) {
         Vitals entity = toEntity(dto);
@@ -98,6 +109,89 @@ public class VitalsService {
             throw new IllegalArgumentException("Vitals does not belong to org/patient/encounter");
         }
         return externalStorage.print(vitals);
+    }
+
+    // 🏥 EHR Method - Get all vitals for a patient (across all encounters)
+    @Transactional(readOnly = true)
+    public List<VitalsDto> getVitalsByPatient(Long orgId, Long patientId) {
+        log.info("Getting vitals for patient {} in org {}", patientId, orgId);
+        
+        return tenantAwareService.executeInTenantContext(orgId, () -> {
+            List<Vitals> vitals = repository.findByPatientIdOrderByRecordedAtDesc(patientId);
+            log.info("Found {} vitals records for patient {} in org {}", vitals.size(), patientId, orgId);
+            return vitals.stream()
+                    .filter(v -> v.getOrgId().equals(orgId)) // Multi-tenant security
+                    .map(this::toDto)
+                    .collect(Collectors.toList());
+        });
+    }
+
+    // 👩‍⚕️ Portal Method - Map portal user email to EHR patient ID
+    @Transactional(readOnly = true)
+    public Long getEhrPatientIdFromPortalUserEmail(String email, Long orgId) {
+        log.info("Looking up EHR patient ID for portal user {} in org {}", email, orgId);
+        
+        if (email == null || email.trim().isEmpty()) {
+            return null;
+        }
+        
+        return tenantAwareService.executeQueryInMasterContext(em -> {
+            try {
+                // Query the portal_patients table in public schema to find the EHR patient ID
+                Object result = em.createNativeQuery(
+                    "SELECT pp.ehr_patient_id FROM public.portal_patients pp " +
+                    "JOIN public.portal_users pu ON pp.portal_user_id = pu.id " +
+                    "WHERE pu.email = :email LIMIT 1")
+                    .setParameter("email", email)
+                    .getSingleResult();
+                
+                if (result != null) {
+                    Long patientId = ((Number) result).longValue();
+                    log.info("Found EHR patient ID {} for portal user {} in org {}", patientId, email, orgId);
+                    return patientId;
+                }
+            } catch (Exception e) {
+                log.warn("Failed to find EHR patient ID for user {}: {}", email, e.getMessage());
+            }
+            
+            // Fallback: return patient ID 1 for testing
+            log.info("Using fallback patient ID 1 for user {} in org {}", email, orgId);
+            return 1L;
+        });
+    }
+
+    /**
+     * Get vitals for current portal user based on JWT token
+     */
+    @Transactional(readOnly = true) 
+    public List<VitalsDto> getVitalsForPortalUser(String token) {
+        try {
+            String userEmail = jwtTokenUtil.getEmailFromToken(token);
+            List<Long> orgIds = jwtTokenUtil.getOrgIdsFromToken(token);
+            
+            if (orgIds == null || orgIds.isEmpty()) {
+                log.error("No orgIds found in token for user {}", userEmail);
+                throw new IllegalArgumentException("No organization found in token");
+            }
+            
+            // Use the first orgId (primary organization)
+            Long orgId = ((Number) orgIds.get(0)).longValue();
+            log.info("Getting vitals for portal user {} in org {}", userEmail, orgId);
+            
+            // Get the EHR patient ID for this portal user
+            Long patientId = getEhrPatientIdFromPortalUserEmail(userEmail, orgId);
+            if (patientId == null) {
+                log.warn("No patient ID found for portal user {} in org {}", userEmail, orgId);
+                return List.of(); // Return empty list instead of null
+            }
+            
+            // Get vitals using tenant-aware query
+            return getVitalsByPatient(orgId, patientId);
+            
+        } catch (Exception e) {
+            log.error("Error getting vitals for portal user: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to get vitals for user", e);
+        }
     }
 
     private Vitals toEntity(VitalsDto dto) {

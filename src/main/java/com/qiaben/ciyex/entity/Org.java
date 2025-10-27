@@ -41,6 +41,16 @@ public class Org {
     @Column(name = "country")
     private String country;
 
+    // New status enum column: ACTIVE / INACTIVE. Default ACTIVE when created.
+    public enum OrgStatus {
+        ACTIVE, INACTIVE
+    }
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, columnDefinition = "varchar(16) default 'ACTIVE'")
+    @Builder.Default
+    private OrgStatus status = OrgStatus.ACTIVE;
+
     @Builder.Default
     @OneToMany(mappedBy = "org", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonManagedReference("org-userOrgRoles")

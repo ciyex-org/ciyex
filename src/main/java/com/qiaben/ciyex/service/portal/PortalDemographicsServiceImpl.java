@@ -27,11 +27,11 @@ public class PortalDemographicsServiceImpl implements PortalDemographicsService 
     @Transactional(readOnly = true)
     public PortalDemographicsDto getMyDemographics(Long userId) {
         // Ensure patient exists for this user
-        PortalPatient patient = patientRepository.findByUser_Id(userId)
+        PortalPatient patient = patientRepository.findByPortalUser_Id(userId)
                 .orElseGet(() -> autoCreatePatient(userId));
 
         // Fetch demographics or return blank if none exists
-        PortalDemographics demographics = demographicsRepository.findByPatient_User_Id(userId)
+        PortalDemographics demographics = demographicsRepository.findByPatient_PortalUser_Id(userId)
                 .orElseGet(() -> {
                     PortalDemographics blank = new PortalDemographics();
                     blank.setPatient(patient);
@@ -49,11 +49,11 @@ public class PortalDemographicsServiceImpl implements PortalDemographicsService 
     @Transactional
     public PortalDemographicsDto updateMyDemographics(Long userId, PortalDemographicsDto dto) {
         // Ensure patient exists for this user
-        PortalPatient patient = patientRepository.findByUser_Id(userId)
+        PortalPatient patient = patientRepository.findByPortalUser_Id(userId)
                 .orElseGet(() -> autoCreatePatient(userId));
 
         // Load existing or create new demographics
-        PortalDemographics demographics = demographicsRepository.findByPatient_User_Id(userId)
+        PortalDemographics demographics = demographicsRepository.findByPatient_PortalUser_Id(userId)
                 .orElseGet(() -> {
                     PortalDemographics newDemo = new PortalDemographics();
                     newDemo.setPatient(patient);
@@ -73,13 +73,8 @@ public class PortalDemographicsServiceImpl implements PortalDemographicsService 
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
 
         PortalPatient newPatient = PortalPatient.builder()
-                .user(user)
-                .firstName(user.getFirstName())
-                .lastName(user.getLastName())
-                .email(user.getEmail())
-                .phone(user.getPhoneNumber())
-                .dob(user.getDateOfBirth())
-                .address(user.getStreet())
+                .portalUser(user)
+                .dateOfBirth(java.time.LocalDate.now()) // Default date, should be updated by user
                 .build();
 
         return patientRepository.save(newPatient);
@@ -132,4 +127,4 @@ public class PortalDemographicsServiceImpl implements PortalDemographicsService 
         e.setAllowVoiceMessage(dto.isAllowVoiceMessage());
         e.setAllowMailMessage(dto.isAllowMailMessage());
     }
-}//
+}

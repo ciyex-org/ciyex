@@ -56,4 +56,7 @@ public interface CoverageRepository extends JpaRepository<Coverage, Long> {
 
     // keep if needed elsewhere (e.g., sync flows)
     Optional<Coverage> findByExternalId(String externalId);
+
+    // For portal patients to see their coverages
+    List<Coverage> findByPatientIdOrderByEffectiveDateDesc(Long patientId);
 }

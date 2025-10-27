@@ -1,11 +1,10 @@
 package com.qiaben.ciyex.dto;
 
-import com.qiaben.ciyex.entity.InvoiceStatus;   // ✅ Import the enum
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import com.qiaben.ciyex.entity.InvoiceStatus;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -17,16 +16,26 @@ public class InvoiceBillDto {
     private Long orgId;
     private Long userId;
     private Long subscriptionId;
-    private Double amount;
 
-    private InvoiceStatus status;   // ✅ Now resolved correctly
+    // Use BigDecimal for money
+    private BigDecimal amount;
+    private InvoiceStatus status;
 
+    private String externalId;
+    private String invoiceNumber;
     private String invoiceUrl;
     private String receiptUrl;
 
-    private LocalDateTime createdAt;
+    // Serialize dates without time component (date-only)
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDateTime dueDate;
-    private String externalId;
-    private LocalDateTime updatedAt;
 
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+    private LocalDateTime paidAt;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+    private LocalDateTime createdAt;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+    private LocalDateTime updatedAt;
 }

@@ -9,6 +9,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -73,4 +74,15 @@ public class Procedure {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @Column(name = "price_level_id")
+    private Integer priceLevelId;
+    @Column(name = "price_level_title",  columnDefinition = "TEXT")
+    private String priceLevelTitle;
+
+    @Column(name = "provider_name")
+    private String  providername;
+//
+//    @Column(name = "date_of_service")
+//    private LocalDate dateOfService;
 }

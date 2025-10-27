@@ -23,60 +23,137 @@ public class SubscriptionService {
 
     /* ------------ Mapping ------------ */
     private SubscriptionDto mapToDto(Subscription sub) {
+        String startDateStr = null;
+        if (sub.getStartDate() != null) {
+            // Convert to date-only string (yyyy-MM-dd) to avoid exposing time portion
+            try {
+                startDateStr = sub.getStartDate().toLocalDate().toString();
+            } catch (Exception e) {
+                startDateStr = sub.getStartDate().toString();
+            }
+        }
+
         return SubscriptionDto.builder()
                 .id(sub.getId())
                 .orgId(sub.getOrgId())
                 .userId(sub.getUserId())
                 .service(sub.getService())
                 .billingCycle(sub.getBillingCycle())
-                .scope(sub.getScope())
                 .status(sub.getStatus())
-                .startDate(sub.getStartDate())
+                .startDate(startDateStr)
                 .price(sub.getPrice())
                 .build();
     }
 
     private Subscription mapToEntity(SubscriptionDto dto) {
-        return Subscription.builder()
+        Subscription.SubscriptionBuilder b = Subscription.builder()
                 .id(dto.getId())
                 .orgId(dto.getOrgId())
                 .userId(dto.getUserId())
                 .service(dto.getService())
                 .billingCycle(dto.getBillingCycle())
-                .scope(dto.getScope())
                 .status(dto.getStatus())
-                .startDate(dto.getStartDate())
-                .price(dto.getPrice())
-                .build();
+                .price(dto.getPrice());
+
+        if (dto.getStartDate() != null) {
+            try {
+                LocalDate ld = LocalDate.parse(dto.getStartDate());
+                b.startDate(ld.atStartOfDay());
+            } catch (Exception e) {
+                b.startDate(LocalDateTime.parse(dto.getStartDate()));
+            }
+        }
+
+        return b.build();
     }
 
     /* ------------ CRUD ------------ */
     public SubscriptionDto create(SubscriptionDto dto) {
+        if (dto.getStatus() == null) {
+            dto.setStatus("ACTIVE");
+        }
+
         Subscription saved = repository.save(mapToEntity(dto));
 
-        // 🔹 Auto-create invoice when subscription is created
-        LocalDate start = LocalDate.parse(dto.getStartDate());
+        LocalDateTime startDateTime = saved.getStartDate();
+        if (startDateTime == null && dto.getStartDate() != null) {
+            try {
+                LocalDate localDate = LocalDate.parse(dto.getStartDate());
+                startDateTime = localDate.atStartOfDay();
+            } catch (Exception e) {
+                startDateTime = LocalDateTime.parse(dto.getStartDate());
+            }
+        }
+
         LocalDateTime dueDate = dto.getBillingCycle().equalsIgnoreCase("Yearly")
-                ? start.plusYears(1).atStartOfDay()
-                : start.plusMonths(1).atStartOfDay();
+                ? startDateTime.plusYears(1)
+                : startDateTime.plusMonths(1);
+
+        if (saved.getUserId() == null && saved.getOrgId() == null) {
+            throw new RuntimeException("Subscription must have either userId or orgId for invoice generation");
+        }
 
         InvoiceBillDto invoice = InvoiceBillDto.builder()
                 .orgId(saved.getOrgId())
                 .userId(saved.getUserId())
                 .subscriptionId(saved.getId())
                 .amount(saved.getPrice())
-                .status(InvoiceStatus.UNPAID)   // ✅ FIX: use enum
+                .status(InvoiceStatus.UNPAID)
                 .dueDate(dueDate)
-                .createdAt(LocalDateTime.now())
                 .build();
 
         invoiceBillService.createInvoice(invoice);
+
         return mapToDto(saved);
     }
 
     public SubscriptionDto update(Long id, SubscriptionDto dto) {
-        dto.setId(id);
-        return mapToDto(repository.save(mapToEntity(dto)));
+        Subscription existing = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Subscription not found"));
+
+        boolean priceChanged = false;
+
+        if (dto.getService() != null) existing.setService(dto.getService());
+        if (dto.getBillingCycle() != null) existing.setBillingCycle(dto.getBillingCycle());
+        if (dto.getStatus() != null) existing.setStatus(dto.getStatus());
+        if (dto.getStartDate() != null) {
+            try {
+                LocalDate ld = LocalDate.parse(dto.getStartDate());
+                existing.setStartDate(ld.atStartOfDay());
+            } catch (Exception e) {
+                existing.setStartDate(LocalDateTime.parse(dto.getStartDate()));
+            }
+        }
+        if (dto.getPrice() != null && !dto.getPrice().equals(existing.getPrice())) {
+            existing.setPrice(dto.getPrice());
+            priceChanged = true;
+        }
+
+        Subscription saved = repository.save(existing);
+
+        if (priceChanged) {
+            LocalDateTime startDateTime = saved.getStartDate();
+            if (startDateTime == null && saved.getStartDate() != null) {
+                startDateTime = saved.getStartDate();
+            }
+
+            LocalDateTime dueDate = saved.getBillingCycle().equalsIgnoreCase("Yearly")
+                    ? startDateTime.plusYears(1)
+                    : startDateTime.plusMonths(1);
+
+            InvoiceBillDto invoice = InvoiceBillDto.builder()
+                    .orgId(saved.getOrgId())
+                    .userId(saved.getUserId())
+                    .subscriptionId(saved.getId())
+                    .amount(saved.getPrice())
+                    .status(InvoiceStatus.UNPAID)
+                    .dueDate(dueDate)
+                    .build();
+
+            invoiceBillService.createInvoice(invoice);
+        }
+
+        return mapToDto(saved);
     }
 
     public void delete(Long id) {
@@ -88,10 +165,11 @@ public class SubscriptionService {
     }
 
     public List<SubscriptionDto> getAll() {
-        return repository.findAll().stream().map(this::mapToDto).collect(Collectors.toList());
+        return repository.findAll().stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
     }
 
-    /* ------------ ORG-specific Methods ------------ */
     public Optional<SubscriptionDto> getByIdAndOrg(Long id, Long orgId) {
         return repository.findById(id)
                 .filter(sub -> sub.getOrgId().equals(orgId))
@@ -99,8 +177,8 @@ public class SubscriptionService {
     }
 
     public List<SubscriptionDto> getAllByOrg(Long orgId) {
-        return repository.findAll().stream()
-                .filter(sub -> sub.getOrgId().equals(orgId))
+        return repository.findByOrgId(orgId)
+                .stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }

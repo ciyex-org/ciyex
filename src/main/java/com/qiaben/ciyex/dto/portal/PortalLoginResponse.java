@@ -50,14 +50,7 @@ public class PortalLoginResponse {
         resp.setFirstName(user.getFirstName());
         resp.setLastName(user.getLastName());
         resp.setPhone(user.getPhoneNumber());
-        resp.setStreet(user.getStreet());
-        resp.setStreet2(user.getStreet2());
-        resp.setCity(user.getCity());
-        resp.setState(user.getState());
-        resp.setCountry(user.getCountry());
-        resp.setPostalCode(user.getPostalCode());
-        resp.setDateOfBirth(user.getDateOfBirth());
-        resp.setProfileImage(user.getProfileImage());
+        // Note: Other address fields (street, city, etc.) should come from PortalPatient entity
         return resp;
     }
 }
