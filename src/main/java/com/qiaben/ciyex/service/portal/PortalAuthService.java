@@ -5,13 +5,18 @@ import com.qiaben.ciyex.dto.portal.PortalLoginRequest;
 import com.qiaben.ciyex.dto.portal.PortalLoginResponse;
 import com.qiaben.ciyex.dto.portal.PortalRegisterRequest;
 import com.qiaben.ciyex.dto.portal.PortalUserDto;
-import com.qiaben.ciyex.entity.*;
-import com.qiaben.ciyex.entity.portal.PortalPatient;
+import com.qiaben.ciyex.entity.User;
+import com.qiaben.ciyex.entity.Patient;
+import com.qiaben.ciyex.entity.Org;
 import com.qiaben.ciyex.entity.portal.PortalUser;
+import com.qiaben.ciyex.entity.portal.PortalPatient;
 import com.qiaben.ciyex.enums.PortalStatus;
 import com.qiaben.ciyex.repository.OrgRepository;
-import com.qiaben.ciyex.repository.portal.PortalPatientRepository;
+import com.qiaben.ciyex.repository.UserRepository;
+import com.qiaben.ciyex.repository.PatientRepository;
 import com.qiaben.ciyex.repository.portal.PortalUserRepository;
+import com.qiaben.ciyex.repository.portal.PortalPatientRepository;
+import com.qiaben.ciyex.service.TenantProvisionService;
 import com.qiaben.ciyex.util.JwtTokenUtil;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -38,6 +43,9 @@ public class PortalAuthService {
     private final PortalUserRepository portalUserRepository;
     private final PortalPatientRepository portalPatientRepository;
     private final OrgRepository orgRepository;
+    private final UserRepository userRepository;
+    private final PatientRepository patientRepository;
+    private final TenantProvisionService tenantProvisionService;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenUtil jwtTokenUtil;
 
@@ -80,9 +88,25 @@ public class PortalAuthService {
             // 4️⃣ Generate JWT for approved users with orgId
             String token = generatePortalUserToken(portalUser);
 
-            // 5️⃣ Build response DTO
+            // 5️⃣ Build response DTO with org information
             PortalLoginResponse response = PortalLoginResponse.fromEntity(portalUser);
             response.setToken(token);
+            
+            // Add org information to response
+            Long userOrgId = portalUser.getOrgId() != null ? portalUser.getOrgId() : 3L;
+            String orgName = "Portal Org";
+            try {
+                Org org = orgRepository.findById(userOrgId).orElse(null);
+                if (org != null) {
+                    orgName = org.getOrgName();
+                }
+            } catch (Exception e) {
+                log.warn("Could not fetch org name for orgId: {}", userOrgId, e);
+            }
+            
+            List<PortalLoginResponse.OrgInfo> orgsList = new ArrayList<>();
+            orgsList.add(new PortalLoginResponse.OrgInfo(userOrgId, orgName, "PATIENT"));
+            response.setOrgs(orgsList);
 
             return ApiResponse.<PortalLoginResponse>builder()
                     .success(true)
@@ -145,12 +169,17 @@ public class PortalAuthService {
             // 4️⃣ Save patient
             portalPatientRepository.save(patient);
 
-            // 5️⃣ Build DTO response
+            // 5️⃣ Create EHR patient and link it
+            Long ehrPatientId = createEhrPatient(savedUser, patient);
+            patient.setEhrPatientId(ehrPatientId);
+            portalPatientRepository.save(patient);
+
+            // 6️⃣ Build DTO response
             PortalUserDto dto = PortalUserDto.fromEntity(savedUser);
             Org org = orgRepository.findById(savedUser.getOrgId()).orElse(null);
             if (org != null) dto.setOrgName(org.getOrgName());
 
-            log.info("Portal user registered successfully: {}", savedUser.getEmail());
+            log.info("Portal user registered and linked to EHR patient {}: {}", ehrPatientId, savedUser.getEmail());
 
             return ApiResponse.<PortalUserDto>builder()
                     .success(true)
@@ -243,6 +272,58 @@ public class PortalAuthService {
 
     private Key getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Create EHR patient and link to portal patient during registration
+     */
+    private Long createEhrPatient(PortalUser portalUser, PortalPatient portalPatient) {
+        try {
+            // Create tenant user
+            User tenantUser = User.builder()
+                    .uuid(portalUser.getUuid())
+                    .email(portalUser.getEmail())
+                    .password(portalUser.getPassword()) // Already encoded
+                    .firstName(portalUser.getFirstName())
+                    .lastName(portalUser.getLastName())
+                    .dateOfBirth(portalPatient.getDateOfBirth())
+                    .phoneNumber(portalUser.getPhoneNumber())
+                    .street(portalPatient.getAddressLine1())
+                    .street2(portalPatient.getAddressLine2())
+                    .city(portalPatient.getCity())
+                    .state(portalPatient.getState())
+                    .postalCode(portalPatient.getPostalCode())
+                    .country(portalPatient.getCountry())
+                    .build();
+
+            User savedUser = userRepository.save(tenantUser);
+
+            // Create tenant patient
+            Patient tenantPatient = Patient.builder()
+                    .orgId(portalUser.getOrgId())
+                    .firstName(portalUser.getFirstName())
+                    .lastName(portalUser.getLastName())
+                    .email(portalUser.getEmail())
+                    .phoneNumber(portalUser.getPhoneNumber())
+                    .dateOfBirth(portalPatient.getDateOfBirth().toString())
+                    .gender(portalPatient.getGender())
+                    .address(portalPatient.getAddressLine1())
+                    .status("ACTIVE")
+                    .createdDate(LocalDateTime.now().toString())
+                    .lastModifiedDate(LocalDateTime.now().toString())
+                    .build();
+
+            Patient savedPatient = patientRepository.save(tenantPatient);
+
+            log.info("Created EHR user {} and patient {} for portal user {}", 
+                    savedUser.getId(), savedPatient.getId(), portalUser.getEmail());
+
+            return savedPatient.getId();
+
+        } catch (Exception e) {
+            log.error("Error creating EHR patient for portal user: {}", portalUser.getEmail(), e);
+            throw new RuntimeException("Failed to create EHR patient", e);
+        }
     }
 }
 //

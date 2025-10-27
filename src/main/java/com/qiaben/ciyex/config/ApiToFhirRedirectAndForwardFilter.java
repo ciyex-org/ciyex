@@ -52,8 +52,8 @@ public class ApiToFhirRedirectAndForwardFilter implements Filter {
             System.out.println("[ApiToFhirFilter] No org header found — continuing normally.");
         }
 
-        // Case 1: Redirect /api/... → /api/fhir/...
-        if (uri.startsWith("/api/") && !uri.startsWith("/api/fhir/")) {
+        // Case 1: Redirect /api/... → /api/fhir/... (except auth endpoints)
+        if (uri.startsWith("/api/") && !uri.startsWith("/api/fhir/") && !uri.contains("/auth/")) {
             String newUri = uri.replaceFirst("/api/", "/api/fhir/");
             if (req.getQueryString() != null) {
                 newUri += "?" + req.getQueryString();

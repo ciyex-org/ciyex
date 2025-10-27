@@ -11,6 +11,7 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -26,6 +27,7 @@ import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Autowired
@@ -81,12 +83,22 @@ public class SecurityConfig {
                     "/api/portal/auth/reset-password",
                     "/api/portal/auth/user/**",
 
+                    // ✅ Portal approval endpoints (temporary for testing)
+                    "/api/portal/approvals/**",
+                    "/api/fhir/portal/approvals/**",
+
                     // ✅ Public read-only portal endpoints (if needed)
                     "/api/portal/providers/**",
                     "/api/portal/locations/**",
 
-                    // ✅ Telehealth endpoints (JWT parsed manually in controller)
-                    "/api/telehealth/**"
+                    // ✅ Portal messages attachment upload endpoint
+                    "/api/fhir/portal/messages/**",
+
+                    // ✅ Telehealth endpoints (JWT parsed manually in controller) 
+                    "/api/telehealth/**",
+
+                    // ✅ Test endpoints for development
+                    "/api/test/**"
                 ).permitAll()
 
                 // ✅ Allow Spring Actuator endpoints

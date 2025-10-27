@@ -4,14 +4,16 @@ import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.CoverageDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.service.CoverageService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/coverages")
+@RequestMapping({"/api/coverages", "/api/fhir/insurance", "/api/insurance"})
 @Slf4j
 public class CoverageController {
 
@@ -238,5 +240,40 @@ public class CoverageController {
         }
     }
 
+    // 👩‍⚕️ Patient Portal Endpoint - Only logged-in patient can see their insurance coverage
+    @GetMapping("/my")
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    public ApiResponse<List<CoverageDto>> getMyInsurance(HttpServletRequest request) {
+        try {
+            // Extract JWT token from Authorization header
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ApiResponse.<List<CoverageDto>>builder()
+                        .success(false)
+                        .message("Authorization token missing")
+                        .data(null)
+                        .build();
+            }
+
+            String token = authHeader.substring(7);
+
+            // Use the new tenant-aware method to get coverages
+            List<CoverageDto> coverages = service.getCoveragesForPortalUser(token);
+
+            return ApiResponse.<List<CoverageDto>>builder()
+                    .success(true)
+                    .message("Patient insurance coverage retrieved")
+                    .data(coverages)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error getting insurance coverage for portal user: {}", e.getMessage(), e);
+            return ApiResponse.<List<CoverageDto>>builder()
+                    .success(false)
+                    .message("Error retrieving insurance coverage: " + e.getMessage())
+                    .data(null)
+                    .build();
+        }
+    }
 
 }

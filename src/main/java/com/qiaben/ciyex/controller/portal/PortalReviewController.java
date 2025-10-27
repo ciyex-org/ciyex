@@ -67,51 +67,51 @@ public class PortalReviewController {
     /**
      * POST /api/portal/review/submit - Patient submits any type of update for review
      */
-    @PreAuthorize("hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
     @PostMapping("/submit")
-    public ResponseEntity<ApiResponse<String>> submitUpdate(
+    public ApiResponse<String> submitUpdate(
             HttpServletRequest request,
             @RequestBody PortalUpdateRequest updateRequest) {
         try {
             Long patientId = extractPatientIdFromToken(request);
-            
+
             Long updateId = reviewService.submitForReview(patientId, updateRequest);
-            
-            return ResponseEntity.ok(ApiResponse.<String>builder()
+
+            return ApiResponse.<String>builder()
                     .success(true)
                     .message("Update submitted for review. Staff will review your changes.")
                     .data("UPDATE_ID_" + updateId)
-                    .build());
+                    .build();
         } catch (Exception e) {
             log.error("❌ Failed to submit update for review", e);
-            return ResponseEntity.badRequest().body(ApiResponse.<String>builder()
+            return ApiResponse.<String>builder()
                     .success(false)
                     .message(e.getMessage())
-                    .build());
+                    .build();
         }
     }
 
     /**
      * GET /api/portal/review/status - Patient checks status of their pending updates
      */
-    @PreAuthorize("hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
     @GetMapping("/status")
-    public ResponseEntity<ApiResponse<List<PortalPendingUpdateDto>>> getMyUpdateStatus(HttpServletRequest request) {
+    public ApiResponse<List<PortalPendingUpdateDto>> getMyUpdateStatus(HttpServletRequest request) {
         try {
             Long patientId = extractPatientIdFromToken(request);
             List<PortalPendingUpdateDto> updates = reviewService.getPatientUpdates(patientId);
-            
-            return ResponseEntity.ok(ApiResponse.<List<PortalPendingUpdateDto>>builder()
+
+            return ApiResponse.<List<PortalPendingUpdateDto>>builder()
                     .success(true)
                     .message("Update status retrieved successfully")
                     .data(updates)
-                    .build());
+                    .build();
         } catch (Exception e) {
             log.error("❌ Failed to get update status", e);
-            return ResponseEntity.badRequest().body(ApiResponse.<List<PortalPendingUpdateDto>>builder()
+            return ApiResponse.<List<PortalPendingUpdateDto>>builder()
                     .success(false)
                     .message(e.getMessage())
-                    .build());
+                    .build();
         }
     }
 
