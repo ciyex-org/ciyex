@@ -2,6 +2,7 @@ package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.entity.OrgConfig;
 import com.qiaben.ciyex.service.OrgConfigService;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -14,9 +15,11 @@ import java.util.List;
 public class OrgConfigController {
 
     private final OrgConfigService orgConfigService;
+    private final OrgIntegrationConfigProvider integrationConfigProvider;
 
-    public OrgConfigController(OrgConfigService orgConfigService) {
+    public OrgConfigController(OrgConfigService orgConfigService, OrgIntegrationConfigProvider integrationConfigProvider) {
         this.orgConfigService = orgConfigService;
+        this.integrationConfigProvider = integrationConfigProvider;
     }
 
     @GetMapping
@@ -65,6 +68,19 @@ public class OrgConfigController {
             return ResponseEntity.noContent().build();
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * Update S3 Document Storage Configuration for an organization
+     */
+    @PutMapping("/{orgId}/s3-config")
+    public ResponseEntity<String> updateS3Config(@PathVariable Long orgId, @RequestBody OrgIntegrationConfigProvider.S3Config s3Config) {
+        try {
+            integrationConfigProvider.updateS3DocumentStorage(orgId, s3Config);
+            return ResponseEntity.ok("S3 configuration updated successfully for orgId: " + orgId);
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body("Failed to update S3 config: " + ex.getMessage());
         }
     }
 }

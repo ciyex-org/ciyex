@@ -6,7 +6,7 @@ import com.qiaben.ciyex.service.portal.PortalPatientService;
 import com.qiaben.ciyex.util.JwtTokenUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -31,28 +31,24 @@ public class PortalPatientController {
      * Endpoint: GET /api/portal/patient/me
      */
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse<PortalPatientDto>> getMyProfile(HttpServletRequest request) {
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    public ApiResponse<PortalPatientDto> getMyProfile(HttpServletRequest request) {
         String token = resolveToken(request);
         if (token == null) {
-            return ResponseEntity.status(401).body(
-                ApiResponse.<PortalPatientDto>builder()
+            return ApiResponse.<PortalPatientDto>builder()
                     .success(false)
                     .message("Unauthorized - missing token")
-                    .build()
-            );
+                    .build();
         }
-        
+
         try {
             Long userId = jwtUtil.getUserIdFromToken(token);
-            ApiResponse<PortalPatientDto> response = patientService.getPatientInfo(userId);
-            return ResponseEntity.ok(response);
+            return patientService.getPatientInfo(userId);
         } catch (Exception e) {
-            return ResponseEntity.status(401).body(
-                ApiResponse.<PortalPatientDto>builder()
+            return ApiResponse.<PortalPatientDto>builder()
                     .success(false)
                     .message("Invalid token")
-                    .build()
-            );
+                    .build();
         }
     }
 
@@ -61,31 +57,27 @@ public class PortalPatientController {
      * Endpoint: PUT /api/portal/patient/me
      */
     @PutMapping("/me")
-    public ResponseEntity<ApiResponse<PortalPatientDto>> updateMyProfile(
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    public ApiResponse<PortalPatientDto> updateMyProfile(
             HttpServletRequest request,
             @RequestBody PortalPatientDto updated) {
 
         String token = resolveToken(request);
         if (token == null) {
-            return ResponseEntity.status(401).body(
-                ApiResponse.<PortalPatientDto>builder()
+            return ApiResponse.<PortalPatientDto>builder()
                     .success(false)
                     .message("Unauthorized - missing token")
-                    .build()
-            );
+                    .build();
         }
-        
+
         try {
             Long userId = jwtUtil.getUserIdFromToken(token);
-            ApiResponse<PortalPatientDto> response = patientService.updatePatientInfo(userId, updated);
-            return ResponseEntity.ok(response);
+            return patientService.updatePatientInfo(userId, updated);
         } catch (Exception e) {
-            return ResponseEntity.status(401).body(
-                ApiResponse.<PortalPatientDto>builder()
+            return ApiResponse.<PortalPatientDto>builder()
                     .success(false)
                     .message("Invalid token")
-                    .build()
-            );
+                    .build();
         }
     }
 

@@ -11,8 +11,16 @@ import java.util.stream.Collectors;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 
 import com.qiaben.ciyex.dto.AppointmentDTO;
 import com.qiaben.ciyex.dto.integration.RequestContext;
@@ -60,6 +68,7 @@ public class PortalAppointmentController {
     private final TelehealthResolver telehealthResolver;
 
     @GetMapping
+    @PreAuthorize("hasRole('PATIENT')")
     public ResponseEntity<ApiResponse<List<AppointmentDto>>> getPatientAppointments(HttpServletRequest request) {
         try {
             log.info("Fetching appointments for portal user");
@@ -89,6 +98,7 @@ public class PortalAppointmentController {
     }
 
     @GetMapping("/available-slots")
+    @PreAuthorize("hasRole('PATIENT')")
     public ResponseEntity<ApiResponse<List<SlotDto>>> getAvailableSlots(
             @RequestParam(value = "provider_id", required = false) Long providerId,
             @RequestParam(value = "location_id", required = false) Long locationId,
@@ -121,6 +131,7 @@ public class PortalAppointmentController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('PATIENT')")
     public ResponseEntity<ApiResponse<AppointmentDto>> requestAppointment(@RequestBody CreateAppointmentRequest request, HttpServletRequest httpRequest) {
         try {
             log.info("Processing appointment request");

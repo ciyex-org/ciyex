@@ -2,6 +2,7 @@ package com.qiaben.ciyex.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.qiaben.ciyex.dto.integration.IntegrationKey;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.dto.integration.StripeConfig;
@@ -240,6 +241,67 @@ public class OrgIntegrationConfigProvider {
         Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
         if (orgId == null) throw new IllegalStateException("No orgId in request context");
         return getS3DocumentStorage(orgId);
+    }
+
+    /** ✅ Update S3 Document Storage Configuration */
+    @Transactional
+    public void updateS3DocumentStorage(Long orgId, S3Config newS3Config) {
+        // Ensure we're in the tenant schema for this org
+        ensureTenantSchema(orgId);
+
+        // Ensure RequestContext carries the target orgId for the duration of the lookup
+        RequestContext previousContext = RequestContext.get();
+        boolean contextAdjusted = false;
+        if (previousContext == null || !Objects.equals(previousContext.getOrgId(), orgId)) {
+            RequestContext context = new RequestContext();
+            if (previousContext != null) {
+                context.setAuthToken(previousContext.getAuthToken());
+                context.setFacilityId(previousContext.getFacilityId());
+                context.setRole(previousContext.getRole());
+            }
+            context.setOrgId(orgId);
+            RequestContext.set(context);
+            contextAdjusted = true;
+        }
+        try {
+            OrgConfig orgConfig = orgConfigRepository.findByOrgId(orgId)
+                    .orElseThrow(() -> new RuntimeException("OrgConfig not found for orgId: " + orgId));
+
+            // Get current integrations or create empty object
+            JsonNode integrations = orgConfig.getIntegrations();
+            if (integrations == null) {
+                integrations = objectMapper.createObjectNode();
+            }
+
+            // Convert S3Config to JsonNode
+            JsonNode s3Node = objectMapper.valueToTree(newS3Config);
+
+            // Update the document_storage.s3 path
+            ObjectNode integrationsObj = (ObjectNode) integrations;
+            ObjectNode documentStorage;
+            if (integrationsObj.has("document_storage")) {
+                documentStorage = (ObjectNode) integrationsObj.get("document_storage");
+            } else {
+                documentStorage = objectMapper.createObjectNode();
+                integrationsObj.set("document_storage", documentStorage);
+            }
+            documentStorage.set("s3", s3Node);
+
+            // Save the updated config
+            orgConfig.setIntegrations(integrationsObj);
+            orgConfigRepository.save(orgConfig);
+
+            log.info("Updated S3 document storage config for orgId: {}", orgId);
+
+        } finally {
+            if (contextAdjusted) {
+                if (previousContext != null) {
+                    RequestContext.set(previousContext);
+                } else {
+                    RequestContext.clear();
+                }
+            }
+        }
     }
 
     public static class S3Config {

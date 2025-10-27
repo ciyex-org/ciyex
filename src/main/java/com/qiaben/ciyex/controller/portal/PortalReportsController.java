@@ -1,0 +1,155 @@
+package com.qiaben.ciyex.controller.portal;
+
+import com.qiaben.ciyex.dto.portal.ApiResponse;
+import com.qiaben.ciyex.dto.DocumentDto;
+import com.qiaben.ciyex.service.portal.PortalReportsService;
+import com.qiaben.ciyex.service.DocumentService;
+import com.qiaben.ciyex.service.VitalsService;
+import com.qiaben.ciyex.util.JwtTokenUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+/**
+ * Controller for portal patients to view their own reports
+ */
+@RestController
+@RequestMapping("/api/portal/reports")
+@RequiredArgsConstructor
+@CrossOrigin(
+    origins = { "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001" },
+    allowedHeaders = "*",
+    methods = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS },
+    allowCredentials = "true"
+)
+public class PortalReportsController {
+
+    private final PortalReportsService reportsService;
+    private final DocumentService sharedDocumentService;
+    private final VitalsService sharedVitalsService; // For getting EHR patient ID mapping
+    private final JwtTokenUtil jwtUtil;
+
+    /**
+     * Get recent reports for the currently logged-in patient
+     * Endpoint: GET /api/portal/reports/recent
+     */
+    @GetMapping("/recent")
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    public ApiResponse<List<DocumentDto>> getRecentReports(HttpServletRequest request) {
+        String token = resolveToken(request);
+        if (token == null) {
+            return ApiResponse.<List<DocumentDto>>builder()
+                    .success(false)
+                    .message("Unauthorized - missing token")
+                    .build();
+        }
+
+        try {
+            Long userId = jwtUtil.getUserIdFromToken(token);
+            return reportsService.getRecentReports(userId);
+        } catch (Exception e) {
+            return ApiResponse.<List<DocumentDto>>builder()
+                    .success(false)
+                    .message("Invalid token")
+                    .build();
+        }
+    }
+
+    /**
+     * Get all reports for the currently logged-in patient
+     * Endpoint: GET /api/portal/reports
+     */
+    @GetMapping
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    public ApiResponse<List<DocumentDto>> getAllReports(HttpServletRequest request) {
+        String token = resolveToken(request);
+        if (token == null) {
+            return ApiResponse.<List<DocumentDto>>builder()
+                    .success(false)
+                    .message("Unauthorized - missing token")
+                    .build();
+        }
+
+        try {
+            Long userId = jwtUtil.getUserIdFromToken(token);
+            return reportsService.getAllReports(userId);
+        } catch (Exception e) {
+            return ApiResponse.<List<DocumentDto>>builder()
+                    .success(false)
+                    .message("Invalid token")
+                    .build();
+        }
+    }
+
+    /**
+     * Extract Bearer token from Authorization header
+     */
+    private String resolveToken(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
+    }
+
+    /**
+     * Get reports for the currently logged-in portal patient (same as /api/reports/my but through portal proxy)
+     * Endpoint: GET /api/portal/reports/my
+     */
+    @GetMapping("/my")
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    public ApiResponse<List<DocumentDto>> getMyReports(
+            @RequestHeader(value = "x-org-id", required = false) Long orgId,
+            Authentication authentication) {
+
+        String email = authentication.getName();
+        Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(email, orgId);
+
+        if (ehrPatientId == null) {
+            return ApiResponse.<List<DocumentDto>>builder()
+                    .success(false)
+                    .message("Patient record not linked to EHR")
+                    .data(null)
+                    .build();
+        }
+
+        // Get all documents for this patient and filter for reports
+        com.qiaben.ciyex.dto.ApiResponse<List<DocumentDto>> documentsResponse = sharedDocumentService.getAllForPatient(orgId, ehrPatientId);
+        if (documentsResponse.isSuccess() && documentsResponse.getData() != null) {
+            List<DocumentDto> reports = documentsResponse.getData()
+                    .stream()
+                    .filter(doc -> isReportCategory(doc.getCategory()))
+                    .collect(java.util.stream.Collectors.toList());
+
+            return ApiResponse.<List<DocumentDto>>builder()
+                    .success(true)
+                    .message("Patient reports retrieved")
+                    .data(reports)
+                    .build();
+        } else {
+            return ApiResponse.<List<DocumentDto>>builder()
+                    .success(true)
+                    .message(documentsResponse.getMessage() != null ? documentsResponse.getMessage() : "No reports found")
+                    .data(new java.util.ArrayList<>())
+                    .build();
+        }
+    }
+
+    /**
+     * Check if a document category represents a report
+     */
+    private boolean isReportCategory(String category) {
+        if (category == null) return false;
+        String lowerCategory = category.toLowerCase();
+        return lowerCategory.contains("report") ||
+               lowerCategory.contains("summary") ||
+               lowerCategory.contains("visit") ||
+               lowerCategory.contains("lab") ||
+               lowerCategory.contains("imaging") ||
+               lowerCategory.equals("clinical");
+    }
+}
