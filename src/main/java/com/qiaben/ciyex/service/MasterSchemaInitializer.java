@@ -88,7 +88,24 @@ public class MasterSchemaInitializer {
             // before Hibernate attempts to create/update them. This avoids
             // "relation already exists" errors when both Flyway and Hibernate
             // try to create the same tables.
-            masterFlyway.migrate();
+            try {
+                masterFlyway.migrate();
+            } catch (org.flywaydb.core.api.exception.FlywayValidateException validationEx) {
+                log.warn("Flyway validation failed - attempting repair and retry: {}", validationEx.getMessage());
+                try {
+                    masterFlyway.repair();
+                    log.info("Flyway repair completed, retrying migration...");
+                    masterFlyway.migrate();
+                } catch (Exception repairEx) {
+                    log.error("Flyway repair failed", repairEx);
+                    log.warn("Falling back to Hibernate schema creation...");
+                    // Continue with createMasterSchemaTables as fallback
+                }
+            } catch (Exception flyEx) {
+                log.warn("Flyway migration failed, falling back to Hibernate schema creation: {}", flyEx.getMessage());
+                log.debug("Full Flyway error:", flyEx);
+                // Continue with createMasterSchemaTables as fallback
+            }
 
             // Create master schema tables using JPA entities (idempotent check)
             createMasterSchemaTables();
