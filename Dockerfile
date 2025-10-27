@@ -68,37 +68,37 @@ RUN if [ "$ENVIRONMENT" = "stage" ]; then \
 RUN npm run build
 
 # ---- Build Admin UI (Next.js) ----
-FROM node:20 AS admin-ui-builder
-
-WORKDIR /app/ciyex-admin-ui
-
-# Copy package files and install dependencies
-COPY ciyex-admin-ui/package*.json ./
-
-# Use BuildKit cache for npm
-RUN --mount=type=cache,target=/root/.npm \
-    npm install
-
-# Copy rest of the Admin UI code
-COPY ciyex-admin-ui .
-
-# Select environment: ENVIRONMENT=stage or ENVIRONMENT=prod
-ARG ENVIRONMENT=prod
-
-# Remove any previous .env files to avoid ambiguity
-RUN rm -f .env .env.local || true
-
-# Choose the correct env file and copy as .env (be tolerant if files are missing)
-RUN if [ "$ENVIRONMENT" = "stage" ]; then \
-      cp -f .env.stage .env || true; \
-    elif [ "$ENVIRONMENT" = "local" ]; then \
-      cp -f .env.local .env || true; \
-    else \
-      cp -f .env .env || true; \
-    fi
-
-# Build Next.js Admin app
-RUN npm run build
+# FROM node:20 AS admin-ui-builder
+# 
+# WORKDIR /app/ciyex-admin-ui
+# 
+# # Copy package files and install dependencies
+# COPY ciyex-admin-ui/package*.json ./
+# 
+# # Use BuildKit cache for npm
+# RUN --mount=type=cache,target=/root/.npm \
+#     npm install
+# 
+# # Copy rest of the Admin UI code
+# COPY ciyex-admin-ui .
+# 
+# # Select environment: ENVIRONMENT=stage or ENVIRONMENT=prod
+# ARG ENVIRONMENT=prod
+# 
+# # Remove any previous .env files to avoid ambiguity
+# RUN rm -f .env .env.local || true
+# 
+# # Choose the correct env file and copy as .env (be tolerant if files are missing)
+# RUN if [ "$ENVIRONMENT" = "stage" ]; then \
+#       cp -f .env.stage .env || true; \
+#     elif [ "$ENVIRONMENT" = "local" ]; then \
+#       cp -f .env.local .env || true; \
+#     else \
+#       cp -f .env .env || true; \
+#     fi
+# 
+# # Build Next.js Admin app
+# RUN npm run build
 
 # ---- Build Spring Boot ----
 FROM gradle:jdk21-ubi AS backend-builder
@@ -134,7 +134,7 @@ COPY --from=backend-builder /app/build/libs/*.jar /app/app.jar
 # Copy built Next.js apps
 COPY --from=ehr-ui-builder /app/ciyex-ehr-ui /app/ciyex-ehr-ui
 COPY --from=portal-ui-builder /app/ciyex-portal-ui /app/ciyex-portal-ui
-COPY --from=admin-ui-builder /app/ciyex-admin-ui /app/ciyex-admin-ui
+# COPY --from=admin-ui-builder /app/ciyex-admin-ui /app/ciyex-admin-ui
 
 # Install bash and Node.js for SSR Next.js runtime
 RUN apt-get update && apt-get install -y curl bash dos2unix && \
