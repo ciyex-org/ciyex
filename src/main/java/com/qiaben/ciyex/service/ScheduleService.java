@@ -42,13 +42,13 @@ public class ScheduleService {
 
     @Transactional(readOnly = true)
     public long countSchedulesForCurrentOrg() {
-        Long orgId = getCurrentOrgIdOrThrow();
+        // Single-tenant: no orgId check needed
         return repository.count();
     }
 
     @Transactional
     public ScheduleDto create(ScheduleDto dto) {
-        Long orgId = getCurrentOrgIdOrThrow();
+        // Single-tenant: no orgId check needed
         if (dto.getProviderId() == null) {
             throw new IllegalArgumentException("providerId is required");
         }
@@ -80,7 +80,7 @@ public class ScheduleService {
 
     @Transactional(readOnly = true)
     public ScheduleDto getById(Long id) {
-        Long orgId = getCurrentOrgIdOrThrow();
+        // Single-tenant: no orgId check needed
         Schedule entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
         return mergeLocalAndExternal(entity, fetchExternal(entity.getExternalId()));
@@ -88,7 +88,7 @@ public class ScheduleService {
 
     @Transactional(readOnly = true)
     public ApiResponse<List<ScheduleDto>> getAllSchedules() {
-        Long orgId = getCurrentOrgIdOrThrow();
+        // Single-tenant: no orgId check needed
         List<Schedule> entities = repository.findAll();
 
         // collect all externalIds
@@ -136,7 +136,7 @@ public class ScheduleService {
 
     @Transactional
     public ScheduleDto update(Long id, ScheduleDto dto) {
-        Long orgId = getCurrentOrgIdOrThrow();
+        // Single-tenant: no orgId check needed
         Schedule entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
 

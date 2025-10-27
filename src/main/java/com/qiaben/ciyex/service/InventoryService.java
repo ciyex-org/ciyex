@@ -121,7 +121,7 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public Page<InventoryDto> getAll(Pageable pageable) {
-        Long orgId = getCurrentOrgId();
+        // Single-tenant: no orgId check needed
         return repository.findAll(pageable).map(this::mapToDto);
     }
 
@@ -137,7 +137,7 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getWeeklyConsumption() {
-        Long orgId = getCurrentOrgId();
+        // Single-tenant: no orgId check needed
         List<Inventory> items = repository.findAll();
 
         Map<String, Integer> grouped = items.stream()
@@ -164,8 +164,8 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getMonthlyOrders() {
-        Long orgId = getCurrentOrgId();
-        List<MonthlyOrderCountDto> counts = orderService.countOrdersByMonth(orgId);
+        // Single-tenant: no orgId check needed
+        List<MonthlyOrderCountDto> counts = orderService.countOrdersByMonth(null);
 
         return counts.stream()
                 .map(c -> {
@@ -186,7 +186,7 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public Map<String, Long> countLowAndCritical() {
-        Long orgId = getCurrentOrgId();
+        // Single-tenant: no orgId check needed
         List<Inventory> items = repository.findAll();
 
         long low = items.stream()

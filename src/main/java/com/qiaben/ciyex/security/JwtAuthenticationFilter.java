@@ -43,8 +43,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     @SuppressWarnings("unchecked")
                     List<String> groups = (List<String>) claims.getOrDefault("groups", List.of());
                     
+                    // Preserve original group format for tenant extraction
                     List<SimpleGrantedAuthority> authorities = groups.stream()
-                            .map(group -> new SimpleGrantedAuthority("ROLE_" + group.toUpperCase()))
+                            .map(group -> new SimpleGrantedAuthority("ROLE_" + group))
                             .collect(Collectors.toList());
                     
                     // Create authentication token

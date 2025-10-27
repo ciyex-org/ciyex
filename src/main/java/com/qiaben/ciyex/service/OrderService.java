@@ -44,8 +44,7 @@ public class OrderService {
 
     @Transactional
     public OrderDto create(OrderDto dto) {
-        Long orgId = getCurrentOrgId();
-
+        // Single-tenant: no orgId check needed
         Order entity = mapToEntity(dto);
 
 
@@ -117,7 +116,7 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public Page<OrderDto> getAll(Pageable pageable) {
-        Long orgId = getCurrentOrgId();
+        // Single-tenant: no orgId check needed
         return repository.findAll(pageable).map(this::mapToDto);
     }
 

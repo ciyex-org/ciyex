@@ -24,10 +24,8 @@ public class TemplateService {
 
     @Transactional
     public TemplateDto create(TemplateDto dto) {
-        Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) throw new SecurityException("No orgId in RequestContext");
-
-        Template entity = mapToEntity(dto, currentOrgId);
+        // Single-tenant: no orgId check needed
+        Template entity = mapToEntity(dto, null);
         entity = repository.save(entity);
 
         dto.setId(entity.getId());
@@ -39,7 +37,7 @@ public class TemplateService {
 
     @Transactional(readOnly = true)
     public TemplateDto getById(Long id) {
-        Long currentOrgId = getCurrentOrgId();
+        // Single-tenant: no orgId check needed
         Template entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Template not found"));
     return mapToDto(entity);
@@ -47,7 +45,7 @@ public class TemplateService {
 
     @Transactional
     public TemplateDto update(Long id, TemplateDto dto) {
-        Long currentOrgId = getCurrentOrgId();
+        // Single-tenant: no orgId check needed
         Template entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Template not found"));
 
@@ -61,7 +59,7 @@ public class TemplateService {
 
     @Transactional
     public void delete(Long id) {
-        Long currentOrgId = getCurrentOrgId();
+        // Single-tenant: no orgId check needed
         Template entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Template not found"));
         repository.delete(entity);
