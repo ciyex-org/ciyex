@@ -29,16 +29,10 @@ public interface PortalUserRepository extends JpaRepository<PortalUser, Long> {
     List<PortalUser> findByStatus(PortalStatus status);
 
     /**
-     * Find all pending users for approval
+     * Find all pending users for approval (single tenant)
      */
     @Query("SELECT pu FROM PortalUser pu WHERE pu.status = 'PENDING' ORDER BY pu.createdDate ASC")
     List<PortalUser> findPendingUsers();
-
-    /**
-     * Find all pending users (single tenant - no orgId filter needed)
-     */
-    @Query("SELECT pu FROM PortalUser pu WHERE pu.status = 'PENDING' ORDER BY pu.createdDate ASC")
-    List<PortalUser> findPendingUsersBy();
 
     /**
      * Check if email already exists

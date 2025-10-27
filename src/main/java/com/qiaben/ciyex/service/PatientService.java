@@ -38,23 +38,15 @@ public class PatientService {
 
     @Transactional(readOnly = true)
     public long countPatientsForCurrentOrg() {
-        Long orgId = getCurrentOrgId();
-        if (orgId == null) {
-            log.error("No orgId found in RequestContext during count");
-            throw new SecurityException("No orgId available in request context");
-        }
-        log.info("Counting patients for orgId: {}", orgId);
+        // Single-tenant: count all patients in the instance
+        log.info("Counting all patients for single-tenant instance");
         return repository.count();
     }
 
     // Create a new patient
     @Transactional
     public PatientDto create(PatientDto dto) {
-        Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
-            log.error("No orgId found in RequestContext during create");
-            throw new SecurityException("No orgId available in request context");
-        }
+        // Single-tenant: no orgId check needed
         dto.setTenantName(currentTenantName());
 
         if (dto.getFirstName() == null || dto.getLastName() == null) {
@@ -74,9 +66,9 @@ public class PatientService {
             try {
                 ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
                 externalId = externalStorage.create(dto);
-                log.info("Successfully created patient in external storage with externalId: {} for orgId: {}", externalId, currentOrgId);
+                log.info("Successfully created patient in external storage with externalId: {}", externalId);
             } catch (Exception e) {
-                log.error("Failed to create patient in external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
+                log.error("Failed to create patient in external storage, error: {}", e.getMessage());
                 throw new RuntimeException("Failed to sync with external storage", e);
             }
         }
@@ -87,14 +79,14 @@ public class PatientService {
         patient = repository.save(patient);
         
         if (patient.getId() == null) {
-            log.error("Database save failed to generate id for patient with externalId: {} and orgId: {}", externalId, currentOrgId);
+            log.error("Database save failed to generate id for patient with externalId: {}", externalId);
             throw new RuntimeException("Failed to generate id for new patient");
         }
 
     dto.setId(patient.getId());
     dto.setExternalId(externalId);
     dto.setTenantName(currentTenantName());
-        log.info("Created patient with id: {} and externalId: {} in DB for orgId: {}", patient.getId(), externalId, currentOrgId);
+        log.info("Created patient with id: {} and externalId: {} in DB", patient.getId(), externalId);
 
         return dto;
     }
@@ -102,12 +94,7 @@ public class PatientService {
     // Fetch patient by ID
     @Transactional(readOnly = true)
     public PatientDto getById(Long id) {
-        Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
-            log.error("No orgId found in RequestContext during getById for id: {}", id);
-            throw new SecurityException("No orgId available in request context");
-        }
-
+        // Single-tenant: no orgId check needed
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
 
@@ -139,12 +126,7 @@ public class PatientService {
     // Update an existing patient
     @Transactional
     public PatientDto update(Long id, PatientDto dto) {
-        Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
-            log.error("No orgId found in RequestContext during update for id: {}", id);
-            throw new SecurityException("No orgId available in request context");
-        }
-
+        // Single-tenant: no orgId check needed
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
 
@@ -153,9 +135,9 @@ public class PatientService {
             try {
                 ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
                 externalStorage.update(dto, patient.getExternalId());
-                log.info("Successfully updated patient with id: {} and externalId: {} in external storage for orgId: {}", id, patient.getExternalId(), currentOrgId);
+                log.info("Successfully updated patient with id: {} and externalId: {} in external storage", id, patient.getExternalId());
             } catch (Exception e) {
-                log.error("Failed to update patient in external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
+                log.error("Failed to update patient in external storage, error: {}", e.getMessage());
                 throw new RuntimeException("Failed to sync with external storage", e);
             }
         }
@@ -166,7 +148,7 @@ public class PatientService {
     dto.setId(patient.getId());
     dto.setExternalId(patient.getExternalId());
     dto.setTenantName(currentTenantName());
-        log.info("Updated patient with id: {} and externalId: {} in DB for orgId: {}", id, patient.getExternalId(), currentOrgId);
+        log.info("Updated patient with id: {} and externalId: {} in DB", id, patient.getExternalId());
 
         return dto;
     }
@@ -174,12 +156,7 @@ public class PatientService {
     // Delete a patient
     @Transactional
     public void delete(Long id) {
-        Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
-            log.error("No orgId found in RequestContext during delete for id: {}", id);
-            throw new SecurityException("No orgId available in request context");
-        }
-
+        // Single-tenant: no orgId check needed
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
 
@@ -189,26 +166,19 @@ public class PatientService {
                 ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
                 externalStorage.delete(patient.getExternalId());
             } catch (Exception e) {
-                log.error("Failed to delete patient from external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
+                log.error("Failed to delete patient from external storage, error: {}", e.getMessage());
                 throw new RuntimeException("Failed to sync with external storage", e);
             }
         }
 
         repository.delete(patient);
-        log.info("Deleted patient with id: {} from DB for orgId: {}", id, currentOrgId);
+        log.info("Deleted patient with id: {} from DB", id);
     }
 
     @Transactional(readOnly = true)
     public ApiResponse<List<PatientDto>> getAllPatients() {
-        Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
-            return ApiResponse.<List<PatientDto>>builder()
-                    .success(false)
-                    .message("No orgId available in request context")
-                    .build();
-        }
-
-    List<Patient> patients = repository.findAll();
+        // Single-tenant: no orgId check needed
+        List<Patient> patients = repository.findAll();
     List<PatientDto> patientDtos = patients.stream().map(this::mapToDto).collect(Collectors.toList());
 
         return ApiResponse.<List<PatientDto>>builder()
@@ -220,14 +190,9 @@ public class PatientService {
 
     @Transactional(readOnly = true)
     public Page<PatientDto> searchPatients(String query, Pageable pageable) {
-        Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
-            log.error("No orgId found in RequestContext during patient search");
-            throw new SecurityException("No orgId available in request context");
-        }
-
+        // Single-tenant: no orgId check needed
         if (query == null || query.isBlank()) {
-            log.info("Empty search query provided, returning all patients for orgId: {}", currentOrgId);
+            log.info("Empty search query provided, returning all patients");
             return repository.findAll(pageable).map(this::mapToDto);
         }
 
@@ -238,12 +203,7 @@ public class PatientService {
 
     @Transactional(readOnly = true)
     public Page<PatientDto> getAllPatients(Pageable pageable, String search) {
-        Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
-            log.error("No orgId found in RequestContext during paginated retrieval");
-            throw new SecurityException("No orgId available in request context");
-        }
-
+        // Single-tenant: no orgId check needed
         Page<Patient> page;
         if (search != null && !search.isBlank()) {
             page = repository.searchBy(search.toLowerCase(), pageable);
