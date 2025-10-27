@@ -30,7 +30,7 @@ public interface CoverageRepository extends JpaRepository<Coverage, Long> {
         FROM coverages
         WHERE CAST(org_id AS TEXT) = :orgIdTxt
         """, nativeQuery = true)
-    List<Coverage> findAllByOrgIdText(@Param("orgIdTxt") String orgIdTxt);
+    List<Coverage> findAllByText(@Param("orgIdTxt") String orgIdTxt);
 
     @Query(value = """
         SELECT *
@@ -39,7 +39,7 @@ public interface CoverageRepository extends JpaRepository<Coverage, Long> {
           AND CAST(org_id AS TEXT) = :orgIdTxt
         LIMIT 1
         """, nativeQuery = true)
-    Optional<Coverage> findByIdAndOrgIdText(@Param("idTxt") String idTxt,
+    Optional<Coverage> findByIdText(@Param("idTxt") String idTxt,
                                             @Param("orgIdTxt") String orgIdTxt);
 
     @Query(value = """

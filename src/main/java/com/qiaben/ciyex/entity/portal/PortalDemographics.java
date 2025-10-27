@@ -1,13 +1,16 @@
 package com.qiaben.ciyex.entity.portal;
 
+import com.qiaben.ciyex.entity.AuditableEntity;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import java.time.LocalDate;
 
 @Entity
 @Table(name = "portal_demographics")
 @Data
-public class PortalDemographics {
+@EqualsAndHashCode(callSuper = true)
+public class PortalDemographics extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

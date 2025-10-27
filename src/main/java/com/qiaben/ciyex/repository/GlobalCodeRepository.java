@@ -8,11 +8,11 @@ import java.util.List;
 
 public interface GlobalCodeRepository extends JpaRepository<GlobalCode, Long> {
 
-    List<GlobalCode> findByOrgId(Long orgId);
+    List<GlobalCode> findAll();
 
     @Query("""
       select c from GlobalCode c
-       where c.orgId = :orgId
+       where 1=1
          and (:codeType is null or c.codeType = :codeType)
          and (:active is null or c.active = :active)
          and (
@@ -24,5 +24,5 @@ public interface GlobalCodeRepository extends JpaRepository<GlobalCode, Long> {
          )
        order by c.codeType, c.code
     """)
-    List<GlobalCode> search(Long orgId, String codeType, Boolean active, String q);
+    List<GlobalCode> search(String codeType, Boolean active, String q);
 }

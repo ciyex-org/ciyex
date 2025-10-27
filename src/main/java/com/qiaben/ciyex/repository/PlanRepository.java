@@ -7,9 +7,9 @@
 //import java.util.Optional;
 //
 //public interface PlanRepository extends JpaRepository<Plan, Long> {
-//    List<Plan> findByOrgIdAndPatientId(Long orgId, Long patientId);
-//    List<Plan> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
-//    Optional<Plan> findByOrgIdAndPatientIdAndEncounterIdAndId(Long orgId, Long patientId, Long encounterId, Long id);
+//    List<Plan> findByPatientId(Long patientId);
+//    List<Plan> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
+//    Optional<Plan> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 //}
 
 
@@ -25,6 +25,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PlanRepository extends JpaRepository<Plan, Long> {
-    List<Plan> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
-    Optional<Plan> findByOrgIdAndPatientIdAndEncounterIdAndId(Long orgId, Long patientId, Long encounterId, Long id);
+    List<Plan> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
+    Optional<Plan> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 }

@@ -11,6 +11,8 @@ public class RequestContext {
     private String authToken;
 
     private String tenantName;  // Tenant name (e.g., "practice_1", "hinisoft")
+    
+    private String schemaName;  // Database schema name from Keycloak group attribute
 
     /**
      * Temporary compatibility helper for legacy code paths that still expect orgId semantics.

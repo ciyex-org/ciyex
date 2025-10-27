@@ -2,14 +2,17 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 
 @Entity
 @Table(name = "allergy_intolerances")
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AllergyIntolerance {
+public class AllergyIntolerance extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -46,9 +49,5 @@ public class AllergyIntolerance {
     @Column(name = "comments")
     private String comments;
 
-    @Column(name = "created_date")
-    private String createdDate;
-
-    @Column(name = "last_modified_date")
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 }

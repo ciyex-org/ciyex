@@ -47,7 +47,7 @@
 //    }
 //
 //    public AssignedProviderDto update(Long orgId, Long patientId, Long encounterId, Long id, AssignedProviderDto in) {
-//        AssignedProvider e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
 //
 //        e.setProviderId(in.getProviderId());
@@ -70,7 +70,7 @@
 //    }
 //
 //    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-//        AssignedProvider e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
 //
 //        external.ifPresent(ext -> {
@@ -81,17 +81,17 @@
 //    }
 //
 //    public AssignedProviderDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-//        AssignedProvider e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
 //        return mapToDto(e);
 //    }
 //
 //    public List<AssignedProviderDto> getAllByPatient(Long orgId, Long patientId) {
-//        return repo.findByOrgIdAndPatientId(orgId, patientId).stream().map(this::mapToDto).toList();
+//        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    public List<AssignedProviderDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
-//        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream().map(this::mapToDto).toList();
+//        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    private AssignedProviderDto mapToDto(AssignedProvider e) {
@@ -163,19 +163,19 @@ public class AssignedProviderService {
 
     // Read
     public AssignedProviderDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-        AssignedProvider e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
         return toDto(e);
     }
 
     public List<AssignedProviderDto> list(Long orgId, Long patientId, Long encounterId) {
-        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
+        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // Update (LOCKED if eSigned)
     public AssignedProviderDto update(Long orgId, Long patientId, Long encounterId, Long id, AssignedProviderDto dto) {
-        AssignedProvider e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -189,7 +189,7 @@ public class AssignedProviderService {
 
     // Delete (BLOCKED if eSigned)
     public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-        AssignedProvider e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -201,7 +201,7 @@ public class AssignedProviderService {
 
     // eSign (idempotent)
     public AssignedProviderDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
-        AssignedProvider e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -217,7 +217,7 @@ public class AssignedProviderService {
 
     // Print (PDF) — also stamps printedAt
     public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
-        AssignedProvider e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));

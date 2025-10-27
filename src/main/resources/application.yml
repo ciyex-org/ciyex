@@ -8,7 +8,7 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: update
       naming:
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
     show-sql: true
@@ -50,14 +50,10 @@ logging:
 
 ciyex:
   env: ${CIYEX_ENV:local}
-  # Controls whether tenant schemas are automatically initialized at application startup.
-  # Set to false to disable automatic tenant schema creation/migration (useful for running
-  # migrations manually or when using external provisioning).
-  tenant:
-    auto-init: ${CIYEX_TENANT_AUTO_INIT:false}
-    # Controls automatic schema creation on-demand when tenant is accessed
-    # Set to false in production to prevent automatic schema creation
-    auto-create-on-request: ${CIYEX_TENANT_AUTO_CREATE:true}
+  # Single schema per instance configuration
+  # Each instance/practice uses one schema specified by CIYEX_SCHEMA_NAME
+  schema:
+    name: ${CIYEX_SCHEMA_NAME:public}  # Default to public schema, override per practice
   
   # ONC-Compliant Audit Configuration
   audit:

@@ -2,13 +2,16 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @Entity
-public class InventorySettings {
+public class InventorySettings extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -19,6 +22,5 @@ public class InventorySettings {
     private boolean autoReorderSuggestions;
     private int criticalLowPercentage;
 
-    private String createdDate;
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 }

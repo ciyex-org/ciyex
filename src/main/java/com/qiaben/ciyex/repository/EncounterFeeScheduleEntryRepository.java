@@ -17,8 +17,7 @@ public interface EncounterFeeScheduleEntryRepository extends JpaRepository<Encou
 
     @Query("""
        select e from EncounterFeeScheduleEntry e
-        where e.schedule.orgId = :orgId
-          and e.schedule.patientId = :patientId
+        where e.schedule.patientId = :patientId
           and e.schedule.encounterId = :encounterId
           and (:codeType is null or e.codeType = :codeType)
           and (:active is null or e.active = :active)
@@ -28,6 +27,6 @@ public interface EncounterFeeScheduleEntryRepository extends JpaRepository<Encou
                lower(e.modifier) like lower(concat('%', :q, '%')))
         order by e.codeType, e.code, e.modifier
     """)
-    List<EncounterFeeScheduleEntry> search(Long orgId, Long patientId, Long encounterId,
+    List<EncounterFeeScheduleEntry> search(Long patientId, Long encounterId,
                                            String codeType, Boolean active, String q);
 }

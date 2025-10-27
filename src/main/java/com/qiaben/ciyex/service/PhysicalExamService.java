@@ -58,7 +58,7 @@
 //
 //    // UPDATE (replace sections)
 //    public PhysicalExamDto update(Long orgId, Long patientId, Long encounterId, Long id, PhysicalExamDto in) {
-//        PhysicalExam pe = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        PhysicalExam pe = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Physical Exam not found"));
 //
 //        pe.getSections().clear();
@@ -89,7 +89,7 @@
 //
 //    // DELETE
 //    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-//        PhysicalExam pe = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        PhysicalExam pe = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Physical Exam not found"));
 //
 //        final PhysicalExam toDelete = pe;
@@ -104,19 +104,19 @@
 //
 //    // GET ONE
 //    public PhysicalExamDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-//        PhysicalExam pe = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        PhysicalExam pe = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Physical Exam not found"));
 //        return mapToDto(pe);
 //    }
 //
 //    // GET ALL by patient
 //    public List<PhysicalExamDto> getAllByPatient(Long orgId, Long patientId) {
-//        return repo.findByOrgIdAndPatientId(orgId, patientId).stream().map(this::mapToDto).toList();
+//        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    // GET ALL by patient + encounter
 //    public List<PhysicalExamDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
-//        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream().map(this::mapToDto).toList();
+//        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    // --- mapping helpers ---
@@ -208,19 +208,19 @@ public class PhysicalExamService {
 
     // Read
     public PhysicalExamDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-        PhysicalExam e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PhysicalExam e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Physical exam not found"));
         return toDto(e);
     }
 
     public List<PhysicalExamDto> list(Long orgId, Long patientId, Long encounterId) {
-        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
+        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // Update (LOCKED if signed)
     public PhysicalExamDto update(Long orgId, Long patientId, Long encounterId, Long id, PhysicalExamDto dto) {
-        PhysicalExam e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PhysicalExam e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Physical exam not found"));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed physical exams are read-only.");
 
@@ -232,7 +232,7 @@ public class PhysicalExamService {
 
     // Delete (BLOCKED if signed)
     public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-        PhysicalExam e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PhysicalExam e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Physical exam not found"));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed physical exams cannot be deleted.");
         repo.delete(e);
@@ -240,7 +240,7 @@ public class PhysicalExamService {
 
     // eSign (idempotent)
     public PhysicalExamDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
-        PhysicalExam e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PhysicalExam e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Physical exam not found"));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
@@ -253,7 +253,7 @@ public class PhysicalExamService {
 
     // Print (PDF) — stamps printedAt
     public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
-        PhysicalExam e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PhysicalExam e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Physical exam not found"));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));

@@ -11,9 +11,9 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
-    List<Order> findByOrgId(Long orgId);
-    Page<Order> findAllByOrgId(Long orgId, Pageable pageable);
-    long countByOrgId(Long orgId);
+    List<Order> findAll();
+    Page<Order> findAll(Pageable pageable);
+    long count();
 
     @Query(
             value = """
@@ -25,8 +25,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             ORDER BY EXTRACT(MONTH FROM TO_DATE(o.date, 'YYYY-MM-DD'))
             """,
             nativeQuery = true)
-    List<Object[]> countOrdersByMonth(@Param("orgId") Long orgId);
-    long countByOrgIdAndStatus(Long orgId, String status);
+    List<Object[]> countOrdersByMonth();
+    long countByStatus(String status);
 
 
 

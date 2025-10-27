@@ -2,8 +2,7 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -13,7 +12,8 @@ import java.util.List;
 @Entity
 @Table(name="invoice")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class Invoice {   // <-- public
+@EqualsAndHashCode(callSuper = true)
+public class Invoice extends AuditableEntity {   // <-- public
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @Column(name="external_id") private String externalId;
@@ -38,8 +38,11 @@ public class Invoice {   // <-- public
     @OneToMany(mappedBy="invoice", cascade=CascadeType.ALL, orphanRemoval=true)
     @Builder.Default private List<InvoicePayment> payments = new ArrayList<>();
 
-    @CreationTimestamp @Column(name="created_at", nullable=false, updatable=false)
-    private LocalDateTime createdAt;
-    @UpdateTimestamp @Column(name="updated_at", nullable=false)
-    private LocalDateTime updatedAt;
+    // audit fields provided by AuditableEntity
+
+    // Backwards-compatible accessors for existing code that expects createdAt/updatedAt
+    public LocalDateTime getCreatedAt() { return getCreatedDate(); }
+    public void setCreatedAt(LocalDateTime createdAt) { setCreatedDate(createdAt); }
+    public LocalDateTime getUpdatedAt() { return getLastModifiedDate(); }
+    public void setUpdatedAt(LocalDateTime updatedAt) { setLastModifiedDate(updatedAt); }
 }

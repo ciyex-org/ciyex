@@ -8,6 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface PatientAccountCreditRepository extends JpaRepository<PatientAccountCredit, Long> {
-    Optional<PatientAccountCredit> findByOrgIdAndPatientId(Long orgId, Long patientId);
+    Optional<PatientAccountCredit> findByPatientId(Long patientId);
 }
 

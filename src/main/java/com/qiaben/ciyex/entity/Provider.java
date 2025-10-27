@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.EqualsAndHashCode;
 
 @Data
 @NoArgsConstructor
@@ -12,7 +13,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @Entity
 @Table(name = "provider")
-public class Provider {
+@EqualsAndHashCode(callSuper = true)
+public class Provider extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -78,11 +80,7 @@ public class Provider {
     @Column(name = "external_id")
     private String externalId;
 
-    @Column(name = "created_date")
-    private String createdDate;
-
-    @Column(name = "last_modified_date")
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 
     @Enumerated(EnumType.STRING)
     private ProviderStatus status;

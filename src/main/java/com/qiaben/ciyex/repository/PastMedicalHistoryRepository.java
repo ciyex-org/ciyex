@@ -8,12 +8,12 @@
 //
 //public interface PastMedicalHistoryRepository extends JpaRepository<PastMedicalHistory, Long> {
 //
-//    List<PastMedicalHistory> findByOrgIdAndPatientId(Long orgId, Long patientId);
+//    List<PastMedicalHistory> findByPatientId(Long patientId);
 //
-//    List<PastMedicalHistory> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+//    List<PastMedicalHistory> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 //
-//    Optional<PastMedicalHistory> findByOrgIdAndPatientIdAndEncounterIdAndId(
-//            Long orgId, Long patientId, Long encounterId, Long id
+//    Optional<PastMedicalHistory> findByPatientIdAndEncounterIdAndId(
+//            Long patientId, Long encounterId, Long id
 //    );
 //}
 
@@ -31,10 +31,10 @@ import java.util.Optional;
 
 public interface PastMedicalHistoryRepository extends JpaRepository<PastMedicalHistory, Long> {
 
-    List<PastMedicalHistory> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+    List<PastMedicalHistory> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 
-    Optional<PastMedicalHistory> findByOrgIdAndPatientIdAndEncounterIdAndId(
-            Long orgId, Long patientId, Long encounterId, Long id
+    Optional<PastMedicalHistory> findByPatientIdAndEncounterIdAndId(
+            Long patientId, Long encounterId, Long id
     );
 }
 

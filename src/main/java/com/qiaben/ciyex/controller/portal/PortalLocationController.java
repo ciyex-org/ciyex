@@ -12,7 +12,6 @@ import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.entity.Location;
 import com.qiaben.ciyex.repository.LocationRepository;
-import com.qiaben.ciyex.service.TenantAwareService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,20 +29,14 @@ import lombok.extern.slf4j.Slf4j;
 public class PortalLocationController {
 
     private final LocationRepository locationRepository;
-    private final TenantAwareService tenantAwareService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<LocationDto>>> getAllLocations(HttpServletRequest request) {
         try {
             log.info("Fetching all locations for portal");
-            
-            // Set tenant context from JWT token
-            setRequestContextOrg(request);
-            Long orgId = RequestContext.get().getOrgId();
-            
+
             // Use TenantAwareService to ensure proper schema switching
-            List<Location> locations = tenantAwareService.executeInTenantContext(orgId, 
-                () -> locationRepository.findAll());
+            List<Location> locations = locationRepository.findAll();
             List<LocationDto> locationDtos = locations.stream()
                     .map(this::convertToDto)
                     .collect(Collectors.toList());
@@ -66,13 +59,7 @@ public class PortalLocationController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<LocationDto>> getLocationById(@PathVariable Long id, HttpServletRequest request) {
         try {
-            // Set tenant context from JWT token
-            setRequestContextOrg(request);
-            Long orgId = RequestContext.get().getOrgId();
-            
-            // Use TenantAwareService to ensure proper schema switching
-            return tenantAwareService.executeInTenantContext(orgId, 
-                () -> locationRepository.findById(id))
+            return locationRepository.findById(id)
                     .map(location -> ResponseEntity.ok(ApiResponse.<LocationDto>builder()
                             .success(true)
                             .message("Location found")

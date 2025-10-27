@@ -10,7 +10,7 @@ import java.util.*;
 
 @Entity
 @Table(name = "patient_invoices")
-public class PatientInvoice {
+public class PatientInvoice extends AuditableEntity {
     public enum Status { OPEN, PARTIALLY_PAID, PAID, VOID }
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -30,10 +30,14 @@ public class PatientInvoice {
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<PatientInvoiceLine> lines = new ArrayList<>();
 
-    private LocalDateTime createdAt = LocalDateTime.now();
-    private LocalDateTime updatedAt = LocalDateTime.now();
+    // audit fields provided by AuditableEntity
 
-    @PreUpdate void touch() { updatedAt = LocalDateTime.now(); }
+    public LocalDateTime getCreatedAt() { return getCreatedDate(); }
+    public void setCreatedAt(LocalDateTime dt) { setCreatedDate(dt); }
+    public LocalDateTime getUpdatedAt() { return getLastModifiedDate(); }
+    public void setUpdatedAt(LocalDateTime dt) { setLastModifiedDate(dt); }
+
+    @PreUpdate void touch() { setLastModifiedDate(LocalDateTime.now()); }
 
 private LocalDate backdate;
 
@@ -135,20 +139,6 @@ private LocalDate backdate;
         this.lines = lines;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
+    // createdAt/updatedAt accessors are provided above and delegate to AuditableEntity
 // ... standard getters/setters omitted for brevity
 }

@@ -52,8 +52,6 @@ public class MedicalProblemService {
                         .verificationStatus(it.getVerificationStatus())
                         .occurrence(it.getOccurrence())
                         .note(it.getNote())
-                        .createdDate(now)
-                        .lastModifiedDate(now)
                         .build();
                 rows.add(repo.save(row));
             }
@@ -147,8 +145,6 @@ public class MedicalProblemService {
         if (patch.getVerificationStatus() != null) row.setVerificationStatus(patch.getVerificationStatus());
         if (patch.getOccurrence() != null) row.setOccurrence(patch.getOccurrence());
         if (patch.getNote() != null) row.setNote(patch.getNote());
-
-        row.setLastModifiedDate(LocalDateTime.now().toString());
         repo.save(row);
 
         if (row.getExternalId() != null) {
@@ -221,8 +217,6 @@ public class MedicalProblemService {
             dto.setId(rows.get(0).getId());
             dto.setExternalId(rows.get(0).getExternalId());
             MedicalProblemDto.Audit a = new MedicalProblemDto.Audit();
-            a.setCreatedDate(LocalDateTime.parse(rows.get(0).getCreatedDate()));
-            a.setLastModifiedDate(LocalDateTime.parse(rows.get(0).getLastModifiedDate()));
             dto.setAudit(a);
         }
         dto.setProblemsList(rows.stream().map(this::toItem).collect(Collectors.toList()));

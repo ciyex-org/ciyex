@@ -27,14 +27,14 @@ public class HealthcareServiceService {
 
 
     public List<HealthcareServiceDto> getByOrgId(Long orgId) {
-        List<HealthcareService> services = repository.findByOrgId(orgId);
+        List<HealthcareService> services = repository.findAll();
         return services.stream().map(this::mapToDto).collect(Collectors.toList());
     }
 
 
     public HealthcareServiceDto update(Long id, HealthcareServiceDto dto, Long orgId) {
         // Fetch the healthcare service by ID
-        HealthcareService entity = repository.findByIdAndOrgId(id, orgId)
+        HealthcareService entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Healthcare Service not found"));
 
         // Update entity with DTO data
@@ -51,7 +51,7 @@ public class HealthcareServiceService {
 
     public void delete(Long id, Long orgId) {
         // Fetch healthcare service by ID and orgId
-        HealthcareService entity = repository.findByIdAndOrgId(id, orgId)
+        HealthcareService entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Healthcare Service not found"));
 
         // Delete the entity

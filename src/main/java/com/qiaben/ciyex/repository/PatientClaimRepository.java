@@ -7,7 +7,7 @@
 //import java.util.Optional;
 //
 //public interface PatientClaimRepository extends JpaRepository<PatientClaim, Long> {
-//    Optional<PatientClaim> findByInvoiceIdAndOrgIdAndPatientId(Long invoiceId, Long orgId, Long patientId);
+//    Optional<PatientClaim> findByInvoiceIdAndPatientId(Long invoiceId, Long patientId);
 //}
 
 
@@ -24,21 +24,21 @@ import java.util.Optional;
 public interface PatientClaimRepository extends JpaRepository<PatientClaim, Long> {
 
     /** Current/active claim lookup (tenant-scoped) */
-    Optional<PatientClaim> findByInvoiceIdAndOrgIdAndPatientId(Long invoiceId, Long orgId, Long patientId);
+    Optional<PatientClaim> findByInvoiceIdAndPatientId(Long invoiceId, Long patientId);
 
     /** Legacy fallback: single claim per invoice (no tenant/patient scope) */
     PatientClaim findByInvoiceId(Long invoiceId);
 
     /** All claims for a patient (new) */
-    List<PatientClaim> findAllByOrgIdAndPatientIdOrderByIdDesc(Long orgId, Long patientId);
-    List<PatientClaim> findAllByOrgIdAndPatientId(Long orgId, Long patientId);
+    List<PatientClaim> findAllByPatientIdOrderByIdDesc(Long patientId);
+    List<PatientClaim> findAllByPatientId(Long patientId);
 
     /** All (historical) claims for a specific invoice (new) */
-    List<PatientClaim> findAllByInvoiceIdAndOrgIdAndPatientIdOrderByIdDesc(Long invoiceId, Long orgId, Long patientId);
-    List<PatientClaim> findAllByInvoiceIdAndOrgIdAndPatientId(Long invoiceId, Long orgId, Long patientId);
+    List<PatientClaim> findAllByInvoiceIdAndPatientIdOrderByIdDesc(Long invoiceId, Long patientId);
+    List<PatientClaim> findAllByInvoiceIdAndPatientId(Long invoiceId, Long patientId);
 
 
-//    List<PatientClaim> findAllByIdAndOrgIdAndPatientId(Long claimId, Long orgId, Long patientId);
+//    List<PatientClaim> findAllByIdAndPatientId(Long claimId, Long patientId);
 
 
 

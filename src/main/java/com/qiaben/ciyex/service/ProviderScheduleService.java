@@ -151,7 +151,7 @@
 //    @Transactional(readOnly = true)
 //    public ApiResponse<List<ScheduleDto>> listByProvider(Long providerId) {
 //        Long orgId = getCurrentOrgId();
-//        List<ProviderSchedule> list = repository.findByOrgIdAndProviderId(orgId, providerId);
+//        List<ProviderSchedule> list = repository.findByProviderId(providerId);
 //        return ApiResponse.<List<ScheduleDto>>builder()
 //                .success(true)
 //                .message("Schedules retrieved successfully")
@@ -162,7 +162,7 @@
 //    @Transactional(readOnly = true)
 //    public ApiResponse<List<ScheduleDto>> listAll() {
 //        Long orgId = getCurrentOrgId();
-//        List<ProviderSchedule> list = repository.findAllByOrgId(orgId);         // mirrors ProviderService.getAllProviders :contentReference[oaicite:11]{index=11}L268-L288
+//        List<ProviderSchedule> list = repository.findAll();         // mirrors ProviderService.getAllProviders :contentReference[oaicite:11]{index=11}L268-L288
 //        return ApiResponse.<List<ScheduleDto>>builder()
 //                .success(true)
 //                .message("Schedules retrieved successfully")
@@ -172,7 +172,7 @@
 //
 //    @Transactional(readOnly = true)
 //    public long countByOrg() {
-//        return repository.countByOrgId(getCurrentOrgId());                       // mirrors ProviderService.getProviderCountByOrgId :contentReference[oaicite:12]{index=12}L330-L335
+//        return repository.count());                       // mirrors ProviderService.getProviderCountByOrgId :contentReference[oaicite:12]{index=12}L330-L335
 //    }
 //
 //    /* ---------- Mappers ---------- */

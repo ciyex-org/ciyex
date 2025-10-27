@@ -9,40 +9,40 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
+    // Single tenant per instance - no orgId filtering needed
 
     // -------- Count --------
     long countByProviderId(Long providerId);
 
     // -------- Provider Scoped --------
-    Page<Appointment> findAllByProviderIdAndOrgId(Long providerId, Long orgId, Pageable pageable);
+    Page<Appointment> findAllByProviderId(Long providerId, Pageable pageable);
 
-    List<Appointment> findAllByProviderIdAndOrgId(Long providerId, Long orgId);
+    List<Appointment> findAllByProviderId(Long providerId);
 
-    // Top N appointments (for “next slots” view)
-    List<Appointment> findTop3ByProviderIdAndOrgIdAndStatusOrderByAppointmentStartDateAscAppointmentStartTimeAsc(
-            Long providerId, Long orgId, String status);
+    // Top N appointments (for "next slots" view)
+    List<Appointment> findTop3ByProviderIdAndStatusOrderByAppointmentStartDateAscAppointmentStartTimeAsc(
+            Long providerId, String status);
 
     // -------- Patient Scoped --------
-    List<Appointment> findAllByPatientIdAndOrgId(Long patientId, Long orgId);
+    List<Appointment> findAllByPatientId(Long patientId);
 
-    Page<Appointment> findAllByPatientIdAndOrgId(Long patientId, Long orgId, Pageable pageable);
+    Page<Appointment> findAllByPatientId(Long patientId, Pageable pageable);
 
     // -------- By ID --------
-    Optional<Appointment> findByIdAndOrgId(Long id, Long orgId);
+    Optional<Appointment> findById(Long id);
 
     // -------- Scoped by Provider + Date --------
-    List<Appointment> findAllByProviderIdAndOrgIdAndAppointmentStartDate(
-            Long providerId, Long orgId, String appointmentStartDate);
+    List<Appointment> findAllByProviderIdAndAppointmentStartDate(
+            Long providerId, String appointmentStartDate);
 
     // -------- Scoped by Provider + Date Range --------
-    List<Appointment> findAllByProviderIdAndOrgIdAndAppointmentStartDateBetween(
-            Long providerId, Long orgId, String startDate, String endDate);
+    List<Appointment> findAllByProviderIdAndAppointmentStartDateBetween(
+            Long providerId, String startDate, String endDate);
 
-    Page<Appointment> findAllByOrgIdAndStatus(Long orgId, String status, Pageable pageable);
+    Page<Appointment> findAllByStatus(String status, Pageable pageable);
 
     // -------- Org Scoped --------
-    Page<Appointment> findAllByOrgId(Long orgId, Pageable pageable);
+    Page<Appointment> findAll(Pageable pageable);
 
-    long countByOrgId(Long orgId);
-
+    long count();
 }

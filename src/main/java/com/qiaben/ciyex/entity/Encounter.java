@@ -3,8 +3,7 @@
 
 package com.qiaben.ciyex.entity;
 
-import
-        java.time.LocalDateTime;
+import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -14,10 +13,12 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 @Entity
 @Data
-public class Encounter {
+@EqualsAndHashCode(callSuper = true)
+public class Encounter extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -33,13 +34,11 @@ public class Encounter {
     @Enumerated(EnumType.STRING)
     private EncounterStatus status = EncounterStatus.UNSIGNED; // default
 
-    @Column(nullable = false, updatable = false)
-    private Long createdAt;
+  // audit fields provided by AuditableEntity
   @Column(name = "encounter_date")
 private LocalDateTime encounterDate;
 
-    @Column(nullable = false)
-    private Long updatedAt;
+  // audit fields provided by AuditableEntity
 
     @Column(nullable = false)
     private Long patientId;

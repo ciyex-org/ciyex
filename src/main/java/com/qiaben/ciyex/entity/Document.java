@@ -1,11 +1,13 @@
 package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
 
 @Entity
-@Data
-public class Document {
+@Getter
+@Setter
+@EqualsAndHashCode(callSuper = true)
+public class Document extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -17,8 +19,7 @@ public class Document {
     private String contentType;
     private String description;
     private String fhirExternalId;
-    private String createdDate;
-    private String lastModifiedDate;
+    // audit fields are provided by AuditableEntity
 
     // S3 details
     private String s3Bucket;

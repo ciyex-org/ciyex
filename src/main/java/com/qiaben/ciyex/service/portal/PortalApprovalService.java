@@ -67,7 +67,7 @@ public class PortalApprovalService {
      */
     public ApiResponse<List<PortalUserDto>> getPendingUsersByOrg(Long orgId) {
         try {
-            List<PortalUser> pendingUsers = portalUserRepository.findPendingUsersByOrgId(orgId);
+            List<PortalUser> pendingUsers = portalUserRepository.findPendingUsers();
             List<PortalUserDto> userDtos = pendingUsers.stream()
                     .map(PortalUserDto::fromEntity)
                     .collect(Collectors.toList());
@@ -249,8 +249,6 @@ public class PortalApprovalService {
                     .gender(portalPatient.getGender())
                     .address(portalPatient.getAddressLine1())
                     .status("ACTIVE")
-                    .createdDate(LocalDateTime.now().toString())
-                    .lastModifiedDate(LocalDateTime.now().toString())
                     .build();
 
             Patient savedPatient = patientRepository.save(tenantPatient);

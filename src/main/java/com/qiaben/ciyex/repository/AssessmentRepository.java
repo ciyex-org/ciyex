@@ -8,12 +8,12 @@
 //
 //public interface AssessmentRepository extends JpaRepository<Assessment, Long> {
 //
-//    List<Assessment> findByOrgIdAndPatientId(Long orgId, Long patientId);
+//    List<Assessment> findByPatientId(Long patientId);
 //
-//    List<Assessment> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+//    List<Assessment> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 //
-//    Optional<Assessment> findByOrgIdAndPatientIdAndEncounterIdAndId(
-//            Long orgId, Long patientId, Long encounterId, Long id
+//    Optional<Assessment> findByPatientIdAndEncounterIdAndId(
+//            Long patientId, Long encounterId, Long id
 //    );
 //
 //}
@@ -30,7 +30,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AssessmentRepository extends JpaRepository<Assessment, Long> {
-    List<Assessment> findByOrgIdAndPatientId(Long orgId, Long patientId);
-    List<Assessment> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
-    Optional<Assessment> findByOrgIdAndPatientIdAndEncounterIdAndId(Long orgId, Long patientId, Long encounterId, Long id);
+    // Single tenant per instance - no orgId filtering needed
+    List<Assessment> findByPatientId(Long patientId);
+    List<Assessment> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
+    Optional<Assessment> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 }

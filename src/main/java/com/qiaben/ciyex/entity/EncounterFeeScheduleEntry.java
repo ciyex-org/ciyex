@@ -8,6 +8,7 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 import java.math.BigDecimal;
 
 @Entity
@@ -17,7 +18,8 @@ import java.math.BigDecimal;
                 @Index(name = "idx_efse_code", columnList = "code_type, code, modifier")
         })
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class EncounterFeeScheduleEntry {
+@EqualsAndHashCode(callSuper = true)
+public class EncounterFeeScheduleEntry extends AuditableEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -52,5 +54,13 @@ public class EncounterFeeScheduleEntry {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
       // ICD9 | ICD10 | CPT4 | HCPCS | CUSTOM
+
+                // audit fields provided by AuditableEntity
+
+                // Backwards-compatible accessors for existing code that expects createdAt/updatedAt
+                public java.time.LocalDateTime getCreatedAt() { return getCreatedDate(); }
+                public void setCreatedAt(java.time.LocalDateTime createdAt) { setCreatedDate(createdAt); }
+                public java.time.LocalDateTime getUpdatedAt() { return getLastModifiedDate(); }
+                public void setUpdatedAt(java.time.LocalDateTime updatedAt) { setLastModifiedDate(updatedAt); }
 
 }

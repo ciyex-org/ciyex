@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "patient_payment_allocations")
-public class PatientPaymentAllocation {
+public class PatientPaymentAllocation extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,8 +25,7 @@ public class PatientPaymentAllocation {
     @Column(nullable = false)
     private BigDecimal amount = BigDecimal.ZERO;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    // audit fields provided by AuditableEntity
 
     // Constructors
     public PatientPaymentAllocation() {}
@@ -35,7 +34,7 @@ public class PatientPaymentAllocation {
         this.payment = payment;
         this.invoiceLine = invoiceLine;
         this.amount = amount;
-        this.createdAt = LocalDateTime.now();
+        setCreatedDate(LocalDateTime.now());
     }
 
     // Getters and Setters
@@ -72,10 +71,10 @@ public class PatientPaymentAllocation {
     }
 
     public LocalDateTime getCreatedAt() {
-        return createdAt;
+        return getCreatedDate();
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
+        setCreatedDate(createdAt);
     }
 }

@@ -36,8 +36,6 @@ public class RecallService {
     @Transactional
     public RecallDto create(RecallDto dto) {
         Recall recall = mapToEntity(dto);
-        recall.setCreatedDate(LocalDateTime.now().toString());
-        recall.setLastModifiedDate(LocalDateTime.now().toString());
 
         String externalId = null;
         String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -72,8 +70,6 @@ public class RecallService {
         recall.setCity(dto.getCity());
         recall.setState(dto.getState());
         recall.setZipCode(dto.getZip());
-        recall.setLastModifiedDate(LocalDateTime.now().toString());
-
         return mapToDto(repository.save(recall));
     }
 

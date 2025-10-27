@@ -33,14 +33,14 @@ public class PatientCodeListService {
     @Transactional(readOnly = true)
     public List<PatientCodeListDto> findAll(Long orgId) {
         setSearchPath(orgId);
-        return repo.findAllByOrgIdOrderByOrderIndexAsc(orgId)
+        return repo.findAll()
                 .stream().map(this::toDto).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public PatientCodeListDto getById(Long orgId, Long id) {
         setSearchPath(orgId);
-        Optional<PatientCodeList> opt = repo.findByIdAndOrgId(id, orgId);
+        Optional<PatientCodeList> opt = repo.findById(id);
         return opt.map(this::toDto).orElse(null);
     }
 
@@ -50,7 +50,7 @@ public class PatientCodeListService {
         PatientCodeList entity = fromDto(orgId, dto, new PatientCodeList());
         PatientCodeList saved = repo.save(entity);
         if (saved.isDefault()) {
-            repo.clearDefaultsExcept(orgId, saved.getId());
+            repo.clearDefaultsExcept(saved.getId());
         }
         return toDto(saved);
     }
@@ -58,13 +58,13 @@ public class PatientCodeListService {
     @Transactional
     public PatientCodeListDto update(Long orgId, Long id, PatientCodeListDto dto) {
         setSearchPath(orgId);
-        PatientCodeList entity = repo.findByIdAndOrgId(id, orgId).orElse(null);
+        PatientCodeList entity = repo.findById(id).orElse(null);
         if (entity == null) return null;
 
         entity = fromDto(orgId, dto, entity);
         PatientCodeList saved = repo.save(entity);
         if (saved.isDefault()) {
-            repo.clearDefaultsExcept(orgId, saved.getId());
+            repo.clearDefaultsExcept(saved.getId());
         }
         return toDto(saved);
     }
@@ -72,9 +72,9 @@ public class PatientCodeListService {
     @Transactional
     public boolean delete(Long orgId, Long id) {
         setSearchPath(orgId);
-        PatientCodeList entity = repo.findByIdAndOrgId(id, orgId).orElse(null);
+        PatientCodeList entity = repo.findById(id).orElse(null);
         if (entity == null) return false;
-        repo.deleteByIdAndOrgId(id, orgId);
+        repo.deleteById(id);
         return true;
     }
 
@@ -95,7 +95,7 @@ public class PatientCodeListService {
         List<PatientCodeList> entities = rows.stream()
                 .map(r -> {
                     PatientCodeList e = (r.id != null)
-                            ? repo.findByIdAndOrgId(r.id, orgId).orElse(new PatientCodeList())
+                            ? repo.findById(r.id).orElse(new PatientCodeList())
                             : new PatientCodeList();
                     return fromDto(orgId, r, e);
                 })
@@ -106,8 +106,8 @@ public class PatientCodeListService {
 
         Long keepId = saved.stream().filter(PatientCodeList::isDefault)
                 .findFirst().map(PatientCodeList::getId).orElse(null);
-        if (keepId == null) repo.clearAllDefaults(orgId);
-        else repo.clearDefaultsExcept(orgId, keepId);
+        if (keepId == null) repo.clearAllDefaults();
+        else repo.clearDefaultsExcept(keepId);
 
         return saved.stream().map(this::toDto).collect(Collectors.toList());
     }
@@ -115,11 +115,11 @@ public class PatientCodeListService {
     @Transactional
     public PatientCodeListDto setDefault(Long orgId, Long id) {
         setSearchPath(orgId);
-        PatientCodeList e = repo.findByIdAndOrgId(id, orgId).orElse(null);
+        PatientCodeList e = repo.findById(id).orElse(null);
         if (e == null) return null;
         e.setDefault(true);
         repo.save(e);
-        repo.clearDefaultsExcept(orgId, e.getId());
+        repo.clearDefaultsExcept(e.getId());
         return toDto(e);
     }
 

@@ -9,7 +9,7 @@ import java.util.Optional;
 
 @Repository // optional but nice
 public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
-    List<Invoice> findByOrgIdAndPatientId(Long orgId, Long patientId);
-    List<Invoice> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
-    Optional<Invoice> findByOrgIdAndPatientIdAndEncounterIdAndId(Long orgId, Long patientId, Long encounterId, Long id);
+    List<Invoice> findByPatientId(Long patientId);
+    List<Invoice> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
+    Optional<Invoice> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 }

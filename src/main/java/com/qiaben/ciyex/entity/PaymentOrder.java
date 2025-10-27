@@ -3,6 +3,7 @@ package com.qiaben.ciyex.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 
@@ -10,7 +11,8 @@ import java.time.LocalDateTime;
 @Table(name = "payment_orders")
 @Getter
 @Setter
-public class PaymentOrder {
+@EqualsAndHashCode(callSuper = true)
+public class PaymentOrder extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -44,11 +46,12 @@ public class PaymentOrder {
     @Column(name = "receipt_url")
     private String receiptUrl; // Stripe/GPS receipt link
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
+    // audit fields provided by AuditableEntity
 
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    public LocalDateTime getCreatedAt() { return getCreatedDate(); }
+    public void setCreatedAt(LocalDateTime dt) { setCreatedDate(dt); }
+    public LocalDateTime getUpdatedAt() { return getLastModifiedDate(); }
+    public void setUpdatedAt(LocalDateTime dt) { setLastModifiedDate(dt); }
 
     @Column(name = "paid_at")
     private LocalDateTime paidAt;

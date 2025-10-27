@@ -41,8 +41,7 @@ public class InsuranceCompanyService {
 
         // Set current timestamp for created and last modified date
         String currentDate = LocalDateTime.now().format(DATE_FORMATTER);
-        insuranceCompany.setCreatedDate(currentDate);
-        insuranceCompany.setLastModifiedDate(currentDate);
+
 
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null) {
@@ -71,7 +70,6 @@ public class InsuranceCompanyService {
         InsuranceCompany entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Insurance company not found"));
         entity.setStatus(status);
-        entity.setLastModifiedDate(LocalDateTime.now().format(DATE_FORMATTER));
         entity = repository.save(entity);
         return mapToDto(entity);
     }
@@ -87,9 +85,6 @@ public class InsuranceCompanyService {
     public InsuranceCompanyDto update(Long id, InsuranceCompanyDto dto) {
         InsuranceCompany entity = repository.findById(id).orElseThrow(() -> new RuntimeException("Insurance company not found"));
         entity = updateEntityFromDto(entity, dto);
-
-        // Set last modified date to current timestamp
-        entity.setLastModifiedDate(LocalDateTime.now().format(DATE_FORMATTER));
 
         String externalId = entity.getFhirId();
         if (externalId != null) {
@@ -133,8 +128,6 @@ public class InsuranceCompanyService {
 
         // Initialize and set audit dates
         InsuranceCompanyDto.Audit audit = new InsuranceCompanyDto.Audit();
-        audit.setCreatedDate(entity.getCreatedDate());
-        audit.setLastModifiedDate(entity.getLastModifiedDate());
         dto.setAudit(audit);
 
         return dto;

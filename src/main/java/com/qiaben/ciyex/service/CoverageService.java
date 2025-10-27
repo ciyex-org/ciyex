@@ -220,8 +220,6 @@ public class CoverageService {
             insuranceCompanyDto.setCountry(ic.getCountry());
             insuranceCompanyDto.setFhirId(ic.getFhirId());
             InsuranceCompanyDto.Audit audit = new InsuranceCompanyDto.Audit();
-            audit.setCreatedDate(ic.getCreatedDate());
-            audit.setLastModifiedDate(ic.getLastModifiedDate());
             insuranceCompanyDto.setAudit(audit);
             dto.setInsuranceCompany(insuranceCompanyDto);
         }

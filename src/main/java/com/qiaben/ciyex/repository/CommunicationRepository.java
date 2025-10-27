@@ -15,7 +15,7 @@ public interface CommunicationRepository extends JpaRepository<Communication, Lo
         WHERE CAST(org_id AS TEXT) = :orgIdTxt
         ORDER BY id DESC
         """, nativeQuery = true)
-    List<Communication> findByOrgIdText(@Param("orgIdTxt") String orgIdTxt);
+    List<Communication> findByText(@Param("orgIdTxt") String orgIdTxt);
 
     @Query(value = """
         SELECT * FROM communications

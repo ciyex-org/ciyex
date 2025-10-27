@@ -2,14 +2,16 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 
 @Entity
 @Table(name = "referral_providers")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ReferralProvider {
+public class ReferralProvider extends AuditableEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -30,6 +32,5 @@ public class ReferralProvider {
     @JoinColumn(name = "practice_id", nullable = false)
     private ReferralPractice practice;
 
-    @Column(name = "created_date", nullable = false) private String createdDate;
-    @Column(name = "last_modified_date", nullable = false) private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 }

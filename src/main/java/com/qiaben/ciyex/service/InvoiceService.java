@@ -83,7 +83,7 @@ public class InvoiceService {
     }
 
     public InvoiceDto update(Long orgId, Long patientId, Long encounterId, Long id, InvoiceDto in) {
-        Invoice inv = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        Invoice inv = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
 
         inv.setInvoiceNumber(in.getInvoiceNumber());
@@ -133,24 +133,24 @@ public class InvoiceService {
     }
 
     public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-        Invoice inv = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        Invoice inv = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
         external.ifPresent(ext -> { if (inv.getExternalId()!=null) ext.delete(inv.getExternalId()); });
         repo.delete(inv);
     }
 
     public InvoiceDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-        Invoice inv = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        Invoice inv = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
         return mapToDto(inv);
     }
 
     public List<InvoiceDto> getAllByPatient(Long orgId, Long patientId) {
-        return repo.findByOrgIdAndPatientId(orgId, patientId).stream().map(this::mapToDto).toList();
+        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
     }
 
     public List<InvoiceDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
-        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
+        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::mapToDto).toList();
     }
 

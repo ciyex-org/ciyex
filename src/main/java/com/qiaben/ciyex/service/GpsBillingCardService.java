@@ -20,13 +20,13 @@ public class GpsBillingCardService {
 
     /* ---------------- CREATE ---------------- */
     @Transactional
-    public GpsBillingCardDto create(GpsBillingCardDto dto, Long orgId) {
+    public GpsBillingCardDto create(GpsBillingCardDto dto) {
         GpsBillingCard entity = toEntity(dto);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
 
         if (entity.isDefault()) {
-            clearDefaultForUser(entity.getUserId(), orgId);
+            clearDefaultForUser(entity.getUserId());
         }
 
         // ✅ Tokenize card if gpsCustomerVaultId not provided
@@ -38,26 +38,27 @@ public class GpsBillingCardService {
     }
 
     /* ---------------- READ ---------------- */
-    public List<GpsBillingCardDto> getAll(Long orgId) {
-        return repository.findByOrgId(orgId).stream()
+    public List<GpsBillingCardDto> getAll() {
+        return repository.findAll().stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
 
-    public List<GpsBillingCardDto> getAllByUser(Long userId, Long orgId) {
-        return repository.findByUserIdAndOrgId(userId, orgId).stream()
+    public List<GpsBillingCardDto> getAllByUser(Long userId) {
+       /* return repository.findByUserId(userId).stream()
                 .map(this::toDto)
-                .collect(Collectors.toList());
+                .collect(Collectors.toList());*/
+        return null;
     }
 
-    public Optional<GpsBillingCardDto> getById(Long id, Long orgId) {
-        return repository.findByIdAndOrgId(id, orgId).map(this::toDto);
+    public Optional<GpsBillingCardDto> getById(Long id) {
+        return repository.findById(id).map(this::toDto);
     }
 
     /* ---------------- UPDATE ---------------- */
     @Transactional
-    public GpsBillingCardDto update(Long id, GpsBillingCardDto dto, Long orgId) {
-        GpsBillingCard entity = repository.findByIdAndOrgId(id, orgId)
+    public GpsBillingCardDto update(Long id, GpsBillingCardDto dto) {
+        GpsBillingCard entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Card not found"));
 
         entity.setFirstName(dto.getFirstName());
@@ -74,7 +75,7 @@ public class GpsBillingCardService {
         entity.setUpdatedAt(LocalDateTime.now());
 
         if (dto.isDefault()) {
-            clearDefaultForUser(entity.getUserId(), orgId);
+            clearDefaultForUser(entity.getUserId());
             entity.setDefault(true);
         }
 
@@ -83,30 +84,30 @@ public class GpsBillingCardService {
 
     /* ---------------- DELETE ---------------- */
     @Transactional
-    public void delete(Long id, Long orgId) {
-        repository.findByIdAndOrgId(id, orgId).ifPresent(repository::delete);
+    public void delete(Long id) {
+        repository.findById(id).ifPresent(repository::delete);
     }
 
     /* ---------------- SET DEFAULT ---------------- */
     @Transactional
-    public GpsBillingCardDto setDefault(Long id, Long orgId) {
-        GpsBillingCard card = repository.findByIdAndOrgId(id, orgId)
+    public GpsBillingCardDto setDefault(Long id) {
+        GpsBillingCard card = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Card not found"));
 
-        clearDefaultForUser(card.getUserId(), orgId);
+        clearDefaultForUser(card.getUserId());
         card.setDefault(true);
         card.setUpdatedAt(LocalDateTime.now());
 
         return toDto(repository.save(card));
     }
 
-    private void clearDefaultForUser(Long userId, Long orgId) {
-        repository.findByUserIdAndOrgId(userId, orgId).forEach(c -> {
+    private void clearDefaultForUser(Long userId) {
+        /*repository.findByUserId(userId).forEach(c -> {
             if (c.isDefault()) {
                 c.setDefault(false);
                 repository.save(c);
             }
-        });
+        });*/
     }
 
     /* ---------------- MOCK GPS TOKENIZE ---------------- */
@@ -160,8 +161,6 @@ public class GpsBillingCardService {
                 .city(dto.getCity())
                 .state(dto.getState())
                 .zip(dto.getZip())
-                .createdAt(dto.getCreatedAt())
-                .updatedAt(dto.getUpdatedAt())
                 .build();
     }
 }

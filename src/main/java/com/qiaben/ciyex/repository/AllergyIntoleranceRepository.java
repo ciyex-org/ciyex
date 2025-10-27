@@ -46,5 +46,5 @@ public interface AllergyIntoleranceRepository extends JpaRepository<AllergyIntol
         WHERE CAST(org_id AS TEXT) = :orgIdTxt
         ORDER BY patient_id, id
         """, nativeQuery = true)
-    List<AllergyIntolerance> findByOrgIdText(@Param("orgIdTxt") String orgIdTxt);
+    List<AllergyIntolerance> findByText(@Param("orgIdTxt") String orgIdTxt);
 }

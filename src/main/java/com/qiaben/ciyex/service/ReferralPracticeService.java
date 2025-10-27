@@ -38,10 +38,6 @@ public class ReferralPracticeService {
     @Transactional
     public ReferralPracticeDto create(ReferralPracticeDto dto) {
         ReferralPractice entity = mapToEntity(dto);
-        String now = LocalDateTime.now().format(DATE_FORMATTER);
-        entity.setCreatedDate(now);
-        entity.setLastModifiedDate(now);
-
         // Save locally first
         entity = repository.save(entity);
 
@@ -74,7 +70,6 @@ public class ReferralPracticeService {
                 .orElseThrow(() -> new RuntimeException("Referral practice not found"));
 
         entity = updateEntityFromDto(entity, dto);
-        entity.setLastModifiedDate(LocalDateTime.now().format(DATE_FORMATTER));
         entity = repository.save(entity); // save first
 
         String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -124,8 +119,6 @@ public class ReferralPracticeService {
         dto.setFhirId(entity.getFhirId());
 
         ReferralPracticeDto.Audit audit = new ReferralPracticeDto.Audit();
-        audit.setCreatedDate(entity.getCreatedDate());
-        audit.setLastModifiedDate(entity.getLastModifiedDate());
         dto.setAudit(audit);
 
         return dto;

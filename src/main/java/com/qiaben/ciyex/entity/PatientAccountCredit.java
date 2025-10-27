@@ -3,13 +3,16 @@ package com.qiaben.ciyex.entity;
 
 
 import jakarta.persistence.*;
+import lombok.EqualsAndHashCode;
+
 import java.math.BigDecimal;
 
 @Entity
 @Table(name = "patient_account_credit", uniqueConstraints = {
         @UniqueConstraint(name = "uk_credit_patient", columnNames = {"orgId","patientId"})
 })
-public class PatientAccountCredit {
+@EqualsAndHashCode(callSuper = true)
+public class PatientAccountCredit extends AuditableEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 

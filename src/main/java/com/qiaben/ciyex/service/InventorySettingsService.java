@@ -17,14 +17,12 @@ public class InventorySettingsService {
 
     @Transactional
     public InventorySettingsDto getSettings(Long orgId) {
-        InventorySettings entity = repository.findByOrgId(orgId)
+        InventorySettings entity = repository.findFirstByOrderByIdAsc()
                 .orElseGet(() -> {
                     InventorySettings defaults = InventorySettings.builder()
                             .lowStockAlerts(true)
                             .autoReorderSuggestions(false)
                             .criticalLowPercentage(10)
-                            .createdDate(LocalDateTime.now().toString())
-                            .lastModifiedDate(LocalDateTime.now().toString())
                             .build();
                     return repository.save(defaults);
                 });
@@ -33,13 +31,12 @@ public class InventorySettingsService {
 
     @Transactional
     public InventorySettingsDto updateSettings(Long orgId, InventorySettingsDto dto) {
-        InventorySettings entity = repository.findByOrgId(orgId)
+        InventorySettings entity = repository.findFirstByOrderByIdAsc()
                 .orElse(InventorySettings.builder().build());
 
         entity.setLowStockAlerts(dto.isLowStockAlerts());
         entity.setAutoReorderSuggestions(dto.isAutoReorderSuggestions());
         entity.setCriticalLowPercentage(dto.getCriticalLowPercentage());
-        entity.setLastModifiedDate(LocalDateTime.now().toString());
 
         return toDto(repository.save(entity));
     }

@@ -8,13 +8,13 @@
 //
 //public interface CodeRepository extends JpaRepository<Code, Long> {
 //
-//    List<Code> findByOrgIdAndPatientId(Long orgId, Long patientId);
+//    List<Code> findByPatientId(Long patientId);
 //
-//    List<Code> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+//    List<Code> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 //
 //    @Query("""
 //      select c from Code c
-//       where c.orgId = :orgId and c.patientId = :patientId and c.encounterId = :encounterId
+//       where c.patientId = :patientId and c.encounterId = :encounterId
 //         and (:codeType is null or c.codeType = :codeType)
 //         and (:active is null or c.active = :active)
 //         and (
@@ -26,7 +26,7 @@
 //         )
 //       order by c.codeType, c.code
 //    """)
-//    List<Code> searchInEncounter(Long orgId, Long patientId, Long encounterId, String codeType, Boolean active, String q);
+//    List<Code> searchInEncounter(Long patientId, Long encounterId, String codeType, Boolean active, String q);
 //}
 
 
@@ -41,6 +41,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface CodeRepository extends JpaRepository<Code, Long> {
-    List<Code> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
-    Optional<Code> findByOrgIdAndPatientIdAndEncounterIdAndId(Long orgId, Long patientId, Long encounterId, Long id);
+    List<Code> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
+    Optional<Code> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 }

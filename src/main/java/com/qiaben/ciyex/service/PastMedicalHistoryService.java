@@ -46,7 +46,7 @@
 //
 //    // UPDATE
 //    public PastMedicalHistoryDto update(Long orgId, Long patientId, Long encounterId, Long id, PastMedicalHistoryDto in) {
-//        PastMedicalHistory entity = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        PastMedicalHistory entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
 //
 //        entity.setDescription(in.getDescription());
@@ -64,7 +64,7 @@
 //
 //    // DELETE
 //    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-//        PastMedicalHistory entity = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        PastMedicalHistory entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
 //
 //        final PastMedicalHistory toDelete = entity;
@@ -79,19 +79,19 @@
 //
 //    // GET ONE
 //    public PastMedicalHistoryDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-//        PastMedicalHistory entity = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        PastMedicalHistory entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
 //        return mapToDto(entity);
 //    }
 //
 //    // GET ALL by patient
 //    public List<PastMedicalHistoryDto> getAllByPatient(Long orgId, Long patientId) {
-//        return repo.findByOrgIdAndPatientId(orgId, patientId).stream().map(this::mapToDto).toList();
+//        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    // GET ALL by patient + encounter
 //    public List<PastMedicalHistoryDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
-//        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream().map(this::mapToDto).toList();
+//        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    // Mapping
@@ -161,19 +161,19 @@ public class PastMedicalHistoryService {
 
     // Read
     public PastMedicalHistoryDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-        PastMedicalHistory e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PastMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
         return toDto(e);
     }
 
     public List<PastMedicalHistoryDto> list(Long orgId, Long patientId, Long encounterId) {
-        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
+        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // Update (blocked if signed)
     public PastMedicalHistoryDto update(Long orgId, Long patientId, Long encounterId, Long id, PastMedicalHistoryDto dto) {
-        PastMedicalHistory e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PastMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed PMH entries are read-only.");
 
@@ -184,7 +184,7 @@ public class PastMedicalHistoryService {
 
     // Delete (blocked if signed)
     public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-        PastMedicalHistory e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PastMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed PMH entries cannot be deleted.");
 
@@ -193,7 +193,7 @@ public class PastMedicalHistoryService {
 
     // eSign (idempotent)
     public PastMedicalHistoryDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
-        PastMedicalHistory e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PastMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
@@ -206,7 +206,7 @@ public class PastMedicalHistoryService {
 
     // Print (PDF) — stamps printedAt
     public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
-        PastMedicalHistory e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PastMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));

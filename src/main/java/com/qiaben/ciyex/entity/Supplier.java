@@ -2,13 +2,16 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 
+@Entity
+@Table(name = "suppliers")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Entity
-public class Supplier {
+public class Supplier extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -18,8 +21,7 @@ public class Supplier {
     private String phone;
     private String email;
 
-    private String createdDate;
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 
     private String externalId;
 }

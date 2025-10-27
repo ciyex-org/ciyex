@@ -47,8 +47,6 @@ public class PortalReviewService {
                     .priority(request.getPriority() != null ? request.getPriority() : "NORMAL")
                     .patientNotes(request.getPatientNotes())
                     .status("PENDING")
-                    .createdDate(LocalDateTime.now())
-                    .lastModifiedDate(LocalDateTime.now())
                     .build();
 
             PortalPendingUpdate saved = pendingUpdateRepository.save(pendingUpdate);

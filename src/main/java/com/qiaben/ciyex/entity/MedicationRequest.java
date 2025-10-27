@@ -5,14 +5,16 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.EqualsAndHashCode;
 
 @Entity
 @Table(name = "medication_requests")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class MedicationRequest {
+public class MedicationRequest extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,9 +40,5 @@ public class MedicationRequest {
 
     private String status;
 
-    @Column(name = "created_date", nullable = false)
-    private String createdDate;
-
-    @Column(name = "last_modified_date", nullable = false)
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 }

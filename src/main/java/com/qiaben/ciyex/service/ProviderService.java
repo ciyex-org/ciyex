@@ -36,13 +36,6 @@ public class ProviderService {
 
     @Transactional
     public ProviderDto create(ProviderDto dto) {
-        Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
-            log.error("No orgId found in RequestContext during create");
-            throw new SecurityException("No orgId available in request context");
-        }
-        log.debug("Verifying access for orgId: {} to create new provider", currentOrgId);
-
         // Validate the required fields
         if (dto.getNpi() == null || dto.getIdentification() == null || dto.getIdentification().getFirstName() == null ||
                 dto.getIdentification().getLastName() == null || dto.getProfessionalDetails() == null ||
@@ -52,8 +45,7 @@ public class ProviderService {
 
         // Map DTO to Entity
         Provider provider = mapToEntity(dto);
-        provider.setCreatedDate(LocalDateTime.now().toString());
-        provider.setLastModifiedDate(LocalDateTime.now().toString());
+
 
         String externalId = null;
 
@@ -63,9 +55,9 @@ public class ProviderService {
             try {
                 ExternalStorage<ProviderDto> externalStorage = storageResolver.resolve(ProviderDto.class);
                 externalId = externalStorage.create(dto);  // Create in external storage
-                log.info("Successfully created provider in external storage with externalId: {} for orgId: {}", externalId, currentOrgId);
+                log.info("Successfully created provider in external storage with externalId: {} for orgId: {}", externalId, RequestContext.get().getTenantName());
             } catch (Exception e) {
-                log.error("Failed to create provider in external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
+                log.error("Failed to create provider in external storage for orgId: {}, error: {}", RequestContext.get().getTenantName() , e.getMessage());
                 throw new RuntimeException("Failed to sync with external storage", e);  // Rollback transaction
             }
         }
@@ -75,7 +67,7 @@ public class ProviderService {
 
         // Save to database **only after external storage is successful**
         provider = repository.save(provider);
-        log.info("Created provider with id: {} and externalId: {} in DB for orgId: {}", provider.getId(), externalId, currentOrgId);
+        log.info("Created provider with id: {} and externalId: {} in DB for orgId: {}", provider.getId(), externalId, RequestContext.get().getTenantName());
 
         // Return the DTO of the provider (with externalId)
         return mapToDto(provider);
@@ -83,17 +75,6 @@ public class ProviderService {
 
     @Transactional(readOnly = true)
     public ProviderDto getById(Long id) {
-        log.debug("Entering getById with id: {}", id);
-
-        // Fetch the current organization ID
-        Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
-            log.error("No orgId found in RequestContext during getById for id: {}", id);
-            throw new SecurityException("No orgId available in request context");
-        }
-
-        log.debug("Verifying access for orgId: {} to provider with id: {}", currentOrgId, id);
-
         // Fetch provider from the database
         Provider provider = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
@@ -105,14 +86,14 @@ public class ProviderService {
         // If external storage is available, attempt to fetch extended provider details
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && provider.getExternalId() != null) {
-            log.debug("Attempting to fetch extended details for provider id: {} with externalId: {} for orgId: {}", id, provider.getExternalId(), currentOrgId);
+            log.debug("Attempting to fetch extended details for provider id: {} with externalId: {} for orgId: {}", id, provider.getExternalId(), RequestContext.get().getTenantName());
             ExternalStorage<ProviderDto> externalStorage = storageResolver.resolve(ProviderDto.class);
 
             try {
                 ProviderDto extendedProviderDto = externalStorage.get(provider.getExternalId());
 
                 if (extendedProviderDto != null) {
-                    log.info("Successfully loaded extended details for provider id: {} from external storage for orgId: {}", id, currentOrgId);
+                    log.info("Successfully loaded extended details for provider id: {} from external storage for orgId: {}", id, RequestContext.get().getTenantName());
                     log.debug("Extended ProviderDto: id={}, fhirId={}, orgId={}", extendedProviderDto.getId(), extendedProviderDto.getFhirId(), RequestContext.get().getTenantName());
 
                     extendedProviderDto.setId(provider.getId()); // Preserve DB ID
@@ -127,14 +108,14 @@ public class ProviderService {
 
                     resultDto = extendedProviderDto;
                 } else {
-                    log.warn("No extended details found in external storage for provider id: {} with externalId: {} for orgId: {}", id, provider.getExternalId(), currentOrgId);
+                    log.warn("No extended details found in external storage for provider id: {} with externalId: {} for orgId: {}", id, provider.getExternalId(), RequestContext.get().getTenantName());
                 }
             } catch (Exception e) {
                 log.error("Failed to fetch extended details from external storage for provider id: {} with externalId: {}, error: {}", id, provider.getExternalId(), e.getMessage());
             }
         }
 
-        log.info("Returning provider dto for id: {} and orgId: {}", id, currentOrgId);
+        log.info("Returning provider dto for id: {} and orgId: {}", id, RequestContext.get().getTenantName());
         log.debug("Returning ProviderDto: id={}, fhirId={}, orgId={}", resultDto.getId(), resultDto.getFhirId(), RequestContext.get().getTenantName());
 
         return resultDto;
@@ -169,13 +150,6 @@ public class ProviderService {
 
     @Transactional
     public ProviderDto update(Long id, ProviderDto dto) {
-        Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
-            log.error("No orgId found in RequestContext during update for id: {}", id);
-            throw new SecurityException("No orgId available in request context");
-        }
-        log.debug("Verifying access for orgId: {} to provider with id: {}", currentOrgId, id);
-
         Provider provider = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
         provider.setNpi(dto.getNpi());
@@ -203,16 +177,15 @@ public class ProviderService {
             provider.setLicenseState(dto.getProfessionalDetails().getLicenseState());
             provider.setLicenseExpiry(dto.getProfessionalDetails().getLicenseExpiry());
         }
-        provider.setLastModifiedDate(LocalDateTime.now().toString());
 
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && provider.getExternalId() != null) {
             try {
                 ExternalStorage<ProviderDto> externalStorage = storageResolver.resolve(ProviderDto.class);
                 externalStorage.update(dto, provider.getExternalId());
-                log.info("Successfully updated provider with id: {} and externalId: {} in external storage for orgId: {}", provider.getId(), provider.getExternalId(), currentOrgId);
+                log.info("Successfully updated provider with id: {} and externalId: {} in external storage for orgId: {}", provider.getId(), provider.getExternalId(), RequestContext.get().getTenantName());
             } catch (Exception e) {
-                log.error("Failed to update provider in external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
+                log.error("Failed to update provider in external storage for orgId: {}, error: {}", RequestContext.get().getTenantName() , e.getMessage());
                 throw new RuntimeException("Failed to sync with external storage", e); // Rollback transaction
             }
         }
@@ -223,13 +196,6 @@ public class ProviderService {
 
     @Transactional
     public void delete(Long id) {
-        Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
-            log.error("No orgId found in RequestContext during delete for id: {}", id);
-            throw new SecurityException("No orgId available in request context");
-        }
-        log.debug("Verifying access for orgId: {} to provider with id: {}", currentOrgId, id);
-
         Provider provider = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
 
@@ -238,35 +204,23 @@ public class ProviderService {
             try {
                 ExternalStorage<ProviderDto> externalStorage = storageResolver.resolve(ProviderDto.class);
                 externalStorage.delete(provider.getExternalId());
-                log.info("Successfully deleted provider with id: {} and externalId: {} from external storage for orgId: {}", provider.getId(), provider.getExternalId(), currentOrgId);
+                log.info("Successfully deleted provider with id: {} and externalId: {} from external storage for orgId: {}", provider.getId(), provider.getExternalId(), RequestContext.get().getTenantName());
             } catch (Exception e) {
-                log.error("Failed to delete provider from external storage for orgId: {}, error: {}", currentOrgId, e.getMessage());
+                log.error("Failed to delete provider from external storage for orgId: {}, error: {}", RequestContext.get().getTenantName(), e.getMessage());
                 throw new RuntimeException("Failed to sync with external storage", e); // Rollback transaction
             }
         }
 
         // Delete from database only if external storage succeeded
         repository.delete(provider);
-        log.info("Deleted provider with id: {} from DB for orgId: {}", id, currentOrgId);
+        log.info("Deleted provider with id: {} from DB for orgId: {}", id, RequestContext.get().getTenantName());
     }
 
     @Transactional(readOnly = true)
     public ApiResponse<List<ProviderDto>> getAllProviders() {
-        log.debug("Entering getAllProviders");
-        Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
-            log.error("No orgId found in RequestContext");
-            return ApiResponse.<List<ProviderDto>>builder()
-                    .success(false)
-                    .message("No orgId configured for provider retrieval")
-                    .data(null)
-                    .build();
-        }
-        log.debug("Verifying access for orgId: {} to retrieve all providers", currentOrgId);
-
         // Fetch all providers directly from the database
-        List<Provider> providers = repository.findAllByOrgId(currentOrgId);
-        log.info("Retrieved {} providers from DB for orgId: {}", providers.size(), currentOrgId);
+        List<Provider> providers = repository.findAll();
+        log.info("Retrieved {} providers from DB for orgId: {}", providers.size(), RequestContext.get().getTenantName());
         List<ProviderDto> providerDtos = providers.stream().map(this::mapToDto).collect(Collectors.toList());
 
         return ApiResponse.<List<ProviderDto>>builder()
@@ -356,8 +310,6 @@ public class ProviderService {
     // ✅ Audit
     if (provider.getCreatedDate() != null || provider.getLastModifiedDate() != null) {
         ProviderDto.Audit audit = new ProviderDto.Audit();
-        audit.setCreatedDate(provider.getCreatedDate());
-        audit.setLastModifiedDate(provider.getLastModifiedDate());
         dto.setAudit(audit);
     }
 
@@ -370,20 +322,12 @@ public class ProviderService {
 }
 
 
-    private Long getCurrentOrgId() {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        if (orgId == null) {
-            log.warn("orgId is null in RequestContext, attempting to populate from X-Org-Id header");
-            // This is a fallback; ideally, the filter should handle this
-            // For now, assume a manual check or filter is in place
-        }
-        return orgId;
-    }
+
 
     @Transactional(readOnly = true)
     public long getProviderCountByOrgId() {
         // You might want to add security checks here if needed
-        return repository.countByOrgId(getCurrentOrgId());
+        return repository.count();
     }
 
     @Transactional
@@ -391,23 +335,17 @@ public class ProviderService {
         Provider provider = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Provider not found"));
         provider.setStatus(status);
-        provider.setLastModifiedDate(LocalDateTime.now().toString());
         return mapToDto(repository.save(provider));
     }
 
     @Transactional
     public boolean resetProviderPassword(Long providerId, String newPassword) {
-        Long currentOrgId = getCurrentOrgId();
-        if (currentOrgId == null) {
-            log.error("No orgId found in RequestContext during password reset for provider id: {}", providerId);
-            throw new SecurityException("No orgId available in request context");
-        }
         
         Provider provider = repository.findById(providerId)
                 .orElseThrow(() -> new RuntimeException("Provider not found with id: " + providerId));
         // Implementation depends on your password storage strategy
         // This is a placeholder - you should implement proper password hashing
-        log.info("Password reset requested for provider id: {} in org: {}", providerId, currentOrgId);
+        log.info("Password reset requested for provider id: {} in org: {}", providerId, RequestContext.get().getTenantName());
         
         return true; // Return success status
     }

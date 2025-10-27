@@ -9,12 +9,12 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 
 public interface RecallRepository extends JpaRepository<Recall, Long> {
-    List<Recall> findByOrgId(Long orgId);
+    List<Recall> findAll();
     List<Recall> findByPatientId(Long patientId);
 
-    @Query("SELECT COUNT(r) FROM Recall r WHERE r.orgId = :orgId")
-    long countByOrgId(Long orgId);
+    @Query("SELECT COUNT(r) FROM Recall r ")
+    long count();
 
-    Page<Recall> findAllByOrgId(Long orgId, Pageable pageable);
+    Page<Recall> findAll(Pageable pageable);
 
 }

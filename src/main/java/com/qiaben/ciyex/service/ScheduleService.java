@@ -43,7 +43,7 @@ public class ScheduleService {
     @Transactional(readOnly = true)
     public long countSchedulesForCurrentOrg() {
         Long orgId = getCurrentOrgIdOrThrow();
-        return repository.countByOrgId(orgId);
+        return repository.count();
     }
 
     @Transactional
@@ -70,8 +70,6 @@ public class ScheduleService {
         Schedule entity = Schedule.builder()
                 .providerId(dto.getProviderId())
                 .externalId(externalId)
-                .createdDate(LocalDateTime.now().toString())
-                .lastModifiedDate(LocalDateTime.now().toString())
                 .build();
         entity = repository.save(entity);
 
@@ -91,7 +89,7 @@ public class ScheduleService {
     @Transactional(readOnly = true)
     public ApiResponse<List<ScheduleDto>> getAllSchedules() {
         Long orgId = getCurrentOrgIdOrThrow();
-        List<Schedule> entities = repository.findAllByOrgId(orgId);
+        List<Schedule> entities = repository.findAll();
 
         // collect all externalIds
         List<String> externalIds = entities.stream()
@@ -151,9 +149,6 @@ public class ScheduleService {
         ExternalScheduleStorage external =
                 (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
         external.updateSchedule(dto, entity.getExternalId());
-
-
-        entity.setLastModifiedDate(java.time.LocalDateTime.now().toString());
         repository.save(entity);
 
         // return merged local+external
@@ -182,12 +177,6 @@ public class ScheduleService {
         dto.setId(entity.getId());
         dto.setProviderId(entity.getProviderId());
         dto.setExternalId(entity.getExternalId());
-        if (entity.getCreatedDate() != null || entity.getLastModifiedDate() != null) {
-            ScheduleDto.Audit audit = new ScheduleDto.Audit();
-            audit.setCreatedDate(entity.getCreatedDate());
-            audit.setLastModifiedDate(entity.getLastModifiedDate());
-            dto.setAudit(audit);
-        }
         if (externalDto != null) {
             dto.setStart(externalDto.getStart());
             dto.setEnd(externalDto.getEnd());

@@ -6,6 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface DocumentSettingsRepo extends JpaRepository<DocumentSettings, Integer> {
-    Optional<DocumentSettings> findByOrgId(Long orgId);
+    Optional<DocumentSettings> findFirstByOrderByIdAsc();
 }
 

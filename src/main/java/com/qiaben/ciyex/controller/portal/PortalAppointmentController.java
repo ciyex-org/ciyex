@@ -6,7 +6,6 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,7 +31,6 @@ import com.qiaben.ciyex.service.AppointmentService;
 import com.qiaben.ciyex.service.telehealth.JitsiTelehealthService;
 import com.qiaben.ciyex.service.telehealth.TelehealthResolver;
 import com.qiaben.ciyex.service.telehealth.TelehealthService;
-import com.qiaben.ciyex.service.TenantAwareService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,7 +48,6 @@ import lombok.extern.slf4j.Slf4j;
 public class PortalAppointmentController {
 
     private final PortalUserRepository portalUserRepository;
-    private final TenantAwareService tenantAwareService;
     private final AppointmentService appointmentService;
     private final ProviderRepository providerRepository;
     private final LocationRepository locationRepository;

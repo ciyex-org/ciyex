@@ -51,7 +51,7 @@
 //    }
 //
 //    public ProviderSignatureDto update(Long orgId, Long patientId, Long encounterId, Long id, ProviderSignatureDto in) {
-//        ProviderSignature e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
 //
 //        e.setSignedAt(in.getSignedAt());
@@ -77,7 +77,7 @@
 //    }
 //
 //    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-//        ProviderSignature e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
 //
 //        external.ifPresent(ext -> {
@@ -88,17 +88,17 @@
 //    }
 //
 //    public ProviderSignatureDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-//        ProviderSignature e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
 //        return mapToDto(e);
 //    }
 //
 //    public List<ProviderSignatureDto> getAllByPatient(Long orgId, Long patientId) {
-//        return repo.findByOrgIdAndPatientId(orgId, patientId).stream().map(this::mapToDto).toList();
+//        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    public List<ProviderSignatureDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
-//        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream().map(this::mapToDto).toList();
+//        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    private ProviderSignatureDto mapToDto(ProviderSignature e) {
@@ -181,18 +181,18 @@ public class ProviderSignatureService {
     }
 
     public ProviderSignatureDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-        ProviderSignature e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
         return toDto(e);
     }
 
     public List<ProviderSignatureDto> list(Long orgId, Long patientId, Long encounterId) {
-        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream()
+        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
                 .map(this::toDto).toList();
     }
 
     public ProviderSignatureDto update(Long orgId, Long patientId, Long encounterId, Long id, ProviderSignatureDto dto) {
-        ProviderSignature e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
         applyDto(e, dto);
         if (StringUtils.hasText(e.getSignatureData())) {
@@ -203,14 +203,14 @@ public class ProviderSignatureService {
     }
 
     public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-        ProviderSignature e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
         repo.delete(e);
     }
 
     // Print a simple PDF with the signature image (if present)
     public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
-        ProviderSignature e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
 
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {

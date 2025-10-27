@@ -9,15 +9,10 @@ import java.util.List;
 @Repository
 public interface ListOptionRepository extends JpaRepository<ListOption, Long> {
 
-    // Custom queries can be added if needed, for example:
-    ListOption findByOrgIdAndListIdAndOptionId(String orgId, String listId, String optionId);
+    // Single tenant - no orgId needed
+    ListOption findByListIdAndOptionId(String listId, String optionId);
 
-
-    // Custom query to fetch list options by list_id
     List<ListOption> findByListId(String listId);
-    
-    // Custom query to fetch list options by org_id and list_id
-    List<ListOption> findByOrgIdAndListId(String orgId, String listId);
     
     void deleteByListId(String listId);
 }

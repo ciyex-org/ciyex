@@ -20,20 +20,12 @@ public class GpsBillingCardController {
 
     private final GpsBillingCardService service;
 
-    private Long getOrgIdOrThrow() {
-        RequestContext ctx = RequestContext.get();
-        if (ctx == null || ctx.getOrgId() == null) {
-            throw new RuntimeException("Organization context is required");
-        }
-        return ctx.getOrgId();
-    }
-
     /* CREATE */
     @PostMapping
     public ResponseEntity<ApiResponse<GpsBillingCardDto>> createCard(
             @Valid @RequestBody GpsBillingCardDto dto) {
         try {
-            GpsBillingCardDto saved = service.create(dto, getOrgIdOrThrow());
+            GpsBillingCardDto saved = service.create(dto);
             return ResponseEntity.ok(ApiResponse.<GpsBillingCardDto>builder()
                     .success(true)
                     .message("Card saved successfully")
@@ -59,7 +51,7 @@ public class GpsBillingCardController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<GpsBillingCardDto>>> getAll() {
         try {
-            List<GpsBillingCardDto> cards = service.getAll(getOrgIdOrThrow());
+            List<GpsBillingCardDto> cards = service.getAll();
             return ResponseEntity.ok(ApiResponse.<List<GpsBillingCardDto>>builder()
                     .success(true)
                     .message("Cards fetched successfully")
@@ -79,7 +71,7 @@ public class GpsBillingCardController {
     public ResponseEntity<ApiResponse<List<GpsBillingCardDto>>> getByUser(
             @PathVariable Long userId) {
         try {
-            List<GpsBillingCardDto> cards = service.getAllByUser(userId, getOrgIdOrThrow());
+            List<GpsBillingCardDto> cards = service.getAllByUser(userId);
             return ResponseEntity.ok(ApiResponse.<List<GpsBillingCardDto>>builder()
                     .success(true)
                     .message("User cards fetched successfully")
@@ -98,7 +90,7 @@ public class GpsBillingCardController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<GpsBillingCardDto>> getById(@PathVariable Long id) {
         try {
-            return service.getById(id, getOrgIdOrThrow())
+            return service.getById(id)
                     .map(dto -> ResponseEntity.ok(ApiResponse.<GpsBillingCardDto>builder()
                             .success(true)
                             .message("Card found")
@@ -123,7 +115,7 @@ public class GpsBillingCardController {
             @PathVariable Long id,
             @Valid @RequestBody GpsBillingCardDto dto) {
         try {
-            GpsBillingCardDto updated = service.update(id, dto, getOrgIdOrThrow());
+            GpsBillingCardDto updated = service.update(id, dto);
             return ResponseEntity.ok(ApiResponse.<GpsBillingCardDto>builder()
                     .success(true)
                     .message("Card updated successfully")
@@ -142,7 +134,7 @@ public class GpsBillingCardController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteCard(@PathVariable Long id) {
         try {
-            service.delete(id, getOrgIdOrThrow());
+            service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)
                     .message("Card deleted successfully")
@@ -160,7 +152,7 @@ public class GpsBillingCardController {
     @PostMapping("/{id}/default")
     public ResponseEntity<ApiResponse<GpsBillingCardDto>> setDefaultCard(@PathVariable Long id) {
         try {
-            GpsBillingCardDto updated = service.setDefault(id, getOrgIdOrThrow());
+            GpsBillingCardDto updated = service.setDefault(id);
             return ResponseEntity.ok(ApiResponse.<GpsBillingCardDto>builder()
                     .success(true)
                     .message("Default card updated successfully")

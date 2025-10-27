@@ -28,7 +28,7 @@ public class DocumentSettingsService {
      * Get document settings for an organization
      */
     public DocumentSettingsDto get(Long orgId) {
-        DocumentSettings entity = repository.findByOrgId(orgId)
+        DocumentSettings entity = repository.findFirstByOrderByIdAsc()
                 .orElse(createDefaultSettings(orgId));
         
         return toDto(entity);
@@ -47,7 +47,7 @@ public class DocumentSettingsService {
     @Transactional
     public DocumentSettingsDto save(DocumentSettingsDto dto, String updatedBy) {
         //TODO: Fix
-        DocumentSettings entity = repository.findAll().get(0);
+        DocumentSettings entity = repository.findFirstByOrderByIdAsc().orElseThrow(() -> new RuntimeException("Settings not found"));
         
         entity.setMaxUploadBytes(dto.getMaxUploadSizeMB() * 1024L * 1024L);
         entity.setEnableAudio(dto.isEnableAudio());
@@ -73,7 +73,7 @@ public class DocumentSettingsService {
      */
     @Transactional
     public void deleteByOrgId(Long orgId) {
-        repository.findByOrgId(orgId).ifPresent(repository::delete);
+        repository.findFirstByOrderByIdAsc().ifPresent(repository::delete);
     }
 
     /**

@@ -2,13 +2,15 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @Entity
-public class PatientEducation {
+@EqualsAndHashCode(callSuper = true)
+public class PatientEducation extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -23,8 +25,7 @@ public class PatientEducation {
     @Column(length = 5000)
     private String content;
 
-    private String createdDate;
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 
     private String externalId;
 }

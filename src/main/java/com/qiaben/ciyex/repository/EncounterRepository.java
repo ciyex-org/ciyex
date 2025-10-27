@@ -16,20 +16,16 @@ import java.util.Optional;
 
 public interface EncounterRepository extends JpaRepository<Encounter, Long> {
 
-    List<Encounter> findByPatientIdAndOrgId(Long patientId, Long orgId);
+    List<Encounter> findByPatientId(Long patientId);
 
-    Optional<Encounter> findByIdAndPatientIdAndOrgId(Long id, Long patientId, Long orgId);
+    Optional<Encounter> findByIdAndPatientId(Long id, Long patientId);
 
     // Delete with scoping
-    long deleteByIdAndPatientIdAndOrgId(Long id, Long patientId, Long orgId);
+    long deleteByIdAndPatientId(Long id, Long patientId);
 
-    Page<Encounter> findByOrgId(Long orgId, Pageable pageable);
+    Page<Encounter> findAll(Pageable pageable);
 
-    Page<Encounter> findByOrgIdAndStatus(Long orgId, EncounterStatus status, Pageable pageable);
-
-
-
-
+    Page<Encounter> findByStatus(EncounterStatus status, Pageable pageable);
 
     // Additional query methods can be added here if necessary
 }
@@ -50,25 +46,24 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
 //public interface EncounterRepository extends JpaRepository<Encounter, Long> {
 //
 //    // Patient-scoped list
-//    List<Encounter> findByPatientIdAndOrgIdOrderByIdDesc(Long patientId, Long orgId);
-//    List<Encounter> findByPatientIdAndOrgIdAndStatusOrderByIdDesc(Long patientId, Long orgId, EncounterStatus status);
+//    List<Encounter> findByPatientIdAndOrgIdOrderByIdDesc(Long patientId);
+//    List<Encounter> findByPatientIdAndOrgIdAndStatusOrderByIdDesc(Long patientId, EncounterStatus status);
 //
-//    Optional<Encounter> findByIdAndPatientIdAndOrgId(Long id, Long patientId, Long orgId);
+//    Optional<Encounter> findByIdAndPatientIdAndOrgId(Long id, Long patientId);
 //
-//    long deleteByIdAndPatientIdAndOrgId(Long id, Long patientId, Long orgId);
+//    long deleteByIdAndPatientIdAndOrgId(Long id, Long patientId);
 //
 //    // ---- Review queries (filters are optional) ----
 //    @Query("""
 //      select e from Encounter e
-//       where e.orgId = :orgId
+//       where 1=1
 //         and (:status is null or e.status = :status)
 //         and (:provider is null or e.encounterProvider = :provider)
 //         and (:from  is null or e.encounterDate >= :from)
 //         and (:to    is null or e.encounterDate <  :to)
 //       order by e.encounterDate desc nulls last, e.id desc
 //    """)
-//    Page<Encounter> reviewList(@Param("orgId") Long orgId,
-//                               @Param("status") EncounterStatus status,
+//    Page<Encounter> reviewList(//                               @Param("status") EncounterStatus status,
 //                               @Param("provider") String provider,
 //                               @Param("from") Instant from,
 //                               @Param("to") Instant to,
@@ -77,14 +72,13 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
 //    @Query("""
 //      select e.status as status, count(e) as c
 //        from Encounter e
-//       where e.orgId = :orgId
+//       where 1=1
 //         and (:provider is null or e.encounterProvider = :provider)
 //         and (:from  is null or e.encounterDate >= :from)
 //         and (:to    is null or e.encounterDate <  :to)
 //       group by e.status
 //    """)
-//    List<Object[]> countByStatus(@Param("orgId") Long orgId,
-//                                 @Param("provider") String provider,
+//    List<Object[]> countByStatus(//                                 @Param("provider") String provider,
 //                                 @Param("from") Instant from,
 //                                 @Param("to") Instant to);
 //}

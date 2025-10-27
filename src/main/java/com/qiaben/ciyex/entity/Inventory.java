@@ -2,6 +2,7 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 import java.util.List;
 
 @Data
@@ -9,7 +10,8 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @Entity
-public class Inventory {
+@EqualsAndHashCode(callSuper = true)
+public class Inventory extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -29,8 +31,7 @@ public class Inventory {
     private String supplier;  // supplier name
 
 
-    private String createdDate;
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 
     private String externalId;   // FHIR / external system id
 

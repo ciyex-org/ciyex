@@ -8,7 +8,7 @@ import java.util.List;
 
 @Entity
 @Table(name = "patient_payments")
-public class PatientPayment {
+public class PatientPayment extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -24,8 +24,7 @@ public class PatientPayment {
     @Column(nullable = false)
     private BigDecimal amount = BigDecimal.ZERO;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    // audit fields provided by AuditableEntity
 
     @Column(name = "invoice_id")
     private Long invoiceId;
@@ -40,7 +39,7 @@ public class PatientPayment {
         this.patientId = patientId;
         this.paymentMethod = paymentMethod;
         this.amount = amount;
-        this.createdAt = LocalDateTime.now();
+        setCreatedDate(LocalDateTime.now());
     }
 
     // Getters and Setters
@@ -77,11 +76,11 @@ public class PatientPayment {
     }
 
     public LocalDateTime getCreatedAt() {
-        return createdAt;
+        return getCreatedDate();
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
+        setCreatedDate(createdAt);
     }
 
     public Long getInvoiceId() {

@@ -12,16 +12,9 @@ public interface LabOrderRepository extends JpaRepository<LabOrder, Long> {
 
     // REMOVED: Optional<LabOrder> findByExternalId(String externalId);
 
-    @Query("SELECT o FROM LabOrder o WHERE o.orgId = :orgId")
-    List<LabOrder> findAllByOrgId(Long orgId);
-
-    // Multi-org list
-    @Query("SELECT o FROM LabOrder o WHERE o.orgId IN :orgIds")
-    List<LabOrder> findAllByOrgIdIn(Collection<Long> orgIds);
-
-    // Patient-scoped list (multi-org aware)
-    @Query("SELECT o FROM LabOrder o WHERE o.patientId = :patientId AND o.orgId IN :orgIds")
-    List<LabOrder> findAllByPatientIdInOrgs(Long patientId, Collection<Long> orgIds);
+    // Single tenant - no orgId filtering needed
+    
+    List<LabOrder> findAllByPatientId(Long patientId);
 
     // Patient-scoped fetch single
     Optional<LabOrder> findByIdAndPatientId(Long id, Long patientId);

@@ -26,8 +26,6 @@ public class PatientBillingNoteDto {
         d.targetId = e.getTargetId();
         d.text = e.getText();
         d.createdBy = e.getCreatedBy();
-        d.createdAt = e.getCreatedAt();
-        d.updatedAt = e.getUpdatedAt();
         return d;
     }
 }

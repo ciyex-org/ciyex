@@ -2,13 +2,15 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @Entity
-public class Maintenance {
+@EqualsAndHashCode(callSuper = true)
+public class Maintenance extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -30,8 +32,7 @@ public class Maintenance {
     @Column(length = 2000)
     private String notes;
 
-    private String createdDate;
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 
     private String externalId;
 }

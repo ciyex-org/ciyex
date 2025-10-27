@@ -2,8 +2,7 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -12,12 +11,12 @@ import java.time.LocalDateTime;
 @Table(
         name = "codes",
         indexes = {
-                @Index(name = "idx_codes_scope", columnList = "org_id"),
                 @Index(name = "idx_codes_type_code", columnList = "code_type, code")
         }
 )
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class GlobalCode {
+@EqualsAndHashCode(callSuper = true)
+public class GlobalCode extends AuditableEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -60,11 +59,10 @@ public class GlobalCode {
     @Column(name = "fee_standard", precision = 18, scale = 2)
     private BigDecimal feeStandard;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    // audit fields provided by AuditableEntity
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    public LocalDateTime getCreatedAt() { return getCreatedDate(); }
+    public void setCreatedAt(LocalDateTime createdAt) { setCreatedDate(createdAt); }
+    public LocalDateTime getUpdatedAt() { return getLastModifiedDate(); }
+    public void setUpdatedAt(LocalDateTime updatedAt) { setLastModifiedDate(updatedAt); }
 }

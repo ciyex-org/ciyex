@@ -45,7 +45,8 @@ import lombok.*;
 @Table(name = "family_history_entry")
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
-public class FamilyHistoryEntry {
+@EqualsAndHashCode(callSuper = true)
+public class FamilyHistoryEntry extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

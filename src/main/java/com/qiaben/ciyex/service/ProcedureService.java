@@ -59,7 +59,7 @@ public class ProcedureService {
     }
 
     public ProcedureDto update(Long orgId, Long patientId, Long encounterId, Long id, ProcedureDto in) {
-        Procedure p = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Procedure not found"));
 
         p.setCpt4(in.getCpt4());
@@ -89,7 +89,7 @@ public class ProcedureService {
     }
 
     public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-        Procedure p = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Procedure not found"));
 
         final Procedure toDelete = p;
@@ -103,17 +103,17 @@ public class ProcedureService {
     }
 
     public ProcedureDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-        Procedure p = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Procedure not found"));
         return mapToDto(p);
     }
 
     public List<ProcedureDto> getAllByPatient(Long orgId, Long patientId) {
-        return repo.findByOrgIdAndPatientId(orgId, patientId).stream().map(this::mapToDto).toList();
+        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
     }
 
     public List<ProcedureDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
-        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream().map(this::mapToDto).toList();
+        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
     }
 
     private ProcedureDto mapToDto(Procedure e) {

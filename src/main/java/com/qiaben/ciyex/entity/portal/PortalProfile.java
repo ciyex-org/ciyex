@@ -1,5 +1,6 @@
 package com.qiaben.ciyex.entity.portal;
 
+import com.qiaben.ciyex.entity.AuditableEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -12,8 +13,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@EqualsAndHashCode(onlyExplicitlyIncluded = true)
-public class PortalProfile {
+@EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = true)
+public class PortalProfile extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -56,19 +57,11 @@ public class PortalProfile {
     @Column(length = 100)
     private String country;
 
-    // Audit fields
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    // audit fields provided by AuditableEntity
 
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = createdAt;
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
+    public LocalDateTime getCreatedAt() { return getCreatedDate(); }
+    public void setCreatedAt(LocalDateTime createdAt) { setCreatedDate(createdAt); }
+    public LocalDateTime getUpdatedAt() { return getLastModifiedDate(); }
+    public void setUpdatedAt(LocalDateTime updatedAt) { setLastModifiedDate(updatedAt); }
 }
 

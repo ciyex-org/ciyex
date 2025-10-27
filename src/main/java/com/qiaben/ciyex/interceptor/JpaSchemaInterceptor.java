@@ -45,22 +45,29 @@ public class JpaSchemaInterceptor implements Interceptor {
     
     private void setTenantSchema() {
         RequestContext context = RequestContext.get();
-        if (context != null && context.getTenantName() != null) {
-            String schemaName = sanitize(context.getTenantName());
+        if (context != null) {
+            // Prefer schemaName from Keycloak group attribute, fallback to generated from tenantName
+            String schemaName = context.getSchemaName();
+            if (schemaName == null && context.getTenantName() != null) {
+                schemaName = sanitize(context.getTenantName());
+            }
             
-            try (Connection connection = dataSource.getConnection();
-                 Statement statement = connection.createStatement()) {
-                
-                // Create schema if it doesn't exist
-                statement.execute("CREATE SCHEMA IF NOT EXISTS " + schemaName);
-                
-                // Set search path to use the tenant schema first
-                statement.execute("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public");
-                
-                log.debug("JPA Interceptor: Set search_path to: {}, public", schemaName);
-                
-            } catch (SQLException e) {
-                log.error("JPA Interceptor: Failed to set schema: {}", schemaName, e);
+            if (schemaName != null) {
+                try (Connection connection = dataSource.getConnection();
+                     Statement statement = connection.createStatement()) {
+                    
+                    // Create schema if it doesn't exist
+                    statement.execute("CREATE SCHEMA IF NOT EXISTS " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
+                    
+                    // Set search path to use the tenant schema first
+                    statement.execute("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public");
+                    
+                    log.debug("JPA Interceptor: Set search_path to: {}, public (from Keycloak: {})", 
+                             schemaName, context.getSchemaName() != null);
+                    
+                } catch (SQLException e) {
+                    log.error("JPA Interceptor: Failed to set schema: {}", schemaName, e);
+                }
             }
         }
     }

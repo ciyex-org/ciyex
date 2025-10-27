@@ -9,7 +9,7 @@ import java.util.List;
 
 @Repository
 public interface PatientBillingNoteRepository extends JpaRepository<PatientBillingNote, Long> {
-    List<PatientBillingNote> findByPatientIdAndTargetTypeAndTargetIdOrderByCreatedAtAsc(
+    List<PatientBillingNote> findByPatientIdAndTargetTypeAndTargetIdOrderByIdAsc(
             Long patientId, NoteTargetType type, Long targetId
     );
 }

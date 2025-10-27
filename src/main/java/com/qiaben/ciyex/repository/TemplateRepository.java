@@ -8,6 +8,6 @@ import java.util.List;
 
 public interface TemplateRepository extends JpaRepository<Template, Long> {
 
-    @Query("SELECT t FROM Template t WHERE t.orgId = :orgId")
-    List<Template> findAllByOrgId(Long orgId);
+    @Query("SELECT t FROM Template t ")
+    List<Template> findAll();
 }

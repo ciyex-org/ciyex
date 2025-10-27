@@ -8,13 +8,13 @@
 //
 //public interface AssignedProviderRepository extends JpaRepository<AssignedProvider, Long> {
 //
-//    List<AssignedProvider> findByOrgIdAndPatientId(Long orgId, Long patientId);
+//    List<AssignedProvider> findByPatientId(Long patientId);
 //
-//    List<AssignedProvider> findByOrgIdAndPatientIdAndEncounterId(
-//            Long orgId, Long patientId, Long encounterId);
+//    List<AssignedProvider> findByPatientIdAndEncounterId(
+//            Long patientId, Long encounterId);
 //
-//    Optional<AssignedProvider> findByOrgIdAndPatientIdAndEncounterIdAndId(
-//            Long orgId, Long patientId, Long encounterId, Long id);
+//    Optional<AssignedProvider> findByPatientIdAndEncounterIdAndId(
+//            Long patientId, Long encounterId, Long id);
 //}
 
 
@@ -30,9 +30,9 @@ import java.util.Optional;
 
 public interface AssignedProviderRepository extends JpaRepository<AssignedProvider, Long> {
 
-    List<AssignedProvider> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+    List<AssignedProvider> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 
-    Optional<AssignedProvider> findByOrgIdAndPatientIdAndEncounterIdAndId(
-            Long orgId, Long patientId, Long encounterId, Long id
+    Optional<AssignedProvider> findByPatientIdAndEncounterIdAndId(
+            Long patientId, Long encounterId, Long id
     );
 }

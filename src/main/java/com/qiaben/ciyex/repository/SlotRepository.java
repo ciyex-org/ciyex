@@ -7,8 +7,8 @@ import java.util.List;
 
 public interface SlotRepository extends JpaRepository<Slot, Long> {
 
-    @Query("SELECT COUNT(s) FROM Slot s WHERE s.orgId = :orgId")
-    long countByOrgId(Long orgId);
+    @Query("SELECT COUNT(s) FROM Slot s ")
+    long count();
 
-    List<Slot> findAllByOrgId(Long orgId);
+    List<Slot> findAll();
 }

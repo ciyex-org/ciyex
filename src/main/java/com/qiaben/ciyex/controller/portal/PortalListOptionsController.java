@@ -10,7 +10,6 @@ import com.qiaben.ciyex.dto.ListOptionDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.service.ListOptionService;
-import com.qiaben.ciyex.service.TenantAwareService;
 
 import java.util.List;
 
@@ -27,7 +26,6 @@ import java.util.List;
 public class PortalListOptionsController {
 
     private final ListOptionService listOptionService;
-    private final TenantAwareService tenantAwareService;
 
     /**
      * GET /api/portal/list-options/list/{listId}
@@ -39,11 +37,7 @@ public class PortalListOptionsController {
             HttpServletRequest request) {
         try {
             log.info("Portal fetching list-options for listId: {}", listId);
-            setRequestContextOrg(request);
-            Long orgId = RequestContext.get().getOrgId();
-
-            List<ListOptionDto> rows = tenantAwareService.executeInTenantContext(orgId,
-                    () -> listOptionService.getListOptionsByListId(listId));
+            List<ListOptionDto> rows = listOptionService.getListOptionsByListId(listId);
 
             log.info("Retrieved {} list options for listId: {}", rows.size(), listId);
             return ResponseEntity.ok(ApiResponse.<List<ListOptionDto>>builder()
@@ -73,13 +67,9 @@ public class PortalListOptionsController {
             // Return both visit_types and appointment_priorities in unified response
             try {
                 log.info("Portal fetching unified list-options (visit_types + appointment_priorities)");
-                setRequestContextOrg(request);
-                Long orgId = RequestContext.get().getOrgId();
 
-                List<ListOptionDto> visitTypes = tenantAwareService.executeInTenantContext(orgId,
-                        () -> listOptionService.getListOptionsByListId("visit_types"));
-                List<ListOptionDto> priorities = tenantAwareService.executeInTenantContext(orgId,
-                        () -> listOptionService.getListOptionsByListId("appointment_priorities"));
+                List<ListOptionDto> visitTypes =listOptionService.getListOptionsByListId("visit_types");
+                List<ListOptionDto> priorities = listOptionService.getListOptionsByListId("appointment_priorities");
 
                 log.info("Retrieved {} visit types and {} priorities", visitTypes.size(), priorities.size());
 

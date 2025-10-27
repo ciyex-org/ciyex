@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.EqualsAndHashCode;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -21,7 +22,8 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PortalPendingUpdate {
+@EqualsAndHashCode(callSuper = true)
+public class PortalPendingUpdate extends com.qiaben.ciyex.entity.AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -60,13 +62,7 @@ public class PortalPendingUpdate {
     @Column(name = "rejection_reason", length = 500)
     private String rejectionReason;
 
-    @Column(name = "created_date", nullable = false)
-    @Builder.Default
-    private LocalDateTime createdDate = LocalDateTime.now();
-
-    @Column(name = "last_modified_date")
-    @Builder.Default
-    private LocalDateTime lastModifiedDate = LocalDateTime.now();
+    // audit fields provided by AuditableEntity
 
     @Column(name = "reviewed_date")
     private LocalDateTime reviewedDate;
@@ -88,8 +84,8 @@ public class PortalPendingUpdate {
         this.status = "APPROVED";
         this.approvedBy = approverEmail;
         this.approverNotes = notes;
-        this.reviewedDate = LocalDateTime.now();
-        this.lastModifiedDate = LocalDateTime.now();
+    this.reviewedDate = LocalDateTime.now();
+    setLastModifiedDate(LocalDateTime.now());
     }
 
     public void reject(String approverEmail, String reason, String notes) {
@@ -97,7 +93,7 @@ public class PortalPendingUpdate {
         this.approvedBy = approverEmail;
         this.rejectionReason = reason;
         this.approverNotes = notes;
-        this.reviewedDate = LocalDateTime.now();
-        this.lastModifiedDate = LocalDateTime.now();
+    this.reviewedDate = LocalDateTime.now();
+    setLastModifiedDate(LocalDateTime.now());
     }
 }

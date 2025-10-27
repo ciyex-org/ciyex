@@ -80,19 +80,29 @@ public class TenantAwareJpaConfig {
 
         private void setTenantSchema(Connection connection) {
             RequestContext context = RequestContext.get();
-            if (context != null && context.getTenantName() != null) {
-                String schemaName = sanitize(context.getTenantName());
-                try (Statement statement = connection.createStatement()) {
-                    // Create schema if it doesn't exist
-                    statement.execute("CREATE SCHEMA IF NOT EXISTS " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
-                    
-                    // Set search path to use the tenant schema first
-                    statement.execute("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public");
-                    
-                    log.debug("Set search_path to: {}, public for connection", schemaName);
-                    
-                } catch (SQLException e) {
-                    log.error("Failed to set schema: {}", schemaName, e);
+            if (context != null) {
+                // Prefer schemaName from Keycloak group attribute, fallback to generated from tenantName
+                String schemaName = context.getSchemaName();
+                if (schemaName == null && context.getTenantName() != null) {
+                    schemaName = sanitize(context.getTenantName());
+                }
+                
+                if (schemaName != null) {
+                    try (Statement statement = connection.createStatement()) {
+                        // Create schema if it doesn't exist
+                        statement.execute("CREATE SCHEMA IF NOT EXISTS " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
+                        
+                        // Set search path to use the tenant schema first
+                        statement.execute("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public");
+                        
+                        log.debug("Set search_path to: {}, public for connection (from Keycloak: {})", 
+                                 schemaName, context.getSchemaName() != null);
+                        
+                    } catch (SQLException e) {
+                        log.error("Failed to set schema: {}", schemaName, e);
+                    }
+                } else {
+                    log.debug("No tenant context, using default schema");
                 }
             } else {
                 log.debug("No tenant context, using default schema");

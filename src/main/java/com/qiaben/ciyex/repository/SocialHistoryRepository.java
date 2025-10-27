@@ -8,12 +8,12 @@
 //
 //public interface SocialHistoryRepository extends JpaRepository<SocialHistory, Long> {
 //
-//    List<SocialHistory> findByOrgIdAndPatientId(Long orgId, Long patientId);
+//    List<SocialHistory> findByPatientId(Long patientId);
 //
-//    List<SocialHistory> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+//    List<SocialHistory> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 //
-//    Optional<SocialHistory> findByOrgIdAndPatientIdAndEncounterIdAndId(
-//            Long orgId, Long patientId, Long encounterId, Long id
+//    Optional<SocialHistory> findByPatientIdAndEncounterIdAndId(
+//            Long patientId, Long encounterId, Long id
 //    );
 //}
 
@@ -28,6 +28,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SocialHistoryRepository extends JpaRepository<SocialHistory, Long> {
-    List<SocialHistory> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
-    Optional<SocialHistory> findByOrgIdAndPatientIdAndEncounterIdAndId(Long orgId, Long patientId, Long encounterId, Long id);
+    List<SocialHistory> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
+    Optional<SocialHistory> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 }

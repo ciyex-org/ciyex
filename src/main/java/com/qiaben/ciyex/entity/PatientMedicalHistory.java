@@ -60,7 +60,8 @@ import java.time.OffsetDateTime;
 @Table(name = "patient_medical_history")
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
-public class PatientMedicalHistory {
+@EqualsAndHashCode(callSuper = true)
+public class PatientMedicalHistory extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -98,11 +99,7 @@ public class PatientMedicalHistory {
     @Column(name = "resolved_date")
     private LocalDate resolvedDate;
 
-    @Column(name = "created_date")
-    private LocalDate createdDate;
-
-    @Column(name = "last_modified_date")
-    private LocalDate lastModifiedDate;
+    // audit fields are provided by AuditableEntity
 
     @Column(name = "treatment_details", columnDefinition = "text")
     private String treatmentDetails;
@@ -118,6 +115,7 @@ public class PatientMedicalHistory {
 
     // --- eSign / Print ---
     @Column(name = "e_signed")
+    @Builder.Default
     private Boolean eSigned = Boolean.FALSE;
 
     @Column(name = "signed_at")
@@ -129,12 +127,5 @@ public class PatientMedicalHistory {
     @Column(name = "printed_at")
     private OffsetDateTime printedAt;
 
-    // audit (db has created_at/updated_at with defaults)
-    @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    // audit fields provided by AuditableEntity (createdDate/lastModifiedDate)
 }

@@ -2,13 +2,16 @@ package com.qiaben.ciyex.entity;
 
 
 import jakarta.persistence.*;
+import lombok.EqualsAndHashCode;
+
 import java.time.LocalDate;
 
 @Entity
 @Table(name = "patient_claims", indexes = {
         @Index(name = "idx_claim_inv", columnList = "invoiceId")
 })
-public class PatientClaim {
+@EqualsAndHashCode(callSuper = true)
+public class PatientClaim extends AuditableEntity {
     public enum Status {
         DRAFT, READY_FOR_SUBMISSION, SUBMITTED, IN_PROCESS, ACCEPTED, REJECTED, CLOSED, VOID
     }

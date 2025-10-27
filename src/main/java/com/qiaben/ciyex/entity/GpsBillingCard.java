@@ -2,6 +2,7 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 @Entity
@@ -10,7 +11,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class GpsBillingCard {
+@EqualsAndHashCode(callSuper = true)
+public class GpsBillingCard extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -62,21 +64,11 @@ public class GpsBillingCard {
     @Column(name = "zip", length = 20)
     private String zip;
 
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
+    // audit fields provided by AuditableEntity
 
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-
-    @PrePersist
-    public void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        createdAt = now;
-        updatedAt = now;
-    }
-
-    @PreUpdate
-    public void preUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
+    // Backwards-compatible accessors for existing code that expects createdAt/updatedAt
+    public LocalDateTime getCreatedAt() { return getCreatedDate(); }
+    public void setCreatedAt(LocalDateTime createdAt) { setCreatedDate(createdAt); }
+    public LocalDateTime getUpdatedAt() { return getLastModifiedDate(); }
+    public void setUpdatedAt(LocalDateTime updatedAt) { setLastModifiedDate(updatedAt); }
 }

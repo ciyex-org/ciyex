@@ -56,8 +56,6 @@ public class AllergyIntoleranceService {
                         .startDate(it.getStartDate())
                         .endDate(it.getEndDate())
                         .comments(it.getComments())       // NEW
-                        .createdDate(now)
-                        .lastModifiedDate(now)
                         .build();
                 rows.add(repo.save(row));
             }
@@ -164,8 +162,6 @@ public class AllergyIntoleranceService {
         if (patch.getComments() != null)    row.setComments(patch.getComments()); // NEW
 
         validateDates(row.getStartDate(), row.getEndDate());
-
-        row.setLastModifiedDate(LocalDateTime.now().toString());
         repo.save(row);
 
         if (row.getExternalId() != null) {
@@ -209,7 +205,7 @@ public class AllergyIntoleranceService {
     public ApiResponse<List<AllergyIntoleranceDto>> searchAll() {
         Long orgId = requireOrg("searchAll");
 
-        List<AllergyIntolerance> all = repo.findByOrgIdText(String.valueOf(orgId));
+        List<AllergyIntolerance> all = repo.findAll();
         Map<Long, List<AllergyIntolerance>> byPatient =
                 all.stream().collect(Collectors.groupingBy(AllergyIntolerance::getPatientId));
 
@@ -241,10 +237,6 @@ public class AllergyIntoleranceService {
         }
         if (!rows.isEmpty()) {
             dto.setExternalId(rows.get(0).getExternalId());
-            AllergyIntoleranceDto.Audit a = new AllergyIntoleranceDto.Audit();
-            a.setCreatedDate(rows.get(0).getCreatedDate());
-            a.setLastModifiedDate(rows.get(0).getLastModifiedDate());
-            dto.setAudit(a);
         }
         dto.setAllergiesList(rows.stream().map(this::toItem).collect(Collectors.toList()));
         return dto;

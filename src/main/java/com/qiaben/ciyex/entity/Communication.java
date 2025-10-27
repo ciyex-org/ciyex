@@ -2,14 +2,17 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 
 @Entity
 @Table(name = "communications")
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Communication {
+public class Communication extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -30,11 +33,7 @@ public class Communication {
     @Column(name = "sent_date")
     private String sentDate;
 
-    @Column(name = "created_date")
-    private String createdDate;
-
-    @Column(name = "last_modified_date")
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 
     @Column(name = "payload", columnDefinition = "TEXT")
     private String payload;

@@ -3,6 +3,7 @@ package com.qiaben.ciyex.entity.portal;
 import com.qiaben.ciyex.enums.PortalStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -17,8 +18,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@EqualsAndHashCode(onlyExplicitlyIncluded = true)
-public class PortalUser {
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
+public class PortalUser extends com.qiaben.ciyex.entity.AuditableEntity {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -50,13 +51,7 @@ public class PortalUser {
     @Column(length = 500)
     private String reason; // Rejection reason or admin notes
 
-    @Column(name = "created_date")
-    @Builder.Default
-    private LocalDateTime createdDate = LocalDateTime.now();
-
-    @Column(name = "last_modified_date")
-    @Builder.Default
-    private LocalDateTime lastModifiedDate = LocalDateTime.now();
+    // audit fields provided by AuditableEntity
 
     @Column(name = "approved_date")
     private LocalDateTime approvedDate;
@@ -78,8 +73,5 @@ public class PortalUser {
     @OneToOne(mappedBy = "portalUser", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private PortalPatient portalPatient;
 
-    @PreUpdate
-    protected void onUpdate() {
-        lastModifiedDate = LocalDateTime.now();
-    }
+    // Last-modified handled by AuditableEntity (@LastModifiedDate)
 }

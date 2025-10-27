@@ -52,8 +52,6 @@ public class SlotService {
         Slot entity = Slot.builder()
                 .providerId(dto.getProviderId())
                 .externalId(externalId)
-                .createdDate(LocalDateTime.now().toString())
-                .lastModifiedDate(LocalDateTime.now().toString())
                 .build();
         entity = repository.save(entity);
 
@@ -72,7 +70,7 @@ public class SlotService {
     @Transactional(readOnly = true)
     public ApiResponse<List<SlotDto>> getAllSlots() {
     Long orgId = -1L; // placeholder
-        List<Slot> entities = repository.findAllByOrgId(orgId);
+        List<Slot> entities = repository.findAll();
         List<SlotDto> out = new ArrayList<>();
         for (Slot s : entities) {
             out.add(mergeLocalAndExternal(s, fetchExternal(s.getExternalId())));
@@ -95,8 +93,6 @@ public class SlotService {
         ExternalSlotStorage external =
                 (ExternalSlotStorage) storageResolver.resolve(SlotDto.class);
         external.updateSlot(dto, entity.getExternalId());
-
-        entity.setLastModifiedDate(LocalDateTime.now().toString());
         repository.save(entity);
 
         return mergeLocalAndExternal(entity, fetchExternal(entity.getExternalId()));
@@ -124,8 +120,6 @@ public class SlotService {
         dto.setProviderId(entity.getProviderId());
         dto.setExternalId(entity.getExternalId());
         SlotDto.Audit audit = new SlotDto.Audit();
-        audit.setCreatedDate(entity.getCreatedDate());
-        audit.setLastModifiedDate(entity.getLastModifiedDate());
         dto.setAudit(audit);
 
         if (externalDto != null) {

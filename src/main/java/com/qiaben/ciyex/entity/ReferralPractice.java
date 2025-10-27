@@ -5,14 +5,16 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.EqualsAndHashCode;
 
 @Entity
 @Table(name = "referral_practices")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ReferralPractice {
+public class ReferralPractice extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -45,9 +47,5 @@ public class ReferralPractice {
     @Column(name = "fhir_id")
     private String fhirId;
 
-    @Column(name = "created_date", nullable = false)
-    private String createdDate;
-
-    @Column(name = "last_modified_date", nullable = false)
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 }

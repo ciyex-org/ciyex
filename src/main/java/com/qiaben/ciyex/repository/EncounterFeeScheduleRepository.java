@@ -11,8 +11,8 @@ import java.util.List;
 
 public interface EncounterFeeScheduleRepository extends JpaRepository<EncounterFeeSchedule, Long> {
 
-    List<EncounterFeeSchedule> findByOrgIdAndPatientId(Long orgId, Long patientId);
+    List<EncounterFeeSchedule> findByPatientId(Long patientId);
 
-    List<EncounterFeeSchedule> findByOrgIdAndPatientIdAndEncounterId(
-            Long orgId, Long patientId, Long encounterId);
+    List<EncounterFeeSchedule> findByPatientIdAndEncounterId(
+            Long patientId, Long encounterId);
 }

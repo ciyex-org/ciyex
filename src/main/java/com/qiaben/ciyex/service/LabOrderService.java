@@ -48,8 +48,6 @@ public class LabOrderService {
         }
 
         LabOrder order = mapToEntity(dto);
-        order.setCreatedDate(LocalDateTime.now().toString());
-        order.setLastModifiedDate(LocalDateTime.now().toString());
 
         String storageType = safeStorageType();
         if (storageType != null) {
@@ -78,7 +76,6 @@ public class LabOrderService {
         LabOrder order = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id));
         updateEntityFromDto(order, dto);
-        order.setLastModifiedDate(LocalDateTime.now().toString());
         order = repository.save(order);
         return mapToDto(order);
     }
@@ -98,7 +95,7 @@ public class LabOrderService {
                     .message("No orgId available in request")
                     .build();
         }
-        List<LabOrder> orders = repository.findAllByOrgIdIn(allowedOrgIds);
+        List<LabOrder> orders = repository.findAll();
         List<LabOrderDto> dtos = orders.stream().map(this::mapToDto).collect(Collectors.toList());
         return ApiResponse.<List<LabOrderDto>>builder()
                 .success(true)
@@ -115,7 +112,7 @@ public class LabOrderService {
                     .message("No orgId available in request")
                     .build();
         }
-        List<LabOrder> orders = repository.findAllByPatientIdInOrgs(patientId, allowedOrgIds);
+        List<LabOrder> orders = repository.findAllByPatientId(patientId);
         List<LabOrderDto> dtos = orders.stream().map(this::mapToDto).collect(Collectors.toList());
         return ApiResponse.<List<LabOrderDto>>builder()
                 .success(true)
@@ -226,8 +223,6 @@ public class LabOrderService {
 
         if (e.getCreatedDate() != null || e.getLastModifiedDate() != null) {
             LabOrderDto.Audit a = new LabOrderDto.Audit();
-            a.setCreatedDate(e.getCreatedDate());
-            a.setLastModifiedDate(e.getLastModifiedDate());
             d.setAudit(a);
         }
         return d;

@@ -8,13 +8,13 @@
 //
 //public interface DateTimeFinalizedRepository extends JpaRepository<DateTimeFinalized, Long> {
 //
-//    List<DateTimeFinalized> findByOrgIdAndPatientId(Long orgId, Long patientId);
+//    List<DateTimeFinalized> findByPatientId(Long patientId);
 //
-//    List<DateTimeFinalized> findByOrgIdAndPatientIdAndEncounterId(
-//            Long orgId, Long patientId, Long encounterId);
+//    List<DateTimeFinalized> findByPatientIdAndEncounterId(
+//            Long patientId, Long encounterId);
 //
-//    Optional<DateTimeFinalized> findByOrgIdAndPatientIdAndEncounterIdAndId(
-//            Long orgId, Long patientId, Long encounterId, Long id);
+//    Optional<DateTimeFinalized> findByPatientIdAndEncounterIdAndId(
+//            Long patientId, Long encounterId, Long id);
 //}
 
 
@@ -29,9 +29,9 @@ import java.util.Optional;
 
 public interface DateTimeFinalizedRepository extends JpaRepository<DateTimeFinalized, Long> {
 
-    List<DateTimeFinalized> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+    List<DateTimeFinalized> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 
-    Optional<DateTimeFinalized> findByOrgIdAndPatientIdAndEncounterIdAndId(
-            Long orgId, Long patientId, Long encounterId, Long id
+    Optional<DateTimeFinalized> findByPatientIdAndEncounterIdAndId(
+            Long patientId, Long encounterId, Long id
     );
 }

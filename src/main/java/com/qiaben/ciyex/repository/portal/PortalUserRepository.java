@@ -29,21 +29,16 @@ public interface PortalUserRepository extends JpaRepository<PortalUser, Long> {
     List<PortalUser> findByStatus(PortalStatus status);
 
     /**
-     * Find all users by status and orgId
-     */
-    List<PortalUser> findByStatusAndOrgId(PortalStatus status, Long orgId);
-
-    /**
      * Find all pending users for approval
      */
     @Query("SELECT pu FROM PortalUser pu WHERE pu.status = 'PENDING' ORDER BY pu.createdDate ASC")
     List<PortalUser> findPendingUsers();
 
     /**
-     * Find all pending users for a specific organization
+     * Find all pending users (single tenant - no orgId filter needed)
      */
-    @Query("SELECT pu FROM PortalUser pu WHERE pu.status = 'PENDING' AND pu.orgId = :orgId ORDER BY pu.createdDate ASC")
-    List<PortalUser> findPendingUsersByOrgId(@Param("orgId") Long orgId);
+    @Query("SELECT pu FROM PortalUser pu WHERE pu.status = 'PENDING' ORDER BY pu.createdDate ASC")
+    List<PortalUser> findPendingUsersBy();
 
     /**
      * Check if email already exists
@@ -59,9 +54,4 @@ public interface PortalUserRepository extends JpaRepository<PortalUser, Long> {
      * Count users by status
      */
     long countByStatus(PortalStatus status);
-
-    /**
-     * Count users by status and organization
-     */
-    long countByStatusAndOrgId(PortalStatus status, Long orgId);
 }

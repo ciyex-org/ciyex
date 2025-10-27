@@ -3,11 +3,14 @@ package com.qiaben.ciyex.entity;
 
 
 import jakarta.persistence.*;
+import lombok.EqualsAndHashCode;
+
 import java.math.BigDecimal;
 
 @Entity
 @Table(name = "patient_insurance_remit_lines")
-public class PatientInsuranceRemitLine {
+@EqualsAndHashCode(callSuper = true)
+public class PatientInsuranceRemitLine extends AuditableEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 

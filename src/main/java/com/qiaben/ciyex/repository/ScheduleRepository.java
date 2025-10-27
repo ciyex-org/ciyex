@@ -12,9 +12,9 @@ import java.util.List;
 public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
 
 
-    @Query("SELECT COUNT(s) FROM Schedule s WHERE s.orgId = :orgId")
-    long countByOrgId(Long orgId);
+    @Query("SELECT COUNT(s) FROM Schedule s ")
+    long count();
 
 
-    List<Schedule> findAllByOrgId(Long orgId);
+    List<Schedule> findAll();
 }

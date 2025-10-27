@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.EqualsAndHashCode;
 
 @Entity
 @Table(name = "patients",schema = "practice_1")
@@ -12,7 +13,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Patient {
+@EqualsAndHashCode(callSuper = true)
+public class Patient extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -41,11 +43,7 @@ public class Patient {
     private String address;
     @Column(name = "medical_record_number")
     private String medicalRecordNumber; // Unique identifier for the patient
-    @Column(name = "created_date")
-    private String createdDate;
-
-    @Column(name = "last_modified_date")
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 }
 
 

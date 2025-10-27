@@ -46,8 +46,6 @@ public class AppointmentService {
     @Transactional
     public AppointmentDTO create(AppointmentDTO dto) {
         Appointment entity = mapToEntity(dto);
-        entity.setCreatedDate(LocalDateTime.now().toString());
-        entity.setLastModifiedDate(LocalDateTime.now().toString());
 
         entity = repository.save(entity);
         syncExternalCreate(entity);
@@ -58,61 +56,51 @@ public class AppointmentService {
     // -------- Retrieve --------
     @Transactional(readOnly = true)
     public AppointmentDTO getById(Long id) {
-/*        Appointment entity = repository.findByIdAndOrgId(id)
+        Appointment entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
-        return mapToDto(entity);*/
-        return null;
+        return mapToDto(entity);
     }
 
     @Transactional(readOnly = true)
     public Page<AppointmentDTO> getAll(Pageable pageable) {
-        return null;
-/*
-        return repository.findAllByOrgId(orgId, pageable).map(this::mapToDto);
-*/
+        return repository.findAll(pageable).map(this::mapToDto);
     }
 
     @Transactional(readOnly = true)
     public List<AppointmentDTO> getByPatientId(Long patientId) {
-/*        return repository.findAllByPatientIdAndOrgId(patientId, orgId)
-                .stream().map(this::mapToDto).toList();*/
-        return null;
+        return repository.findAllByPatientId(patientId)
+                .stream().map(this::mapToDto).toList();
     }
 
     @Transactional(readOnly = true)
     public Page<AppointmentDTO> getByPatientId(Long patientId, Pageable pageable) {
-        return null;
-        /*
-        return repository.findAllByPatientIdAndOrgId(patientId, orgId, pageable).map(this::mapToDto);
-*/
+        return repository.findAllByPatientId(patientId, pageable).map(this::mapToDto);
     }
 
     // -------- Update --------
     @Transactional
     public AppointmentDTO update(Long id, AppointmentDTO dto) {
-/*        Long orgId = getCurrentOrgId();
-        Appointment entity = repository.findByIdAndOrgId(id, orgId)
+        Appointment entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
 
         updateEntityFromDto(entity, dto);
-        entity.setLastModifiedDate(LocalDateTime.now().toString());
+        entity.setLastModifiedDate(LocalDateTime.now());
 
         entity = repository.save(entity);
         syncExternalUpdate(entity, dto);
 
-        return mapToDto(entity);*/
-        return null;
+        return mapToDto(entity);
+
     }
 
     // -------- Delete --------
     @Transactional
     public void delete(Long id) {
- /*       Long orgId = getCurrentOrgId();
-        Appointment entity = repository.findByIdAndOrgId(id, orgId)
+        Appointment entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
 
         syncExternalDelete(entity);
-        repository.delete(entity);*/
+        repository.delete(entity);
 
     }
 
@@ -125,34 +113,27 @@ public class AppointmentService {
     // -------- Available Slots: N days ahead --------
     @Transactional(readOnly = true)
     public List<AppointmentDTO> getAvailableSlots(Long providerId, int daysAhead, int limit) {
-        /*Long orgId = getCurrentOrgId();
-        if (orgId == null) throw new SecurityException("No orgId available in request context");
-
         List<AppointmentDTO> slots = new ArrayList<>();
         LocalDate today = LocalDate.now();
 
         for (int i = 0; i < daysAhead && slots.size() < limit; i++) {
             LocalDate date = today.plusDays(i);
-            slots.addAll(generateSlotsForDate(providerId, orgId, date, limit - slots.size()));
+            slots.addAll(generateSlotsForDate(providerId, date, limit - slots.size()));
         }
-        return slots.stream().limit(limit).toList();*/
-        return null;
+        return slots.stream().limit(limit).toList();
+        
     }
 
     // -------- Available Slots: Single Date --------
     @Transactional(readOnly = true)
     public List<AppointmentDTO> getAvailableSlotsForDate(Long providerId, LocalDate date, int limit) {
-        /*Long orgId = getCurrentOrgId();
-        if (orgId == null) throw new SecurityException("No orgId available in request context");
-
-        return generateSlotsForDate(providerId, orgId, date, limit);*/
-        return null;
+        return generateSlotsForDate(providerId, date, limit);
     }
 
     // -------- Slot Generator --------
-    private List<AppointmentDTO> generateSlotsForDate(Long providerId, Long orgId, LocalDate date, int limit) {
+    private List<AppointmentDTO> generateSlotsForDate(Long providerId, LocalDate date, int limit) {
         List<Appointment> existing = repository
-                .findAllByProviderIdAndOrgIdAndAppointmentStartDate(providerId, orgId, date.toString());
+                .findAllByProviderIdAndAppointmentStartDate(providerId, date.toString());
 
         List<AppointmentDTO> slots = new ArrayList<>();
         LocalTime workStart = LocalTime.of(9, 0);
@@ -205,12 +186,7 @@ public class AppointmentService {
 
     @Transactional(readOnly = true)
     public long count() {
-       /* Long orgId = getCurrentOrgId();
-        if (orgId == null) {
-            throw new SecurityException("No orgId available in request context");
-        }
-        return repository.countByOrgId(orgId);*/
-        return -1;
+        return repository.count();
     }
 
     // -------- Mapping Helpers --------
@@ -228,8 +204,8 @@ public class AppointmentService {
         entity.setStatus(dto.getStatus());
         entity.setReason(dto.getReason());
         // entity.setMeetingUrl(dto.getMeetingUrl());
-        entity.setCreatedDate(dto.getAudit() != null ? dto.getAudit().getCreatedDate() : entity.getCreatedDate());
-        entity.setLastModifiedDate(dto.getAudit() != null ? dto.getAudit().getLastModifiedDate() : entity.getLastModifiedDate());
+
+
         return entity;
     }
 
@@ -250,8 +226,7 @@ public class AppointmentService {
         // dto.setMeetingUrl(entity.getMeetingUrl());
 
         AppointmentDTO.Audit audit = new AppointmentDTO.Audit();
-        audit.setCreatedDate(entity.getCreatedDate());
-        audit.setLastModifiedDate(entity.getLastModifiedDate());
+
         dto.setAudit(audit);
 
         if (dto.getAppointmentStartDate() != null && dto.getAppointmentStartTime() != null) {
@@ -324,9 +299,8 @@ public class AppointmentService {
     // =========================================================
     @Transactional
     public AppointmentDTO updateStatus(Long id, String newStatus) {
-        /*Long orgId = getCurrentOrgId();
-        Appointment entity = repository.findByIdAndOrgId(id, orgId)
-                .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id + " for org " + orgId));
+        Appointment entity = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
 
         String normalized = normalizeStatus(newStatus);
 
@@ -336,7 +310,7 @@ public class AppointmentService {
         }
 
         entity.setStatus(normalized);
-        entity.setLastModifiedDate(LocalDateTime.now().toString());
+        entity.setLastModifiedDate(LocalDateTime.now());
         entity = repository.save(entity);
 
         // Optional sync to external systems
@@ -346,14 +320,13 @@ public class AppointmentService {
                 ExternalAppointmentStorage externalStorage =
                         (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
                 externalStorage.update(mapToDto(entity), String.valueOf(entity.getId()));
-                log.info("Updated status for appointment {} in external storage for org {}", entity.getId(), orgId);
+                log.info("Updated status for appointment {} in external storage", entity.getId());
             } catch (Exception e) {
                 log.error("Failed to sync status to external storage: {}", e.getMessage());
                 // Don't fail the main transaction for external sync issues
             }
         }
 
-        return mapToDto(entity);*/
-        return null;
+        return mapToDto(entity);
     }
 }

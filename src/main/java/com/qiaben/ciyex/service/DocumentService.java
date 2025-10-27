@@ -50,7 +50,7 @@ public class DocumentService {
     @Transactional
     public DocumentDto create(Long orgId, Long patientId, DocumentDto dto, MultipartFile file) {
         // 1. Load document settings for org
-        DocumentSettings settings = settingsRepo.findByOrgId(orgId)
+        DocumentSettings settings = settingsRepo.findFirstByOrderByIdAsc()
                 .orElseThrow(() -> new RuntimeException("Document settings not found for orgId=" + orgId));
 
         // 2. File size validation
@@ -124,8 +124,6 @@ public class DocumentService {
         dto.setS3Key(key);
 
         Document entity = mapToEntity(dto);
-        entity.setCreatedDate(LocalDateTime.now().toString());
-        entity.setLastModifiedDate(LocalDateTime.now().toString());
         entity.setEncryptionKey(base64Key);
         entity.setIv(base64Iv);
 
@@ -138,7 +136,7 @@ public class DocumentService {
 
     @Transactional
     public void delete(Long orgId, Long documentId) {
-        Document document = repository.findByIdAndOrgId(documentId, orgId)
+        Document document = repository.findById(documentId)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
         S3Config s3Config = configProvider.getS3DocumentStorage(orgId);
@@ -159,7 +157,7 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public DownloadResult download(Long orgId, Long documentId) {
-        Document document = repository.findByIdAndOrgId(documentId, orgId)
+        Document document = repository.findById(documentId)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
         S3Config s3Config = configProvider.getS3DocumentStorage(orgId);
@@ -199,7 +197,7 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public ApiResponse<List<DocumentDto>> getAllForPatient(Long orgId, Long patientId) {
-        List<Document> documents = repository.findAllByOrgIdAndPatientId(orgId, patientId);
+        List<Document> documents = repository.findAllByPatientId(patientId);
         List<DocumentDto> dtos = documents.stream().map(this::mapToDto).collect(Collectors.toList());
         return ApiResponse.<List<DocumentDto>>builder()
                 .success(true)

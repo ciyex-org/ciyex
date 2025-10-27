@@ -8,14 +8,14 @@
 //
 //public interface ReviewOfSystemRepository extends JpaRepository<ReviewOfSystem, Long> {
 //
-//    List<ReviewOfSystem> findByOrgIdAndPatientId(Long orgId, Long patientId);
+//    List<ReviewOfSystem> findByPatientId(Long patientId);
 //
-//    List<ReviewOfSystem> findByOrgIdAndPatientIdAndEncounterId(
-//            Long orgId, Long patientId, Long encounterId
+//    List<ReviewOfSystem> findByPatientIdAndEncounterId(
+//            Long patientId, Long encounterId
 //    );
 //
-//    Optional<ReviewOfSystem> findByOrgIdAndPatientIdAndEncounterIdAndId(
-//            Long orgId, Long patientId, Long encounterId, Long id
+//    Optional<ReviewOfSystem> findByPatientIdAndEncounterIdAndId(
+//            Long patientId, Long encounterId, Long id
 //    );
 //}
 
@@ -32,6 +32,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ReviewOfSystemRepository extends JpaRepository<ReviewOfSystem, Long> {
-    List<ReviewOfSystem> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
-    Optional<ReviewOfSystem> findByOrgIdAndPatientIdAndEncounterIdAndId(Long orgId, Long patientId, Long encounterId, Long id);
+    List<ReviewOfSystem> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
+    Optional<ReviewOfSystem> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 }

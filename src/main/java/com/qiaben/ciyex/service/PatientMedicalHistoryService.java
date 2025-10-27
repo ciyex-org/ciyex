@@ -48,7 +48,7 @@
 //
 //    // UPDATE
 //    public PatientMedicalHistoryDto update(Long orgId, Long patientId, Long encounterId, Long id, PatientMedicalHistoryDto in) {
-//        PatientMedicalHistory entity = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        PatientMedicalHistory entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
 //
 //        entity.setDescription(in.getDescription());
@@ -67,7 +67,7 @@
 //
 //    // DELETE
 //    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-//        PatientMedicalHistory entity = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        PatientMedicalHistory entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
 //
 //        final PatientMedicalHistory toDelete = entity; // final for lambda
@@ -82,20 +82,20 @@
 //
 //    // GET ONE
 //    public PatientMedicalHistoryDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-//        PatientMedicalHistory entity = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        PatientMedicalHistory entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
 //        return mapToDto(entity);
 //    }
 //
 //    // GET ALL by patient
 //    public List<PatientMedicalHistoryDto> getAllByPatient(Long orgId, Long patientId) {
-//        return repo.findByOrgIdAndPatientId(orgId, patientId)
+//        return repo.findByPatientId(patientId)
 //                .stream().map(this::mapToDto).toList();
 //    }
 //
 //    // GET ALL by patient + encounter
 //    public List<PatientMedicalHistoryDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
-//        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
+//        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
 //                .stream().map(this::mapToDto).toList();
 //    }
 //
@@ -168,20 +168,20 @@ public class PatientMedicalHistoryService {
 
     // Read one
     public PatientMedicalHistoryDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-        PatientMedicalHistory e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
         return toDto(e);
     }
 
     // List
     public List<PatientMedicalHistoryDto> list(Long orgId, Long patientId, Long encounterId) {
-        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
+        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // Update (blocked if signed)
     public PatientMedicalHistoryDto update(Long orgId, Long patientId, Long encounterId, Long id, PatientMedicalHistoryDto dto) {
-        PatientMedicalHistory e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed entries are read-only.");
 
@@ -192,7 +192,7 @@ public class PatientMedicalHistoryService {
 
     // Delete (blocked if signed)
     public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-        PatientMedicalHistory e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed entries cannot be deleted.");
         repo.delete(e);
@@ -200,7 +200,7 @@ public class PatientMedicalHistoryService {
 
     // eSign (idempotent)
     public PatientMedicalHistoryDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
-        PatientMedicalHistory e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
@@ -213,7 +213,7 @@ public class PatientMedicalHistoryService {
 
     // Print (PDF) — stamps printedAt
     public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
-        PatientMedicalHistory e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
@@ -285,8 +285,6 @@ public class PatientMedicalHistoryService {
         d.setDiagnosisDate(e.getDiagnosisDate());
         d.setOnsetDate(e.getOnsetDate());
         d.setResolvedDate(e.getResolvedDate());
-        d.setCreatedDate(e.getCreatedDate());
-        d.setLastModifiedDate(e.getLastModifiedDate());
 
         d.setTreatmentDetails(e.getTreatmentDetails());
         d.setDiagnosisDetails(e.getDiagnosisDetails());
@@ -299,8 +297,6 @@ public class PatientMedicalHistoryService {
         d.setPrintedAt(e.getPrintedAt());
 
         var a = new PatientMedicalHistoryDto.Audit();
-        if (e.getCreatedAt() != null) a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-        if (e.getUpdatedAt() != null) a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
         d.setAudit(a);
         return d;
     }
@@ -315,9 +311,6 @@ public class PatientMedicalHistoryService {
         e.setDiagnosisDate(d.getDiagnosisDate());
         e.setOnsetDate(d.getOnsetDate());
         e.setResolvedDate(d.getResolvedDate());
-        e.setCreatedDate(d.getCreatedDate());
-        e.setLastModifiedDate(d.getLastModifiedDate());
-
         e.setTreatmentDetails(d.getTreatmentDetails());
         e.setDiagnosisDetails(d.getDiagnosisDetails());
         e.setNotes(d.getNotes());

@@ -8,12 +8,12 @@
 //
 //public interface PhysicalExamRepository extends JpaRepository<PhysicalExam, Long> {
 //
-//    List<PhysicalExam> findByOrgIdAndPatientId(Long orgId, Long patientId);
+//    List<PhysicalExam> findByPatientId(Long patientId);
 //
-//    List<PhysicalExam> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+//    List<PhysicalExam> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 //
-//    Optional<PhysicalExam> findByOrgIdAndPatientIdAndEncounterIdAndId(
-//            Long orgId, Long patientId, Long encounterId, Long id
+//    Optional<PhysicalExam> findByPatientIdAndEncounterIdAndId(
+//            Long patientId, Long encounterId, Long id
 //    );
 //}
 
@@ -30,6 +30,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PhysicalExamRepository extends JpaRepository<PhysicalExam, Long> {
-    List<PhysicalExam> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
-    Optional<PhysicalExam> findByOrgIdAndPatientIdAndEncounterIdAndId(Long orgId, Long patientId, Long encounterId, Long id);
+    List<PhysicalExam> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
+    Optional<PhysicalExam> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 }

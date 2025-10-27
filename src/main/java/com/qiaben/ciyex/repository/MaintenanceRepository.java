@@ -9,10 +9,10 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 
 public interface MaintenanceRepository extends JpaRepository<Maintenance, Long> {
-    List<Maintenance> findByOrgId(Long orgId);
+    List<Maintenance> findAll();
 
-    @Query("SELECT COUNT(m) FROM Maintenance m WHERE m.orgId = :orgId")
-    long countByOrgId(Long orgId);
+    @Query("SELECT COUNT(m) FROM Maintenance m ")
+    long count();
 
-    Page<Maintenance> findAllByOrgId(Long orgId, Pageable pageable);
+    Page<Maintenance> findAll(Pageable pageable);
 }

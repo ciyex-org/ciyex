@@ -8,13 +8,13 @@ import java.util.List;
 
 public interface CodeTypeRepository extends JpaRepository<CodeType, Long> {
 
-    List<CodeType> findByOrgIdAndPatientId(Long orgId, Long patientId);
+    List<CodeType> findByPatientId(Long patientId);
 
-    List<CodeType> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+    List<CodeType> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 
     @Query("""
       select ct from CodeType ct
-       where ct.orgId = :orgId and ct.patientId = :patientId and ct.encounterId = :encounterId
+       where ct.patientId = :patientId and ct.encounterId = :encounterId
          and (:codeTypeKey is null or ct.codeTypeKey = :codeTypeKey)
          and (:active is null or ct.active = :active)
          and (
@@ -25,8 +25,7 @@ public interface CodeTypeRepository extends JpaRepository<CodeType, Long> {
          )
        order by ct.codeTypeKey, ct.sequenceNumber
     """)
-    List<CodeType> searchInEncounter(Long orgId,
-                                     Long patientId,
+    List<CodeType> searchInEncounter(Long patientId,
                                      Long encounterId,
                                      String codeTypeKey,
                                      Boolean active,

@@ -28,8 +28,6 @@ public class ServiceService {
         }
         ServiceEntity entity = mapToEntity(dto);
         String now = now();
-        entity.setCreatedDate(now);
-        entity.setLastModifiedDate(now);
         return mapToDto(repository.save(entity));
     }
 
@@ -50,7 +48,6 @@ public class ServiceService {
                 .orElseThrow(() -> new RuntimeException("Service not found with id " + id));
         if (dto.getName() != null) entity.setName(dto.getName());
         if (dto.getDefaultPrice() != null) entity.setDefaultPrice(dto.getDefaultPrice());
-        entity.setLastModifiedDate(now());
         return mapToDto(repository.save(entity));
     }
 
@@ -68,8 +65,6 @@ public class ServiceService {
         dto.setDefaultPrice(entity.getDefaultPrice());
 
         ServicebillDto.Audit audit = new ServicebillDto.Audit();
-        audit.setCreatedDate(entity.getCreatedDate());
-        audit.setLastModifiedDate(entity.getLastModifiedDate());
         dto.setAudit(audit);
 
         return dto;

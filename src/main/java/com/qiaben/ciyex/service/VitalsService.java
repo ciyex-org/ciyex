@@ -104,8 +104,6 @@ public class VitalsService {
                 .notes(dto.getNotes())
                 .signed(dto.getSigned())
                 .recordedAt(dto.getRecordedAt())
-                .createdDate(dto.getCreatedDate())
-                .lastModifiedDate(dto.getLastModifiedDate())
                 .build();
     }
 

@@ -9,6 +9,6 @@ import java.util.Optional;
 
 @Repository
 public interface DocumentRepository extends JpaRepository<Document, Long> {
-    List<Document> findAllByOrgIdAndPatientId(Long orgId, Long patientId);
-    Optional<Document> findByIdAndOrgId(Long id, Long orgId);
+    List<Document> findAllByPatientId(Long patientId);
+    // findById is inherited from JpaRepository
 }

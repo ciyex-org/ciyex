@@ -107,7 +107,7 @@ public class ListOptionService {
             throw new IllegalStateException("No tenantName found in request context");
         }
         // Existing repository expects orgId String; pass tenantName directly (orgId deprecated).
-        List<ListOption> listOptions = repository.findByOrgIdAndListId(tenantName, listId);
+        List<ListOption> listOptions = repository.findByListId(listId);
         return listOptions.stream().map(this::convertToDto).collect(Collectors.toList());
     }
 

@@ -2,14 +2,16 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 
 @Entity
 @Table(name = "services")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ServiceEntity {
+public class ServiceEntity extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -21,9 +23,5 @@ public class ServiceEntity {
     @Column(name = "default_price")
     private String defaultPrice;
 
-    @Column(name = "created_date", nullable = false)
-    private String createdDate;
-
-    @Column(name = "last_modified_date", nullable = false)
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 }

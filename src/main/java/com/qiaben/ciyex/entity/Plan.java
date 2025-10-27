@@ -107,8 +107,7 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -116,7 +115,8 @@ import java.time.OffsetDateTime;
 @Entity
 @Table(name = "plan")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class Plan {
+@EqualsAndHashCode(callSuper = true)
+public class Plan extends AuditableEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -134,11 +134,16 @@ public class Plan {
     @Column(name = "sections_json",   columnDefinition = "text") private String sectionsJson;
 
     // eSign / Print
+    @Builder.Default
     @Column(name = "e_signed")         private Boolean eSigned = Boolean.FALSE;
     @Column(name = "signed_at")        private OffsetDateTime signedAt;
     @Column(name = "signed_by", length = 128) private String signedBy;
     @Column(name = "printed_at")       private OffsetDateTime printedAt;
 
-    @CreationTimestamp @Column(name = "created_at", updatable = false) private LocalDateTime createdAt;
-    @UpdateTimestamp  @Column(name = "updated_at")                      private LocalDateTime updatedAt;
+    // audit fields provided by AuditableEntity
+
+    public LocalDateTime getCreatedAt() { return getCreatedDate(); }
+    public void setCreatedAt(LocalDateTime createdAt) { setCreatedDate(createdAt); }
+    public LocalDateTime getUpdatedAt() { return getLastModifiedDate(); }
+    public void setUpdatedAt(LocalDateTime updatedAt) { setLastModifiedDate(updatedAt); }
 }

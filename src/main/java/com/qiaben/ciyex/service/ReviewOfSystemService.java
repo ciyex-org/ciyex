@@ -47,7 +47,7 @@
 //
 //    // UPDATE
 //    public ReviewOfSystemDto update(Long orgId, Long patientId, Long encounterId, Long id, ReviewOfSystemDto in) {
-//        ReviewOfSystem e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
 //
 //        e.setSystemName(in.getSystemName());
@@ -67,7 +67,7 @@
 //
 //    // DELETE
 //    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-//        ReviewOfSystem e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
 //
 //        external.ifPresent(ext -> { if (e.getExternalId() != null) ext.delete(e.getExternalId()); });
@@ -76,18 +76,18 @@
 //
 //    // GET ONE
 //    public ReviewOfSystemDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-//        ReviewOfSystem e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
 //        return mapToDto(e);
 //    }
 //
 //    // LISTS
 //    public List<ReviewOfSystemDto> getAllByPatient(Long orgId, Long patientId) {
-//        return repo.findByOrgIdAndPatientId(orgId, patientId).stream().map(this::mapToDto).toList();
+//        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    public List<ReviewOfSystemDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
-//        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream().map(this::mapToDto).toList();
+//        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    // MAPPING
@@ -158,20 +158,20 @@ public class ReviewOfSystemService {
 
     // GET ONE
     public ReviewOfSystemDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-        ReviewOfSystem e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
         return toDto(e);
     }
 
     // LIST
     public List<ReviewOfSystemDto> list(Long orgId, Long patientId, Long encounterId) {
-        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
+        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // UPDATE (locked if signed)
     public ReviewOfSystemDto update(Long orgId, Long patientId, Long encounterId, Long id, ReviewOfSystemDto dto) {
-        ReviewOfSystem e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed ROS entries are read-only.");
@@ -183,7 +183,7 @@ public class ReviewOfSystemService {
 
     // DELETE (locked if signed)
     public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-        ReviewOfSystem e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed ROS entries cannot be deleted.");
@@ -193,7 +193,7 @@ public class ReviewOfSystemService {
 
     // eSIGN (idempotent)
     public ReviewOfSystemDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
-        ReviewOfSystem e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
@@ -206,7 +206,7 @@ public class ReviewOfSystemService {
 
     // PRINT (PDF) — also stamps printedAt
     public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
-        ReviewOfSystem e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));

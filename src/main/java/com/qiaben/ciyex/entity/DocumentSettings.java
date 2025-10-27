@@ -15,7 +15,8 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class DocumentSettings {
+@EqualsAndHashCode(callSuper = true)
+public class DocumentSettings extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -9,8 +9,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@EqualsAndHashCode(callSuper = true)
 @Entity
-public class PatientEducationAssignment {
+public class PatientEducationAssignment extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,7 +28,13 @@ public class PatientEducationAssignment {
 
     private String notes;
 
+    @Builder.Default
     private boolean delivered = true;
 
-    private LocalDateTime assignedDate = LocalDateTime.now();
+    private LocalDateTime assignedDate;
+
+    // Delegating accessor for backward compatibility
+    public LocalDateTime getAssignedDate() {
+        return assignedDate != null ? assignedDate : getCreatedDate();
+    }
 }

@@ -36,9 +36,6 @@ public class MaintenanceService {
     @Transactional
     public MaintenanceDto create(MaintenanceDto dto) {
         Maintenance maintenance = mapToEntity(dto);
-        maintenance.setCreatedDate(LocalDateTime.now().toString());
-        maintenance.setLastModifiedDate(LocalDateTime.now().toString());
-
         String externalId = null;
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null) {
@@ -72,7 +69,6 @@ public class MaintenanceService {
         maintenance.setPriority(dto.getPriority());
         maintenance.setStatus(dto.getStatus());
         maintenance.setNotes(dto.getNotes());
-        maintenance.setLastModifiedDate(LocalDateTime.now().toString());
 
         return mapToDto(repository.save(maintenance));
     }
@@ -101,7 +97,6 @@ public class MaintenanceService {
         Maintenance entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Maintenance task not found"));
         entity.setStatus(status);
-        entity.setLastModifiedDate(LocalDateTime.now().toString());
         return mapToDto(repository.save(entity));
     }
 

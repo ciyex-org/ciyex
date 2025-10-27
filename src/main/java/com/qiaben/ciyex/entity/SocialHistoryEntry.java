@@ -40,7 +40,8 @@ import lombok.*;
 @Table(name = "social_history_entry")
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
-public class SocialHistoryEntry {
+@EqualsAndHashCode(callSuper = true)
+public class SocialHistoryEntry extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

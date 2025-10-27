@@ -2,14 +2,16 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 
 @Data
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @Entity
 @Table(name = "orders")
-public class Order {
+public class Order extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,8 +29,7 @@ public class Order {
 
 
     private Double amount;
-    private String createdDate;
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
     private String externalId;
 
     // 🔗 Link back to Inventory item

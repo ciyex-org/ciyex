@@ -7,6 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.*;
 
 public interface PatientInvoiceRepository extends JpaRepository<PatientInvoice, Long> {
-    List<PatientInvoice> findByOrgIdAndPatientIdOrderByIdDesc(Long orgId, Long patientId);
-    Optional<PatientInvoice> findByIdAndOrgIdAndPatientId(Long id, Long orgId, Long patientId);
+    List<PatientInvoice> findByPatientIdOrderByIdDesc(Long patientId);
+    Optional<PatientInvoice> findByIdAndPatientId(Long id, Long patientId);
 }

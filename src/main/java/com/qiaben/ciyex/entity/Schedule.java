@@ -3,15 +3,17 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 
 
 @Entity
 @Table(name = "schedules")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Schedule {
+public class Schedule extends AuditableEntity {
 
 
     @Id
@@ -30,7 +32,5 @@ public class Schedule {
     private String externalId;
 
 
-    // local audit (optional but commonly present in your codebase)
-    private String createdDate;
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 }

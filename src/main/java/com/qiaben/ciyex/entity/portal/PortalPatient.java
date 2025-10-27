@@ -2,9 +2,9 @@ package com.qiaben.ciyex.entity.portal;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 /**
  * Entity representing detailed patient information for portal users
@@ -16,8 +16,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@EqualsAndHashCode(onlyExplicitlyIncluded = true)
-public class PortalPatient {
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
+public class PortalPatient extends com.qiaben.ciyex.entity.AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -68,16 +68,5 @@ public class PortalPatient {
     @Column(name = "ehr_patient_id")
     private Long ehrPatientId; // Links to tenant schema patient after approval
 
-    @Column(name = "created_date")
-    @Builder.Default
-    private LocalDateTime createdDate = LocalDateTime.now();
-
-    @Column(name = "last_modified_date")
-    @Builder.Default
-    private LocalDateTime lastModifiedDate = LocalDateTime.now();
-
-    @PreUpdate
-    protected void onUpdate() {
-        lastModifiedDate = LocalDateTime.now();
-    }
+    // audit fields provided by AuditableEntity
 }

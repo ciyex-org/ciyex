@@ -44,7 +44,7 @@ public class PatientService {
             throw new SecurityException("No orgId available in request context");
         }
         log.info("Counting patients for orgId: {}", orgId);
-        return repository.countByOrgId(orgId);
+        return repository.count();
     }
 
     // Create a new patient
@@ -67,8 +67,6 @@ public class PatientService {
         }
 
         Patient patient = mapToEntity(dto);
-        patient.setCreatedDate(LocalDateTime.now().toString());
-        patient.setLastModifiedDate(LocalDateTime.now().toString());
 
         String externalId = null;
         String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -163,7 +161,6 @@ public class PatientService {
         }
 
         updateEntityFromDto(patient, dto);
-        patient.setLastModifiedDate(LocalDateTime.now().toString());
         patient = repository.save(patient);
 
     dto.setId(patient.getId());
@@ -211,7 +208,7 @@ public class PatientService {
                     .build();
         }
 
-    List<Patient> patients = repository.findAllByOrgId(currentOrgId);
+    List<Patient> patients = repository.findAll();
     List<PatientDto> patientDtos = patients.stream().map(this::mapToDto).collect(Collectors.toList());
 
         return ApiResponse.<List<PatientDto>>builder()
@@ -231,11 +228,11 @@ public class PatientService {
 
         if (query == null || query.isBlank()) {
             log.info("Empty search query provided, returning all patients for orgId: {}", currentOrgId);
-            return repository.findAllByOrgId(currentOrgId, pageable).map(this::mapToDto);
+            return repository.findAll(pageable).map(this::mapToDto);
         }
 
-        log.info("Searching patients for orgId: {} with query: {}", currentOrgId, query);
-        return repository.searchByOrgId(query.toLowerCase(), currentOrgId, pageable)
+        log.info("Searching patients with query: {}", query);
+        return repository.searchBy(query.toLowerCase(), pageable)
                 .map(this::mapToDto);
     }
 
@@ -249,10 +246,9 @@ public class PatientService {
 
         Page<Patient> page;
         if (search != null && !search.isBlank()) {
-            // TODO: Add tenant-aware search method
-            page = repository.searchByOrgId(search.toLowerCase(), currentOrgId, pageable);
+            page = repository.searchBy(search.toLowerCase(), pageable);
         } else {
-            page = repository.findAllByOrgId(currentOrgId, pageable);
+            page = repository.findAll(pageable);
         }
         return page.map(this::mapToDto);
     }
@@ -296,8 +292,6 @@ public class PatientService {
         dto.setMedicalRecordNumber(patient.getMedicalRecordNumber());
         if (patient.getCreatedDate() != null || patient.getLastModifiedDate() != null) {
             PatientDto.Audit audit = new PatientDto.Audit();
-            audit.setCreatedDate(patient.getCreatedDate());
-            audit.setLastModifiedDate(patient.getLastModifiedDate());
             dto.setAudit(audit);
         }
         return dto;

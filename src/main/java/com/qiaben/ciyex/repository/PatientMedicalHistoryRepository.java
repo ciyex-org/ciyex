@@ -8,12 +8,12 @@
 //
 //public interface PatientMedicalHistoryRepository extends JpaRepository<PatientMedicalHistory, Long> {
 //
-//    List<PatientMedicalHistory> findByOrgIdAndPatientId(Long orgId, Long patientId);
+//    List<PatientMedicalHistory> findByPatientId(Long patientId);
 //
-//    List<PatientMedicalHistory> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+//    List<PatientMedicalHistory> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 //
-//    Optional<PatientMedicalHistory> findByOrgIdAndPatientIdAndEncounterIdAndId(
-//            Long orgId, Long patientId, Long encounterId, Long id
+//    Optional<PatientMedicalHistory> findByPatientIdAndEncounterIdAndId(
+//            Long patientId, Long encounterId, Long id
 //    );
 //}
 
@@ -29,6 +29,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PatientMedicalHistoryRepository extends JpaRepository<PatientMedicalHistory, Long> {
-    List<PatientMedicalHistory> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
-    Optional<PatientMedicalHistory> findByOrgIdAndPatientIdAndEncounterIdAndId(Long orgId, Long patientId, Long encounterId, Long id);
+    List<PatientMedicalHistory> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
+    Optional<PatientMedicalHistory> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 }

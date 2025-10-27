@@ -10,9 +10,9 @@ import java.util.Optional;
 public interface LocationRepository extends JpaRepository<Location, Long> {
     Optional<Location> findByExternalId(String externalId);
 
-    @Query("SELECT l.externalId FROM Location l WHERE l.orgId = :orgId")
-    List<String> findAllExternalIdsByOrgId(Long orgId);
+    @Query("SELECT l.externalId FROM Location l ")
+    List<String> findAllExternalIdsBy();
 
-    @Query("SELECT l FROM Location l WHERE l.orgId = :orgId")
-    List<Location> findAllByOrgId(Long orgId);
+    @Query("SELECT l FROM Location l ")
+    List<Location> findAll();
 }

@@ -3,13 +3,14 @@ package com.qiaben.ciyex.entity;
 
 
 import jakarta.persistence.*;
+import lombok.EqualsAndHashCode;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 @Entity
-@Table(name = "patient_code_lists", indexes = {
-        @Index(name = "idx_pcl_org_order", columnList = "org_id, order_index")
-})
-public class PatientCodeList {
+@Table(name = "patient_code_lists")
+@EqualsAndHashCode(callSuper = true)
+public class PatientCodeList extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,14 +37,28 @@ public class PatientCodeList {
     @Column(columnDefinition = "text")
     private String codes;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private OffsetDateTime createdAt = OffsetDateTime.now();
+    // audit fields provided by AuditableEntity (stored as LocalDateTime)
 
-    @Column(name = "updated_at")
-    private OffsetDateTime updatedAt = OffsetDateTime.now();
+    // Maintain public API as OffsetDateTime for compatibility by delegating to AuditableEntity
+    public OffsetDateTime getCreatedAt() {
+        if (getCreatedDate() == null) return null;
+        return getCreatedDate().atOffset(ZoneOffset.UTC);
+    }
 
-    @PreUpdate
-    public void onUpdate() { this.updatedAt = OffsetDateTime.now(); }
+    public void setCreatedAt(OffsetDateTime createdAt) {
+        if (createdAt == null) setCreatedDate(null);
+        else setCreatedDate(createdAt.toLocalDateTime());
+    }
+
+    public OffsetDateTime getUpdatedAt() {
+        if (getLastModifiedDate() == null) return null;
+        return getLastModifiedDate().atOffset(ZoneOffset.UTC);
+    }
+
+    public void setUpdatedAt(OffsetDateTime updatedAt) {
+        if (updatedAt == null) setLastModifiedDate(null);
+        else setLastModifiedDate(updatedAt.toLocalDateTime());
+    }
 
     // Getters & Setters
     public Long getId() { return id; }
@@ -67,9 +82,5 @@ public class PatientCodeList {
     public String getCodes() { return codes; }
     public void setCodes(String codes) { this.codes = codes; }
 
-    public OffsetDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
-
-    public OffsetDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(OffsetDateTime updatedAt) { this.updatedAt = updatedAt; }
+    
 }

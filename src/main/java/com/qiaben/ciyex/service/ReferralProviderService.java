@@ -52,8 +52,6 @@ public class ReferralProviderService {
         entity.setPractice(practice);
 
         String now = LocalDateTime.now().format(DATE_FORMATTER);
-        entity.setCreatedDate(now);
-        entity.setLastModifiedDate(now);
 
         // Save locally first
         entity = providerRepo.save(entity);
@@ -114,7 +112,6 @@ public class ReferralProviderService {
             entity.setPractice(p);
         }
 
-        entity.setLastModifiedDate(LocalDateTime.now().format(DATE_FORMATTER));
         entity = providerRepo.save(entity);
 
         // Best-effort external sync
@@ -188,8 +185,6 @@ public class ReferralProviderService {
         }
 
         ReferralProviderDto.Audit audit = new ReferralProviderDto.Audit();
-        audit.setCreatedDate(entity.getCreatedDate());
-        audit.setLastModifiedDate(entity.getLastModifiedDate());
         dto.setAudit(audit);
 
         return dto;

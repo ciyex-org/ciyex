@@ -8,12 +8,12 @@
 //
 //public interface HistoryOfPresentIllnessRepository extends JpaRepository<HistoryOfPresentIllness, Long> {
 //
-//    List<HistoryOfPresentIllness> findByOrgIdAndPatientId(Long orgId, Long patientId);
+//    List<HistoryOfPresentIllness> findByPatientId(Long patientId);
 //
-//    List<HistoryOfPresentIllness> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+//    List<HistoryOfPresentIllness> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 //
-//    Optional<HistoryOfPresentIllness> findByOrgIdAndPatientIdAndEncounterIdAndId(
-//            Long orgId, Long patientId, Long encounterId, Long id
+//    Optional<HistoryOfPresentIllness> findByPatientIdAndEncounterIdAndId(
+//            Long patientId, Long encounterId, Long id
 //    );
 //}
 
@@ -31,9 +31,9 @@ import java.util.Optional;
 
 public interface HistoryOfPresentIllnessRepository extends JpaRepository<HistoryOfPresentIllness, Long> {
 
-    List<HistoryOfPresentIllness> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
+    List<HistoryOfPresentIllness> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 
-    Optional<HistoryOfPresentIllness> findByOrgIdAndPatientIdAndEncounterIdAndId(
-            Long orgId, Long patientId, Long encounterId, Long id
+    Optional<HistoryOfPresentIllness> findByPatientIdAndEncounterIdAndId(
+            Long patientId, Long encounterId, Long id
     );
 }

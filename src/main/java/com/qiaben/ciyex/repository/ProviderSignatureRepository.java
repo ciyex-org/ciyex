@@ -8,13 +8,13 @@
 //
 //public interface ProviderSignatureRepository extends JpaRepository<ProviderSignature, Long> {
 //
-//    List<ProviderSignature> findByOrgIdAndPatientId(Long orgId, Long patientId);
+//    List<ProviderSignature> findByPatientId(Long patientId);
 //
-//    List<ProviderSignature> findByOrgIdAndPatientIdAndEncounterId(
-//            Long orgId, Long patientId, Long encounterId);
+//    List<ProviderSignature> findByPatientIdAndEncounterId(
+//            Long patientId, Long encounterId);
 //
-//    Optional<ProviderSignature> findByOrgIdAndPatientIdAndEncounterIdAndId(
-//            Long orgId, Long patientId, Long encounterId, Long id);
+//    Optional<ProviderSignature> findByPatientIdAndEncounterIdAndId(
+//            Long patientId, Long encounterId, Long id);
 //}
 
 
@@ -29,6 +29,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ProviderSignatureRepository extends JpaRepository<ProviderSignature, Long> {
-    List<ProviderSignature> findByOrgIdAndPatientIdAndEncounterId(Long orgId, Long patientId, Long encounterId);
-    Optional<ProviderSignature> findByOrgIdAndPatientIdAndEncounterIdAndId(Long orgId, Long patientId, Long encounterId, Long id);
+    List<ProviderSignature> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
+    Optional<ProviderSignature> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 }

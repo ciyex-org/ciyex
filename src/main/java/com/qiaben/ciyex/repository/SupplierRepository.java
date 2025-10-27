@@ -8,7 +8,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface SupplierRepository extends JpaRepository<Supplier, Long> {
-    List<Supplier> findByOrgId(Long orgId);
-    Page<Supplier> findAllByOrgId(Long orgId, Pageable pageable);
-    Long countByOrgId(Long orgId);
+    // Inherits findAll(), findAll(Pageable), and count() from JpaRepository
 }

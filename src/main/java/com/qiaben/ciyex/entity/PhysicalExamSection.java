@@ -39,12 +39,14 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 
 @Entity
 @Table(name = "physical_exam_section")
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
-public class PhysicalExamSection {
+@EqualsAndHashCode(callSuper = true)
+public class PhysicalExamSection extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

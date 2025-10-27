@@ -80,8 +80,6 @@ public class CommunicationService {
                 .status(dto.getStatus() != null ? dto.getStatus() : CommunicationStatus.SENT)
                 .category(dto.getCategory())
                 .sentDate(dto.getSentDate() != null ? dto.getSentDate() : now)
-                .createdDate(now)
-                .lastModifiedDate(now)
                 .payload(dto.getPayload())
                 .sender(dto.getSender())
                 .recipients(dto.getRecipients() != null ? String.join(",", dto.getRecipients()) : null)
@@ -183,7 +181,6 @@ public class CommunicationService {
                 .orElseThrow(() -> new RuntimeException("Communication not found id=" + id));
 
         comm.setStatus(status);
-        comm.setLastModifiedDate(LocalDateTime.now().toString());
         Communication saved = repo.save(comm);
 
         if (saved.getExternalId() != null) {
@@ -254,8 +251,6 @@ public class CommunicationService {
         dto.setStatus(r.getStatus());
         dto.setCategory(r.getCategory());
         dto.setSentDate(r.getSentDate());
-        dto.setCreatedDate(r.getCreatedDate());
-        dto.setLastModifiedDate(r.getLastModifiedDate());
         dto.setPayload(r.getPayload());
         dto.setSender(r.getSender());
         dto.setRecipients(r.getRecipients() != null ? Arrays.asList(r.getRecipients().split(",")) : Collections.emptyList());

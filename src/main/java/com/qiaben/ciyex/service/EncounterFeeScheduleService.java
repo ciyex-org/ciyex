@@ -100,12 +100,12 @@ public class EncounterFeeScheduleService {
     }
 
     public List<FeeScheduleDto> listInEncounter(Long orgId, Long patientId, Long encounterId) {
-        return scheduleRepo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
+        return scheduleRepo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(s -> mapScheduleToDto(s, false)).toList();
     }
 
     public List<FeeScheduleDto> listByPatient(Long orgId, Long patientId) {
-        return scheduleRepo.findByOrgIdAndPatientId(orgId, patientId).stream()
+        return scheduleRepo.findByPatientId(patientId).stream()
                 .map(s -> mapScheduleToDto(s, false)).toList();
     }
 
@@ -167,7 +167,7 @@ public class EncounterFeeScheduleService {
     public List<FeeScheduleEntryDto> searchEntries(Long orgId, Long patientId, Long encounterId,
                                                    Long scheduleId, String codeType, Boolean active, String q) {
         // scheduleId not strictly required for search; scope is org/patient/encounter
-        return entryRepo.search(orgId, patientId, encounterId, codeType, active, q).stream()
+        return entryRepo.search(patientId, encounterId, codeType, active, q).stream()
                 .map(this::mapEntryToDto).toList();
     }
 

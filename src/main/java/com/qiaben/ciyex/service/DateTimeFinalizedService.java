@@ -54,7 +54,7 @@
 //    }
 //
 //    public DateTimeFinalizedDto update(Long orgId, Long patientId, Long encounterId, Long id, DateTimeFinalizedDto in) {
-//        DateTimeFinalized e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
 //
 //        e.setTargetType(in.getTargetType());
@@ -84,7 +84,7 @@
 //    }
 //
 //    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-//        DateTimeFinalized e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
 //
 //        external.ifPresent(ext -> {
@@ -95,17 +95,17 @@
 //    }
 //
 //    public DateTimeFinalizedDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-//        DateTimeFinalized e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+//        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
 //        return mapToDto(e);
 //    }
 //
 //    public List<DateTimeFinalizedDto> getAllByPatient(Long orgId, Long patientId) {
-//        return repo.findByOrgIdAndPatientId(orgId, patientId).stream().map(this::mapToDto).toList();
+//        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    public List<DateTimeFinalizedDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
-//        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream().map(this::mapToDto).toList();
+//        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    private DateTimeFinalizedDto mapToDto(DateTimeFinalized e) {
@@ -184,19 +184,19 @@ public class DateTimeFinalizedService {
 
     // Read
     public DateTimeFinalizedDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-        DateTimeFinalized e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
         return toDto(e);
     }
 
     public List<DateTimeFinalizedDto> list(Long orgId, Long patientId, Long encounterId) {
-        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
+        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // Update (LOCKED if eSigned)
     public DateTimeFinalizedDto update(Long orgId, Long patientId, Long encounterId, Long id, DateTimeFinalizedDto dto) {
-        DateTimeFinalized e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -210,7 +210,7 @@ public class DateTimeFinalizedService {
 
     // Delete (BLOCKED if eSigned)
     public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-        DateTimeFinalized e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -221,7 +221,7 @@ public class DateTimeFinalizedService {
 
     // eSign (idempotent)
     public DateTimeFinalizedDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
-        DateTimeFinalized e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -241,7 +241,7 @@ public class DateTimeFinalizedService {
 
     // Print (PDF) — stamps printedAt
     public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
-        DateTimeFinalized e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));

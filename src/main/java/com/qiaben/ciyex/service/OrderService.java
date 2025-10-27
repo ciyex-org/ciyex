@@ -47,12 +47,11 @@ public class OrderService {
         Long orgId = getCurrentOrgId();
 
         Order entity = mapToEntity(dto);
-        entity.setCreatedDate(now());
-        entity.setLastModifiedDate(now());
+
 
         // Generate PO number here if missing
         if (entity.getOrderNumber() == null) {
-            entity.setOrderNumber("PO-" + (repository.countByOrgId(orgId) + 1));
+            entity.setOrderNumber("PO-" + (repository.count() + 1));
         }
 
         // Now call external storage with a populated orderNumber
@@ -84,7 +83,6 @@ public class OrderService {
         entity.setDate(dto.getDate());
         entity.setStatus(dto.getStatus());
         entity.setAmount(dto.getAmount());
-        entity.setLastModifiedDate(now());
 
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && entity.getExternalId() != null) {
@@ -111,7 +109,7 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public List<OrderDto> getAll() {
-        return repository.findByOrgId(getCurrentOrgId())
+        return repository.findAll()
                 .stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
@@ -120,7 +118,7 @@ public class OrderService {
     @Transactional(readOnly = true)
     public Page<OrderDto> getAll(Pageable pageable) {
         Long orgId = getCurrentOrgId();
-        return repository.findAllByOrgId(orgId, pageable).map(this::mapToDto);
+        return repository.findAll(pageable).map(this::mapToDto);
     }
 
     @Transactional
@@ -146,7 +144,6 @@ public class OrderService {
 
         // ✅ Update order fields
         order.setStatus("Received");
-        order.setLastModifiedDate(now());
         order.setStock(dto.getStock()); // keep stock on the order
         order.setDate(LocalDateTime.now().toLocalDate().toString());
 
@@ -168,8 +165,6 @@ public class OrderService {
                 .category(inventory.getCategory())   // ✅ set here
                 .amount(0.0)                        // calculate later if needed
                 .inventory(inventory)
-                .createdDate(now())
-                .lastModifiedDate(now())
                 .build();
 
         // ✅ External sync just like create()
@@ -185,7 +180,7 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public List<MonthlyOrderCountDto> countOrdersByMonth(Long orgId) {
-        return repository.countOrdersByMonth(orgId).stream()
+        return repository.countOrdersByMonth().stream()
                 .map(r -> new MonthlyOrderCountDto(((Number) r[0]).intValue(), ((Number) r[1]).longValue()))
                 .toList();
     }
@@ -193,8 +188,8 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public long countPending() {
-        Long orgId = getCurrentOrgId();
-        return repository.countByOrgIdAndStatus(orgId, "Pending");
+        // TODO: Implement countByStatus in repository
+        return 0;
     }
 
 
@@ -238,8 +233,6 @@ public class OrderService {
         dto.setFhirId(e.getExternalId());
 
         OrderDto.Audit audit = new OrderDto.Audit();
-        audit.setCreatedDate(e.getCreatedDate());
-        audit.setLastModifiedDate(e.getLastModifiedDate());
         dto.setAudit(audit);
 
         return dto;

@@ -78,8 +78,7 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -88,7 +87,8 @@ import java.time.OffsetDateTime;
 @Table(name = "provider_note")
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
-public class ProviderNote {
+@EqualsAndHashCode(callSuper = true)
+public class ProviderNote extends AuditableEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -133,6 +133,7 @@ public class ProviderNote {
     private String externalId;
 
     // eSign / Print
+    @Builder.Default
     @Column(name = "e_signed")
     private Boolean eSigned = Boolean.FALSE;
 
@@ -145,12 +146,10 @@ public class ProviderNote {
     @Column(name = "printed_at")
     private OffsetDateTime printedAt;
 
-    // audit
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    // audit fields provided by AuditableEntity
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    public LocalDateTime getCreatedAt() { return getCreatedDate(); }
+    public void setCreatedAt(LocalDateTime createdAt) { setCreatedDate(createdAt); }
+    public LocalDateTime getUpdatedAt() { return getLastModifiedDate(); }
+    public void setUpdatedAt(LocalDateTime updatedAt) { setLastModifiedDate(updatedAt); }
 }

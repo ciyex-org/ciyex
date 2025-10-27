@@ -49,8 +49,7 @@ public class InventoryService {
     @Transactional
     public InventoryDto create(InventoryDto dto) {
         Inventory entity = mapToEntity(dto);
-        entity.setCreatedDate(now());
-        entity.setLastModifiedDate(now());
+
 
         // External sync (optional, based on org configuration)
         String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -86,7 +85,7 @@ public class InventoryService {
         entity.setMinStock(dto.getMinStock());
         entity.setLocation(dto.getLocation());
         entity.setStatus(dto.getStatus());
-        entity.setLastModifiedDate(now());
+
 
         // External sync (if configured & item linked)
         String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -114,7 +113,7 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public List<InventoryDto> getAll() {
-        return repository.findByOrgId(getCurrentOrgId())
+        return repository.findAll()
                 .stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
@@ -123,7 +122,7 @@ public class InventoryService {
     @Transactional(readOnly = true)
     public Page<InventoryDto> getAll(Pageable pageable) {
         Long orgId = getCurrentOrgId();
-        return repository.findAllByOrgId(orgId, pageable).map(this::mapToDto);
+        return repository.findAll(pageable).map(this::mapToDto);
     }
 
     @Transactional
@@ -139,13 +138,13 @@ public class InventoryService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getWeeklyConsumption() {
         Long orgId = getCurrentOrgId();
-        List<Inventory> items = repository.findByOrgId(orgId);
+        List<Inventory> items = repository.findAll();
 
         Map<String, Integer> grouped = items.stream()
                 .filter(i -> i.getLastModifiedDate() != null)  // use entity field, not audit
                 .collect(Collectors.groupingBy(
                         i -> {
-                            LocalDate date = LocalDate.parse(i.getLastModifiedDate().substring(0, 10));
+                            LocalDate date = i.getLastModifiedDate().toLocalDate();
                             return date.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
                         },
                         Collectors.summingInt(Inventory::getStock)
@@ -182,13 +181,13 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public long countAll() {
-        return repository.countByOrgId(getCurrentOrgId());
+        return repository.count();
     }
 
     @Transactional(readOnly = true)
     public Map<String, Long> countLowAndCritical() {
         Long orgId = getCurrentOrgId();
-        List<Inventory> items = repository.findByOrgId(orgId);
+        List<Inventory> items = repository.findAll();
 
         long low = items.stream()
                 .filter(i -> i.getStock() != null && i.getMinStock() != null
@@ -240,8 +239,6 @@ public class InventoryService {
         dto.setFhirId(e.getExternalId());
 
         InventoryDto.Audit audit = new InventoryDto.Audit();
-        audit.setCreatedDate(e.getCreatedDate());
-        audit.setLastModifiedDate(e.getLastModifiedDate());
         dto.setAudit(audit);
 
         return dto;

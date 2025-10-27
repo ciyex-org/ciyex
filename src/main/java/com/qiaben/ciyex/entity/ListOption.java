@@ -2,13 +2,15 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "list_options")
 @Data
-public class ListOption {
+@EqualsAndHashCode(callSuper = true)
+public class ListOption extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

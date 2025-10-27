@@ -36,8 +36,6 @@ public class EncounterService {
         encounter.setId(null);
         encounter.setPatientId(patientId);                 // NEW
         long now = System.currentTimeMillis();
-        encounter.setCreatedAt(now);
-        encounter.setUpdatedAt(now);
         encounter.setEncounterDate(dto.getEncounterDate());
 
         encounter = encounterRepository.save(encounter);
@@ -46,14 +44,14 @@ public class EncounterService {
 
     @Transactional(readOnly = true)
     public List<EncounterDto> listByPatient(Long patientId, Long orgId) {
-        return encounterRepository.findByPatientIdAndOrgId(patientId, orgId)
+        return encounterRepository.findByPatientId(patientId)
                 .stream().map(this::mapToDto).toList();
     }
 
     @Transactional(readOnly = true)
     public EncounterDto getByIdForPatient(Long id, Long patientId, Long orgId) {
         Encounter encounter = encounterRepository
-                .findByIdAndPatientIdAndOrgId(id, patientId, orgId)
+                .findByIdAndPatientId(id, patientId)
                 .orElseThrow(() -> new RuntimeException("Encounter not found"));
         return mapToDto(encounter);
     }
@@ -61,7 +59,7 @@ public class EncounterService {
     @Transactional
     public EncounterDto updateEncounter(Long id, Long patientId, EncounterDto dto, Long orgId) {
         Encounter encounter = encounterRepository
-                .findByIdAndPatientIdAndOrgId(id, patientId, orgId)
+                .findByIdAndPatientId(id, patientId)
                 .orElseThrow(() -> new RuntimeException("Encounter not found"));
 
         // Do NOT overwrite id/patientId/orgId here
@@ -72,15 +70,13 @@ public class EncounterService {
         encounter.setDischargeDisposition(dto.getDischargeDisposition());
         encounter.setReasonForVisit(dto.getReasonForVisit());
         encounter.setEncounterDate(dto.getEncounterDate());
-
-        encounter.setUpdatedAt(System.currentTimeMillis());
         encounter = encounterRepository.save(encounter);
         return mapToDto(encounter);
     }
 
     @Transactional
     public void deleteEncounter(Long id, Long patientId, Long orgId) {
-        long deleted = encounterRepository.deleteByIdAndPatientIdAndOrgId(id, patientId, orgId);
+        long deleted = encounterRepository.deleteByIdAndPatientId(id, patientId);
         if (deleted == 0) {
             throw new RuntimeException("Encounter not found");
         }
@@ -102,10 +98,9 @@ public class EncounterService {
 
     private EncounterDto updateStatus(Long id, Long patientId, Long orgId, EncounterStatus status) {
         Encounter encounter = encounterRepository
-                .findByIdAndPatientIdAndOrgId(id, patientId, orgId)
+                .findByIdAndPatientId(id, patientId)
                 .orElseThrow(() -> new RuntimeException("Encounter not found"));
         encounter.setStatus(status);
-        encounter.setUpdatedAt(System.currentTimeMillis());
         encounter = encounterRepository.save(encounter);
         return mapToDto(encounter);
     }
@@ -129,8 +124,6 @@ public class EncounterService {
         e.setDischargeDisposition(dto.getDischargeDisposition());
         e.setReasonForVisit(dto.getReasonForVisit());
         e.setEncounterDate(dto.getEncounterDate());
-        e.setCreatedAt(dto.getCreatedAt() != null ? dto.getCreatedAt() : 0L);
-        e.setUpdatedAt(dto.getUpdatedAt() != null ? dto.getUpdatedAt() : 0L);
         e.setStatus(dto.getStatus());
         return e;
     }
@@ -147,8 +140,6 @@ public class EncounterService {
         dto.setReasonForVisit(e.getReasonForVisit());
         dto.setEncounterDate(e.getEncounterDate());
 
-        dto.setCreatedAt(e.getCreatedAt());
-        dto.setUpdatedAt(e.getUpdatedAt());
         dto.setStatus(e.getStatus());
         return dto;
     }
@@ -179,7 +170,7 @@ public class EncounterService {
 //    public List<EncounterDto> list(Long orgId, Long patientId, EncounterStatus status) {
 //        List<Encounter> list = (status == null)
 //                ? repo.findByPatientIdAndOrgIdOrderByIdDesc(patientId, orgId)
-//                : repo.findByPatientIdAndOrgIdAndStatusOrderByIdDesc(patientId, orgId, status);
+//                : repo.findByPatientIdAndOrgIdAndStatusOrderByIdDesc(patientId, status);
 //        return list.stream().map(EncounterMapper::toDto).toList();
 //    }
 //
@@ -193,7 +184,7 @@ public class EncounterService {
 //    }
 //
 //    public EncounterDto update(Long orgId, Long patientId, Long id, EncounterDto dto) {
-//        Encounter e = repo.findByIdAndPatientIdAndOrgId(id, patientId, orgId)
+//        Encounter e = repo.findByIdAndPatientId(id, patientId)
 //                .orElseThrow(() -> new NoSuchElementException("Encounter not found"));
 //        e.setVisitCategory(dto.getVisitCategory());
 //        e.setEncounterProvider(dto.getEncounterProvider());
@@ -206,12 +197,12 @@ public class EncounterService {
 //    }
 //
 //    public void delete(Long orgId, Long patientId, Long id) {
-//        long n = repo.deleteByIdAndPatientIdAndOrgId(id, patientId, orgId);
+//        long n = repo.deleteByIdAndPatientId(id, patientId);
 //        if (n == 0) throw new NoSuchElementException("Encounter not found");
 //    }
 //
 //    public EncounterDto mark(Long orgId, Long patientId, Long id, EncounterStatus s) {
-//        Encounter e = repo.findByIdAndPatientIdAndOrgId(id, patientId, orgId)
+//        Encounter e = repo.findByIdAndPatientId(id, patientId)
 //                .orElseThrow(() -> new NoSuchElementException("Encounter not found"));
 //        e.setStatus(s);
 //        return EncounterMapper.toDto(repo.save(e));

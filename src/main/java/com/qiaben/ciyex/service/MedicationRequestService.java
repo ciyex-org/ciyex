@@ -28,8 +28,6 @@ public class MedicationRequestService {
     public MedicationRequestDto create(MedicationRequestDto dto) {
         MedicationRequest entity = mapToEntity(dto);
         String currentDate = LocalDateTime.now().format(DATE_FORMATTER);
-        entity.setCreatedDate(currentDate);
-        entity.setLastModifiedDate(currentDate);
 
         MedicationRequest savedEntity = repository.save(entity);
         return mapToDto(savedEntity);
@@ -47,7 +45,6 @@ public class MedicationRequestService {
         MedicationRequest entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("MedicationRequest not found with id: " + id));
         entity = updateEntityFromDto(entity, dto);
-        entity.setLastModifiedDate(LocalDateTime.now().format(DATE_FORMATTER));
         MedicationRequest updatedEntity = repository.save(entity);
         return mapToDto(updatedEntity);
     }
@@ -88,8 +85,6 @@ public class MedicationRequestService {
 
         // Initialize and set audit dates
         MedicationRequestDto.Audit audit = new MedicationRequestDto.Audit();
-        audit.setCreatedDate(entity.getCreatedDate());
-        audit.setLastModifiedDate(entity.getLastModifiedDate());
         dto.setAudit(audit);
 
         return dto;

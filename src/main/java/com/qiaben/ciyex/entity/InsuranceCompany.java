@@ -1,18 +1,17 @@
 package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 @Entity
 @Table(name = "insurance_companies")
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class InsuranceCompany {
+public class InsuranceCompany extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,11 +42,7 @@ public class InsuranceCompany {
     @Column(name = "fhir_id")  // To store FHIR record ID
     private String fhirId;
 
-    @Column(name = "created_date", nullable = false)
-    private String createdDate;
-
-    @Column(name = "last_modified_date", nullable = false)
-    private String lastModifiedDate;
+    // audit fields provided by AuditableEntity
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

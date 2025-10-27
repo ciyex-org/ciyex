@@ -94,7 +94,7 @@ public class GlobalCodeService {
     }
 
     public List<GlobalCodeDto> search(Long orgId, String codeType, Boolean active, String q) {
-        return repo.search(orgId, codeType, active, q).stream().map(this::mapToDto).toList();
+        return repo.search(codeType, active, q).stream().map(this::mapToDto).toList();
     }
 
     private GlobalCodeDto mapToDto(GlobalCode e) {

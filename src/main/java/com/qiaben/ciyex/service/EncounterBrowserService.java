@@ -52,8 +52,8 @@ public class EncounterBrowserService {
         final Pageable p = effective;
 
         Page<Encounter> page = statusOpt
-                .map(st -> encounterRepository.findByOrgIdAndStatus(orgId, st, p))
-                .orElseGet(() -> encounterRepository.findByOrgId(orgId, p));
+                .map(st -> encounterRepository.findByStatus(st, p))
+                .orElseGet(() -> encounterRepository.findAll(p));
 
         return page.map(this::mapToDto);
     }
@@ -77,8 +77,6 @@ public class EncounterBrowserService {
         dto.setInCollection(e.getInCollection());                 // Boolean (or convert as needed)
 
         // Dates/timestamps — match your entity/DTO types (Instant/Long/LocalDateTime)
-        dto.setCreatedAt(e.getCreatedAt());
-        dto.setUpdatedAt(e.getUpdatedAt());
         dto.setEncounterDate(e.getEncounterDate());
 
         

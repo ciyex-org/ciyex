@@ -19,13 +19,10 @@ import java.util.List;
 public interface PatientInsuranceRemitLineRepository extends JpaRepository<PatientInsuranceRemitLine, Long> {
 
     /* Preferred (ordered) lookups */
-    List<PatientInsuranceRemitLine> findAllByOrgIdAndPatientIdOrderByIdDesc(Long orgId, Long patientId);
-    List<PatientInsuranceRemitLine> findAllByOrgIdAndPatientIdAndInvoiceIdOrderByIdDesc(Long orgId, Long patientId, Long invoiceId);
+    List<PatientInsuranceRemitLine> findAllByPatientIdOrderByIdDesc(Long patientId);
+    List<PatientInsuranceRemitLine> findAllByPatientIdAndInvoiceIdOrderByIdDesc(Long patientId, Long invoiceId);
 
     /* Fallbacks for older code paths without explicit ordering */
-    List<PatientInsuranceRemitLine> findAllByOrgIdAndPatientId(Long orgId, Long patientId);
-    List<PatientInsuranceRemitLine> findAllByOrgIdAndPatientIdAndInvoiceId(Long orgId, Long patientId, Long invoiceId);
-
-    /* Legacy fallback if org filter is unavailable */
     List<PatientInsuranceRemitLine> findAllByPatientId(Long patientId);
+    List<PatientInsuranceRemitLine> findAllByPatientIdAndInvoiceId(Long patientId, Long invoiceId);
 }

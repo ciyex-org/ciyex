@@ -3,11 +3,16 @@ package com.qiaben.ciyex.entity;
 
 
 import jakarta.persistence.*;
+import lombok.EqualsAndHashCode;
+
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "patient_claim_documents")
-public class PatientClaimDocument {
+@EqualsAndHashCode(callSuper = true)
+public class PatientClaimDocument extends AuditableEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
@@ -21,9 +26,22 @@ public class PatientClaimDocument {
     @Column(nullable = false) private String contentType;
     @Column(nullable = false) private long size;
     @Column(nullable = false) private String storageKey; // S3 key or filesystem path
-    @Column(nullable = false) private Instant createdAt = Instant.now();
 
     public enum Type { ATTACHMENT, EOB }
+
+    // Delegating accessors for backward compatibility
+    public Instant getCreatedAt() {
+        if (getCreatedDate() == null) return null;
+        return getCreatedDate().toInstant(ZoneOffset.UTC);
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        if (createdAt == null) {
+            setCreatedDate(null);
+        } else {
+            setCreatedDate(LocalDateTime.ofInstant(createdAt, ZoneOffset.UTC));
+        }
+    }
 
     // getters/setters…
 }

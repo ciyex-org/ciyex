@@ -49,7 +49,7 @@
 //    }
 //
 //    public CodeDto update(Long orgId, Long patientId, Long encounterId, Long id, CodeDto in) {
-//        Code e = repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream()
+//        Code e = repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
 //                .filter(c -> c.getId().equals(id))
 //                .findFirst()
 //                .orElseThrow(() -> new IllegalArgumentException("Code not found in this encounter"));
@@ -77,7 +77,7 @@
 //    }
 //
 //    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-//        Code e = repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream()
+//        Code e = repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
 //                .filter(c -> c.getId().equals(id))
 //                .findFirst().orElseThrow(() -> new IllegalArgumentException("Code not found"));
 //        external.ifPresent(ext -> { if (e.getExternalId() != null) ext.delete(e.getExternalId()); });
@@ -85,7 +85,7 @@
 //    }
 //
 //    public CodeDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-//        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId).stream()
+//        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
 //                .filter(c -> c.getId().equals(id))
 //                .findFirst()
 //                .map(this::mapToDto)
@@ -93,17 +93,17 @@
 //    }
 //
 //    public List<CodeDto> getAllByPatient(Long orgId, Long patientId) {
-//        return repo.findByOrgIdAndPatientId(orgId, patientId).stream().map(this::mapToDto).toList();
+//        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    public List<CodeDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
-//        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
+//        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
 //                .stream().map(this::mapToDto).toList();
 //    }
 //
 //    public List<CodeDto> searchInEncounter(Long orgId, Long patientId, Long encounterId,
 //                                           String codeType, Boolean active, String q) {
-//        return repo.searchInEncounter(orgId, patientId, encounterId, codeType, active, q)
+//        return repo.searchInEncounter(patientId, encounterId, codeType, active, q)
 //                .stream().map(this::mapToDto).toList();
 //    }
 //
@@ -181,20 +181,20 @@ public class CodeService {
 
     // LIST
     public List<CodeDto> list(Long orgId, Long patientId, Long encounterId) {
-        return repo.findByOrgIdAndPatientIdAndEncounterId(orgId, patientId, encounterId)
+        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // GET ONE
     public CodeDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
-        Code e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
         return toDto(e);
     }
 
     // UPDATE (blocked if signed)
     public CodeDto update(Long orgId, Long patientId, Long encounterId, Long id, CodeDto dto) {
-        Code e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed codes are read-only.");
@@ -206,7 +206,7 @@ public class CodeService {
 
     // DELETE (blocked if signed)
     public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
-        Code e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed codes cannot be deleted.");
@@ -216,7 +216,7 @@ public class CodeService {
 
     // ESIGN (idempotent, no request body)
     public CodeDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
-        Code e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
@@ -229,7 +229,7 @@ public class CodeService {
 
     // PRINT (PDF) — stamps printedAt
     public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
-        Code e = repo.findByOrgIdAndPatientIdAndEncounterIdAndId(orgId, patientId, encounterId, id)
+        Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
 
         e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));

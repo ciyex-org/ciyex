@@ -4,16 +4,18 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 
 @Entity
 @Table(name = "vitals")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Vitals {
+public class Vitals extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -35,9 +37,9 @@ public class Vitals {
     private Double bmi;
     private String notes;
 
+    @Builder.Default
     private Boolean signed = false;
 
     private LocalDateTime recordedAt;
-    private LocalDateTime createdDate;
-    private LocalDateTime lastModifiedDate;
+    // audit fields provided by AuditableEntity
 }

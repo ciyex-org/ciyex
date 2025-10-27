@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface InventoryRepository extends JpaRepository<Inventory, Long> {
-    List<Inventory> findByOrgId(Long orgId);
-    Page<Inventory> findAllByOrgId(Long orgId, Pageable pageable);
-    long countByOrgId(Long orgId);
+    List<Inventory> findAll();
+    Page<Inventory> findAll(Pageable pageable);
+    long count();
 }

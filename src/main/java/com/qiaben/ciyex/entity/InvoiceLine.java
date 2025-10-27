@@ -2,13 +2,15 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
 
 @Entity
 @Table(name="invoice_line")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class InvoiceLine {   // <-- public
+@EqualsAndHashCode(callSuper = true)
+public class InvoiceLine extends AuditableEntity {   // <-- public
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY)
     private Long id;
 

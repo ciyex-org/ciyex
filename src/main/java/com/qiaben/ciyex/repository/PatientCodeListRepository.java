@@ -14,21 +14,22 @@ import java.util.Optional;
 
 public interface PatientCodeListRepository extends JpaRepository<PatientCodeList, Long> {
 
-    List<PatientCodeList> findAllByOrgIdOrderByOrderIndexAsc(Long orgId);
+    @Query("SELECT p FROM PatientCodeList p ORDER BY p.orderIndex ASC")
+    List<PatientCodeList> findAllOrderByOrderIndexAsc();
 
-    Optional<PatientCodeList> findByIdAndOrgId(Long id, Long orgId);
+    Optional<PatientCodeList> findById(Long id);
 
     @Transactional
     @Modifying
     @Query("update PatientCodeList p set p.isDefault = false " +
-            "where p.orgId = :orgId and p.isDefault = true and p.id <> :keepId")
-    void clearDefaultsExcept(Long orgId, Long keepId);
+            "where p.isDefault = true and p.id <> :keepId")
+    void clearDefaultsExcept(Long keepId);
 
     @Transactional
     @Modifying
-    @Query("update PatientCodeList p set p.isDefault = false where p.orgId = :orgId")
-    void clearAllDefaults(Long orgId);
+    @Query("update PatientCodeList p set p.isDefault = false where 1=1")
+    void clearAllDefaults();
 
     @Transactional
-    void deleteByIdAndOrgId(Long id, Long orgId);
+    void deleteById(Long id);
 }

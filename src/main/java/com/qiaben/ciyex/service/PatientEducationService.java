@@ -34,8 +34,7 @@ public class PatientEducationService {
     @Transactional
     public PatientEducationDto create(PatientEducationDto dto) {
         PatientEducation entity = mapToEntity(dto);
-        entity.setCreatedDate(LocalDateTime.now().toString());
-        entity.setLastModifiedDate(LocalDateTime.now().toString());
+
 
         String externalId = null;
         String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -66,7 +65,7 @@ public class PatientEducationService {
         entity.setLanguage(dto.getLanguage());
         entity.setReadingLevel(dto.getReadingLevel());
         entity.setContent(dto.getContent());
-        entity.setLastModifiedDate(LocalDateTime.now().toString());
+
 
         return mapToDto(repository.save(entity));
     }
@@ -104,11 +103,6 @@ public class PatientEducationService {
         dto.setReadingLevel(entity.getReadingLevel());
         dto.setContent(entity.getContent());
         dto.setFhirId(entity.getExternalId());
-
-        PatientEducationDto.Audit audit = new PatientEducationDto.Audit();
-        audit.setCreatedDate(entity.getCreatedDate());
-        audit.setLastModifiedDate(entity.getLastModifiedDate());
-        dto.setAudit(audit);
 
         return dto;
     }

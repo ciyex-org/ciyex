@@ -69,8 +69,7 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -81,7 +80,8 @@ import java.util.List;
 @Table(name = "review_of_systems")
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
-public class ReviewOfSystem {
+@EqualsAndHashCode(callSuper = true)
+public class ReviewOfSystem extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -129,12 +129,11 @@ public class ReviewOfSystem {
     @Column(name = "printed_at")
     private OffsetDateTime printedAt;
 
-    // audit
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    // audit fields provided by AuditableEntity
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    // Backwards-compatible accessors for existing code that expects createdAt/updatedAt
+    public LocalDateTime getCreatedAt() { return getCreatedDate(); }
+    public void setCreatedAt(LocalDateTime createdAt) { setCreatedDate(createdAt); }
+    public LocalDateTime getUpdatedAt() { return getLastModifiedDate(); }
+    public void setUpdatedAt(LocalDateTime updatedAt) { setLastModifiedDate(updatedAt); }
 }

@@ -50,8 +50,7 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import lombok.EqualsAndHashCode;
 
 import java.time.OffsetDateTime;
 import java.time.LocalDateTime;
@@ -62,7 +61,8 @@ import java.util.List;
 @Table(name = "social_history")
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
-public class SocialHistory {
+@EqualsAndHashCode(callSuper = true)
+public class SocialHistory extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -84,6 +84,7 @@ public class SocialHistory {
     private List<SocialHistoryEntry> entries = new ArrayList<>();
 
     // eSign / Print state
+    @Builder.Default
     @Column(name = "e_signed")
     private Boolean eSigned = Boolean.FALSE;
 
@@ -96,11 +97,10 @@ public class SocialHistory {
     @Column(name = "printed_at")
     private OffsetDateTime printedAt;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    // audit fields provided by AuditableEntity
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    public LocalDateTime getCreatedAt() { return getCreatedDate(); }
+    public void setCreatedAt(LocalDateTime createdAt) { setCreatedDate(createdAt); }
+    public LocalDateTime getUpdatedAt() { return getLastModifiedDate(); }
+    public void setUpdatedAt(LocalDateTime updatedAt) { setLastModifiedDate(updatedAt); }
 }

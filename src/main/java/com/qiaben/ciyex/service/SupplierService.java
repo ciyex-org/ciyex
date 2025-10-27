@@ -36,8 +36,7 @@ public class SupplierService {
     @Transactional
     public SupplierDto create(SupplierDto dto) {
         Supplier supplier = mapToEntity(dto);
-        supplier.setCreatedDate(LocalDateTime.now().toString());
-        supplier.setLastModifiedDate(LocalDateTime.now().toString());
+
 
         String externalId = null;
         String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -66,7 +65,7 @@ public class SupplierService {
         supplier.setContact(dto.getContact());
         supplier.setPhone(dto.getPhone());
         supplier.setEmail(dto.getEmail());
-        supplier.setLastModifiedDate(LocalDateTime.now().toString());
+
 
         return mapToDto(repository.save(supplier));
     }
@@ -103,8 +102,6 @@ public class SupplierService {
                 .contact(dto.getContact())
                 .phone(dto.getPhone())
                 .email(dto.getEmail())
-                .createdDate(dto.getCreatedDate())
-                .lastModifiedDate(dto.getLastModifiedDate())
                 .externalId(dto.getExternalId())
                 .build();
     }
@@ -116,8 +113,6 @@ public class SupplierService {
         dto.setContact(supplier.getContact());
         dto.setPhone(supplier.getPhone());
         dto.setEmail(supplier.getEmail());
-        dto.setCreatedDate(supplier.getCreatedDate());
-        dto.setLastModifiedDate(supplier.getLastModifiedDate());
         dto.setExternalId(supplier.getExternalId());
         return dto;
     }
