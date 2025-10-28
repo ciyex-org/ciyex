@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 
 
+
 public interface PatientClaimRepository extends JpaRepository<PatientClaim, Long> {
 
     /** Current/active claim lookup (tenant-scoped) */

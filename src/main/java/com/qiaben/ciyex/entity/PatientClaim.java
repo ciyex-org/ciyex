@@ -13,6 +13,7 @@ public class PatientClaim {
         DRAFT, READY_FOR_SUBMISSION, SUBMITTED, IN_PROCESS, ACCEPTED, REJECTED, CLOSED, VOID
     }
 
+
     private boolean locked = false;
 
     public boolean isLocked() {

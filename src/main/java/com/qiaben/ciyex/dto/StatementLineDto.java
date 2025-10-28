@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 
-
 public  class StatementLineDto {
     private LocalDate date;
     private String description;

@@ -1052,6 +1052,7 @@ public class PatientBillingService {
         claimRepo.save(claim);
     }
 
+
     public void changeClaimStatus(Long orgId, Long patientId, Long claimId, ClaimStatusUpdateDto dto) {
         PatientClaim claim = claimRepo.findById(claimId).orElseThrow();
         if (dto.getStatus() != null) {
