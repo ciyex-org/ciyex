@@ -1,7 +1,6 @@
 package com.qiaben.ciyex.entity;
 
 
-
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -11,6 +10,8 @@ import java.util.*;
 @Entity
 @Table(name = "patient_invoices")
 public class PatientInvoice {
+
+
     public enum Status { OPEN, PARTIALLY_PAID, PAID, VOID }
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -1,6 +1,3 @@
-
-
-
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.*;
@@ -21,9 +18,39 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/patient-billing/{patientId}")
 public class PatientBillingController {
 
-    private final PatientBillingService service;
+    /** Transfer INS balance to PT balance */
+    @PostMapping("/invoices/{invoiceId}/transfer-outstanding-to-patient")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> transferOutstandingToPatient(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @RequestBody TransferRequest body) {
+        PatientInvoiceDto updated = service.transferOutstandingToPatient(orgId, patientId, invoiceId, body.amount);
+       return ResponseEntity.ok(ApiResponse.ok("Transfer successful", updated));
+    }
 
+    /** Transfer PT balance to INS balance */
+    @PostMapping("/invoices/{invoiceId}/transfer-outstanding-to-insurance")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> transferOutstandingToInsurance(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @RequestBody TransferRequest body) {
+        PatientInvoiceDto updated = service.transferOutstandingToInsurance(orgId, patientId, invoiceId, body.amount);
+        return ResponseEntity.ok(ApiResponse.ok("Transfer successful", updated));
+    }
+
+    public static class TransferRequest {
+        public Double amount;
+    }
+
+
+    private final PatientBillingService service;
+    
+        
     /* ===================== Invoices ===================== */
+
+      
 
 
     @PostMapping("/invoices/{invoiceId}/backdate")
@@ -51,6 +78,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     );
     var data = service.accountAdjustment(orgId, patientId, req);
     return ResponseEntity.ok(ApiResponse.ok("Account adjusted", data));
+
 }
 
     /** Adjust specific invoice with percentage discount and adjustment type */
@@ -122,12 +150,21 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
 
     /* ===================== Claims ===================== */
+   
+
+
+    /** Fetch all claims for all patients in the org (for All Claims view) */
+    @GetMapping("/all-claims")
+    public ResponseEntity<ApiResponse<List<PatientClaimDto>>> listAllClaims(
+            @RequestHeader("x-org-id") Long orgId) {
+        var data = service.listAllClaims(orgId);
+        return ResponseEntity.ok(ApiResponse.ok("All claims loaded", data));
+    }
 
     @GetMapping("/claims")
     public ResponseEntity<ApiResponse<List<PatientClaimDto>>> listAllClaimsForPatient(
             @RequestHeader("x-org-id") Long orgId,
             @PathVariable Long patientId) {
-
         var data = service.listAllClaimsForPatient(orgId, patientId);
         return ResponseEntity.ok(ApiResponse.ok("Claims loaded", data));
     }
@@ -562,4 +599,68 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
         var data = service.addCourtesyCredit(orgId, patientId, request);
         return ResponseEntity.ok(ApiResponse.ok("Courtesy credit added and account credit updated", data));
     }
+    /** 
+     * Print unified statement detail for a single invoice
+     */
+    @PostMapping("/invoices/{invoiceId}/statement-detail")
+    public ResponseEntity<ApiResponse<StatementDetailDto>> printInvoiceStatementDetail(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId) {
+        StatementDetailDto dto = service.getInvoiceStatementDetail(orgId, patientId, invoiceId);
+        return ResponseEntity.ok(ApiResponse.ok("Invoice statement detail loaded", dto));
+    }
+
+    /**
+     * Print unified statement detail for all invoices/payments for a patient
+     */
+    @PostMapping("/statement-detail")
+    public ResponseEntity<ApiResponse<StatementDetailDto>> printPatientStatementDetail(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId) {
+        StatementDetailDto dto = service.getPatientStatementDetail(orgId, patientId);
+        return ResponseEntity.ok(ApiResponse.ok("Patient statement detail loaded", dto));
+    }
+
+        /** Lock claim (after lock, claim cannot be edited) */
+        @PostMapping("/claims/{claimId}/lock")
+        public ResponseEntity<ApiResponse<PatientClaimDto>> lockClaim(
+                @RequestHeader("x-org-id") Long orgId,
+                @PathVariable Long patientId,
+                @PathVariable Long claimId) {
+            service.lockClaim(orgId, patientId, claimId);
+            PatientClaimDto dto = service.toClaimDto(service.getClaimOrThrow(orgId, patientId, claimId));
+            return ResponseEntity.ok(ApiResponse.ok("Claim locked", dto));
+        }
+
+   
+    /**
+     * Change claim status (accepts JSON body, not request parameter)
+     */
+    @PostMapping("/claims/{claimId}/status")
+    public ResponseEntity<ApiResponse<PatientClaimDto>> changeClaimStatus(
+            @RequestHeader("x-org-id") Long orgId,
+            @PathVariable Long patientId,
+            @PathVariable Long claimId,
+            @RequestBody ClaimStatusUpdateDto dto
+    ) {
+        service.changeClaimStatus(orgId, patientId, claimId, dto);
+        PatientClaimDto response = service.toClaimDto(service.getClaimOrThrow(orgId, patientId, claimId));
+        return ResponseEntity.ok(ApiResponse.ok("Claim status updated", response));
+    }
+
+
+    /** Submit claim attachment */
+        @PostMapping(value = "/claims/{claimId}/submit-attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        public ResponseEntity<ApiResponse<PatientClaimDto>> submitClaimAttachment(
+                @RequestHeader("x-org-id") Long orgId,
+                @PathVariable Long patientId,
+                @PathVariable Long claimId,
+                @RequestParam("file") MultipartFile file) throws Exception {
+            service.submitClaimAttachment(orgId, patientId, claimId, file);
+            PatientClaimDto dto = service.toClaimDto(service.getClaimOrThrow(orgId, patientId, claimId));
+            return ResponseEntity.ok(ApiResponse.ok("Claim attachment submitted", dto));
+        }
+
+      
 }
