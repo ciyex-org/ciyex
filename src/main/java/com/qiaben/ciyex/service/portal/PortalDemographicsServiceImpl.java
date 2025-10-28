@@ -11,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 public class PortalDemographicsServiceImpl implements PortalDemographicsService {
@@ -25,13 +27,13 @@ public class PortalDemographicsServiceImpl implements PortalDemographicsService 
      */
     @Override
     @Transactional(readOnly = true)
-    public PortalDemographicsDto getMyDemographics(Long userId) {
+    public PortalDemographicsDto getMyDemographics(UUID userId) {
         // Ensure patient exists for this user
-        PortalPatient patient = patientRepository.findByPortalUser_Id(userId)
+        PortalPatient patient = patientRepository.findByPortalUser_Uuid(userId)
                 .orElseGet(() -> autoCreatePatient(userId));
 
         // Fetch demographics or return blank if none exists
-        PortalDemographics demographics = demographicsRepository.findByPatient_PortalUser_Id(userId)
+        PortalDemographics demographics = demographicsRepository.findByPatient_PortalUser_Uuid(userId)
                 .orElseGet(() -> {
                     PortalDemographics blank = new PortalDemographics();
                     blank.setPatient(patient);
@@ -47,13 +49,13 @@ public class PortalDemographicsServiceImpl implements PortalDemographicsService 
      */
     @Override
     @Transactional
-    public PortalDemographicsDto updateMyDemographics(Long userId, PortalDemographicsDto dto) {
+    public PortalDemographicsDto updateMyDemographics(UUID userId, PortalDemographicsDto dto) {
         // Ensure patient exists for this user
-        PortalPatient patient = patientRepository.findByPortalUser_Id(userId)
+        PortalPatient patient = patientRepository.findByPortalUser_Uuid(userId)
                 .orElseGet(() -> autoCreatePatient(userId));
 
         // Load existing or create new demographics
-        PortalDemographics demographics = demographicsRepository.findByPatient_PortalUser_Id(userId)
+        PortalDemographics demographics = demographicsRepository.findByPatient_PortalUser_Uuid(userId)
                 .orElseGet(() -> {
                     PortalDemographics newDemo = new PortalDemographics();
                     newDemo.setPatient(patient);
@@ -68,8 +70,8 @@ public class PortalDemographicsServiceImpl implements PortalDemographicsService 
     }
 
     // === Helper to auto-create a patient profile if missing ===
-    private PortalPatient autoCreatePatient(Long userId) {
-        PortalUser user = userRepository.findById(userId)
+    private PortalPatient autoCreatePatient(UUID userId) {
+        PortalUser user = userRepository.findByUuid(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
 
         PortalPatient newPatient = PortalPatient.builder()

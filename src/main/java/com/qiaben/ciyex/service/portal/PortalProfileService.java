@@ -6,6 +6,8 @@ import com.qiaben.ciyex.repository.portal.PortalProfileRepository;
 
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class PortalProfileService {
 
@@ -15,11 +17,11 @@ public class PortalProfileService {
         this.repository = repository;
     }
 
-    public PortalProfileDto getProfile(Long userId) {
+    public PortalProfileDto getProfile(UUID userId) {
         return repository.findByUserId(userId).map(this::toDto).orElse(null);
     }
 
-    public PortalProfileDto updateProfile(Long userId, PortalProfileDto dto) {
+    public PortalProfileDto updateProfile(UUID userId, PortalProfileDto dto) {
         PortalProfile profile = repository.findByUserId(userId)
                 .orElse(PortalProfile.builder().userId(userId).build());
 

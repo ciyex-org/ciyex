@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * DTO for displaying pending updates to both patients and EHR staff
@@ -18,7 +19,7 @@ import java.util.Map;
 public class PortalPendingUpdateDto {
     
     private Long id;
-    private Long userId;
+    private UUID userId;
     private String patientName;
     private String patientEmail;
     private String updateType;

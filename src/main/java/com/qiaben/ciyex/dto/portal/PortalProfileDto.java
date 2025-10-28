@@ -3,6 +3,7 @@ package com.qiaben.ciyex.dto.portal;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.util.UUID;
 //
 @Data
 @Builder
@@ -10,7 +11,7 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class PortalProfileDto {
     private Long id;
-    private Long userId;
+    private UUID userId;
     private String firstName;
     private String lastName;
     private String phone;

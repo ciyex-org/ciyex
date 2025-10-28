@@ -172,7 +172,7 @@
 //
 //    @Transactional(readOnly = true)
 //    public long countByOrg() {
-//        return repository.count());                       // mirrors ProviderService.getProviderCountByOrgId :contentReference[oaicite:12]{index=12}L330-L335
+//        return repository.count());                       // mirrors ProviderService.getProviderCount :contentReference[oaicite:12]{index=12}L330-L335
 //    }
 //
 //    /* ---------- Mappers ---------- */

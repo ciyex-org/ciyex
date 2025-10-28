@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @RestController
@@ -69,7 +70,7 @@ public class GpsBillingCardController {
     /* GET BY USER */
     @GetMapping("/user/{userId}")
     public ResponseEntity<ApiResponse<List<GpsBillingCardDto>>> getByUser(
-            @PathVariable Long userId) {
+            @PathVariable UUID userId) {
         try {
             List<GpsBillingCardDto> cards = service.getAllByUser(userId);
             return ResponseEntity.ok(ApiResponse.<List<GpsBillingCardDto>>builder()

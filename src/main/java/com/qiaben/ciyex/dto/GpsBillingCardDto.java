@@ -2,6 +2,7 @@ package com.qiaben.ciyex.dto;
 
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -9,7 +10,7 @@ import java.time.LocalDateTime;
 @Builder
 public class GpsBillingCardDto {
     private Long id;
-    private Long userId;
+    private UUID userId;
     private String gpsCustomerVaultId;
 
     private String brand;

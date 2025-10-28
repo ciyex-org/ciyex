@@ -11,6 +11,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Entity for storing patient updates that require EHR staff review
@@ -30,7 +31,7 @@ public class PortalPendingUpdate extends com.qiaben.ciyex.entity.AuditableEntity
     private Long id;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private UUID userId;
 
     @Column(name = "update_type", nullable = false, length = 50)
     private String updateType; // DEMOGRAPHICS, INSURANCE, BILLING, MESSAGING, APPOINTMENT

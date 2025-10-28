@@ -46,7 +46,7 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
 //public interface EncounterRepository extends JpaRepository<Encounter, Long> {
 //
 //    // Patient-scoped list
-//    List<Encounter> findByPatientIdAndOrgIdOrderByIdDesc(Long patientId);
+//    List<Encounter> findByPatientIdOrderByIdDesc(Long patientId);
 //    List<Encounter> findByPatientIdAndStatusOrderByIdDesc(Long patientId, EncounterStatus status);
 //
 //    Optional<Encounter> findByIdAndPatientId(Long id, Long patientId);

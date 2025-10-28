@@ -39,7 +39,7 @@
 //         }
 //         String token = authHeader.substring(7);
 //         try {
-//             Long userId = jwtTokenUtil.getUserIdFromToken(token);
+//             UUID userId = jwtTokenUtil.getUserIdFromToken(token);
 //             if (userId != null) return userId;
 
 //             String email = jwtTokenUtil.getEmailFromToken(token);

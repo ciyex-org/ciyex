@@ -3,9 +3,9 @@ package com.qiaben.ciyex.controller.portal;
 import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalPatientDto;
 import com.qiaben.ciyex.service.portal.PortalPatientService;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -30,22 +30,22 @@ public class PortalPatientController {
      */
     @GetMapping("/me")
     @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
-    public ApiResponse<PortalPatientDto> getMyProfile(HttpServletRequest request) {
-        String token = resolveToken(request);
-        if (token == null) {
+    public ApiResponse<PortalPatientDto> getMyProfile(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             return ApiResponse.<PortalPatientDto>builder()
                     .success(false)
-                    .message("Unauthorized - missing token")
+                    .message("Unauthorized - not authenticated")
                     .build();
         }
 
         try {
-            Long userId;
-            return patientService.getPatientInfo(userId);
+            // Get Keycloak user UUID from authentication
+            String keycloakUserId = authentication.getName();
+            return patientService.getPatientInfo(keycloakUserId);
         } catch (Exception e) {
             return ApiResponse.<PortalPatientDto>builder()
                     .success(false)
-                    .message("Invalid token")
+                    .message("Failed to retrieve patient info: " + e.getMessage())
                     .build();
         }
     }
@@ -57,37 +57,27 @@ public class PortalPatientController {
     @PutMapping("/me")
     @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
     public ApiResponse<PortalPatientDto> updateMyProfile(
-            HttpServletRequest request,
+            Authentication authentication,
             @RequestBody PortalPatientDto updated) {
 
-        String token = resolveToken(request);
-        if (token == null) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             return ApiResponse.<PortalPatientDto>builder()
                     .success(false)
-                    .message("Unauthorized - missing token")
+                    .message("Unauthorized - not authenticated")
                     .build();
         }
 
         try {
-            Long userId;
-            return patientService.updatePatientInfo(userId, updated);
+            // Get Keycloak user UUID from authentication
+            String keycloakUserId = authentication.getName();
+            return patientService.updatePatientInfo(keycloakUserId, updated);
         } catch (Exception e) {
             return ApiResponse.<PortalPatientDto>builder()
                     .success(false)
-                    .message("Invalid token")
+                    .message("Failed to update patient info: " + e.getMessage())
                     .build();
         }
     }
 
-    /**
-     * Extract Bearer token from Authorization header
-     */
-    private String resolveToken(HttpServletRequest request) {
-        String bearerToken = request.getHeader("Authorization");
-        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
-        }
-        return null;
-    }
 }
 //

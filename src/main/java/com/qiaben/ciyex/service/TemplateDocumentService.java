@@ -72,21 +72,21 @@ public class TemplateDocumentService {
 
     /**
      * org-aware listing with optional filters
-     * Matches controller signature: getAll(orgId, context, q)
+     * Matches controller signature: getAll(context, q)
      */
     @Transactional(readOnly = true)
-    public List<TemplateDocumentResponse> getAll(Long orgId, TemplateContext context, String q) {
+    public List<TemplateDocumentResponse> getAll(TemplateContext context, String q) {
         List<TemplateDocumentEntity> data = List.of();
         boolean hasQ = (q != null && !q.isBlank());
 
        /* if (context != null && hasQ) {
-            data = repository.findByContextAndNameContainingIgnoreCase(effectiveOrgId, context, q.trim());
+            data = repository.findByContextAndNameContainingIgnoreCase(effectivecontext, q.trim());
         } else if (context != null) {
-            data = repository.findByContext(effectiveOrgId, context);
+            data = repository.findByContext(effectivecontext);
         } else if (hasQ) {
-            data = repository.findByNameContainingIgnoreCase(effectiveOrgId, q.trim());
+            data = repository.findByNameContainingIgnoreCase(effectiveq.trim());
         } else {
-            data = repository.findByOrgId(effectiveOrgId);
+            data = repository.find(effectiveOrgId);
         }*/
 
         return data.stream().map(this::toResponse).toList();

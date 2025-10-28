@@ -5,7 +5,6 @@ import com.qiaben.ciyex.dto.InvoiceDto;
 import com.qiaben.ciyex.service.portal.PortalBillingService;
 import com.qiaben.ciyex.service.InvoiceService;
 import com.qiaben.ciyex.service.VitalsService;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -36,21 +35,23 @@ public class PortalBillingController {
      * Endpoint: GET /api/portal/billing/recent
      */
     @GetMapping("/recent")
-    public ApiResponse<List<InvoiceDto>> getRecentInvoices(HttpServletRequest request) {
-        String token = resolveToken(request);
-        if (token == null) {
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    public ApiResponse<List<InvoiceDto>> getRecentInvoices(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             return ApiResponse.<List<InvoiceDto>>builder()
                     .success(false)
-                    .message("Unauthorized - missing token")
+                    .message("Unauthorized - not authenticated")
                     .build();
         }
 
         try {
-            return billingService.getRecentInvoices(userId);
+            // Get Keycloak user UUID from authentication
+            String keycloakUserId = authentication.getName();
+            return billingService.getRecentInvoices(keycloakUserId);
         } catch (Exception e) {
             return ApiResponse.<List<InvoiceDto>>builder()
                     .success(false)
-                    .message("Invalid token")
+                    .message("Failed to retrieve invoices: " + e.getMessage())
                     .build();
         }
     }
@@ -60,47 +61,40 @@ public class PortalBillingController {
      * Endpoint: GET /api/portal/billing
      */
     @GetMapping
-    public ApiResponse<List<InvoiceDto>> getAllInvoices(HttpServletRequest request) {
-        String token = resolveToken(request);
-        if (token == null) {
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    public ApiResponse<List<InvoiceDto>> getAllInvoices(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             return ApiResponse.<List<InvoiceDto>>builder()
                     .success(false)
-                    .message("Unauthorized - missing token")
+                    .message("Unauthorized - not authenticated")
                     .build();
         }
 
         try {
-            return billingService.getAllInvoices(userId);
+            // Get Keycloak user UUID from authentication
+            String keycloakUserId = authentication.getName();
+            return billingService.getAllInvoices(keycloakUserId);
         } catch (Exception e) {
             return ApiResponse.<List<InvoiceDto>>builder()
                     .success(false)
-                    .message("Invalid token")
+                    .message("Failed to retrieve invoices: " + e.getMessage())
                     .build();
         }
     }
 
-    /**
-     * Extract Bearer token from Authorization header
-     */
-    private String resolveToken(HttpServletRequest request) {
-        String bearerToken = request.getHeader("Authorization");
-        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
-        }
-        return null;
-    }
 
     /**
      * Get invoices for the currently logged-in portal patient (same as /api/billing/my but through portal proxy)
      * Endpoint: GET /api/portal/billing/my
      */
     @GetMapping("/my")
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
     public ApiResponse<List<InvoiceDto>> getMyInvoices(
-            @RequestHeader(value = "x-org-id", required = false) Long orgId,
             Authentication authentication) {
 
-        String email = authentication.getName();
-        Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(email);
+        // Get Keycloak user UUID from authentication
+        String keycloakUserId = authentication.getName();
+        Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(keycloakUserId);
 
         if (ehrPatientId == null) {
             return ApiResponse.<List<InvoiceDto>>builder()

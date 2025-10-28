@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "gps_billing_cards")
@@ -21,7 +22,7 @@ public class GpsBillingCard extends AuditableEntity {
     
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private UUID userId;
 
     @Column(name = "gps_customer_vault_id", length = 64)
     private String gpsCustomerVaultId;

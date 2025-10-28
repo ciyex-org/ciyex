@@ -34,7 +34,7 @@ public class HealthcareServiceController {
 
 /*
     @GetMapping
-    public ResponseEntity<ApiResponse<List<HealthcareServiceDto>>> getByOrgId() {
+    public ResponseEntity<ApiResponse<List<HealthcareServiceDto>>> get() {
         List<HealthcareServiceDto> services = service.getByOrgId();
         ApiResponse<List<HealthcareServiceDto>> response = new ApiResponse.Builder<List<HealthcareServiceDto>>()
                 .success(true)

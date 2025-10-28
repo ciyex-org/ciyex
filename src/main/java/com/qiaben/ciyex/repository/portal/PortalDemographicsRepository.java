@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public interface PortalDemographicsRepository extends JpaRepository<PortalDemographics, Long> {
@@ -22,10 +23,10 @@ public interface PortalDemographicsRepository extends JpaRepository<PortalDemogr
     /**
      *  Direct lookup: find demographics by PortalUser.id (via patient.portalUser.id)
      */
-    Optional<PortalDemographics> findByPatient_PortalUser_Id(Long userId);
+    Optional<PortalDemographics> findByPatient_PortalUser_Id(UUID userId);
 
     /**
      * 🔹 Check existence by PortalUser.id
      */
-    boolean existsByPatient_PortalUser_Id(Long userId);
+    boolean existsByPatient_PortalUser_Id(UUID userId);
 }

@@ -3,6 +3,7 @@ package com.qiaben.ciyex.dto;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -10,7 +11,7 @@ import java.time.LocalDate;
 @Builder
 public class BillingAutoPayDto {
     private Long id;
-    private Long userId;
+    private UUID userId;
     private Boolean enabled;
     private LocalDate startDate;
     private String frequency;

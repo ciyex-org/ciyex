@@ -5,6 +5,7 @@ import lombok.*;
 import lombok.EqualsAndHashCode;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "invoice_bills")
@@ -22,7 +23,7 @@ public class InvoiceBill extends AuditableEntity {
     
 
     @Column(name = "user_id")
-    private Long userId;
+    private UUID userId;
 
     @Column(name = "subscription_id")
     private Long subscriptionId;

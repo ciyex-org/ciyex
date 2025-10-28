@@ -3,6 +3,7 @@ package com.qiaben.ciyex.dto;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -10,7 +11,7 @@ import java.math.BigDecimal;
 @Builder
 public class SubscriptionDto {
     private Long id;
-    private Long userId;
+    private UUID userId;
 
     private String service;
     private String billingCycle; // "Yearly" or "Monthly"

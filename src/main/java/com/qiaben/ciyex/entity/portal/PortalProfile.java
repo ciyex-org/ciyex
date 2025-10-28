@@ -6,6 +6,7 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "portal_profiles")
@@ -25,7 +26,7 @@ public class PortalProfile extends AuditableEntity {
      * Links to PortalUser.id – each portal user has exactly one profile
      */
     @Column(name = "user_id", nullable = false, unique = true)
-    private Long userId;
+    private UUID userId;
 
     @Column(nullable = false, length = 100)
     private String firstName;

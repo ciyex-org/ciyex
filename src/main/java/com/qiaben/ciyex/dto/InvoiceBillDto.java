@@ -6,6 +6,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -13,7 +14,7 @@ import java.time.LocalDateTime;
 @Builder
 public class InvoiceBillDto {
     private Long id;
-    private Long userId;
+    private UUID userId;
     private Long subscriptionId;
 
     // Use BigDecimal for money

@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.service;
 import com.qiaben.ciyex.dto.*;
 import com.qiaben.ciyex.entity.*;
+import com.qiaben.ciyex.entity.PatientBillingNote;
 import com.qiaben.ciyex.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -9,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -297,12 +297,12 @@ public class PatientBillingService {
     /* ===================== Claims ===================== */
 
     /** Fetch all claims for all patients in the org (for All Claims view) */
-    public List<PatientClaimDto> listAllClaims(Long orgId) {
+    public List<PatientClaimDto> listAllClaims() {
         List<PatientClaim> claims;
         try {
-            claims = claimRepo.findAllByOrgIdOrderByIdDesc(orgId);
+            claims = claimRepo.findAllByIdDesc();
         } catch (NoSuchMethodError | RuntimeException e) {
-            claims = claimRepo.findAllByOrgId(orgId);
+            claims = claimRepo.findAll();
         }
         return claims.stream().map(this::toClaimDto).toList();
     }

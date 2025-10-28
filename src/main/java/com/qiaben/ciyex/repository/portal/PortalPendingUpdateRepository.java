@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Repository for managing portal pending updates (review queue)
@@ -23,7 +24,7 @@ public interface PortalPendingUpdateRepository extends JpaRepository<PortalPendi
     /**
      * Find all updates for a specific user, ordered by creation date (newest first)
      */
-    List<PortalPendingUpdate> findByUserIdOrderByCreatedDateDesc(Long userId);
+    List<PortalPendingUpdate> findByUserIdOrderByCreatedDateDesc(UUID userId);
 
     /**
      * Find pending updates by update type
@@ -38,7 +39,7 @@ public interface PortalPendingUpdateRepository extends JpaRepository<PortalPendi
     /**
      * Count pending updates for a user
      */
-    long countByUserIdAndStatus(Long userId, String status);
+    long countByUserIdAndStatus(UUID userId, String status);
 
     /**
      * Count all pending updates

@@ -142,7 +142,7 @@ public class MessageAttachmentService {
 
     @Transactional
     public void delete(Long attachmentId) {
-        MessageAttachment attachment = repository.findByIdAndOrgId(attachmentId)
+        MessageAttachment attachment = repository.findById(attachmentId)
                 .orElseThrow(() -> new RuntimeException("Message attachment not found"));
 
         S3Config s3Config;
@@ -179,7 +179,7 @@ public class MessageAttachmentService {
 
     @Transactional(readOnly = true)
     public DownloadResult download(Long attachmentId) {
-        MessageAttachment attachment = repository.findByIdAndOrgId(attachmentId)
+        MessageAttachment attachment = repository.findById(attachmentId)
                 .orElseThrow(() -> new RuntimeException("Message attachment not found"));
 
         S3Config s3Config;
@@ -253,7 +253,7 @@ public class MessageAttachmentService {
 
     @Transactional(readOnly = true)
     public MessageAttachmentDto getById(Long attachmentId) {
-        MessageAttachment attachment = repository.findByIdAndOrgId(attachmentId)
+        MessageAttachment attachment = repository.findById(attachmentId)
                 .orElseThrow(() -> new RuntimeException("Message attachment not found"));
         return mapToDto(attachment);
     }

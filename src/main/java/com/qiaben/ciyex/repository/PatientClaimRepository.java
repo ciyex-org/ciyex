@@ -14,7 +14,6 @@
 package com.qiaben.ciyex.repository;
 
 import com.qiaben.ciyex.entity.PatientClaim;
-import com.qiaben.ciyex.entity.PatientInsuranceRemitLine;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -36,15 +35,16 @@ public interface PatientClaimRepository extends JpaRepository<PatientClaim, Long
     List<PatientClaim> findAllByPatientId(Long patientId);
 
     /** All claims for all patients in the org (for All Claims view) */
-    List<PatientClaim> findAllByOrgIdOrderByIdDesc(Long orgId);
-    List<PatientClaim> findAllByOrgId(Long orgId);
+    List<PatientClaim> findAllOrderByIdDesc();
+    List<PatientClaim> findAll(Long orgId);
 
     /** All (historical) claims for a specific invoice (new) */
     List<PatientClaim> findAllByInvoiceIdAndPatientIdOrderByIdDesc(Long invoiceId, Long patientId);
     List<PatientClaim> findAllByInvoiceIdAndPatientId(Long invoiceId, Long patientId);
 
+    List<PatientClaim> findAllByIdDesc();
 
-//    List<PatientClaim> findAllByIdAndPatientId(Long claimId, Long patientId);
+
 
 
 

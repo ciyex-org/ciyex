@@ -37,22 +37,22 @@ public class PortalReportsController {
      */
     @GetMapping("/recent")
     @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
-    public ApiResponse<List<DocumentDto>> getRecentReports(HttpServletRequest request) {
-        String token = resolveToken(request);
-        if (token == null) {
+    public ApiResponse<List<DocumentDto>> getRecentReports(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             return ApiResponse.<List<DocumentDto>>builder()
                     .success(false)
-                    .message("Unauthorized - missing token")
+                    .message("Unauthorized - not authenticated")
                     .build();
         }
 
         try {
-            Long userId;
-            return reportsService.getRecentReports(userId);
+            // Get Keycloak user UUID from authentication
+            String keycloakUserId = authentication.getName();
+            return reportsService.getRecentReports(keycloakUserId);
         } catch (Exception e) {
             return ApiResponse.<List<DocumentDto>>builder()
                     .success(false)
-                    .message("Invalid token")
+                    .message("Failed to retrieve reports: " + e.getMessage())
                     .build();
         }
     }
@@ -63,22 +63,22 @@ public class PortalReportsController {
      */
     @GetMapping
     @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
-    public ApiResponse<List<DocumentDto>> getAllReports(HttpServletRequest request) {
-        String token = resolveToken(request);
-        if (token == null) {
+    public ApiResponse<List<DocumentDto>> getAllReports(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             return ApiResponse.<List<DocumentDto>>builder()
                     .success(false)
-                    .message("Unauthorized - missing token")
+                    .message("Unauthorized - not authenticated")
                     .build();
         }
 
         try {
-            Long userId;
-            return reportsService.getAllReports(userId);
+            // Get Keycloak user UUID from authentication
+            String keycloakUserId = authentication.getName();
+            return reportsService.getAllReports(keycloakUserId);
         } catch (Exception e) {
             return ApiResponse.<List<DocumentDto>>builder()
                     .success(false)
-                    .message("Invalid token")
+                    .message("Failed to retrieve reports: " + e.getMessage())
                     .build();
         }
     }
@@ -101,11 +101,11 @@ public class PortalReportsController {
     @GetMapping("/my")
     @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
     public ApiResponse<List<DocumentDto>> getMyReports(
-            @RequestHeader(value = "x-org-id", required = false) Long orgId,
             Authentication authentication) {
 
-        String email = authentication.getName();
-        Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(email, orgId);
+        // Get Keycloak user UUID from authentication
+        String keycloakUserId = authentication.getName();
+        Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(keycloakUserId);
 
         if (ehrPatientId == null) {
             return ApiResponse.<List<DocumentDto>>builder()
@@ -116,7 +116,7 @@ public class PortalReportsController {
         }
 
         // Get all documents for this patient and filter for reports
-        com.qiaben.ciyex.dto.ApiResponse<List<DocumentDto>> documentsResponse = sharedDocumentService.getAllForPatient(orgId, ehrPatientId);
+        com.qiaben.ciyex.dto.ApiResponse<List<DocumentDto>> documentsResponse = sharedDocumentService.getAllForPatient(ehrPatientId);
         if (documentsResponse.isSuccess() && documentsResponse.getData() != null) {
             List<DocumentDto> reports = documentsResponse.getData()
                     .stream()

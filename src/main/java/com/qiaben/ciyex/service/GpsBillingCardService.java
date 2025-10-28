@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,7 +45,7 @@ public class GpsBillingCardService {
                 .collect(Collectors.toList());
     }
 
-    public List<GpsBillingCardDto> getAllByUser(Long userId) {
+    public List<GpsBillingCardDto> getAllByUser(UUID userId) {
        /* return repository.findByUserId(userId).stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());*/
@@ -101,7 +102,7 @@ public class GpsBillingCardService {
         return toDto(repository.save(card));
     }
 
-    private void clearDefaultForUser(Long userId) {
+    private void clearDefaultForUser(UUID userId) {
         /*repository.findByUserId(userId).forEach(c -> {
             if (c.isDefault()) {
                 c.setDefault(false);

@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -32,7 +33,7 @@ public class PortalReviewService {
      * Patient submits an update for EHR staff review
      */
     @Transactional
-    public Long submitForReview(Long userId, PortalUpdateRequest request) {
+    public Long submitForReview(UUID userId, PortalUpdateRequest request) {
         try {
             // Validate user exists
             PortalUser user = portalUserRepository.findById(userId)
@@ -86,7 +87,7 @@ public class PortalReviewService {
     /**
      * Get pending/approved/rejected updates for a specific patient
      */
-    public List<PortalPendingUpdateDto> getPatientUpdates(Long userId) {
+    public List<PortalPendingUpdateDto> getPatientUpdates(UUID userId) {
         try {
             List<PortalPendingUpdate> userUpdates = pendingUpdateRepository.findByUserIdOrderByCreatedDateDesc(userId);
             

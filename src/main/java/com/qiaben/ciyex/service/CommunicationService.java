@@ -98,7 +98,7 @@ public class CommunicationService {
                 .build();
 
         // Use tenant-aware context for saving
-        Communication saved = tenantAwareService.executeInTenantContext(orgId, () -> repo.save(entity));
+        Communication saved = tenantAwareService.executeInTenantContext(() -> repo.save(entity));
 
         // Skip external storage for communications in development/local environment
         // Communications are stored locally in the database and don't need FHIR external storage
@@ -110,7 +110,7 @@ public class CommunicationService {
             String externalId = ext.create(snap);
             saved.setExternalId(externalId);
             // Update external ID in tenant context
-            tenantAwareService.executeInTenantContext(orgId, () -> repo.save(saved));
+            tenantAwareService.executeInTenantContext(() -> repo.save(saved));
         }
         *//*
 
@@ -118,7 +118,7 @@ public class CommunicationService {
         if (saved.getPatientId() != null && saved.getProviderId() != null &&
             !(saved.getSender() != null && saved.getSender().startsWith("Patient/"))) {
             // Get patient in tenant context
-            tenantAwareService.executeInTenantContext(orgId, () -> {
+            tenantAwareService.executeInTenantContext(() -> {
                 patientRepo.findById(saved.getPatientId()).ifPresent(patient -> {
                     boolean smsOk = false;
                     boolean emailOk = false;
@@ -162,7 +162,7 @@ public class CommunicationService {
     /* ------------------- GET ------------------- */
     @Transactional(readOnly = true)
     public List<CommunicationDto> getByPatientId(Long patientId) {
-        /*return repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId))
+        /*return repo.findAllByPatientIdText(String.valueOf(patientId), String.valueOf(orgId))
                 .stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());*/
@@ -172,7 +172,7 @@ public class CommunicationService {
     @Transactional(readOnly = true)
     public CommunicationDto getItem(Long patientId, Long id) {
         /*Long orgId = requireOrg("getItem");
-        return repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId))
+        return repo.findAllByPatientIdText(String.valueOf(patientId), String.valueOf(orgId))
                 .stream()
                 .filter(c -> c.getId().equals(id))
                 .findFirst()
@@ -185,7 +185,7 @@ public class CommunicationService {
     @Transactional
     public CommunicationDto updateItem(Long patientId, Long id, CommunicationDto patch) {
         /*Long orgId = requireOrg("updateItem");
-        List<Communication> rows = repo.findAllByPatientIdAndOrgIdText(
+        List<Communication> rows = repo.findAllByPatientIdText(
                 String.valueOf(patientId), String.valueOf(orgId));
         Communication row = rows.stream()
                 .filter(r -> r.getId().equals(id))
@@ -307,11 +307,11 @@ public class CommunicationService {
     @Transactional
     public void deleteItem(Long patientId, Long id) {
 /*        Long orgId = requireOrg("deleteItem");
-        List<Communication> rows = repo.findAllByPatientIdAndOrgIdText(
+        List<Communication> rows = repo.findAllByPatientIdText(
                 String.valueOf(patientId), String.valueOf(orgId));
         String externalId = rows.stream().findFirst().map(Communication::getExternalId).orElse(null);
 
-        int n = repo.deleteOneByIdAndPatientIdAndOrgIdText(
+        int n = repo.deleteOneByIdAndPatientIdText(
                 String.valueOf(id), String.valueOf(patientId), String.valueOf(orgId));
         if (n == 0) throw new RuntimeException("Delete failed: not found");*/
 
@@ -321,7 +321,7 @@ public class CommunicationService {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
             if (storageType != null) {
                 ExternalStorage<CommunicationDto> ext = storageResolver.resolve(CommunicationDto.class);
-                List<Communication> fresh = repo.findAllByPatientIdAndOrgIdText(
+                List<Communication> fresh = repo.findAllByPatientIdText(
                         String.valueOf(patientId), String.valueOf(orgId));
                 if (fresh.isEmpty()) ext.delete(externalId);
                 else ext.update(toDto(fresh.get(0)), externalId);
@@ -354,7 +354,7 @@ public class CommunicationService {
     @Transactional(readOnly = true)
     public List<CommunicationDto> searchAll() {
 /*        Long orgId = requireOrg("searchAll");
-        return repo.findByOrgIdText(String.valueOf(orgId))
+        return repo.findText(String.valueOf(orgId))
                 .stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());*/
@@ -400,7 +400,7 @@ public class CommunicationService {
             }
 
             // Get communications using tenant-aware query
-            return getCommunicationsByPatient(orgId, patientId);
+            return getCommunicationsByPatient(patientId);
 
         } catch (Exception e) {
             log.error("Error getting communications for portal user: {}", e.getMessage(), e);
@@ -444,11 +444,11 @@ public class CommunicationService {
 
     // 🏥 EHR Method - Get all communications for a patient (across all encounters)
     @Transactional(readOnly = true)
-    public List<CommunicationDto> getCommunicationsByPatient(Long orgId, Long patientId) {
+    public List<CommunicationDto> getCommunicationsByPatient(Long patientId) {
         log.info("Getting communications for patient {} in org {}", patientId, orgId);
 
-        return tenantAwareService.executeInTenantContext(orgId, () -> {
-            List<Communication> communications = repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
+        return tenantAwareService.executeInTenantContext(() -> {
+            List<Communication> communications = repo.findAllByPatientIdText(String.valueOf(patientId), String.valueOf(orgId));
             log.info("Found {} communication records for patient {} in org {}", communications.size(), patientId, orgId);
             return communications.stream()
                     .map(this::toDto)
