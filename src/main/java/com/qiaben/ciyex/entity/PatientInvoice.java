@@ -8,7 +8,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
-
 @Entity
 @Table(name = "patient_invoices")
 public class PatientInvoice {

@@ -16,6 +16,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "provider")
 public class Provider extends ProviderDto {
 
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

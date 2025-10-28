@@ -8,6 +8,7 @@ public class ClaimStatusUpdateDto {
     private BigDecimal paymentAmount;
 
 
+
     // Getters and setters
 
     public String getStatus() { return status; }
