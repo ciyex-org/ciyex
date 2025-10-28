@@ -203,7 +203,8 @@ public class PortalMessageAttachmentController {
         if (token == null) {
             throw new RuntimeException("Authorization token missing");
         }
-
+        // TODO: Implement JWT token parsing to extract user ID
+        throw new UnsupportedOperationException("JWT token parsing not implemented");
     }
 
     /**

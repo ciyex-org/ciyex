@@ -18,6 +18,11 @@ public interface PortalPatientRepository extends JpaRepository<PortalPatient, Lo
     Optional<PortalPatient> findByPortalUser_Id(Long portalUserId);
 
     /**
+     * Find a patient by the linked PortalUser UUID
+     */
+    Optional<PortalPatient> findByPortalUser_Uuid(java.util.UUID portalUserUuid);
+
+    /**
      * Find a patient by EHR patient ID
      */
     Optional<PortalPatient> findByEhrPatientId(Long ehrPatientId);

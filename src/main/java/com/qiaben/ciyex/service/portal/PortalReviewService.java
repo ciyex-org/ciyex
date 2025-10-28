@@ -36,7 +36,7 @@ public class PortalReviewService {
     public Long submitForReview(UUID userId, PortalUpdateRequest request) {
         try {
             // Validate user exists
-            PortalUser user = portalUserRepository.findById(userId)
+            PortalUser user = portalUserRepository.findByUuid(userId)
                     .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
 
             // Create pending update record
@@ -115,7 +115,7 @@ public class PortalReviewService {
             }
 
             // Get user info for tenant context
-            PortalUser user = portalUserRepository.findById(update.getUserId())
+            PortalUser user = portalUserRepository.findByUuid(update.getUserId())
                     .orElseThrow(() -> new IllegalArgumentException("User not found: " + update.getUserId()));
 
             // Merge data into appropriate EHR tenant schema
@@ -170,7 +170,7 @@ public class PortalReviewService {
      * Convert entity to DTO with patient info
      */
     private PortalPendingUpdateDto convertToDto(PortalPendingUpdate update) {
-        PortalUser user = portalUserRepository.findById(update.getUserId()).orElse(null);
+        PortalUser user = portalUserRepository.findByUuid(update.getUserId()).orElse(null);
         
         return PortalPendingUpdateDto.builder()
                 .id(update.getId())

@@ -23,10 +23,20 @@ public interface PortalDemographicsRepository extends JpaRepository<PortalDemogr
     /**
      *  Direct lookup: find demographics by PortalUser.id (via patient.portalUser.id)
      */
-    Optional<PortalDemographics> findByPatient_PortalUser_Id(UUID userId);
+    Optional<PortalDemographics> findByPatient_PortalUser_Id(Long userId);
+
+    /**
+     *  Direct lookup: find demographics by PortalUser.uuid (via patient.portalUser.uuid)
+     */
+    Optional<PortalDemographics> findByPatient_PortalUser_Uuid(UUID userUuid);
 
     /**
      * 🔹 Check existence by PortalUser.id
      */
-    boolean existsByPatient_PortalUser_Id(UUID userId);
+    boolean existsByPatient_PortalUser_Id(Long userId);
+
+    /**
+     * 🔹 Check existence by PortalUser.uuid
+     */
+    boolean existsByPatient_PortalUser_Uuid(UUID userUuid);
 }

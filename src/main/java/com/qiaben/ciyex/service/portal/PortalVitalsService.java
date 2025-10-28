@@ -24,9 +24,9 @@ public class PortalVitalsService {
     /**
      * Get recent vitals for a portal patient (last 10 records)
      */
-    public ApiResponse<List<PortalVitalsDto>> getRecentVitals(Long portalUserId) {
+    public ApiResponse<List<PortalVitalsDto>> getRecentVitals(String email) {
         try {
-            PortalUser portalUser = userRepository.findById(portalUserId)
+            PortalUser portalUser = userRepository.findByEmail(email)
                     .orElse(null);
 
             if (portalUser == null) {
@@ -67,7 +67,7 @@ public class PortalVitalsService {
                     .build();
 
         } catch (Exception e) {
-            log.error("Error retrieving recent vitals for user: {}", portalUserId, e);
+            log.error("Error retrieving recent vitals for user: {}", email, e);
             return ApiResponse.<List<PortalVitalsDto>>builder()
                     .success(false)
                     .message("Failed to retrieve recent vitals")
@@ -78,9 +78,9 @@ public class PortalVitalsService {
     /**
      * Get all vitals for a portal patient
      */
-    public ApiResponse<List<PortalVitalsDto>> getAllVitals(Long portalUserId) {
+    public ApiResponse<List<PortalVitalsDto>> getAllVitals(String email) {
         try {
-            PortalUser portalUser = userRepository.findById(portalUserId)
+            PortalUser portalUser = userRepository.findByEmail(email)
                     .orElse(null);
 
             if (portalUser == null) {
@@ -120,7 +120,7 @@ public class PortalVitalsService {
                     .build();
 
         } catch (Exception e) {
-            log.error("Error retrieving all vitals for user: {}", portalUserId, e);
+            log.error("Error retrieving all vitals for user: {}", email, e);
             return ApiResponse.<List<PortalVitalsDto>>builder()
                     .success(false)
                     .message("Failed to retrieve vitals")

@@ -300,7 +300,7 @@ public class PatientBillingService {
     public List<PatientClaimDto> listAllClaims() {
         List<PatientClaim> claims;
         try {
-            claims = claimRepo.findAllByIdDesc();
+            claims = claimRepo.findAllByOrderByIdDesc();
         } catch (NoSuchMethodError | RuntimeException e) {
             claims = claimRepo.findAll();
         }
@@ -326,7 +326,7 @@ public class PatientBillingService {
         try {
             claims = claimRepo.findAllByInvoiceIdAndPatientIdOrderByIdDesc(invoiceId, patientId);
         } catch (NoSuchMethodError | RuntimeException e) {
-            claims = claimRepo.findAllByInvoiceIdAndPatientId(invoiceId, patientId);
+            claims = claimRepo.findAllByInvoiceIdAndPatientIdOrderByIdDesc(invoiceId, patientId);
         }
         return claims.stream().map(this::toClaimDto).toList();
     }
@@ -799,8 +799,8 @@ public class PatientBillingService {
     public List<PatientBillingNoteDto> listInvoiceNotes(Long patientId, Long invoiceId) {
         // Verify invoice exists and belongs to patient
         getInvoiceOrThrow(patientId, invoiceId);
-
-        return noteRepo.findByPatientIdAndTargetTypeAndTargetIdOrderByCreatedAtAsc(patientId, NoteTargetType.INVOICE, invoiceId)
+        
+        return noteRepo.findByPatientIdAndTargetTypeAndTargetIdOrderByCreatedDateAsc(patientId, NoteTargetType.INVOICE, invoiceId)
                 .stream()
                 .map(PatientBillingNoteDto::from)
                 .collect(Collectors.toList());

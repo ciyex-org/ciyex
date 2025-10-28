@@ -13,5 +13,5 @@ public interface PatientBillingNoteRepository extends JpaRepository<PatientBilli
             Long patientId, NoteTargetType type, Long targetId
     );
 
-    List<PatientBillingNote> findByPatientIdAndTargetTypeAndTargetIdOrderByCreatedAtAsc(Long patientId, NoteTargetType noteTargetType, Long invoiceId);
+    List<PatientBillingNote> findByPatientIdAndTargetTypeAndTargetIdOrderByCreatedDateAsc(Long patientId, NoteTargetType targetType, Long targetId);
 }

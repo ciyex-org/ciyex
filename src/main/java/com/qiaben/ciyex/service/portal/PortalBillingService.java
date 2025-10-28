@@ -26,9 +26,9 @@ public class PortalBillingService {
     /**
      * Get all invoices for a portal patient
      */
-    public ApiResponse<List<InvoiceDto>> getAllInvoices(Long portalUserId) {
+    public ApiResponse<List<InvoiceDto>> getAllInvoices(String email) {
         try {
-            PortalUser portalUser = userRepository.findById(portalUserId)
+            PortalUser portalUser = userRepository.findByEmail(email)
                     .orElse(null);
 
             if (portalUser == null) {
@@ -65,7 +65,7 @@ public class PortalBillingService {
                     .build();
 
         } catch (Exception e) {
-            log.error("Error retrieving invoices for user: {}", portalUserId, e);
+            log.error("Error retrieving invoices for user: {}", email, e);
             return ApiResponse.<List<InvoiceDto>>builder()
                     .success(false)
                     .message("Failed to retrieve invoices")
@@ -76,9 +76,9 @@ public class PortalBillingService {
     /**
      * Get recent invoices for a portal patient (last 10 records)
      */
-    public ApiResponse<List<InvoiceDto>> getRecentInvoices(Long portalUserId) {
+    public ApiResponse<List<InvoiceDto>> getRecentInvoices(String email) {
         try {
-            PortalUser portalUser = userRepository.findById(portalUserId)
+            PortalUser portalUser = userRepository.findByEmail(email)
                     .orElse(null);
 
             if (portalUser == null) {
@@ -125,7 +125,7 @@ public class PortalBillingService {
                     .build();
 
         } catch (Exception e) {
-            log.error("Error retrieving recent invoices for user: {}", portalUserId, e);
+            log.error("Error retrieving recent invoices for user: {}", email, e);
             return ApiResponse.<List<InvoiceDto>>builder()
                     .success(false)
                     .message("Failed to retrieve recent invoices")

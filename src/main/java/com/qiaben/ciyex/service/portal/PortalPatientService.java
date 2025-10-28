@@ -27,9 +27,9 @@ public class PortalPatientService {
      * Creates a basic patient profile if one doesn't exist
      */
     @Transactional(readOnly = true)
-    public ApiResponse<PortalPatientDto> getPatientInfo(Long portalUserId) {
+    public ApiResponse<PortalPatientDto> getPatientInfo(String email) {
         try {
-            PortalUser portalUser = userRepository.findById(portalUserId)
+            PortalUser portalUser = userRepository.findByEmail(email)
                     .orElse(null);
 
             if (portalUser == null) {
@@ -46,12 +46,12 @@ public class PortalPatientService {
                         .build();
             }
 
-            PortalPatient patient = patientRepository.findByPortalUser_Id(portalUserId)
+            PortalPatient patient = patientRepository.findByPortalUser_Id(portalUser.getId())
                     .orElse(null);
 
             // If patient profile doesn't exist, create a basic one
             if (patient == null) {
-                log.info("Creating basic patient profile for portal user: {}", portalUserId);
+                log.info("Creating basic patient profile for portal user: {}", portalUser.getEmail());
                 patient = createBasicPatientProfile(portalUser);
             }
 
@@ -64,7 +64,7 @@ public class PortalPatientService {
                     .build();
 
         } catch (Exception e) {
-            log.error("Error retrieving patient info for user: {}", portalUserId, e);
+            log.error("Error retrieving patient info for user: {}", email, e);
             return ApiResponse.<PortalPatientDto>builder()
                     .success(false)
                     .message("Failed to retrieve patient information")
@@ -76,9 +76,9 @@ public class PortalPatientService {
      * Update patient's own information
      */
     @Transactional
-    public ApiResponse<PortalPatientDto> updatePatientInfo(Long portalUserId, PortalPatientDto updateDto) {
+    public ApiResponse<PortalPatientDto> updatePatientInfo(String email, PortalPatientDto updateDto) {
         try {
-            PortalUser portalUser = userRepository.findById(portalUserId)
+            PortalUser portalUser = userRepository.findByEmail(email)
                     .orElse(null);
 
             if (portalUser == null) {
@@ -95,7 +95,7 @@ public class PortalPatientService {
                         .build();
             }
 
-            PortalPatient patient = patientRepository.findByPortalUser_Id(portalUserId)
+            PortalPatient patient = patientRepository.findByPortalUser_Id(portalUser.getId())
                     .orElse(null);
 
             if (patient == null) {
@@ -125,7 +125,7 @@ public class PortalPatientService {
                     .build();
 
         } catch (Exception e) {
-            log.error("Error updating patient info for user: {}", portalUserId, e);
+            log.error("Error updating patient info for user: {}", email, e);
             return ApiResponse.<PortalPatientDto>builder()
                     .success(false)
                     .message("Failed to update patient information")

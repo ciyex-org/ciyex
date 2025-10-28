@@ -60,7 +60,7 @@ public class PortalMessageAttachmentService {
             Long ehrPatientId = portalUser.getPortalPatient().getEhrPatientId();
 
             // Get message attachments for this message
-            List<MessageAttachment> attachments = messageAttachmentRepository.findAllMessageId(messageId);
+            List<MessageAttachment> attachments = messageAttachmentRepository.findAllByMessageId(messageId);
 
             // Filter to only show attachments for messages involving this patient
             // (You might want to add additional validation here to ensure the message belongs to this patient)

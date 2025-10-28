@@ -15,6 +15,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Controller for handling patient updates that require EHR staff review/approval
@@ -35,9 +36,9 @@ public class PortalReviewController {
     private final PortalUserRepository portalUserRepository;
 
     /**
-     * Extract patient ID from JWT token
+     * Extract patient UUID from JWT token
      */
-    private Long extractPatientIdFromToken(HttpServletRequest request) {
+    private UUID extractPatientUuidFromToken(HttpServletRequest request) {
         try {
             // Get email from Spring Security context
             org.springframework.security.core.Authentication authentication = 
@@ -49,10 +50,10 @@ public class PortalReviewController {
             
             String email = authentication.getName();
             return portalUserRepository.findByEmail(email)
-                    .map(PortalUser::getId)
+                    .map(PortalUser::getUuid)
                     .orElseThrow(() -> new IllegalStateException("No user found for email: " + email));
         } catch (Exception e) {
-            log.error("❌ Failed to extract patient ID", e);
+            log.error("❌ Failed to extract patient UUID", e);
             throw new IllegalStateException("Invalid or expired token");
         }
     }
@@ -70,9 +71,9 @@ public class PortalReviewController {
             HttpServletRequest request,
             @RequestBody PortalUpdateRequest updateRequest) {
         try {
-            Long patientId = extractPatientIdFromToken(request);
+            UUID patientUuid = extractPatientUuidFromToken(request);
 
-            Long updateId = reviewService.submitForReview(patientId, updateRequest);
+            Long updateId = reviewService.submitForReview(patientUuid, updateRequest);
 
             return ApiResponse.<String>builder()
                     .success(true)
@@ -95,8 +96,8 @@ public class PortalReviewController {
     @GetMapping("/status")
     public ApiResponse<List<PortalPendingUpdateDto>> getMyUpdateStatus(HttpServletRequest request) {
         try {
-            Long patientId = extractPatientIdFromToken(request);
-            List<PortalPendingUpdateDto> updates = reviewService.getPatientUpdates(patientId);
+            UUID patientUuid = extractPatientUuidFromToken(request);
+            List<PortalPendingUpdateDto> updates = reviewService.getPatientUpdates(patientUuid);
 
             return ApiResponse.<List<PortalPendingUpdateDto>>builder()
                     .success(true)

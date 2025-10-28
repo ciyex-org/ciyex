@@ -27,9 +27,9 @@ public class PortalReportsService {
     /**
      * Get all reports for a portal patient (reports are documents categorized as reports)
      */
-    public ApiResponse<List<DocumentDto>> getAllReports(Long portalUserId) {
+    public ApiResponse<List<DocumentDto>> getAllReports(String email) {
         try {
-            PortalUser portalUser = userRepository.findById(portalUserId)
+            PortalUser portalUser = userRepository.findByEmail(email)
                     .orElse(null);
 
             if (portalUser == null) {
@@ -78,7 +78,7 @@ public class PortalReportsService {
             }
 
         } catch (Exception e) {
-            log.error("Error retrieving reports for user: {}", portalUserId, e);
+            log.error("Error retrieving reports for user: {}", email, e);
             return ApiResponse.<List<DocumentDto>>builder()
                     .success(false)
                     .message("Failed to retrieve reports")
@@ -89,9 +89,9 @@ public class PortalReportsService {
     /**
      * Get recent reports for a portal patient (last 10 records)
      */
-    public ApiResponse<List<DocumentDto>> getRecentReports(Long portalUserId) {
+    public ApiResponse<List<DocumentDto>> getRecentReports(String email) {
         try {
-            ApiResponse<List<DocumentDto>> response = getAllReports(portalUserId);
+            ApiResponse<List<DocumentDto>> response = getAllReports(email);
             if (response.isSuccess() && response.getData() != null) {
                 List<DocumentDto> recentReports = response.getData()
                         .stream()
@@ -112,7 +112,7 @@ public class PortalReportsService {
             }
 
         } catch (Exception e) {
-            log.error("Error retrieving recent reports for user: {}", portalUserId, e);
+            log.error("Error retrieving recent reports for user: {}", email, e);
             return ApiResponse.<List<DocumentDto>>builder()
                     .success(false)
                     .message("Failed to retrieve recent reports")

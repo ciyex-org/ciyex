@@ -11,6 +11,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/portal/patients/me/demographics")
 @RequiredArgsConstructor
@@ -20,31 +22,31 @@ public class PortalDemographicsController {
     private final PortalUserRepository portalUserRepository;
 
     /**
-     * ✅ Resolve patientId from the authenticated user's email in JWT
+     * ✅ Resolve patient UUID from the authenticated user's email in JWT
      */
-    private Long getCurrentPatientId() {
+    private UUID getCurrentPatientUuid() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof UserDetails userDetails) {
             String email = userDetails.getUsername();
             return portalUserRepository.findByEmail(email)
                     .orElseThrow(() -> new IllegalStateException("No portal user found with email: " + email))
-                    .getId();
+                    .getUuid();
         }
         throw new IllegalStateException("No authenticated portal user found");
     }
 
     @GetMapping(produces = "application/json")
     public ApiResponse<PortalDemographicsDto> getMyDemographics() {
-        Long patientId = getCurrentPatientId();
-        PortalDemographicsDto dto = demographicsService.getMyDemographics(patientId);
+        UUID patientUuid = getCurrentPatientUuid();
+        PortalDemographicsDto dto = demographicsService.getMyDemographics(patientUuid);
         return ApiResponse.success("Fetched demographics successfully", dto);
     }
 
     @PutMapping(produces = "application/json", consumes = "application/json")
     public ApiResponse<PortalDemographicsDto> updateMyDemographics(
             @RequestBody PortalDemographicsDto demographicsDto) {
-        Long patientId = getCurrentPatientId();
-        PortalDemographicsDto updated = demographicsService.updateMyDemographics(patientId, demographicsDto);
+        UUID patientUuid = getCurrentPatientUuid();
+        PortalDemographicsDto updated = demographicsService.updateMyDemographics(patientUuid, demographicsDto);
         return ApiResponse.success("Updated demographics successfully", updated);
     }
 }
