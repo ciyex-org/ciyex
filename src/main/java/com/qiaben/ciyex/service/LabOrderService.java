@@ -88,8 +88,7 @@ public class LabOrderService {
     }
 
     @Transactional(readOnly = true)
-    public ApiResponse<List<LabOrderDto>> getAll(Collection<Long> allowedOrgIds) {
-        
+    public ApiResponse<List<LabOrderDto>> getAll() {
         List<LabOrder> orders = repository.findAll();
         List<LabOrderDto> dtos = orders.stream().map(this::mapToDto).collect(Collectors.toList());
         return ApiResponse.<List<LabOrderDto>>builder()

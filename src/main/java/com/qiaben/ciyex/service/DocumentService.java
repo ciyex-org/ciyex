@@ -51,7 +51,8 @@ public class DocumentService {
     @Transactional
     public DocumentDto create(Long patientId, DocumentDto dto, MultipartFile file) {
         // 1. Load document settings for org
-        DocumentSettings settings = settingsRepo.findFirstByOrderByIdAsc();
+        DocumentSettings settings = settingsRepo.findFirstByOrderByIdAsc()
+                .orElseThrow(() -> new RuntimeException("Document settings not configured"));
 
         // 2. File size validation
         long fileSize = file.getSize();
