@@ -55,4 +55,13 @@ public class Communication extends AuditableEntity {
 
     @Column(name = "provider_id")
     private Long providerId;
+
+    @Column(name = "read_at")
+    private String readAt;
+
+    @Column(name = "read_by")
+    private String readBy; // "provider" or "patient"
+
+    @Column(name = "attachment_ids")
+    private String attachmentIds; // comma-separated message attachment IDs (deprecated - use message_attachments table instead)
 }

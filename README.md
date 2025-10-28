@@ -60,6 +60,11 @@ ciyex/
 
 4. *(Optional)* Import initial schema if you have SQL files provided.
 
+### c. External Service Configuration
+
+For configuring external services like AWS S3 for file storage, see:
+- **[S3 Credentials Guide](S3_CREDENTIALS_GUIDE.md)** - How to configure and update S3 credentials for message attachments
+
 ---
 
 ### b. Build & Run the Backend

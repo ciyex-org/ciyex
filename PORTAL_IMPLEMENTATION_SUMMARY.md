@@ -222,3 +222,119 @@ The system is now fully functional with:
 6. **Multi-Organization**: Enhanced org selection and filtering
 
 The system is production-ready and can be deployed immediately for testing and use!
+
+## 🔗 Portal Patient to EHR Patient Linking (For Teammates)
+
+When a portal user is approved, they need to be linked to an EHR patient for full functionality (e.g., messaging). Here's the process for developers/teammates:
+
+### Workflow for Linking Portal Patients to EHR Patients
+
+1. **Check Portal User Status:**
+   ```sql
+   SELECT id, email, status FROM public.portal_users WHERE email = '[patient_email]';
+   ```
+   - Ensure status is 'APPROVED'.
+
+2. **Check if Portal Patient Record Exists:**
+   ```sql
+   SELECT * FROM public.portal_patients WHERE portal_user_id = [portal_user_id];
+   ```
+
+3. **Find or Create EHR Patient:**
+   - **If EHR patient exists:** Match by email.
+     ```sql
+     SELECT id FROM practice_1.patients WHERE email = '[patient_email]';
+     ```
+   - **If not exists:** Create new EHR patient.
+     ```sql
+     INSERT INTO practice_1.patients (org_id, first_name, last_name, email, phone_number, date_of_birth, gender, address, status, created_date, last_modified_date) 
+     VALUES (1, '[first_name]', '[last_name]', '[email]', '[phone]', '1990-01-01', 'M', '[address]', 'ACTIVE', NOW(), NOW()) 
+     RETURNING id;
+     ```
+
+4. **Link Portal Patient to EHR Patient:**
+   ```sql
+   UPDATE public.portal_patients SET ehr_patient_id = [ehr_patient_id] WHERE portal_user_id = [portal_user_id];
+   ```
+
+5. **Verify Linking:**
+   ```sql
+   SELECT portal_user_id, ehr_patient_id FROM public.portal_patients WHERE portal_user_id = [portal_user_id];
+   ```
+
+### Example for John Doe (userId 5, ehr_patient_id 3):
+```sql
+-- Link
+UPDATE public.portal_patients SET ehr_patient_id = 3 WHERE portal_user_id = 5;
+
+-- Verify
+SELECT portal_user_id, ehr_patient_id FROM public.portal_patients WHERE portal_user_id = 5;
+```
+
+### Notes for Teammates:
+- Always check `public.portal_patients.ehr_patient_id` before assuming linking is done.
+- For messaging to work, ensure communications are inserted with the correct `patient_id` (which is `ehr_patient_id`).
+- If auto-linking is implemented later, this manual process can be automated.
+
+## 📎 Message Attachments Workflow
+
+### Backend Implementation
+- **CommunicationDto** and **Communication** entity now support `attachmentIds` field (comma-separated document IDs).
+- **PortalDocumentsController** has new endpoints:
+  - `POST /api/portal/documents/upload` - Upload documents for portal patients
+  - `GET /api/portal/documents/download/{documentId}` - Download documents
+- **PortalCommunicationController.sendMessage()** accepts `attachmentIds` in request body.
+
+### Database Changes
+```sql
+ALTER TABLE practice_1.communications ADD COLUMN attachment_ids TEXT;
+```
+
+### API Workflow for Attachments
+
+1. **Upload Document:**
+   ```
+   POST /api/portal/documents/upload
+   Authorization: Bearer {jwt_token}
+   Content-Type: multipart/form-data
+   
+   Form Data:
+   - dto: {"category": "COMMUNICATION_ATTACHMENT", "type": "ATTACHMENT"}
+   - file: [binary file data]
+   
+   Response: DocumentDto {id: 123, fileName: "results.pdf", ...}
+   ```
+
+2. **Send Message with Attachments:**
+   ```
+   POST /api/portal/communications/send
+   Authorization: Bearer {jwt_token}
+   Content-Type: application/json
+   
+   {
+     "providerId": 1,
+     "payload": "Please review attached results",
+     "attachmentIds": "123,456"
+   }
+   ```
+
+3. **Retrieve Messages with Attachments:**
+   ```
+   GET /api/portal/communications/my
+   Authorization: Bearer {jwt_token}
+   
+   Response includes: attachmentIds field for each message
+   ```
+
+4. **Download Attachments:**
+   ```
+   GET /api/portal/documents/download/{documentId}
+   Authorization: Bearer {jwt_token}
+   
+   Response: File download
+   ```
+
+### Frontend Integration
+- File upload component → Call upload API → Get document ID
+- Message composer → Include attachment IDs → Send message
+- Message display → Show attachment links → Download on click

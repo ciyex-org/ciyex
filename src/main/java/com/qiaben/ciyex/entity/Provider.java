@@ -1,11 +1,12 @@
 
 package com.qiaben.ciyex.entity;
+import com.qiaben.ciyex.dto.ProviderDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.EqualsAndHashCode;
+
 
 @Data
 @NoArgsConstructor
@@ -13,12 +14,16 @@ import lombok.EqualsAndHashCode;
 @Builder
 @Entity
 @Table(name = "provider")
-@EqualsAndHashCode(callSuper = true)
-public class Provider extends AuditableEntity {
+public class Provider extends ProviderDto {
+
+
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "org_id")
+    private Long orgId;
 
     @Column(name = "npi")
     private String npi;
@@ -80,7 +85,11 @@ public class Provider extends AuditableEntity {
     @Column(name = "external_id")
     private String externalId;
 
-    // audit fields provided by AuditableEntity
+    @Column(name = "created_date")
+    private String createdDate;
+
+    @Column(name = "last_modified_date")
+    private String lastModifiedDate;
 
     @Enumerated(EnumType.STRING)
     private ProviderStatus status;

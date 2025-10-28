@@ -38,4 +38,15 @@ public class CommunicationDto {
     private String fromName;       // provider full name
     private List<Long> toIds;      // patient ids
     private List<String> toNames;  // patient full names
+
+    // ✅ Message type differentiation
+    private String messageType;    // "provider_to_patient" or "patient_to_provider"
+
+    // ✅ Read tracking fields
+    private String readAt;         // When the message was read
+    private String readBy;         // Who read it ("provider" or "patient")
+
+    // ✅ Attachment support
+    private String attachmentIds;  // Comma-separated message attachment IDs (deprecated - use message_attachments table instead)
+    private List<MessageAttachmentDto> attachments; // Full attachment details from message_attachments table
 }

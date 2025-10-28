@@ -1,8 +1,5 @@
 package com.qiaben.ciyex.service.portal;
 
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalPatientDto;
 import com.qiaben.ciyex.entity.portal.PortalPatient;
@@ -12,6 +9,10 @@ import com.qiaben.ciyex.repository.portal.PortalPatientRepository;
 import com.qiaben.ciyex.repository.portal.PortalUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
 
 @Slf4j
 @Service
@@ -23,6 +24,7 @@ public class PortalPatientService {
 
     /**
      * Get patient's own information (for portal dashboard)
+     * Creates a basic patient profile if one doesn't exist
      */
     @Transactional(readOnly = true)
     public ApiResponse<PortalPatientDto> getPatientInfo(Long portalUserId) {
@@ -47,11 +49,10 @@ public class PortalPatientService {
             PortalPatient patient = patientRepository.findByPortalUser_Id(portalUserId)
                     .orElse(null);
 
+            // If patient profile doesn't exist, create a basic one
             if (patient == null) {
-                return ApiResponse.<PortalPatientDto>builder()
-                        .success(false)
-                        .message("Patient profile not found")
-                        .build();
+                log.info("Creating basic patient profile for portal user: {}", portalUserId);
+                patient = createBasicPatientProfile(portalUser);
             }
 
             PortalPatientDto dto = PortalPatientDto.fromEntity(patient, portalUser);
@@ -72,7 +73,7 @@ public class PortalPatientService {
     }
 
     /**
-     * Update patient information
+     * Update patient's own information
      */
     @Transactional
     public ApiResponse<PortalPatientDto> updatePatientInfo(Long portalUserId, PortalPatientDto updateDto) {
@@ -131,5 +132,23 @@ public class PortalPatientService {
                     .build();
         }
     }
+
+    /**
+     * Create a basic patient profile for a portal user
+     */
+    @Transactional
+    public PortalPatient createBasicPatientProfile(PortalUser portalUser) {
+        try {
+            PortalPatient patient = PortalPatient.builder()
+                    .portalUser(portalUser)
+                    .dateOfBirth(LocalDate.now().minusYears(25)) // Default age 25
+                    .country("USA")
+                    .build();
+
+            return patientRepository.save(patient);
+        } catch (Exception e) {
+            log.error("Error creating basic patient profile for user: {}", portalUser.getId(), e);
+            throw new RuntimeException("Failed to create patient profile", e);
+        }
+    }
 }
-//

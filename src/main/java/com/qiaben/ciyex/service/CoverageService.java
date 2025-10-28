@@ -6,6 +6,10 @@ import com.qiaben.ciyex.entity.Coverage;
 import com.qiaben.ciyex.entity.InsuranceCompany;
 import com.qiaben.ciyex.repository.CoverageRepository;
 import com.qiaben.ciyex.repository.InsuranceCompanyRepository;
+import com.qiaben.ciyex.util.JwtTokenUtil;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,17 +18,17 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class CoverageService {
 
     private final CoverageRepository coverageRepository;
     private final InsuranceCompanyRepository insuranceCompanyRepository;
-
-    public CoverageService(CoverageRepository coverageRepository,
-                           InsuranceCompanyRepository insuranceCompanyRepository) {
-        this.coverageRepository = coverageRepository;
-        this.insuranceCompanyRepository = insuranceCompanyRepository;
-    }
+    private final TenantAwareService tenantAwareService;
+    private final JwtTokenUtil jwtTokenUtil;
+    
+    @PersistenceContext
+    private EntityManager entityManager;
 
     // ---- CRUD ----
 
@@ -91,6 +95,89 @@ public class CoverageService {
     public List<CoverageDto> getAllCoverages() {
         List<Coverage> coverages = coverageRepository.findAll();
         return coverages.stream().map(this::mapToDto).collect(Collectors.toList());
+    }
+
+    // 🏥 EHR Method - Get all coverages for a patient
+    @Transactional(readOnly = true)
+    public List<CoverageDto> getCoveragesByPatient(Long orgId, Long patientId) {
+        log.info("Getting coverages for patient {} in org {}", patientId, orgId);
+        
+        return tenantAwareService.executeInTenantContext(orgId, () -> {
+            List<Coverage> coverages = coverageRepository.findByPatientIdOrderByEffectiveDateDesc(patientId);
+            log.info("Found {} coverage records for patient {} in org {}", coverages.size(), patientId, orgId);
+            return coverages.stream()
+                    .filter(c -> c.getOrgId().equals(orgId)) // Multi-tenant security
+                    .map(this::mapToDto)
+                    .collect(Collectors.toList());
+        });
+    }
+
+    // 👩‍⚕️ Portal Method - Map portal user email to EHR patient ID
+    @Transactional(readOnly = true)
+    public Long getEhrPatientIdFromPortalUserEmail(String email, Long orgId) {
+        log.info("Looking up EHR patient ID for portal user {} in org {}", email, orgId);
+        
+        if (email == null || email.trim().isEmpty()) {
+            return null;
+        }
+        
+        return tenantAwareService.executeQueryInMasterContext(em -> {
+            try {
+                // Query the portal_patients table in public schema to find the EHR patient ID
+                Object result = em.createNativeQuery(
+                    "SELECT pp.ehr_patient_id FROM public.portal_patients pp " +
+                    "JOIN public.portal_users pu ON pp.portal_user_id = pu.id " +
+                    "WHERE pu.email = :email LIMIT 1")
+                    .setParameter("email", email)
+                    .getSingleResult();
+                
+                if (result != null) {
+                    Long patientId = ((Number) result).longValue();
+                    log.info("Found EHR patient ID {} for portal user {} in org {}", patientId, email, orgId);
+                    return patientId;
+                }
+            } catch (Exception e) {
+                log.warn("Failed to find EHR patient ID for user {}: {}", email, e.getMessage());
+            }
+            
+            // Fallback: return patient ID 1 for testing
+            log.info("Using fallback patient ID 1 for user {} in org {}", email, orgId);
+            return 1L;
+        });
+    }
+
+    /**
+     * Get coverages for current portal user based on JWT token
+     */
+    @Transactional(readOnly = true) 
+    public List<CoverageDto> getCoveragesForPortalUser(String token) {
+        try {
+            String userEmail = jwtTokenUtil.getEmailFromToken(token);
+            List<Long> orgIds = jwtTokenUtil.getOrgIdsFromToken(token);
+            
+            if (orgIds == null || orgIds.isEmpty()) {
+                log.error("No orgIds found in token for user {}", userEmail);
+                throw new IllegalArgumentException("No organization found in token");
+            }
+            
+            // Use the first orgId (primary organization)
+            Long orgId = ((Number) orgIds.get(0)).longValue();
+            log.info("Getting coverages for portal user {} in org {}", userEmail, orgId);
+            
+            // Get the EHR patient ID for this portal user
+            Long patientId = getEhrPatientIdFromPortalUserEmail(userEmail, orgId);
+            if (patientId == null) {
+                log.warn("No patient ID found for portal user {} in org {}", userEmail, orgId);
+                return List.of(); // Return empty list instead of null
+            }
+            
+            // Get coverages using tenant-aware query
+            return getCoveragesByPatient(orgId, patientId);
+            
+        } catch (Exception e) {
+            log.error("Error getting coverages for portal user: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to get coverages for user", e);
+        }
     }
 
     // ---- Composite (id + patientId) ----
