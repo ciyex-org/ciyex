@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.DocumentDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.entity.Document;
 import com.qiaben.ciyex.entity.DocumentSettings;
 import com.qiaben.ciyex.repository.DocumentRepository;
@@ -48,10 +49,9 @@ public class DocumentService {
     }
 
     @Transactional
-    public DocumentDto create(Long orgId, Long patientId, DocumentDto dto, MultipartFile file) {
+    public DocumentDto create(Long patientId, DocumentDto dto, MultipartFile file) {
         // 1. Load document settings for org
-        DocumentSettings settings = settingsRepo.findFirstByOrderByIdAsc()
-                .orElseThrow(() -> new RuntimeException("Document settings not found for orgId=" + orgId));
+        DocumentSettings settings = settingsRepo.findFirstByOrderByIdAsc();
 
         // 2. File size validation
         long fileSize = file.getSize();
@@ -91,17 +91,17 @@ public class DocumentService {
                 fileBytes = EncryptionUtil.encrypt(fileBytes, key, iv);
                 base64Key = Base64.getEncoder().encodeToString(key.getEncoded());
                 base64Iv = Base64.getEncoder().encodeToString(iv);
-                log.info("Applied encryption for file={} orgId={}", file.getOriginalFilename(), orgId);
+                log.info("Applied encryption for file={}", file.getOriginalFilename());
             } catch (Exception e) {
                 throw new RuntimeException("Encryption failed", e);
             }
         }
 
         // 6. Upload to S3
-        S3Config s3Config = configProvider.getS3DocumentStorage(orgId);
+        S3Config s3Config = configProvider.getS3DocumentStorage();
         S3Client s3 = buildS3Client(s3Config);
 
-        String key = "documents/" + orgId + "/" + patientId + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
+        String key = "documents/" + RequestContext.get().getTenantName() + "/" + patientId + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
         try {
             s3.putObject(
                     PutObjectRequest.builder()
@@ -135,11 +135,11 @@ public class DocumentService {
     }
 
     @Transactional
-    public void delete(Long orgId, Long documentId) {
+    public void delete(Long documentId) {
         Document document = repository.findById(documentId)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        S3Config s3Config = configProvider.getS3DocumentStorage(orgId);
+        S3Config s3Config = configProvider.getS3DocumentStorage();
         S3Client s3 = buildS3Client(s3Config);
 
         try {
@@ -156,11 +156,11 @@ public class DocumentService {
     }
 
     @Transactional(readOnly = true)
-    public DownloadResult download(Long orgId, Long documentId) {
+    public DownloadResult download(Long documentId) {
         Document document = repository.findById(documentId)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        S3Config s3Config = configProvider.getS3DocumentStorage(orgId);
+        S3Config s3Config = configProvider.getS3DocumentStorage();
         S3Client s3 = buildS3Client(s3Config);
 
         try (InputStream is = s3.getObject(GetObjectRequest.builder()
@@ -196,7 +196,7 @@ public class DocumentService {
     }
 
     @Transactional(readOnly = true)
-    public ApiResponse<List<DocumentDto>> getAllForPatient(Long orgId, Long patientId) {
+    public ApiResponse<List<DocumentDto>> getAllForPatient(Long patientId) {
         List<Document> documents = repository.findAllByPatientId(patientId);
         List<DocumentDto> dtos = documents.stream().map(this::mapToDto).collect(Collectors.toList());
         return ApiResponse.<List<DocumentDto>>builder()

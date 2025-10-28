@@ -17,8 +17,8 @@ public class TelehealthGateway {
 
     public String createJoinToken(String roomName, String identity, Integer ttlSecs) {
         return resolver.resolve().createJoinToken(roomName, identity, ttlSecs);
-        // Implementations read orgId from RequestContext, so the Long param is unused.
-        // If you prefer, change the interface to drop orgId entirely.
+        
+        
     }
 
     public String getCallStatus(String callId) {

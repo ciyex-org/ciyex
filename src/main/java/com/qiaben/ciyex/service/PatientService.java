@@ -46,8 +46,7 @@ public class PatientService {
     // Create a new patient
     @Transactional
     public PatientDto create(PatientDto dto) {
-        // Single-tenant: no orgId check needed
-        dto.setTenantName(currentTenantName());
+        
 
         if (dto.getFirstName() == null || dto.getLastName() == null) {
             throw new IllegalArgumentException("First name and last name are required");
@@ -85,7 +84,6 @@ public class PatientService {
 
     dto.setId(patient.getId());
     dto.setExternalId(externalId);
-    dto.setTenantName(currentTenantName());
         log.info("Created patient with id: {} and externalId: {} in DB", patient.getId(), externalId);
 
         return dto;
@@ -94,7 +92,7 @@ public class PatientService {
     // Fetch patient by ID
     @Transactional(readOnly = true)
     public PatientDto getById(Long id) {
-        // Single-tenant: no orgId check needed
+        
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
 
@@ -126,7 +124,7 @@ public class PatientService {
     // Update an existing patient
     @Transactional
     public PatientDto update(Long id, PatientDto dto) {
-        // Single-tenant: no orgId check needed
+        
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
 
@@ -147,7 +145,6 @@ public class PatientService {
 
     dto.setId(patient.getId());
     dto.setExternalId(patient.getExternalId());
-    dto.setTenantName(currentTenantName());
         log.info("Updated patient with id: {} and externalId: {} in DB", id, patient.getExternalId());
 
         return dto;
@@ -156,7 +153,7 @@ public class PatientService {
     // Delete a patient
     @Transactional
     public void delete(Long id) {
-        // Single-tenant: no orgId check needed
+        
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
 
@@ -177,7 +174,7 @@ public class PatientService {
 
     @Transactional(readOnly = true)
     public ApiResponse<List<PatientDto>> getAllPatients() {
-        // Single-tenant: no orgId check needed
+        
         List<Patient> patients = repository.findAll();
     List<PatientDto> patientDtos = patients.stream().map(this::mapToDto).collect(Collectors.toList());
 
@@ -190,7 +187,7 @@ public class PatientService {
 
     @Transactional(readOnly = true)
     public Page<PatientDto> searchPatients(String query, Pageable pageable) {
-        // Single-tenant: no orgId check needed
+        
         if (query == null || query.isBlank()) {
             log.info("Empty search query provided, returning all patients");
             return repository.findAll(pageable).map(this::mapToDto);
@@ -203,7 +200,7 @@ public class PatientService {
 
     @Transactional(readOnly = true)
     public Page<PatientDto> getAllPatients(Pageable pageable, String search) {
-        // Single-tenant: no orgId check needed
+        
         Page<Patient> page;
         if (search != null && !search.isBlank()) {
             page = repository.searchBy(search.toLowerCase(), pageable);
@@ -269,31 +266,6 @@ public class PatientService {
         if (dto.getStatus() != null) patient.setStatus(dto.getStatus());
 
         // ❌ Do NOT allow MRN updates once created
-    }
-
-    private Long getCurrentOrgId() {
-        String tenant = currentTenantName();
-        if (tenant == null || tenant.isBlank()) {
-            return null;
-        }
-        String digits = tenant.replaceAll("[^0-9]", "");
-        if (digits.isEmpty()) {
-            return null;
-        }
-        try {
-            return Long.parseLong(digits);
-        } catch (NumberFormatException ex) {
-            return null;
-        }
-    }
-
-    private String currentTenantName() {
-        RequestContext ctx = RequestContext.get();
-        return ctx != null ? ctx.getTenantName() : null;
-    }
-
-    private String tenantNameFromOrgId(Long orgId) {
-        return orgId == null ? null : "practice_" + orgId;
     }
 
     private String generateMrn() {

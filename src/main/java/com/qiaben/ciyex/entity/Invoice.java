@@ -16,9 +16,7 @@ import java.util.List;
 public class Invoice extends AuditableEntity {   // <-- public
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @Column(name="external_id") private String externalId;
-    @Column(name="org_id", nullable=false) private Long orgId;
-    @Column(name="patient_id", nullable=false) private Long patientId;
+    @Column(name="external_id") private String externalId;    @Column(name="patient_id", nullable=false) private Long patientId;
     @Column(name="encounter_id", nullable=false) private Long encounterId;
 
     @Column(name="invoice_number") private String invoiceNumber;

@@ -24,9 +24,9 @@
 //    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 //
 //    // CREATE
-//    public HistoryOfPresentIllnessDto create(Long orgId, Long patientId, Long encounterId, HistoryOfPresentIllnessDto in) {
+//    public HistoryOfPresentIllnessDto create(Long patientId, Long encounterId, HistoryOfPresentIllnessDto in) {
 //        HistoryOfPresentIllness toSave = HistoryOfPresentIllness.builder()
-//                .orgId(orgId)
+
 //                .patientId(patientId)
 //                .encounterId(encounterId)
 //                .description(in.getDescription())
@@ -45,7 +45,7 @@
 //    }
 //
 //    // UPDATE
-//    public HistoryOfPresentIllnessDto update(Long orgId, Long patientId, Long encounterId, Long id, HistoryOfPresentIllnessDto in) {
+//    public HistoryOfPresentIllnessDto update(Long patientId, Long encounterId, Long id, HistoryOfPresentIllnessDto in) {
 //        HistoryOfPresentIllness entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
 //
@@ -63,7 +63,7 @@
 //    }
 //
 //    // DELETE
-//    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public void delete(Long patientId, Long encounterId, Long id) {
 //        HistoryOfPresentIllness entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
 //
@@ -78,19 +78,19 @@
 //    }
 //
 //    // GET ONE
-//    public HistoryOfPresentIllnessDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public HistoryOfPresentIllnessDto getOne(Long patientId, Long encounterId, Long id) {
 //        HistoryOfPresentIllness entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
 //        return mapToDto(entity);
 //    }
 //
 //    // GET ALL by patient
-//    public List<HistoryOfPresentIllnessDto> getAllByPatient(Long orgId, Long patientId) {
+//    public List<HistoryOfPresentIllnessDto> getAllByPatient(Long patientId) {
 //        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    // GET ALL by patient + encounter
-//    public List<HistoryOfPresentIllnessDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+//    public List<HistoryOfPresentIllnessDto> getAllByEncounter(Long patientId, Long encounterId) {
 //        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 //    }
 //
@@ -151,7 +151,7 @@ public class HistoryOfPresentIllnessService {
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
-    public HistoryOfPresentIllnessDto create(Long orgId, Long patientId, Long encounterId, HistoryOfPresentIllnessDto dto) {
+    public HistoryOfPresentIllnessDto create(Long patientId, Long encounterId, HistoryOfPresentIllnessDto dto) {
         HistoryOfPresentIllness e = new HistoryOfPresentIllness();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -161,20 +161,20 @@ public class HistoryOfPresentIllnessService {
     }
 
     // Read one
-    public HistoryOfPresentIllnessDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public HistoryOfPresentIllnessDto getOne(Long patientId, Long encounterId, Long id) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
         return toDto(e);
     }
 
     // List by encounter
-    public List<HistoryOfPresentIllnessDto> list(Long orgId, Long patientId, Long encounterId) {
+    public List<HistoryOfPresentIllnessDto> list(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // Update (blocked if signed)
-    public HistoryOfPresentIllnessDto update(Long orgId, Long patientId, Long encounterId, Long id, HistoryOfPresentIllnessDto dto) {
+    public HistoryOfPresentIllnessDto update(Long patientId, Long encounterId, Long id, HistoryOfPresentIllnessDto dto) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed HPI entries are read-only.");
@@ -185,7 +185,7 @@ public class HistoryOfPresentIllnessService {
     }
 
     // Delete (blocked if signed)
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed HPI entries cannot be deleted.");
@@ -193,7 +193,7 @@ public class HistoryOfPresentIllnessService {
     }
 
     // eSign (idempotent)
-    public HistoryOfPresentIllnessDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
+    public HistoryOfPresentIllnessDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
@@ -206,7 +206,7 @@ public class HistoryOfPresentIllnessService {
     }
 
     // Print (PDF) — stamps printedAt
-    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
 

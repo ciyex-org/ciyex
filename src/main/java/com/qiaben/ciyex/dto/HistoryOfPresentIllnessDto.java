@@ -8,7 +8,7 @@
 ////    private String description;  // Description of the illness
 ////    private Long patientId;      // Patient ID
 ////    private Long encounterId;    // Encounter ID
-////    private Long orgId;          // Organization ID
+////          // Organization ID
 ////    private LocalDateTime createdAt;
 ////    private LocalDateTime updatedAt;
 ////
@@ -45,13 +45,9 @@
 ////        this.encounterId = encounterId;
 ////    }
 ////
-////    public Long getOrgId() {
-////        return orgId;
-////    }
+////    
 ////
-////    public void setOrgId(Long orgId) {
-////        this.orgId = orgId;
-////    }
+////    
 ////
 ////    public LocalDateTime getCreatedAt() {
 ////        return createdAt;
@@ -79,7 +75,7 @@
 //public class HistoryOfPresentIllnessDto {
 //    private Long id;             // DB id
 //    private String externalId;   // FHIR id (optional)
-//    private Long orgId;          // tenant
+//          // tenant
 //    private Long patientId;
 //    private Long encounterId;
 //
@@ -94,9 +90,6 @@
 //        private String lastModifiedDate;
 //    }
 //}
-
-
-
 
 package com.qiaben.ciyex.dto;
 

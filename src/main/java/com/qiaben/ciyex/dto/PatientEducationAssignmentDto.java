@@ -11,13 +11,11 @@ public class PatientEducationAssignmentDto {
     private String assignedDate;
     private String patientName; // ✅ add this
 
-
     private TopicDto topic; // ✅ Nested topic object
 
     @Data
     public static class TopicDto {
         private Long id;
-        private Long orgId;
         private String title;
         private String summary;
         private String category;

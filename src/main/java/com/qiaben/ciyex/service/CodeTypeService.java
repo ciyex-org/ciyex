@@ -25,7 +25,7 @@ public class CodeTypeService {
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // CREATE
-    public CodeTypeDto create(Long orgId, Long patientId, Long encounterId, CodeTypeDto in) {
+    public CodeTypeDto create(Long patientId, Long encounterId, CodeTypeDto in) {
         CodeType e = CodeType.builder()
                 .patientId(patientId).encounterId(encounterId)
                 .codeTypeKey(in.getCodeTypeKey())
@@ -60,7 +60,7 @@ public class CodeTypeService {
     }
 
     // UPDATE
-    public CodeTypeDto update(Long orgId, Long patientId, Long encounterId, Long id, CodeTypeDto in) {
+    public CodeTypeDto update(Long patientId, Long encounterId, Long id, CodeTypeDto in) {
         CodeType e = repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
                 .filter(ct -> ct.getId().equals(id))
                 .findFirst()
@@ -97,7 +97,7 @@ public class CodeTypeService {
     }
 
     // DELETE
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         CodeType e = repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
                 .filter(ct -> ct.getId().equals(id))
                 .findFirst().orElseThrow(() -> new IllegalArgumentException("CodeType not found"));
@@ -110,7 +110,7 @@ public class CodeTypeService {
     }
 
     // READ ONE
-    public CodeTypeDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public CodeTypeDto getOne(Long patientId, Long encounterId, Long id) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
                 .filter(ct -> ct.getId().equals(id))
                 .findFirst()
@@ -119,13 +119,13 @@ public class CodeTypeService {
     }
 
     // READ ALL by encounter
-    public List<CodeTypeDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+    public List<CodeTypeDto> getAllByEncounter(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::mapToDto).toList();
     }
 
     // SEARCH
-    public List<CodeTypeDto> searchInEncounter(Long orgId, Long patientId, Long encounterId,
+    public List<CodeTypeDto> searchInEncounter(Long patientId, Long encounterId,
                                                String codeTypeKey, Boolean active, String q) {
         return repo.searchInEncounter(patientId, encounterId, codeTypeKey, active, q)
                 .stream().map(this::mapToDto).toList();

@@ -17,7 +17,7 @@ public class InventorySettingsController {
     /** ✅ Get settings for an org */
     @GetMapping("/{orgId}")
     public ResponseEntity<ApiResponse<InventorySettingsDto>> get(@PathVariable Long orgId) {
-        InventorySettingsDto dto = service.getSettings(orgId);
+        InventorySettingsDto dto = service.getSettings();
         return ResponseEntity.ok(
                 ApiResponse.<InventorySettingsDto>builder()
                         .success(true)
@@ -30,9 +30,8 @@ public class InventorySettingsController {
     /** ✅ Update settings for an org */
     @PutMapping("/{orgId}")
     public ResponseEntity<ApiResponse<InventorySettingsDto>> update(
-            @PathVariable Long orgId,
             @RequestBody InventorySettingsDto dto) {
-        InventorySettingsDto updated = service.updateSettings(orgId, dto);
+        InventorySettingsDto updated = service.updateSettings(dto);
         return ResponseEntity.ok(
                 ApiResponse.<InventorySettingsDto>builder()
                         .success(true)

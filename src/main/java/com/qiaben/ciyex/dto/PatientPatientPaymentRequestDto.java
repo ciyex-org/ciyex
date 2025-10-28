@@ -1,7 +1,5 @@
 package com.qiaben.ciyex.dto;
 
-
-
 import java.util.List;
 
 public record PatientPatientPaymentRequestDto(

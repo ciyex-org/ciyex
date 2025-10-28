@@ -28,7 +28,6 @@ public class VitalSignsDTO {
     @NotNull(message = "Enter recorded diastolic blood pressure")
     private Double diastolic;
 
-
     private Double respiratoryRate;
 
     public String getPatientId() {

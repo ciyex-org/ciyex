@@ -6,7 +6,7 @@
 //public class PastMedicalHistoryDto {
 //    private Long id;             // DB id
 //    private String externalId;   // FHIR id (optional)
-//    private Long orgId;          // tenant
+//          // tenant
 //    private Long patientId;
 //    private Long encounterId;
 //
@@ -21,10 +21,6 @@
 //        private String lastModifiedDate;
 //    }
 //}
-
-
-
-
 
 package com.qiaben.ciyex.dto;
 

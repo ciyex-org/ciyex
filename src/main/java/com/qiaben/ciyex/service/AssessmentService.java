@@ -24,9 +24,9 @@
 //    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 //
 //    // CREATE
-//    public AssessmentDto create(Long orgId, Long patientId, Long encounterId, AssessmentDto in) {
+//    public AssessmentDto create(Long patientId, Long encounterId, AssessmentDto in) {
 //        Assessment a = Assessment.builder()
-//                .orgId(orgId)
+
 //                .patientId(patientId)
 //                .encounterId(encounterId)
 //                .assessmentSummary(in.getAssessmentSummary())
@@ -48,7 +48,7 @@
 //    }
 //
 //    // UPDATE
-//    public AssessmentDto update(Long orgId, Long patientId, Long encounterId, Long id, AssessmentDto in) {
+//    public AssessmentDto update(Long patientId, Long encounterId, Long id, AssessmentDto in) {
 //        Assessment a = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Assessment not found"));
 //
@@ -70,7 +70,7 @@
 //    }
 //
 //    // DELETE
-//    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public void delete(Long patientId, Long encounterId, Long id) {
 //        Assessment a = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Assessment not found"));
 //
@@ -85,19 +85,19 @@
 //    }
 //
 //    // GET ONE
-//    public AssessmentDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public AssessmentDto getOne(Long patientId, Long encounterId, Long id) {
 //        Assessment a = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Assessment not found"));
 //        return mapToDto(a);
 //    }
 //
 //    // GET ALL by patient
-//    public List<AssessmentDto> getAllByPatient(Long orgId, Long patientId) {
+//    public List<AssessmentDto> getAllByPatient(Long patientId) {
 //        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    // GET ALL by patient + encounter
-//    public List<AssessmentDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+//    public List<AssessmentDto> getAllByEncounter(Long patientId, Long encounterId) {
 //        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 //    }
 //
@@ -174,7 +174,7 @@ public class AssessmentService {
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // ----- Create -----
-    public AssessmentDto create(Long orgId, Long patientId, Long encounterId, AssessmentDto dto) {
+    public AssessmentDto create(Long patientId, Long encounterId, AssessmentDto dto) {
         Assessment e = new Assessment();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -196,19 +196,19 @@ public class AssessmentService {
     }
 
     // ----- Read -----
-    public AssessmentDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public AssessmentDto getOne(Long patientId, Long encounterId, Long id) {
         Assessment e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assessment not found"));
         return toDto(e);
     }
 
-    public List<AssessmentDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+    public List<AssessmentDto> getAllByEncounter(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // ----- Update (LOCK if signed) -----
-    public AssessmentDto update(Long orgId, Long patientId, Long encounterId, Long id, AssessmentDto dto) {
+    public AssessmentDto update(Long patientId, Long encounterId, Long id, AssessmentDto dto) {
         Assessment e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assessment not found"));
 
@@ -231,7 +231,7 @@ public class AssessmentService {
     }
 
     // ----- Delete (BLOCK if signed) -----
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         Assessment e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assessment not found"));
 
@@ -251,7 +251,7 @@ public class AssessmentService {
     }
 
     // ----- eSign (idempotent) -----
-    public AssessmentDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
+    public AssessmentDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         Assessment a = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assessment not found"));
 
@@ -267,7 +267,7 @@ public class AssessmentService {
     }
 
     // ----- Print PDF (also stamps printedAt) -----
-    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         Assessment a = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assessment not found"));
 

@@ -28,7 +28,7 @@ public class ProcedureService {
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    public ProcedureDto create(Long orgId, Long patientId, Long encounterId, ProcedureDto in) {
+    public ProcedureDto create(Long patientId, Long encounterId, ProcedureDto in) {
         Procedure p = Procedure.builder()
                 .cpt4(in.getCpt4()).description(in.getDescription())
                 .units(in.getUnits()).rate(in.getRate())
@@ -58,7 +58,7 @@ public class ProcedureService {
         return mapToDto(saved);
     }
 
-    public ProcedureDto update(Long orgId, Long patientId, Long encounterId, Long id, ProcedureDto in) {
+    public ProcedureDto update(Long patientId, Long encounterId, Long id, ProcedureDto in) {
         Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Procedure not found"));
 
@@ -88,7 +88,7 @@ public class ProcedureService {
         return mapToDto(updated);
     }
 
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Procedure not found"));
 
@@ -102,17 +102,17 @@ public class ProcedureService {
         repo.delete(toDelete);
     }
 
-    public ProcedureDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public ProcedureDto getOne(Long patientId, Long encounterId, Long id) {
         Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Procedure not found"));
         return mapToDto(p);
     }
 
-    public List<ProcedureDto> getAllByPatient(Long orgId, Long patientId) {
+    public List<ProcedureDto> getAllByPatient(Long patientId) {
         return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
     }
 
-    public List<ProcedureDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+    public List<ProcedureDto> getAllByEncounter(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
     }
 

@@ -29,7 +29,7 @@ public class HealthcareServiceController {
                     .build());
         }
 
-        HealthcareServiceDto createdService = service.create(dto, orgId);
+        HealthcareServiceDto createdService = service.create(dto);
         ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
                 .success(true)
                 .message("Healthcare Service created successfully")
@@ -41,7 +41,7 @@ public class HealthcareServiceController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<HealthcareServiceDto>>> getByOrgId(@RequestHeader(value = "orgId") Long orgId) {
-        List<HealthcareServiceDto> services = service.getByOrgId(orgId);
+        List<HealthcareServiceDto> services = service.getByOrgId();
         ApiResponse<List<HealthcareServiceDto>> response = new ApiResponse.Builder<List<HealthcareServiceDto>>()
                 .success(true)
                 .message("Healthcare Services fetched successfully")
@@ -64,7 +64,7 @@ public class HealthcareServiceController {
                     .build());
         }
 
-        HealthcareServiceDto updatedService = service.update(id, dto, orgId);
+        HealthcareServiceDto updatedService = service.update(id, dto);
         ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
                 .success(true)
                 .message("Healthcare Service updated successfully")
@@ -83,7 +83,7 @@ public class HealthcareServiceController {
                     .build());
         }
 
-        service.delete(id, orgId);
+        service.delete(id);
         ApiResponse<Void> response = new ApiResponse.Builder<Void>()
                 .success(true)
                 .message("Healthcare Service deleted successfully")

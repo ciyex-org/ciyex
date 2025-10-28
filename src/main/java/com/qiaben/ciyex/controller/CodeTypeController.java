@@ -22,10 +22,9 @@ public class CodeTypeController {
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<CodeTypeDto>>> getAllByEncounter(
             @PathVariable Long patientId,
-            @PathVariable Long encounterId,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long encounterId) {
 
-        var list = service.getAllByEncounter(orgId, patientId, encounterId);
+        var list = service.getAllByEncounter(patientId, encounterId);
         return ResponseEntity.ok(ApiResponse.<List<CodeTypeDto>>builder()
                 .success(true).message("CodeTypes fetched").data(list).build());
     }
@@ -35,10 +34,9 @@ public class CodeTypeController {
     public ResponseEntity<ApiResponse<CodeTypeDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long id) {
 
-        var dto = service.getOne(orgId, patientId, encounterId, id);
+        var dto = service.getOne(patientId, encounterId, id);
         return ResponseEntity.ok(ApiResponse.<CodeTypeDto>builder()
                 .success(true).message("CodeType fetched").data(dto).build());
     }
@@ -48,10 +46,9 @@ public class CodeTypeController {
     public ResponseEntity<ApiResponse<CodeTypeDto>> create(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @RequestHeader("orgId") Long orgId,
             @RequestBody CodeTypeDto dto) {
 
-        var created = service.create(orgId, patientId, encounterId, dto);
+        var created = service.create(patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<CodeTypeDto>builder()
                 .success(true).message("CodeType created").data(created).build());
     }
@@ -62,10 +59,9 @@ public class CodeTypeController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId,
             @RequestBody CodeTypeDto dto) {
 
-        var updated = service.update(orgId, patientId, encounterId, id, dto);
+        var updated = service.update(patientId, encounterId, id, dto);
         return ResponseEntity.ok(ApiResponse.<CodeTypeDto>builder()
                 .success(true).message("CodeType updated").data(updated).build());
     }
@@ -75,10 +71,9 @@ public class CodeTypeController {
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long id) {
 
-        service.delete(orgId, patientId, encounterId, id);
+        service.delete(patientId, encounterId, id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .success(true).message("CodeType deleted").build());
     }
@@ -88,12 +83,11 @@ public class CodeTypeController {
     public ResponseEntity<ApiResponse<List<CodeTypeDto>>> search(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @RequestHeader("orgId") Long orgId,
             @RequestParam(value = "q", required = false, defaultValue = "") String q,
             @RequestParam(value = "codeTypeKey", required = false) String codeTypeKey,
             @RequestParam(value = "active", required = false) Boolean active) {
 
-        var list = service.searchInEncounter(orgId, patientId, encounterId, codeTypeKey, active, q);
+        var list = service.searchInEncounter(patientId, encounterId, codeTypeKey, active, q);
         return ResponseEntity.ok(ApiResponse.<List<CodeTypeDto>>builder()
                 .success(true).message("CodeTypes search results").data(list).build());
     }

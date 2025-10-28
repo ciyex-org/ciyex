@@ -34,8 +34,7 @@
 //      */
 //     @GetMapping
 //     public ResponseEntity<ApiResponse<Page<EncounterDto>>> listAll(
-//             @RequestHeader("orgId") Long orgId,
-//             @RequestParam(value = "status", required = false) EncounterStatus status,
+//             //             @RequestParam(value = "status", required = false) EncounterStatus status,
 //             @RequestParam(value = "patientId", required = false) Long patientId,
 //             @RequestParam(value = "provider", required = false) String provider,
 //             @RequestParam(value = "from", required = false) String from,

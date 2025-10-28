@@ -25,9 +25,9 @@
 //    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 //
 //    // CREATE
-//    public FamilyHistoryDto create(Long orgId, Long patientId, Long encounterId, FamilyHistoryDto in) {
+//    public FamilyHistoryDto create(Long patientId, Long encounterId, FamilyHistoryDto in) {
 //        FamilyHistory fh = new FamilyHistory();
-//        fh.setOrgId(orgId);
+//
 //        fh.setPatientId(patientId);
 //        fh.setEncounterId(encounterId);
 //
@@ -58,7 +58,7 @@
 //    }
 //
 //    // UPDATE (replace entries)
-//    public FamilyHistoryDto update(Long orgId, Long patientId, Long encounterId, Long id, FamilyHistoryDto in) {
+//    public FamilyHistoryDto update(Long patientId, Long encounterId, Long id, FamilyHistoryDto in) {
 //        FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Family History not found"));
 //
@@ -90,7 +90,7 @@
 //    }
 //
 //    // DELETE
-//    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public void delete(Long patientId, Long encounterId, Long id) {
 //        FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Family History not found"));
 //
@@ -105,19 +105,19 @@
 //    }
 //
 //    // GET ONE
-//    public FamilyHistoryDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public FamilyHistoryDto getOne(Long patientId, Long encounterId, Long id) {
 //        FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Family History not found"));
 //        return mapToDto(fh);
 //    }
 //
 //    // GET ALL by patient
-//    public List<FamilyHistoryDto> getAllByPatient(Long orgId, Long patientId) {
+//    public List<FamilyHistoryDto> getAllByPatient(Long patientId) {
 //        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
 //    // GET ALL by patient + encounter
-//    public List<FamilyHistoryDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+//    public List<FamilyHistoryDto> getAllByEncounter(Long patientId, Long encounterId) {
 //        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 //    }
 //
@@ -198,7 +198,7 @@ public class FamilyHistoryService {
     private final FamilyHistoryRepository repo;
 
     // Create container (and optional entries)
-    public FamilyHistoryDto create(Long orgId, Long patientId, Long encounterId, FamilyHistoryDto dto) {
+    public FamilyHistoryDto create(Long patientId, Long encounterId, FamilyHistoryDto dto) {
         FamilyHistory fh = new FamilyHistory();
         fh.setPatientId(patientId);
         fh.setEncounterId(encounterId);
@@ -208,20 +208,20 @@ public class FamilyHistoryService {
     }
 
     // Get one container
-    public FamilyHistoryDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public FamilyHistoryDto getOne(Long patientId, Long encounterId, Long id) {
         FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Family history not found"));
         return toDto(fh);
     }
 
     // List containers (usually single per patient+enc)
-    public List<FamilyHistoryDto> list(Long orgId, Long patientId, Long encounterId) {
+    public List<FamilyHistoryDto> list(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // Replace entries (LOCKED if signed)
-    public FamilyHistoryDto update(Long orgId, Long patientId, Long encounterId, Long id, FamilyHistoryDto dto) {
+    public FamilyHistoryDto update(Long patientId, Long encounterId, Long id, FamilyHistoryDto dto) {
         FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Family history not found"));
 
@@ -237,7 +237,7 @@ public class FamilyHistoryService {
     }
 
     // Delete container (BLOCKED if signed)
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Family history not found"));
 
@@ -248,7 +248,7 @@ public class FamilyHistoryService {
     }
 
     // eSign container (idempotent). Accepts optional entryId (which entry initiated sign)
-    public FamilyHistoryDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy, Long entryId) {
+    public FamilyHistoryDto eSign(Long patientId, Long encounterId, Long id, String signedBy, Long entryId) {
         FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Family history not found"));
 
@@ -267,7 +267,7 @@ public class FamilyHistoryService {
     }
 
     // Print PDF (also stamps printedAt)
-    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Family history not found"));
 

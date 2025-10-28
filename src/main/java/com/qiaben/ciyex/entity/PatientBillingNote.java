@@ -1,6 +1,5 @@
 package com.qiaben.ciyex.entity;
 
-
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
@@ -78,6 +77,5 @@ public class PatientBillingNote extends AuditableEntity {
     }
 
     // created/updated audit handled by AuditableEntity
-
 
 }

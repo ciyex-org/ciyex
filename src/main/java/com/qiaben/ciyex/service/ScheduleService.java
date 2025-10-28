@@ -42,13 +42,13 @@ public class ScheduleService {
 
     @Transactional(readOnly = true)
     public long countSchedulesForCurrentOrg() {
-        // Single-tenant: no orgId check needed
+        
         return repository.count();
     }
 
     @Transactional
     public ScheduleDto create(ScheduleDto dto) {
-        // Single-tenant: no orgId check needed
+        
         if (dto.getProviderId() == null) {
             throw new IllegalArgumentException("providerId is required");
         }
@@ -80,7 +80,7 @@ public class ScheduleService {
 
     @Transactional(readOnly = true)
     public ScheduleDto getById(Long id) {
-        // Single-tenant: no orgId check needed
+        
         Schedule entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
         return mergeLocalAndExternal(entity, fetchExternal(entity.getExternalId()));
@@ -88,7 +88,7 @@ public class ScheduleService {
 
     @Transactional(readOnly = true)
     public ApiResponse<List<ScheduleDto>> getAllSchedules() {
-        // Single-tenant: no orgId check needed
+        
         List<Schedule> entities = repository.findAll();
 
         // collect all externalIds
@@ -136,7 +136,7 @@ public class ScheduleService {
 
     @Transactional
     public ScheduleDto update(Long id, ScheduleDto dto) {
-        // Single-tenant: no orgId check needed
+        
         Schedule entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
 
@@ -201,11 +201,7 @@ public class ScheduleService {
     }
 
 
-    private Long getCurrentOrgIdOrThrow() {
-        // Tenant isolation is now handled at schema level
-        // orgId is no longer tracked in RequestContext
-        return null;
-    }
+    
     private void validateScheduleDto(ScheduleDto dto) {
         if (dto.getRecurrence() == null) {
             // One-time schedule

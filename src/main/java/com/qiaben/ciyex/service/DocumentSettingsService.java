@@ -27,9 +27,9 @@ public class DocumentSettingsService {
     /**
      * Get document settings for an organization
      */
-    public DocumentSettingsDto get(Long orgId) {
+    public DocumentSettingsDto get() {
         DocumentSettings entity = repository.findFirstByOrderByIdAsc()
-                .orElse(createDefaultSettings(orgId));
+                .orElse(createDefaultSettings());
         
         return toDto(entity);
     }
@@ -37,8 +37,8 @@ public class DocumentSettingsService {
     /**
      * Get document settings for an organization (alias)
      */
-    public DocumentSettingsDto getByOrgId(Long orgId) {
-        return get(orgId);
+    public DocumentSettingsDto getByOrgId() {
+        return get();
     }
 
     /**
@@ -72,7 +72,7 @@ public class DocumentSettingsService {
      * Delete document settings for an organization
      */
     @Transactional
-    public void deleteByOrgId(Long orgId) {
+    public void deleteByOrgId() {
         repository.findFirstByOrderByIdAsc().ifPresent(repository::delete);
     }
 
@@ -88,8 +88,8 @@ public class DocumentSettingsService {
     /**
      * Get categories for an organization
      */
-    public List<DocumentSettingsDto.Category> getCategories(Long orgId) {
-        DocumentSettingsDto dto = get(orgId);
+    public List<DocumentSettingsDto.Category> getCategories() {
+        DocumentSettingsDto dto = get();
         return dto.getCategories();
     }
 
@@ -97,8 +97,8 @@ public class DocumentSettingsService {
      * Add a category to an organization's document settings
      */
     @Transactional
-    public List<DocumentSettingsDto.Category> addCategory(Long orgId, String name, boolean active, String updatedBy) {
-        DocumentSettingsDto dto = get(orgId);
+    public List<DocumentSettingsDto.Category> addCategory(String name, boolean active, String updatedBy) {
+        DocumentSettingsDto dto = get();
         
         // Add new category
         DocumentSettingsDto.Category newCategory = new DocumentSettingsDto.Category(name, active);
@@ -112,7 +112,7 @@ public class DocumentSettingsService {
 
     // Private helper methods
 
-    private DocumentSettings createDefaultSettings(Long orgId) {
+    private DocumentSettings createDefaultSettings() {
         DocumentSettings settings = new DocumentSettings();
         settings.setMaxUploadBytes(10 * 1024 * 1024); // 10 MB default
         settings.setEnableAudio(false);

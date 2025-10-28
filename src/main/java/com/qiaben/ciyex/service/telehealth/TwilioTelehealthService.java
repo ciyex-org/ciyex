@@ -1,7 +1,7 @@
 package com.qiaben.ciyex.service.telehealth;
 
 import com.qiaben.ciyex.dto.integration.IntegrationKey;
-// Removed orgId usage; rely solely on tenantName
+
 import com.qiaben.ciyex.util.TenantContextUtil;
 import com.qiaben.ciyex.dto.integration.TelehealthConfig;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;

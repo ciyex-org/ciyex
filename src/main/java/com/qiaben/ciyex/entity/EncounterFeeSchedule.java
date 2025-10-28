@@ -45,7 +45,6 @@ public class EncounterFeeSchedule extends AuditableEntity {
     @Column(name = "status", length = 24)
     private String status;
 
-
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 

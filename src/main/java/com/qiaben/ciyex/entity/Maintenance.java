@@ -16,7 +16,6 @@ public class Maintenance extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-
     private String equipment;
     private String category;
     private String location;

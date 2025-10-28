@@ -35,15 +35,6 @@ public class PortalApprovalController {
     }
 
     /**
-     * Get pending portal users for specific organization
-     * GET /api/portal/approvals/pending/{orgId}
-     */
-    @GetMapping("/pending/{orgId}")
-    public ResponseEntity<ApiResponse<List<PortalUserDto>>> getPendingUsersByOrg(@PathVariable Long orgId) {
-        return ResponseEntity.ok(portalApprovalService.getPendingUsersByOrg(orgId));
-    }
-
-    /**
      * Approve a portal user and sync to EHR tenant
      * PUT /api/portal/approvals/approve/{id}
      */

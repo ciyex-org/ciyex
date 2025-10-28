@@ -25,10 +25,7 @@ public class TelnyxTelehealthService implements TelehealthService {
     String tenantName = TenantContextUtil.getTenantName();
     TelehealthConfig config = configProvider.getForCurrentTenant(IntegrationKey.TELEHEALTH);
         String apiKey = config.getTelnyx().getApiKey();
-       /* TelephonyCredentialApi telephonyApi = new TelephonyCredentialApi(apiKey);
-        TelephonyCredential credential = telephonyApi.createTelephonyCredential(new TelephonyCredential().name(roomName + "-" + orgId));
-        log.info("Started Telnyx video call for orgId: {}, credentialId: {}", orgId, credential.getId());
-        return credential.getId();*/
+       
         //TODO: Implement actual video call start logic with Telnyx
         return null;
     }

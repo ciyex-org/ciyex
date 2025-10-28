@@ -24,8 +24,8 @@ public class TemplateService {
 
     @Transactional
     public TemplateDto create(TemplateDto dto) {
-        // Single-tenant: no orgId check needed
-        Template entity = mapToEntity(dto, null);
+        
+        Template entity = mapToEntity(dto);
         entity = repository.save(entity);
 
         dto.setId(entity.getId());
@@ -37,7 +37,7 @@ public class TemplateService {
 
     @Transactional(readOnly = true)
     public TemplateDto getById(Long id) {
-        // Single-tenant: no orgId check needed
+        
         Template entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Template not found"));
     return mapToDto(entity);
@@ -45,7 +45,7 @@ public class TemplateService {
 
     @Transactional
     public TemplateDto update(Long id, TemplateDto dto) {
-        // Single-tenant: no orgId check needed
+        
         Template entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Template not found"));
 
@@ -59,7 +59,7 @@ public class TemplateService {
 
     @Transactional
     public void delete(Long id) {
-        // Single-tenant: no orgId check needed
+        
         Template entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Template not found"));
         repository.delete(entity);
@@ -77,7 +77,7 @@ public class TemplateService {
                 .build();
     }
 
-    private Template mapToEntity(TemplateDto dto, Long orgId) {
+    private Template mapToEntity(TemplateDto dto) {
         return Template.builder()
                 .id(dto.getId())
                 .externalId(dto.getExternalId())
@@ -104,21 +104,5 @@ public class TemplateService {
         audit.setCreatedAt(entity.getCreatedAt());
         audit.setUpdatedAt(entity.getUpdatedAt());
         return audit;
-    }
-
-    private Long getCurrentOrgId() {
-        RequestContext ctx = RequestContext.get();
-        if (ctx == null || ctx.getTenantName() == null) {
-            return null;
-        }
-        String digits = ctx.getTenantName().replaceAll("[^0-9]", "");
-        if (digits.isEmpty()) {
-            return null;
-        }
-        try {
-            return Long.parseLong(digits);
-        } catch (NumberFormatException ex) {
-            return null;
-        }
     }
 }

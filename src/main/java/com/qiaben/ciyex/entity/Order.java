@@ -17,7 +17,6 @@ public class Order extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-
     private String orderNumber;
     private String supplier;
     private String date;
@@ -26,7 +25,6 @@ public class Order extends AuditableEntity {
     private Integer stock;
     private String itemName;
     private String category;
-
 
     private Double amount;
     // audit fields provided by AuditableEntity

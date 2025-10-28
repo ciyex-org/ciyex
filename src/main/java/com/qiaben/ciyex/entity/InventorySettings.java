@@ -17,7 +17,6 @@ public class InventorySettings extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-
     private boolean lowStockAlerts;
     private boolean autoReorderSuggestions;
     private int criticalLowPercentage;

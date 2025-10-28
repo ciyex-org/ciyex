@@ -23,8 +23,7 @@ public class MedicalProblemController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<MedicalProblemDto>> create(
-            @RequestBody MedicalProblemDto dto,
-            @RequestHeader("orgId") Long orgId) {
+            @RequestBody MedicalProblemDto dto) {
         try {
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated upstream.
@@ -44,8 +43,7 @@ public class MedicalProblemController {
 
     @GetMapping("/{patientId}")
     public ResponseEntity<ApiResponse<MedicalProblemDto>> getByPatient(
-            @PathVariable Long patientId,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long patientId) {
         try {
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated upstream.
@@ -66,8 +64,7 @@ public class MedicalProblemController {
     @PutMapping("/{patientId}")
     public ResponseEntity<ApiResponse<MedicalProblemDto>> updateByPatient(
             @PathVariable Long patientId,
-            @RequestBody MedicalProblemDto dto,
-            @RequestHeader("orgId") Long orgId) {
+            @RequestBody MedicalProblemDto dto) {
         try {
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated upstream.
@@ -87,8 +84,7 @@ public class MedicalProblemController {
 
     @DeleteMapping("/{patientId}")
     public ResponseEntity<ApiResponse<Void>> deleteByPatient(
-            @PathVariable Long patientId,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long patientId) {
         try {
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated upstream.
@@ -109,7 +105,7 @@ public class MedicalProblemController {
     // Item endpoints
     @GetMapping("/{patientId}/{problemId}")
     public ResponseEntity<ApiResponse<MedicalProblemDto.MedicalProblemItem>> getItem(
-            @PathVariable Long patientId, @PathVariable Long problemId, @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long patientId, @PathVariable Long problemId) {
         try {
             RequestContext ctx = new RequestContext(); /* orgId deprecated */ RequestContext.set(ctx);
             var item = service.getItem(patientId, problemId);
@@ -125,7 +121,7 @@ public class MedicalProblemController {
     @PutMapping("/{patientId}/{problemId}")
     public ResponseEntity<ApiResponse<MedicalProblemDto.MedicalProblemItem>> updateItem(
             @PathVariable Long patientId, @PathVariable Long problemId,
-            @RequestBody MedicalProblemDto.MedicalProblemItem patch, @RequestHeader("orgId") Long orgId) {
+            @RequestBody MedicalProblemDto.MedicalProblemItem patch) {
         try {
             RequestContext ctx = new RequestContext(); /* orgId deprecated */ RequestContext.set(ctx);
             var updated = service.updateItem(patientId, problemId, patch);
@@ -140,7 +136,7 @@ public class MedicalProblemController {
 
     @DeleteMapping("/{patientId}/{problemId}")
     public ResponseEntity<ApiResponse<Void>> deleteItem(
-            @PathVariable Long patientId, @PathVariable Long problemId, @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long patientId, @PathVariable Long problemId) {
         try {
             RequestContext ctx = new RequestContext(); /* orgId deprecated */ RequestContext.set(ctx);
             service.deleteItem(patientId, problemId);

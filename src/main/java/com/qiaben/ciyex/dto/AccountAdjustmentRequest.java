@@ -1,7 +1,6 @@
 package com.qiaben.ciyex.dto;
 import java.math.BigDecimal;
 
-
 public record AccountAdjustmentRequest(
         String adjustmentType,        // "Flat-rate", "Total Outstanding", "Patient Outstanding", "Specific"
         BigDecimal flatRate,          // Used when adjustmentType is "Flat-rate"

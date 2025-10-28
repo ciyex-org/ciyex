@@ -17,7 +17,6 @@ public class Inventory extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-
     private String name;
     private String category;
     private String lot;
@@ -29,7 +28,6 @@ public class Inventory extends AuditableEntity {
     private String location;
     private String status;       // e.g., OK, LOW, CRITICAL, EXPIRED
     private String supplier;  // supplier name
-
 
     // audit fields provided by AuditableEntity
 

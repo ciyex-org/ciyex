@@ -19,20 +19,20 @@ public class HealthcareServiceService {
         this.repository = repository;
     }
 
-    public HealthcareServiceDto create(HealthcareServiceDto dto, Long orgId) {
+    public HealthcareServiceDto create(HealthcareServiceDto dto) {
         HealthcareService entity = mapToEntity(dto);
         HealthcareService savedEntity = repository.save(entity);
         return mapToDto(savedEntity);
     }
 
 
-    public List<HealthcareServiceDto> getByOrgId(Long orgId) {
+    public List<HealthcareServiceDto> getByOrgId() {
         List<HealthcareService> services = repository.findAll();
         return services.stream().map(this::mapToDto).collect(Collectors.toList());
     }
 
 
-    public HealthcareServiceDto update(Long id, HealthcareServiceDto dto, Long orgId) {
+    public HealthcareServiceDto update(Long id, HealthcareServiceDto dto) {
         // Fetch the healthcare service by ID
         HealthcareService entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Healthcare Service not found"));
@@ -49,8 +49,8 @@ public class HealthcareServiceService {
         return mapToDto(updatedEntity);
     }
 
-    public void delete(Long id, Long orgId) {
-        // Fetch healthcare service by ID and orgId
+    public void delete(Long id) {
+        
         HealthcareService entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Healthcare Service not found"));
 

@@ -1,5 +1,6 @@
 package com.qiaben.ciyex.service;
 
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.util.SqlIdentifier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
@@ -31,13 +32,11 @@ public class TenantProvisionService {
      * The template is expected to use the identifier "practice_1" for schema-qualified
      * objects. This method replaces occurrences of that identifier with the target
      * schema name (practice_{orgId}) and executes the resulting SQL against the DB.
-     *
-     * @param orgId          tenant identifier used in schema name
-     * @param templatePath   path on the filesystem to the template SQL file. If null,
+     *     * @param templatePath   path on the filesystem to the template SQL file. If null,
      *                       defaults to "schema-dumps/localhost.practice_1.schema.sql"
      */
-    public void provisionTenantFromTemplate(String orgId, String templatePath, String sourceSchema) {
-        String schemaName = "practice_" + orgId;
+    public void provisionTenantFromTemplate(String templatePath, String sourceSchema) {
+        String schemaName = RequestContext.get().getTenantName();
 
         if (templatePath == null || templatePath.isBlank()) {
             // default to the classpath template bundled with the application

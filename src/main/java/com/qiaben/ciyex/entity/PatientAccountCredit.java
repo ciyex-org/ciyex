@@ -1,7 +1,5 @@
 package com.qiaben.ciyex.entity;
 
-
-
 import jakarta.persistence.*;
 import lombok.EqualsAndHashCode;
 
@@ -24,14 +22,6 @@ public class PatientAccountCredit extends AuditableEntity {
         this.id = id;
     }
 
-    public Long getOrgId() {
-        return orgId;
-    }
-
-    public void setOrgId(Long orgId) {
-        this.orgId = orgId;
-    }
-
     public Long getPatientId() {
         return patientId;
     }
@@ -48,7 +38,6 @@ public class PatientAccountCredit extends AuditableEntity {
         this.balance = balance;
     }
 
-    @Column(nullable = false) private Long orgId;
     @Column(nullable = false) private Long patientId;
 
     @Column(precision = 12, scale = 2) private BigDecimal balance = BigDecimal.ZERO;

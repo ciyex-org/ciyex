@@ -10,41 +10,48 @@ import java.util.List;
 
 public interface AllergyIntoleranceRepository extends JpaRepository<AllergyIntolerance, Long> {
 
+    // Single-tenant methods
+    List<AllergyIntolerance> findAllByPatientId(Long patientId);
+
     @Query(value = """
         SELECT *
         FROM allergy_intolerances
         WHERE CAST(patient_id AS TEXT) = :patientIdTxt
-          AND CAST(org_id     AS TEXT) = :orgIdTxt
         ORDER BY id
         """, nativeQuery = true)
-    List<AllergyIntolerance> findAllByPatientIdAndOrgIdText(@Param("patientIdTxt") String patientIdTxt,
-                                                            @Param("orgIdTxt") String orgIdTxt);
+    List<AllergyIntolerance> findAllByPatientIdAndOrgIdText(@Param("patientIdTxt") String patientIdTxt);
+
+    @Modifying
+    @Query(value = "DELETE FROM allergy_intolerances WHERE patient_id = :patientId", nativeQuery = true)
+    int deleteAllByPatientId(@Param("patientId") Long patientId);
 
     @Modifying
     @Query(value = """
         DELETE FROM allergy_intolerances
         WHERE CAST(patient_id AS TEXT) = :patientIdTxt
-          AND CAST(org_id     AS TEXT) = :orgIdTxt
         """, nativeQuery = true)
-    int deleteAllByPatientIdAndOrgIdText(@Param("patientIdTxt") String patientIdTxt,
-                                         @Param("orgIdTxt") String orgIdTxt);
+    int deleteAllByPatientIdAndOrgIdText(@Param("patientIdTxt") String patientIdTxt);
+
+    @Modifying
+    @Query(value = "DELETE FROM allergy_intolerances WHERE id = :id AND patient_id = :patientId", nativeQuery = true)
+    int deleteOneByIdAndPatientId(@Param("id") Long id, @Param("patientId") Long patientId);
 
     @Modifying
     @Query(value = """
         DELETE FROM allergy_intolerances
         WHERE CAST(id        AS TEXT) = :idTxt
           AND CAST(patient_id AS TEXT) = :patientIdTxt
-          AND CAST(org_id    AS TEXT) = :orgIdTxt
         """, nativeQuery = true)
     int deleteOneByIdAndPatientIdAndOrgIdText(@Param("idTxt") String idTxt,
-                                              @Param("patientIdTxt") String patientIdTxt,
-                                              @Param("orgIdTxt") String orgIdTxt);
+                                              @Param("patientIdTxt") String patientIdTxt);
+
+    @Query(value = "SELECT * FROM allergy_intolerances ORDER BY patient_id, id", nativeQuery = true)
+    List<AllergyIntolerance> findAllOrderedByPatient();
 
     @Query(value = """
         SELECT *
         FROM allergy_intolerances
-        WHERE CAST(org_id AS TEXT) = :orgIdTxt
         ORDER BY patient_id, id
         """, nativeQuery = true)
-    List<AllergyIntolerance> findByText(@Param("orgIdTxt") String orgIdTxt);
+    List<AllergyIntolerance> findByText();
 }

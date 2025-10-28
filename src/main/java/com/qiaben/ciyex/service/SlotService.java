@@ -33,13 +33,13 @@ public class SlotService {
 
     @Transactional(readOnly = true)
     public long countSlotsForCurrentOrg() {
-        // orgId deprecated; fallback to total count within tenant schema
+        
         return repository.count();
     }
 
     @Transactional
     public SlotDto create(SlotDto dto) {
-        Long orgId = -1L; // placeholder orgId removed; schema isolation by tenantName
+        Long orgId = -1L; 
 
         String externalId = null;
         String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -60,10 +60,10 @@ public class SlotService {
 
     @Transactional(readOnly = true)
     public SlotDto getById(Long id) {
-    // legacy orgId retrieval removed
+    
         Slot entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Slot not found: " + id));
-        // orgId security check removed (tenantName-based schema isolation)
+        
         return mergeLocalAndExternal(entity, fetchExternal(entity.getExternalId()));
     }
 
@@ -84,10 +84,10 @@ public class SlotService {
 
     @Transactional
     public SlotDto update(Long id, SlotDto dto) {
-    // legacy orgId retrieval removed
+    
         Slot entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Slot not found: " + id));
-        // orgId security check removed
+        
 
     dto.setExternalId(entity.getExternalId());
         ExternalSlotStorage external =
@@ -100,10 +100,10 @@ public class SlotService {
 
     @Transactional
     public void delete(Long id) {
-    // legacy orgId placeholder removed
+    
         Slot entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Slot not found: " + id));
-        // orgId security check removed
+        
 
         if (entity.getExternalId() != null) {
             ExternalSlotStorage external =
@@ -116,7 +116,7 @@ public class SlotService {
     private SlotDto mergeLocalAndExternal(Slot entity, SlotDto externalDto) {
         SlotDto dto = new SlotDto();
         dto.setId(entity.getId());
-    // orgId removed from DTO
+    
         dto.setProviderId(entity.getProviderId());
         dto.setExternalId(entity.getExternalId());
         SlotDto.Audit audit = new SlotDto.Audit();
@@ -138,7 +138,7 @@ public class SlotService {
         return external.getSlot(externalId);
     }
 
-    // orgId deprecated; retained for backward compatibility (returns placeholder)
+    
     // Removed usage; kept for compatibility with potential external callers.
-    private Long getCurrentOrgIdOrThrow() { return -1L; }
+    
 }

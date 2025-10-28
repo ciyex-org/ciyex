@@ -31,7 +31,7 @@ public class EncounterFeeScheduleService {
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // ----- Schedules -----
-    public FeeScheduleDto create(Long orgId, Long patientId, Long encounterId, FeeScheduleDto in) {
+    public FeeScheduleDto create(Long patientId, Long encounterId, FeeScheduleDto in) {
         EncounterFeeSchedule s = EncounterFeeSchedule.builder()
                 .patientId(patientId).encounterId(encounterId)
                 .name(in.getName())
@@ -54,7 +54,7 @@ public class EncounterFeeScheduleService {
         return mapScheduleToDto(saved, true);
     }
 
-    public FeeScheduleDto update(Long orgId, Long patientId, Long encounterId, Long scheduleId, FeeScheduleDto in) {
+    public FeeScheduleDto update(Long patientId, Long encounterId, Long scheduleId, FeeScheduleDto in) {
         EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
                 .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
 
@@ -80,7 +80,7 @@ public class EncounterFeeScheduleService {
         return mapScheduleToDto(updated, true);
     }
 
-    public void delete(Long orgId, Long patientId, Long encounterId, Long scheduleId) {
+    public void delete(Long patientId, Long encounterId, Long scheduleId) {
         EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
                 .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
 
@@ -91,7 +91,7 @@ public class EncounterFeeScheduleService {
         scheduleRepo.delete(s);
     }
 
-    public FeeScheduleDto getOne(Long orgId, Long patientId, Long encounterId, Long scheduleId) {
+    public FeeScheduleDto getOne(Long patientId, Long encounterId, Long scheduleId) {
         EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
                 .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
         if (!s.getPatientId().equals(patientId) || !s.getEncounterId().equals(encounterId))
@@ -99,21 +99,21 @@ public class EncounterFeeScheduleService {
         return mapScheduleToDto(s, true);
     }
 
-    public List<FeeScheduleDto> listInEncounter(Long orgId, Long patientId, Long encounterId) {
+    public List<FeeScheduleDto> listInEncounter(Long patientId, Long encounterId) {
         return scheduleRepo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(s -> mapScheduleToDto(s, false)).toList();
     }
 
-    public List<FeeScheduleDto> listByPatient(Long orgId, Long patientId) {
+    public List<FeeScheduleDto> listByPatient(Long patientId) {
         return scheduleRepo.findByPatientId(patientId).stream()
                 .map(s -> mapScheduleToDto(s, false)).toList();
     }
 
     // ----- Entries -----
-    public FeeScheduleEntryDto addEntry(Long orgId, Long patientId, Long encounterId, Long scheduleId, FeeScheduleEntryDto in) {
+    public FeeScheduleEntryDto addEntry(Long patientId, Long encounterId, Long scheduleId, FeeScheduleEntryDto in) {
         EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
                 .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
-        verifyScope(s, orgId, patientId, encounterId);
+        verifyScope(s,  patientId, encounterId);
 
         EncounterFeeScheduleEntry e = EncounterFeeScheduleEntry.builder()
                 .schedule(s)
@@ -126,10 +126,10 @@ public class EncounterFeeScheduleService {
         return mapEntryToDto(entryRepo.save(e));
     }
 
-    public FeeScheduleEntryDto updateEntry(Long orgId, Long patientId, Long encounterId, Long scheduleId, Long entryId, FeeScheduleEntryDto in) {
+    public FeeScheduleEntryDto updateEntry(Long patientId, Long encounterId, Long scheduleId, Long entryId, FeeScheduleEntryDto in) {
         EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
                 .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
-        verifyScope(s, orgId, patientId, encounterId);
+        verifyScope(s,  patientId, encounterId);
 
         EncounterFeeScheduleEntry e = entryRepo.findById(entryId)
                 .orElseThrow(() -> new IllegalArgumentException("Entry not found"));
@@ -144,10 +144,10 @@ public class EncounterFeeScheduleService {
         return mapEntryToDto(entryRepo.save(e));
     }
 
-    public void deleteEntry(Long orgId, Long patientId, Long encounterId, Long scheduleId, Long entryId) {
+    public void deleteEntry(Long patientId, Long encounterId, Long scheduleId, Long entryId) {
         EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
                 .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
-        verifyScope(s, orgId, patientId, encounterId);
+        verifyScope(s,  patientId, encounterId);
 
         EncounterFeeScheduleEntry e = entryRepo.findById(entryId)
                 .orElseThrow(() -> new IllegalArgumentException("Entry not found"));
@@ -157,14 +157,14 @@ public class EncounterFeeScheduleService {
         entryRepo.delete(e);
     }
 
-    public List<FeeScheduleEntryDto> listEntries(Long orgId, Long patientId, Long encounterId, Long scheduleId) {
+    public List<FeeScheduleEntryDto> listEntries(Long patientId, Long encounterId, Long scheduleId) {
         EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
                 .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
-        verifyScope(s, orgId, patientId, encounterId);
+        verifyScope(s,  patientId, encounterId);
         return entryRepo.findBySchedule(s).stream().map(this::mapEntryToDto).toList();
     }
 
-    public List<FeeScheduleEntryDto> searchEntries(Long orgId, Long patientId, Long encounterId,
+    public List<FeeScheduleEntryDto> searchEntries(Long patientId, Long encounterId,
                                                    Long scheduleId, String codeType, Boolean active, String q) {
         // scheduleId not strictly required for search; scope is org/patient/encounter
         return entryRepo.search(patientId, encounterId, codeType, active, q).stream()
@@ -200,7 +200,7 @@ public class EncounterFeeScheduleService {
         return dto;
     }
 
-    private void verifyScope(EncounterFeeSchedule s, Long orgId, Long patientId, Long encounterId) {
+    private void verifyScope(EncounterFeeSchedule s,  Long patientId, Long encounterId) {
         if ( !s.getPatientId().equals(patientId) || !s.getEncounterId().equals(encounterId))
             throw new IllegalArgumentException("Resource not in this encounter scope");
     }

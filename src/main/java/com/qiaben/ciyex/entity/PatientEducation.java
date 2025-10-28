@@ -15,7 +15,6 @@ public class PatientEducation extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-
     private String title;
     private String summary;
     private String category;

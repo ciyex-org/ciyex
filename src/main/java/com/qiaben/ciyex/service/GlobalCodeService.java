@@ -23,7 +23,7 @@ public class GlobalCodeService {
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    public GlobalCodeDto create(Long orgId, GlobalCodeDto in) {
+    public GlobalCodeDto create(GlobalCodeDto in) {
         GlobalCode e = GlobalCode.builder()
                 .codeType(in.getCodeType()).code(in.getCode()).modifier(in.getModifier())
                 .active(in.getActive())
@@ -93,7 +93,7 @@ public class GlobalCodeService {
         return repo.findAll().stream().map(this::mapToDto).toList();
     }
 
-    public List<GlobalCodeDto> search(Long orgId, String codeType, Boolean active, String q) {
+    public List<GlobalCodeDto> search(String codeType, Boolean active, String q) {
         return repo.search(codeType, active, q).stream().map(this::mapToDto).toList();
     }
 

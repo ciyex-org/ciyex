@@ -1,7 +1,5 @@
 
 
-
-
 package com.qiaben.ciyex.dto;
 
 import java.time.LocalDateTime;
@@ -27,6 +25,5 @@ public class EncounterDto {
   private LocalDateTime encounterDate;
 
     private EncounterStatus status;
-
 
 }

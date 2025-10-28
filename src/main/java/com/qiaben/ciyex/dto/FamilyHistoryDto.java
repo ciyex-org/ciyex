@@ -7,7 +7,7 @@
 //public class FamilyHistoryDto {
 //    private Long id;               // parent record id
 //    private String externalId;     // FHIR id (optional)
-//    private Long orgId;
+//
 //    private Long patientId;
 //    private Long encounterId;
 //
@@ -30,9 +30,6 @@
 //        private String lastModifiedDate; // yyyy-MM-dd
 //    }
 //}
-
-
-
 
 package com.qiaben.ciyex.dto;
 

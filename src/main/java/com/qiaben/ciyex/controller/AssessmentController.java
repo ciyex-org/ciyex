@@ -23,7 +23,7 @@
 //    public ResponseEntity<ApiResponse<List<AssessmentDto>>> getAllByPatient(
 //            @PathVariable Long patientId,
 //            @RequestHeader("orgId") Long orgId) {
-//        var list = service.getAllByPatient(orgId, patientId);
+//        var list = service.getAllByPatient(patientId);
 //        return ResponseEntity.ok(ApiResponse.<List<AssessmentDto>>builder()
 //                .success(true).message("Assessment list fetched").data(list).build());
 //    }
@@ -34,7 +34,7 @@
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
 //            @RequestHeader("orgId") Long orgId) {
-//        var list = service.getAllByEncounter(orgId, patientId, encounterId);
+//        var list = service.getAllByEncounter(patientId, encounterId);
 //        return ResponseEntity.ok(ApiResponse.<List<AssessmentDto>>builder()
 //                .success(true).message("Assessment list fetched").data(list).build());
 //    }
@@ -46,7 +46,7 @@
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
 //            @RequestHeader("orgId") Long orgId) {
-//        var dto = service.getOne(orgId, patientId, encounterId, id);
+//        var dto = service.getOne(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<AssessmentDto>builder()
 //                .success(true).message("Assessment fetched").data(dto).build());
 //    }
@@ -56,9 +56,8 @@
 //    public ResponseEntity<ApiResponse<AssessmentDto>> create(
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
-//            @RequestHeader("orgId") Long orgId,
-//            @RequestBody AssessmentDto dto) {
-//        var created = service.create(orgId, patientId, encounterId, dto);
+//            //            @RequestBody AssessmentDto dto) {
+//        var created = service.create(patientId, encounterId, dto);
 //        return ResponseEntity.ok(ApiResponse.<AssessmentDto>builder()
 //                .success(true).message("Assessment created").data(created).build());
 //    }
@@ -69,9 +68,8 @@
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId,
-//            @RequestBody AssessmentDto dto) {
-//        var updated = service.update(orgId, patientId, encounterId, id, dto);
+//            //            @RequestBody AssessmentDto dto) {
+//        var updated = service.update(patientId, encounterId, id, dto);
 //        return ResponseEntity.ok(ApiResponse.<AssessmentDto>builder()
 //                .success(true).message("Assessment updated").data(updated).build());
 //    }
@@ -83,7 +81,7 @@
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
 //            @RequestHeader("orgId") Long orgId) {
-//        service.delete(orgId, patientId, encounterId, id);
+//        service.delete(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<Void>builder()
 //                .success(true).message("Assessment deleted").build());
 //    }
@@ -121,9 +119,8 @@ public class AssessmentController {
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<AssessmentDto>>> list(
             @PathVariable Long patientId,
-            @PathVariable Long encounterId,
-            @RequestHeader("orgId") Long orgId) {
-        var list = service.getAllByEncounter(orgId, patientId, encounterId);
+            @PathVariable Long encounterId) {
+        var list = service.getAllByEncounter(patientId, encounterId);
         return ResponseEntity.ok(ApiResponse.<List<AssessmentDto>>builder()
                 .success(true).message("Assessment list fetched").data(list).build());
     }
@@ -133,10 +130,9 @@ public class AssessmentController {
     public ResponseEntity<ApiResponse<AssessmentDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long id) {
         try {
-            var dto = service.getOne(orgId, patientId, encounterId, id);
+            var dto = service.getOne(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<AssessmentDto>builder()
                     .success(true).message("Assessment fetched").data(dto).build());
         } catch (IllegalArgumentException ex) {
@@ -150,9 +146,8 @@ public class AssessmentController {
     public ResponseEntity<ApiResponse<AssessmentDto>> create(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @RequestHeader("orgId") Long orgId,
             @RequestBody AssessmentDto dto) {
-        var saved = service.create(orgId, patientId, encounterId, dto);
+        var saved = service.create(patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<AssessmentDto>builder()
                 .success(true).message("Assessment created").data(saved).build());
     }
@@ -163,10 +158,9 @@ public class AssessmentController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId,
             @RequestBody AssessmentDto dto) {
         try {
-            var saved = service.update(orgId, patientId, encounterId, id, dto);
+            var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<AssessmentDto>builder()
                     .success(true).message("Assessment updated").data(saved).build());
         } catch (IllegalStateException ex) {
@@ -183,10 +177,9 @@ public class AssessmentController {
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long id) {
         try {
-            service.delete(orgId, patientId, encounterId, id);
+            service.delete(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true).message("Assessment deleted").build());
         } catch (IllegalStateException ex) {
@@ -204,11 +197,10 @@ public class AssessmentController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId,
             Principal principal) {
         try {
             String user = (principal != null) ? principal.getName() : "system";
-            var dto = service.eSign(orgId, patientId, encounterId, id, user);
+            var dto = service.eSign(patientId, encounterId, id, user);
             return ResponseEntity.ok(ApiResponse.<AssessmentDto>builder()
                     .success(true).message("Assessment e-signed").data(dto).build());
         } catch (IllegalArgumentException ex) {
@@ -226,9 +218,8 @@ public class AssessmentController {
     public ResponseEntity<byte[]> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
-        byte[] pdf = service.renderPdf(orgId, patientId, encounterId, id);
+            @PathVariable Long id) {
+        byte[] pdf = service.renderPdf(patientId, encounterId, id);
         String filename = "assessment-" + id + ".pdf";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")

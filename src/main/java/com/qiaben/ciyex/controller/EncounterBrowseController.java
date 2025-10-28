@@ -28,7 +28,6 @@ public class EncounterBrowseController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<Page<EncounterDto>>> listAll(
-            @RequestHeader("orgId") Long orgId,
             @RequestParam(name = "status", required = false, defaultValue = "ALL") String status,
             @RequestParam(name = "recentOnly", required = false, defaultValue = "false") boolean recentOnly,
             @RequestParam(name = "recentCount", required = false, defaultValue = "10") int recentCount,
@@ -40,8 +39,8 @@ public class EncounterBrowseController {
             statusOpt = Optional.of(EncounterStatus.valueOf(normalized));
         }
 
-        Page<EncounterDto> page = EncounterBrowserService.listAllForOrg(
-                orgId, statusOpt, recentOnly, recentCount, pageable
+        Page<EncounterDto> page = EncounterBrowserService.listAll(
+                statusOpt, recentOnly, recentCount, pageable
         );
 
         return ResponseEntity.ok(

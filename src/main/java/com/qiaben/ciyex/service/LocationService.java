@@ -32,7 +32,7 @@ public class LocationService {
 
     @Transactional
     public LocationDto create(LocationDto dto) {
-        // orgId deprecated; tenantName isolation handled upstream. orgId assignments removed.
+        
 
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType == null) {
@@ -40,7 +40,7 @@ public class LocationService {
         }
 
         Location location = mapToEntity(dto);
-    // orgId no longer set on entity (deprecated)
+    
         String externalId = null;
 
         // Attempt external storage creation first
@@ -70,7 +70,7 @@ public class LocationService {
 
     @Transactional(readOnly = true)
     public LocationDto getById(Long id) {
-        // orgId deprecated; skipping org access verification.
+        
 
         Location location = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Location not found with id: " + id));
@@ -97,7 +97,7 @@ public class LocationService {
 
     @Transactional
     public LocationDto update(Long id, LocationDto dto) {
-        // orgId deprecated; skipping org access verification.
+        
 
         Location location = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Location not found with id: " + id));
@@ -128,7 +128,7 @@ public class LocationService {
 
     @Transactional
     public void delete(Long id) {
-        // orgId deprecated; skipping org access verification.
+        
 
         Location location = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Location not found with id: " + id));
@@ -153,7 +153,7 @@ public class LocationService {
 
     @Transactional(readOnly = true)
     public ApiResponse<List<LocationDto>> getAllLocations() {
-    // orgId deprecated; retrieving all locations for tenant schema.
+    
 
         // Fetch all locations directly from the database
     List<Location> locations = repository.findAll();
@@ -175,7 +175,7 @@ public class LocationService {
                 .state(dto.getState())
                 .postalCode(dto.getPostalCode())
                 .country(dto.getCountry())
-                // orgId deprecated
+                
                 .build();
     }
 
@@ -189,7 +189,7 @@ public class LocationService {
         dto.setState(location.getState());
         dto.setPostalCode(location.getPostalCode());
         dto.setCountry(location.getCountry());
-    // orgId removed from DTO
+    
         return dto;
     }
 
@@ -200,8 +200,8 @@ public class LocationService {
         if (dto.getState() != null) location.setState(dto.getState());
         if (dto.getPostalCode() != null) location.setPostalCode(dto.getPostalCode());
         if (dto.getCountry() != null) location.setCountry(dto.getCountry());
-    // orgId removed from DTO
+    
     }
 
-    // orgId deprecated; method removed.
+    
 }

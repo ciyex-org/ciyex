@@ -18,7 +18,6 @@ public class InventoryDto {
     private String status;     // "Active" | "Inactive"
     private String supplier;  // supplier name
 
-
     private Audit audit;
     private String fhirId;     // externalId
 

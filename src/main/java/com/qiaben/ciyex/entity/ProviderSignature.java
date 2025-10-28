@@ -19,7 +19,7 @@
 //    private String externalId;
 //
 //    
-//    private Long orgId;
+//
 //
 //    @Column(name = "patient_id", nullable = false)
 //    private Long patientId;
@@ -62,11 +62,6 @@
 //    @Column(name = "updated_at", nullable = false)
 //    private LocalDateTime updatedAt;
 //}
-
-
-
-
-
 
 package com.qiaben.ciyex.entity;
 

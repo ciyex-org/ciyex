@@ -24,9 +24,9 @@
 //    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 //
 //    // CREATE
-//    public PatientMedicalHistoryDto create(Long orgId, Long patientId, Long encounterId, PatientMedicalHistoryDto in) {
+//    public PatientMedicalHistoryDto create(Long patientId, Long encounterId, PatientMedicalHistoryDto in) {
 //        PatientMedicalHistory toSave = PatientMedicalHistory.builder()
-//                .orgId(orgId)
+
 //                .patientId(patientId)
 //                .encounterId(encounterId)
 //                .description(in.getDescription())
@@ -47,7 +47,7 @@
 //    }
 //
 //    // UPDATE
-//    public PatientMedicalHistoryDto update(Long orgId, Long patientId, Long encounterId, Long id, PatientMedicalHistoryDto in) {
+//    public PatientMedicalHistoryDto update(Long patientId, Long encounterId, Long id, PatientMedicalHistoryDto in) {
 //        PatientMedicalHistory entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
 //
@@ -66,7 +66,7 @@
 //    }
 //
 //    // DELETE
-//    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public void delete(Long patientId, Long encounterId, Long id) {
 //        PatientMedicalHistory entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
 //
@@ -81,20 +81,20 @@
 //    }
 //
 //    // GET ONE
-//    public PatientMedicalHistoryDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public PatientMedicalHistoryDto getOne(Long patientId, Long encounterId, Long id) {
 //        PatientMedicalHistory entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
 //        return mapToDto(entity);
 //    }
 //
 //    // GET ALL by patient
-//    public List<PatientMedicalHistoryDto> getAllByPatient(Long orgId, Long patientId) {
+//    public List<PatientMedicalHistoryDto> getAllByPatient(Long patientId) {
 //        return repo.findByPatientId(patientId)
 //                .stream().map(this::mapToDto).toList();
 //    }
 //
 //    // GET ALL by patient + encounter
-//    public List<PatientMedicalHistoryDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+//    public List<PatientMedicalHistoryDto> getAllByEncounter(Long patientId, Long encounterId) {
 //        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
 //                .stream().map(this::mapToDto).toList();
 //    }
@@ -157,7 +157,7 @@ public class PatientMedicalHistoryService {
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
-    public PatientMedicalHistoryDto create(Long orgId, Long patientId, Long encounterId, PatientMedicalHistoryDto dto) {
+    public PatientMedicalHistoryDto create(Long patientId, Long encounterId, PatientMedicalHistoryDto dto) {
         PatientMedicalHistory e = new PatientMedicalHistory();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -167,20 +167,20 @@ public class PatientMedicalHistoryService {
     }
 
     // Read one
-    public PatientMedicalHistoryDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public PatientMedicalHistoryDto getOne(Long patientId, Long encounterId, Long id) {
         PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
         return toDto(e);
     }
 
     // List
-    public List<PatientMedicalHistoryDto> list(Long orgId, Long patientId, Long encounterId) {
+    public List<PatientMedicalHistoryDto> list(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // Update (blocked if signed)
-    public PatientMedicalHistoryDto update(Long orgId, Long patientId, Long encounterId, Long id, PatientMedicalHistoryDto dto) {
+    public PatientMedicalHistoryDto update(Long patientId, Long encounterId, Long id, PatientMedicalHistoryDto dto) {
         PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed entries are read-only.");
@@ -191,7 +191,7 @@ public class PatientMedicalHistoryService {
     }
 
     // Delete (blocked if signed)
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed entries cannot be deleted.");
@@ -199,7 +199,7 @@ public class PatientMedicalHistoryService {
     }
 
     // eSign (idempotent)
-    public PatientMedicalHistoryDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
+    public PatientMedicalHistoryDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
@@ -212,7 +212,7 @@ public class PatientMedicalHistoryService {
     }
 
     // Print (PDF) — stamps printedAt
-    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
 

@@ -46,4 +46,3 @@ public class Patient extends AuditableEntity {
     // audit fields provided by AuditableEntity
 }
 
-

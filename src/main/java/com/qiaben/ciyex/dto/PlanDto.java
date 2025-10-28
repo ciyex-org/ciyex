@@ -11,7 +11,7 @@
 //public class PlanDto {
 //    private Long id;
 //    private String externalId;
-//    private Long orgId;
+//
 //    private Long patientId;
 //    private Long encounterId;
 //
@@ -33,10 +33,6 @@
 //        private String lastModifiedDate;
 //    }
 //}
-
-
-
-
 
 package com.qiaben.ciyex.dto;
 

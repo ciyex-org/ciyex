@@ -42,13 +42,11 @@ public class EncounterController {
     @PostMapping
     public ResponseEntity<ApiResponse<EncounterDto>> createEncounter(
             @PathVariable Long patientId,
-            @RequestBody EncounterDto encounterDto,
-            @RequestHeader("orgId") Long orgId
-    ) {
+            @RequestBody EncounterDto encounterDto) {
         try {
             // enforce patient scope from path
             encounterDto.setPatientId(patientId);
-            EncounterDto created = encounterService.createEncounter(patientId, encounterDto, orgId);
+            EncounterDto created = encounterService.createEncounter(patientId, encounterDto);
             return ResponseEntity.ok(ApiResponse.<EncounterDto>builder()
                     .success(true)
                     .message("Encounter created")
@@ -65,11 +63,9 @@ public class EncounterController {
     // LIST for patient
     @GetMapping
     public ResponseEntity<ApiResponse<List<EncounterDto>>> listEncounters(
-            @PathVariable Long patientId,
-            @RequestHeader("orgId") Long orgId
-    ) {
+            @PathVariable Long patientId) {
         try {
-            List<EncounterDto> items = encounterService.listByPatient(patientId, orgId);
+            List<EncounterDto> items = encounterService.listByPatient(patientId);
             return ResponseEntity.ok(ApiResponse.<List<EncounterDto>>builder()
                     .success(true)
                     .message("Encounters fetched")
@@ -87,11 +83,9 @@ public class EncounterController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<EncounterDto>> getEncounter(
             @PathVariable Long patientId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId
-    ) {
+            @PathVariable Long id) {
         try {
-            EncounterDto dto = encounterService.getByIdForPatient(id, patientId, orgId);
+            EncounterDto dto = encounterService.getByIdForPatient(id, patientId);
             return ResponseEntity.ok(ApiResponse.<EncounterDto>builder()
                     .success(true)
                     .message("Encounter fetched")
@@ -110,12 +104,10 @@ public class EncounterController {
     public ResponseEntity<ApiResponse<EncounterDto>> updateEncounter(
             @PathVariable Long patientId,
             @PathVariable Long id,
-            @RequestBody EncounterDto encounterDto,
-            @RequestHeader("orgId") Long orgId
-    ) {
+            @RequestBody EncounterDto encounterDto) {
         try {
             encounterDto.setPatientId(patientId);
-            EncounterDto updated = encounterService.updateEncounter(id, patientId, encounterDto, orgId);
+            EncounterDto updated = encounterService.updateEncounter(id, patientId, encounterDto);
             return ResponseEntity.ok(ApiResponse.<EncounterDto>builder()
                     .success(true)
                     .message("Encounter updated")
@@ -133,11 +125,9 @@ public class EncounterController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteEncounter(
             @PathVariable Long patientId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId
-    ) {
+            @PathVariable Long id) {
         try {
-            encounterService.deleteEncounter(id, patientId, orgId);
+            encounterService.deleteEncounter(id, patientId);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)
                     .message("Encounter deleted")
@@ -152,11 +142,9 @@ public class EncounterController {
     @PostMapping("/{id}/sign")
     public ResponseEntity<ApiResponse<EncounterDto>> signEncounter(
             @PathVariable Long patientId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId
-    ) {
+            @PathVariable Long id) {
         try {
-            EncounterDto dto = encounterService.signEncounter(id, patientId, orgId);
+            EncounterDto dto = encounterService.signEncounter(id, patientId);
             return ResponseEntity.ok(ApiResponse.<EncounterDto>builder()
                     .success(true)
                     .message("Encounter signed")
@@ -173,11 +161,9 @@ public class EncounterController {
     @PostMapping("/{id}/unsign")
     public ResponseEntity<ApiResponse<EncounterDto>> unsignEncounter(
             @PathVariable Long patientId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId
-    ) {
+            @PathVariable Long id) {
         try {
-            EncounterDto dto = encounterService.unsignEncounter(id, patientId, orgId);
+            EncounterDto dto = encounterService.unsignEncounter(id, patientId);
             return ResponseEntity.ok(ApiResponse.<EncounterDto>builder()
                     .success(true)
                     .message("Encounter unsigned")
@@ -194,11 +180,9 @@ public class EncounterController {
     @PostMapping("/{id}/incomplete")
     public ResponseEntity<ApiResponse<EncounterDto>> markIncomplete(
             @PathVariable Long patientId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId
-    ) {
+            @PathVariable Long id) {
         try {
-            EncounterDto dto = encounterService.markIncomplete(id, patientId, orgId);
+            EncounterDto dto = encounterService.markIncomplete(id, patientId);
             return ResponseEntity.ok(ApiResponse.<EncounterDto>builder()
                     .success(true)
                     .message("Encounter marked incomplete")

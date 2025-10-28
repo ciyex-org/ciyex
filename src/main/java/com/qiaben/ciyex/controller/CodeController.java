@@ -21,8 +21,8 @@
 //    // READ ALL by patient
 //    @GetMapping("/{patientId}")
 //    public ResponseEntity<ApiResponse<List<CodeDto>>> getAllByPatient(
-//            @PathVariable Long patientId, @RequestHeader("orgId") Long orgId) {
-//        var list = service.getAllByPatient(orgId, patientId);
+//            @PathVariable Long patientId) {
+//        var list = service.getAllByPatient(patientId);
 //        return ResponseEntity.ok(ApiResponse.<List<CodeDto>>builder()
 //                .success(true).message("Codes fetched").data(list).build());
 //    }
@@ -30,8 +30,8 @@
 //    // READ ALL by encounter
 //    @GetMapping("/{patientId}/{encounterId}")
 //    public ResponseEntity<ApiResponse<List<CodeDto>>> getAllByEncounter(
-//            @PathVariable Long patientId, @PathVariable Long encounterId, @RequestHeader("orgId") Long orgId) {
-//        var list = service.getAllByEncounter(orgId, patientId, encounterId);
+//            @PathVariable Long patientId, @PathVariable Long encounterId) {
+//        var list = service.getAllByEncounter(patientId, encounterId);
 //        return ResponseEntity.ok(ApiResponse.<List<CodeDto>>builder()
 //                .success(true).message("Codes fetched").data(list).build());
 //    }
@@ -41,7 +41,7 @@
 //    public ResponseEntity<ApiResponse<CodeDto>> getOne(
 //            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
 //            @RequestHeader("orgId") Long orgId) {
-//        var dto = service.getOne(orgId, patientId, encounterId, id);
+//        var dto = service.getOne(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<CodeDto>builder()
 //                .success(true).message("Code fetched").data(dto).build());
 //    }
@@ -50,9 +50,8 @@
 //    @PostMapping("/{patientId}/{encounterId}")
 //    public ResponseEntity<ApiResponse<CodeDto>> create(
 //            @PathVariable Long patientId, @PathVariable Long encounterId,
-//            @RequestHeader("orgId") Long orgId,
-//            @RequestBody CodeDto dto) {
-//        var created = service.create(orgId, patientId, encounterId, dto);
+//            //            @RequestBody CodeDto dto) {
+//        var created = service.create(patientId, encounterId, dto);
 //        return ResponseEntity.ok(ApiResponse.<CodeDto>builder()
 //                .success(true).message("Code created").data(created).build());
 //    }
@@ -61,9 +60,8 @@
 //    @PutMapping("/{patientId}/{encounterId}/{id}")
 //    public ResponseEntity<ApiResponse<CodeDto>> update(
 //            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId,
-//            @RequestBody CodeDto dto) {
-//        var updated = service.update(orgId, patientId, encounterId, id, dto);
+//            //            @RequestBody CodeDto dto) {
+//        var updated = service.update(patientId, encounterId, id, dto);
 //        return ResponseEntity.ok(ApiResponse.<CodeDto>builder()
 //                .success(true).message("Code updated").data(updated).build());
 //    }
@@ -73,7 +71,7 @@
 //    public ResponseEntity<ApiResponse<Void>> delete(
 //            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
 //            @RequestHeader("orgId") Long orgId) {
-//        service.delete(orgId, patientId, encounterId, id);
+//        service.delete(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<Void>builder()
 //                .success(true).message("Code deleted").build());
 //    }
@@ -82,9 +80,8 @@
 //    @GetMapping("/{patientId}/{encounterId}/type/{codeType}")
 //    public ResponseEntity<ApiResponse<List<CodeDto>>> listByType(
 //            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable String codeType,
-//            @RequestHeader("orgId") Long orgId,
-//            @RequestParam(value = "active", required = false) Boolean active) {
-//        var list = service.searchInEncounter(orgId, patientId, encounterId, codeType, active, "");
+//            //            @RequestParam(value = "active", required = false) Boolean active) {
+//        var list = service.searchInEncounter(patientId, encounterId, codeType, active, "");
 //        return ResponseEntity.ok(ApiResponse.<List<CodeDto>>builder()
 //                .success(true).message("Codes filtered").data(list).build());
 //    }
@@ -93,11 +90,10 @@
 //    @GetMapping("/{patientId}/{encounterId}/search")
 //    public ResponseEntity<ApiResponse<List<CodeDto>>> search(
 //            @PathVariable Long patientId, @PathVariable Long encounterId,
-//            @RequestHeader("orgId") Long orgId,
-//            @RequestParam(value = "q", required = false, defaultValue = "") String q,
+//            //            @RequestParam(value = "q", required = false, defaultValue = "") String q,
 //            @RequestParam(value = "codeType", required = false) String codeType,
 //            @RequestParam(value = "active", required = false) Boolean active) {
-//        var list = service.searchInEncounter(orgId, patientId, encounterId, codeType, active, q);
+//        var list = service.searchInEncounter(patientId, encounterId, codeType, active, q);
 //        return ResponseEntity.ok(ApiResponse.<List<CodeDto>>builder()
 //                .success(true).message("Codes search results").data(list).build());
 //    }
@@ -136,9 +132,8 @@ public class CodeController {
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<CodeDto>>> list(
             @PathVariable Long patientId,
-            @PathVariable Long encounterId,
-            @RequestHeader("orgId") Long orgId) {
-        var items = service.list(orgId, patientId, encounterId);
+            @PathVariable Long encounterId) {
+        var items = service.list(patientId, encounterId);
         return ResponseEntity.ok(ApiResponse.<List<CodeDto>>builder()
                 .success(true).message("Codes fetched").data(items).build());
     }
@@ -148,10 +143,9 @@ public class CodeController {
     public ResponseEntity<ApiResponse<CodeDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long id) {
         try {
-            var dto = service.getOne(orgId, patientId, encounterId, id);
+            var dto = service.getOne(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<CodeDto>builder()
                     .success(true).message("Code fetched").data(dto).build());
         } catch (IllegalArgumentException ex) {
@@ -165,9 +159,8 @@ public class CodeController {
     public ResponseEntity<ApiResponse<CodeDto>> create(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @RequestHeader("orgId") Long orgId,
             @RequestBody CodeDto dto) {
-        var saved = service.create(orgId, patientId, encounterId, dto);
+        var saved = service.create(patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<CodeDto>builder()
                 .success(true).message("Code created").data(saved).build());
     }
@@ -178,10 +171,9 @@ public class CodeController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId,
             @RequestBody CodeDto dto) {
         try {
-            var saved = service.update(orgId, patientId, encounterId, id, dto);
+            var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<CodeDto>builder()
                     .success(true).message("Code updated").data(saved).build());
         } catch (IllegalStateException ex) {
@@ -198,10 +190,9 @@ public class CodeController {
     public ResponseEntity<?> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long id) {
         try {
-            service.delete(orgId, patientId, encounterId, id);
+            service.delete(patientId, encounterId, id);
             // Your UI tolerates empty 204 via safeJson() fallback. :contentReference[oaicite:1]{index=1}
             return ResponseEntity.noContent().build();
         } catch (IllegalStateException ex) {
@@ -219,11 +210,10 @@ public class CodeController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId,
             Principal principal) {
         try {
             String user = (principal != null) ? principal.getName() : "system";
-            var dto = service.eSign(orgId, patientId, encounterId, id, user);
+            var dto = service.eSign(patientId, encounterId, id, user);
             return ResponseEntity.ok(ApiResponse.<CodeDto>builder()
                     .success(true).message("Code e-signed").data(dto).build());
         } catch (IllegalArgumentException ex) {
@@ -241,9 +231,8 @@ public class CodeController {
     public ResponseEntity<byte[]> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
-        byte[] pdf = service.renderPdf(orgId, patientId, encounterId, id);
+            @PathVariable Long id) {
+        byte[] pdf = service.renderPdf(patientId, encounterId, id);
         String filename = "code-" + id + ".pdf";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")

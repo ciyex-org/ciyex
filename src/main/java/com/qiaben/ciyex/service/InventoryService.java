@@ -121,7 +121,7 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public Page<InventoryDto> getAll(Pageable pageable) {
-        // Single-tenant: no orgId check needed
+        
         return repository.findAll(pageable).map(this::mapToDto);
     }
 
@@ -137,7 +137,7 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getWeeklyConsumption() {
-        // Single-tenant: no orgId check needed
+        
         List<Inventory> items = repository.findAll();
 
         Map<String, Integer> grouped = items.stream()
@@ -164,8 +164,8 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getMonthlyOrders() {
-        // Single-tenant: no orgId check needed
-        List<MonthlyOrderCountDto> counts = orderService.countOrdersByMonth(null);
+        
+        List<MonthlyOrderCountDto> counts = orderService.countOrdersByMonth();
 
         return counts.stream()
                 .map(c -> {
@@ -186,7 +186,7 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public Map<String, Long> countLowAndCritical() {
-        // Single-tenant: no orgId check needed
+        
         List<Inventory> items = repository.findAll();
 
         long low = items.stream()
@@ -244,11 +244,7 @@ public class InventoryService {
         return dto;
     }
 
-    private Long getCurrentOrgId() {
-        // Tenant isolation is now handled at schema level
-        // orgId is no longer tracked in RequestContext
-        return null;
-    }
+    
 
     private String now() {
         return LocalDateTime.now().toString();

@@ -26,11 +26,6 @@
 //    private SocialHistory socialHistory;
 //}
 
-
-
-
-
-
 package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;

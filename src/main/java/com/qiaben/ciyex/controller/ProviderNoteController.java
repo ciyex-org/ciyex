@@ -24,7 +24,7 @@
 //            @PathVariable Long encounterId,
 //            @RequestHeader("orgId") Long orgId) {
 //
-//        var list = service.getAllByEncounter(orgId, patientId, encounterId);
+//        var list = service.getAllByEncounter(patientId, encounterId);
 //        return ResponseEntity.ok(ApiResponse.<List<ProviderNoteDto>>builder()
 //                .success(true).message("Provider notes fetched").data(list).build());
 //    }
@@ -36,7 +36,7 @@
 //            @PathVariable Long id,
 //            @RequestHeader("orgId") Long orgId) {
 //
-//        var dto = service.getOne(orgId, patientId, encounterId, id);
+//        var dto = service.getOne(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<ProviderNoteDto>builder()
 //                .success(true).message("Provider note fetched").data(dto).build());
 //    }
@@ -45,10 +45,9 @@
 //    public ResponseEntity<ApiResponse<ProviderNoteDto>> create(
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
-//            @RequestHeader("orgId") Long orgId,
-//            @RequestBody ProviderNoteDto dto) {
+//            //            @RequestBody ProviderNoteDto dto) {
 //
-//        var saved = service.create(orgId, patientId, encounterId, dto);
+//        var saved = service.create(patientId, encounterId, dto);
 //        return ResponseEntity.ok(ApiResponse.<ProviderNoteDto>builder()
 //                .success(true).message("Provider note created").data(saved).build());
 //    }
@@ -58,10 +57,9 @@
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId,
-//            @RequestBody ProviderNoteDto dto) {
+//            //            @RequestBody ProviderNoteDto dto) {
 //
-//        var updated = service.update(orgId, patientId, encounterId, id, dto);
+//        var updated = service.update(patientId, encounterId, id, dto);
 //        return ResponseEntity.ok(ApiResponse.<ProviderNoteDto>builder()
 //                .success(true).message("Provider note updated").data(updated).build());
 //    }
@@ -73,7 +71,7 @@
 //            @PathVariable Long id,
 //            @RequestHeader("orgId") Long orgId) {
 //
-//        service.delete(orgId, patientId, encounterId, id);
+//        service.delete(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<Void>builder()
 //                .success(true).message("Provider note deleted").build());
 //    }
@@ -107,9 +105,8 @@ public class ProviderNoteController {
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<ProviderNoteDto>>> list(
             @PathVariable Long patientId,
-            @PathVariable Long encounterId,
-            @RequestHeader("orgId") Long orgId) {
-        var items = service.list(orgId, patientId, encounterId);
+            @PathVariable Long encounterId) {
+        var items = service.list(patientId, encounterId);
         return ResponseEntity.ok(ApiResponse.<List<ProviderNoteDto>>builder()
                 .success(true).message("Provider notes fetched").data(items).build());
     }
@@ -119,10 +116,9 @@ public class ProviderNoteController {
     public ResponseEntity<ApiResponse<ProviderNoteDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long id) {
         try {
-            var dto = service.getOne(orgId, patientId, encounterId, id);
+            var dto = service.getOne(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<ProviderNoteDto>builder()
                     .success(true).message("Provider note fetched").data(dto).build());
         } catch (IllegalArgumentException ex) {
@@ -136,9 +132,8 @@ public class ProviderNoteController {
     public ResponseEntity<ApiResponse<ProviderNoteDto>> create(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @RequestHeader("orgId") Long orgId,
             @RequestBody ProviderNoteDto dto) {
-        var saved = service.create(orgId, patientId, encounterId, dto);
+        var saved = service.create(patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<ProviderNoteDto>builder()
                 .success(true).message("Provider note created").data(saved).build());
     }
@@ -149,10 +144,9 @@ public class ProviderNoteController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId,
             @RequestBody ProviderNoteDto dto) {
         try {
-            var saved = service.update(orgId, patientId, encounterId, id, dto);
+            var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<ProviderNoteDto>builder()
                     .success(true).message("Provider note updated").data(saved).build());
         } catch (IllegalStateException ex) {
@@ -169,10 +163,9 @@ public class ProviderNoteController {
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long id) {
         try {
-            service.delete(orgId, patientId, encounterId, id);
+            service.delete(patientId, encounterId, id);
             // 204 keeps your UI happy (it handles empty body). :contentReference[oaicite:1]{index=1}
             return ResponseEntity.noContent().build();
         } catch (IllegalStateException ex) {
@@ -190,11 +183,10 @@ public class ProviderNoteController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId,
             Principal principal) {
         try {
             String user = (principal != null) ? principal.getName() : "system";
-            var dto = service.eSign(orgId, patientId, encounterId, id, user);
+            var dto = service.eSign(patientId, encounterId, id, user);
             return ResponseEntity.ok(ApiResponse.<ProviderNoteDto>builder()
                     .success(true).message("Provider note e-signed").data(dto).build());
         } catch (IllegalArgumentException ex) {
@@ -212,9 +204,8 @@ public class ProviderNoteController {
     public ResponseEntity<byte[]> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
-        byte[] pdf = service.renderPdf(orgId, patientId, encounterId, id);
+            @PathVariable Long id) {
+        byte[] pdf = service.renderPdf(patientId, encounterId, id);
         String filename = "provider-note-" + id + ".pdf";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")

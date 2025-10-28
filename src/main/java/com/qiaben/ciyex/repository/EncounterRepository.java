@@ -49,9 +49,9 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
 //    List<Encounter> findByPatientIdAndOrgIdOrderByIdDesc(Long patientId);
 //    List<Encounter> findByPatientIdAndOrgIdAndStatusOrderByIdDesc(Long patientId, EncounterStatus status);
 //
-//    Optional<Encounter> findByIdAndPatientIdAndOrgId(Long id, Long patientId);
+//    Optional<Encounter> findByIdAndPatientId(Long id, Long patientId);
 //
-//    long deleteByIdAndPatientIdAndOrgId(Long id, Long patientId);
+//    long deleteByIdAndPatientId(Long id, Long patientId);
 //
 //    // ---- Review queries (filters are optional) ----
 //    @Query("""

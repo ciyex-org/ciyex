@@ -94,7 +94,7 @@ public class ProviderService {
 
                 if (extendedProviderDto != null) {
                     log.info("Successfully loaded extended details for provider id: {} from external storage for orgId: {}", id, RequestContext.get().getTenantName());
-                    log.debug("Extended ProviderDto: id={}, fhirId={}, orgId={}", extendedProviderDto.getId(), extendedProviderDto.getFhirId(), RequestContext.get().getTenantName());
+                    log.debug("Extended ProviderDto: id={}, fhirId={}={}", extendedProviderDto.getId(), extendedProviderDto.getFhirId(), RequestContext.get().getTenantName());
 
                     extendedProviderDto.setId(provider.getId()); // Preserve DB ID
                     // Manually map fields from Provider to extendedProviderDto
@@ -116,7 +116,7 @@ public class ProviderService {
         }
 
         log.info("Returning provider dto for id: {} and orgId: {}", id, RequestContext.get().getTenantName());
-        log.debug("Returning ProviderDto: id={}, fhirId={}, orgId={}", resultDto.getId(), resultDto.getFhirId(), RequestContext.get().getTenantName());
+        log.debug("Returning ProviderDto: id={}, fhirId={}={}", resultDto.getId(), resultDto.getFhirId(), RequestContext.get().getTenantName());
 
         return resultDto;
     }

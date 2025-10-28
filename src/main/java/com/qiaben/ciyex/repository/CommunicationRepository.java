@@ -12,37 +12,30 @@ public interface CommunicationRepository extends JpaRepository<Communication, Lo
 
     @Query(value = """
         SELECT * FROM communications
-        WHERE CAST(org_id AS TEXT) = :orgIdTxt
         ORDER BY id DESC
         """, nativeQuery = true)
-    List<Communication> findByText(@Param("orgIdTxt") String orgIdTxt);
+    List<Communication> findByText();
 
     @Query(value = """
         SELECT * FROM communications
         WHERE CAST(patient_id AS TEXT) = :patientIdTxt
-          AND CAST(org_id     AS TEXT) = :orgIdTxt
         ORDER BY id DESC
         """, nativeQuery = true)
-    List<Communication> findAllByPatientIdAndOrgIdText(@Param("patientIdTxt") String patientIdTxt,
-                                                       @Param("orgIdTxt") String orgIdTxt);
+    List<Communication> findAllByPatientIdAndOrgIdText(@Param("patientIdTxt") String patientIdTxt);
 
     @Modifying
     @Query(value = """
         DELETE FROM communications
         WHERE CAST(id AS TEXT) = :idTxt
           AND CAST(patient_id AS TEXT) = :patientIdTxt
-          AND CAST(org_id AS TEXT) = :orgIdTxt
         """, nativeQuery = true)
     int deleteOneByIdAndPatientIdAndOrgIdText(@Param("idTxt") String idTxt,
-                                              @Param("patientIdTxt") String patientIdTxt,
-                                              @Param("orgIdTxt") String orgIdTxt);
+                                              @Param("patientIdTxt") String patientIdTxt);
 
     @Modifying
     @Query(value = """
         DELETE FROM communications
         WHERE CAST(patient_id AS TEXT) = :patientIdTxt
-          AND CAST(org_id     AS TEXT) = :orgIdTxt
         """, nativeQuery = true)
-    int deleteAllByPatientIdAndOrgIdText(@Param("patientIdTxt") String patientIdTxt,
-                                         @Param("orgIdTxt") String orgIdTxt);
+    int deleteAllByPatientIdAndOrgIdText(@Param("patientIdTxt") String patientIdTxt);
 }

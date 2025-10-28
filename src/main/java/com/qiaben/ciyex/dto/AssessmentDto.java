@@ -6,7 +6,7 @@
 //public class AssessmentDto {
 //    private Long id;              // DB id
 //    private String externalId;    // optional FHIR id
-//    private Long orgId;
+//
 //    private Long patientId;
 //    private Long encounterId;
 //
@@ -54,12 +54,6 @@
 //        private String lastModifiedDate;  // yyyy-MM-dd
 //    }
 //}
-
-
-
-
-
-
 
 package com.qiaben.ciyex.dto;
 

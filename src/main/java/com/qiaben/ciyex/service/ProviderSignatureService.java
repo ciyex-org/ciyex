@@ -24,9 +24,9 @@
 //
 //    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 //
-//    public ProviderSignatureDto create(Long orgId, Long patientId, Long encounterId, ProviderSignatureDto in) {
+//    public ProviderSignatureDto create(Long patientId, Long encounterId, ProviderSignatureDto in) {
 //        ProviderSignature e = ProviderSignature.builder()
-//                .orgId(orgId).patientId(patientId).encounterId(encounterId)
+
 //                .signedAt(in.getSignedAt())
 //                .signedBy(in.getSignedBy())
 //                .signerRole(in.getSignerRole())
@@ -50,7 +50,7 @@
 //        return mapToDto(saved);
 //    }
 //
-//    public ProviderSignatureDto update(Long orgId, Long patientId, Long encounterId, Long id, ProviderSignatureDto in) {
+//    public ProviderSignatureDto update(Long patientId, Long encounterId, Long id, ProviderSignatureDto in) {
 //        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
 //
@@ -76,7 +76,7 @@
 //        return mapToDto(updated);
 //    }
 //
-//    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public void delete(Long patientId, Long encounterId, Long id) {
 //        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
 //
@@ -87,17 +87,17 @@
 //        repo.delete(e);
 //    }
 //
-//    public ProviderSignatureDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public ProviderSignatureDto getOne(Long patientId, Long encounterId, Long id) {
 //        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
 //        return mapToDto(e);
 //    }
 //
-//    public List<ProviderSignatureDto> getAllByPatient(Long orgId, Long patientId) {
+//    public List<ProviderSignatureDto> getAllByPatient(Long patientId) {
 //        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
-//    public List<ProviderSignatureDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+//    public List<ProviderSignatureDto> getAllByEncounter(Long patientId, Long encounterId) {
 //        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 //    }
 //
@@ -162,7 +162,7 @@ public class ProviderSignatureService {
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
-    public ProviderSignatureDto create(Long orgId, Long patientId, Long encounterId, ProviderSignatureDto dto) {
+    public ProviderSignatureDto create(Long patientId, Long encounterId, ProviderSignatureDto dto) {
         ProviderSignature e = new ProviderSignature();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -176,22 +176,22 @@ public class ProviderSignatureService {
     }
 
     // eSign alias (same as create)
-    public ProviderSignatureDto eSign(Long orgId, Long patientId, Long encounterId, ProviderSignatureDto dto) {
-        return create(orgId, patientId, encounterId, dto);
+    public ProviderSignatureDto eSign(Long patientId, Long encounterId, ProviderSignatureDto dto) {
+        return create(patientId, encounterId, dto);
     }
 
-    public ProviderSignatureDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public ProviderSignatureDto getOne(Long patientId, Long encounterId, Long id) {
         ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
         return toDto(e);
     }
 
-    public List<ProviderSignatureDto> list(Long orgId, Long patientId, Long encounterId) {
+    public List<ProviderSignatureDto> list(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
                 .map(this::toDto).toList();
     }
 
-    public ProviderSignatureDto update(Long orgId, Long patientId, Long encounterId, Long id, ProviderSignatureDto dto) {
+    public ProviderSignatureDto update(Long patientId, Long encounterId, Long id, ProviderSignatureDto dto) {
         ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
         applyDto(e, dto);
@@ -202,14 +202,14 @@ public class ProviderSignatureService {
         return toDto(e);
     }
 
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
         repo.delete(e);
     }
 
     // Print a simple PDF with the signature image (if present)
-    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
 

@@ -37,7 +37,6 @@ public class AllergyIntoleranceService {
 
     @Transactional
     public AllergyIntoleranceDto create(AllergyIntoleranceDto dto) {
-        Long orgId = requireOrg("create");
         if (dto.getPatientId() == null) throw new IllegalArgumentException("patientId is required");
 
         String now = LocalDateTime.now().toString();
@@ -66,7 +65,7 @@ public class AllergyIntoleranceService {
         if (storageType != null && !rows.isEmpty()) {
             ExternalStorage<AllergyIntoleranceDto> ext = storageResolver.resolve(AllergyIntoleranceDto.class);
 
-            AllergyIntoleranceDto snapshot = toDto(orgId, dto.getPatientId(), rows, true);
+            AllergyIntoleranceDto snapshot = toDto(dto.getPatientId(), rows, true);
             String externalId = ext.create(snapshot);
 
             for (AllergyIntolerance r : rows) {
@@ -76,19 +75,17 @@ public class AllergyIntoleranceService {
         }
 
         // API response: omit top-level patientId
-        return toDto(orgId, dto.getPatientId(), rows, false);
+        return toDto(dto.getPatientId(), rows, false);
     }
 
     @Transactional(readOnly = true)
     public AllergyIntoleranceDto getByPatientId(Long patientId) {
-        Long orgId = requireOrg("getByPatientId");
-        List<AllergyIntolerance> rows =
-                repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
+        List<AllergyIntolerance> rows = repo.findAllByPatientId(patientId);
 
         if (rows.isEmpty())
             throw new RuntimeException("No allergies found for patientId=" + patientId);
 
-        AllergyIntoleranceDto dto = toDto(orgId, patientId, rows, false);
+        AllergyIntoleranceDto dto = toDto(patientId, rows, false);
 
         if (rows.get(0).getExternalId() != null) {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -103,21 +100,18 @@ public class AllergyIntoleranceService {
 
     @Transactional
     public AllergyIntoleranceDto updateByPatientId(Long patientId, AllergyIntoleranceDto dto) {
-        Long orgId = requireOrg("updateByPatientId");
-        repo.deleteAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
+        repo.deleteAllByPatientId(patientId);
         dto.setPatientId(patientId);
         return create(dto);
     }
 
     @Transactional
     public void deleteByPatientId(Long patientId) {
-        Long orgId = requireOrg("deleteByPatientId");
-        List<AllergyIntolerance> rows =
-                repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
+        List<AllergyIntolerance> rows = repo.findAllByPatientId(patientId);
         if (rows.isEmpty()) return;
 
         String externalId = rows.get(0).getExternalId();
-        repo.deleteAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
+        repo.deleteAllByPatientId(patientId);
 
         if (externalId != null) {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -132,8 +126,7 @@ public class AllergyIntoleranceService {
 
     @Transactional(readOnly = true)
     public AllergyIntoleranceDto.AllergyItem getItem(Long patientId, Long intoleranceId) {
-        Long orgId = requireOrg("getItem");
-        return repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId)).stream()
+        return repo.findAllByPatientId(patientId).stream()
                 .filter(r -> r.getId().equals(intoleranceId))
                 .findFirst()
                 .map(this::toItem)
@@ -144,9 +137,7 @@ public class AllergyIntoleranceService {
     @Transactional
     public AllergyIntoleranceDto.AllergyItem updateItem(Long patientId, Long intoleranceId,
                                                         AllergyIntoleranceDto.AllergyItem patch) {
-        Long orgId = requireOrg("updateItem");
-        List<AllergyIntolerance> rows =
-                repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
+        List<AllergyIntolerance> rows = repo.findAllByPatientId(patientId);
 
         AllergyIntolerance row = rows.stream()
                 .filter(r -> r.getId().equals(intoleranceId))
@@ -168,9 +159,8 @@ public class AllergyIntoleranceService {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
             if (storageType != null) {
                 ExternalStorage<AllergyIntoleranceDto> ext = storageResolver.resolve(AllergyIntoleranceDto.class);
-                List<AllergyIntolerance> fresh =
-                        repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
-                ext.update(toDto(orgId, patientId, fresh, true), row.getExternalId());
+                List<AllergyIntolerance> fresh = repo.findAllByPatientId(patientId);
+                ext.update(toDto(patientId, fresh, true), row.getExternalId());
             }
         }
         return toItem(row);
@@ -178,23 +168,19 @@ public class AllergyIntoleranceService {
 
     @Transactional
     public void deleteItem(Long patientId, Long intoleranceId) {
-        Long orgId = requireOrg("deleteItem");
-        List<AllergyIntolerance> rows =
-                repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
+        List<AllergyIntolerance> rows = repo.findAllByPatientId(patientId);
         String externalId = rows.stream().findFirst().map(AllergyIntolerance::getExternalId).orElse(null);
 
-        int n = repo.deleteOneByIdAndPatientIdAndOrgIdText(
-                String.valueOf(intoleranceId), String.valueOf(patientId), String.valueOf(orgId));
+        int n = repo.deleteOneByIdAndPatientId(intoleranceId, patientId);
         if (n == 0) throw new RuntimeException("Delete failed: not found");
 
         if (externalId != null) {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
             if (storageType != null) {
                 ExternalStorage<AllergyIntoleranceDto> ext = storageResolver.resolve(AllergyIntoleranceDto.class);
-                List<AllergyIntolerance> fresh =
-                        repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId));
+                List<AllergyIntolerance> fresh = repo.findAllByPatientId(patientId);
                 if (fresh.isEmpty()) ext.delete(externalId);
-                else ext.update(toDto(orgId, patientId, fresh, true), externalId);
+                else ext.update(toDto(patientId, fresh, true), externalId);
             }
         }
     }
@@ -203,7 +189,6 @@ public class AllergyIntoleranceService {
 
     @Transactional(readOnly = true)
     public ApiResponse<List<AllergyIntoleranceDto>> searchAll() {
-        Long orgId = requireOrg("searchAll");
 
         List<AllergyIntolerance> all = repo.findAll();
         Map<Long, List<AllergyIntolerance>> byPatient =
@@ -211,7 +196,7 @@ public class AllergyIntoleranceService {
 
         List<AllergyIntoleranceDto> dtos = new ArrayList<>();
         for (var e : byPatient.entrySet()) {
-            dtos.add(toDto(orgId, e.getKey(), e.getValue(), false));
+            dtos.add(toDto(e.getKey(), e.getValue(), false));
         }
 
         return ApiResponse.<List<AllergyIntoleranceDto>>builder()
@@ -223,13 +208,7 @@ public class AllergyIntoleranceService {
 
     /* ---------------------- Helpers ---------------------- */
 
-    private Long requireOrg(String op) {
-        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
-        if (orgId == null) throw new SecurityException("No orgId in RequestContext during " + op);
-        return orgId;
-    }
-
-    private AllergyIntoleranceDto toDto(Long orgId, Long patientId, List<AllergyIntolerance> rows,
+    private AllergyIntoleranceDto toDto(Long patientId, List<AllergyIntolerance> rows,
                                         boolean includeTopLevelPatientId) {
         AllergyIntoleranceDto dto = new AllergyIntoleranceDto();
         if (includeTopLevelPatientId) {

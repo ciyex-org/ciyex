@@ -37,9 +37,8 @@ public class GlobalCodeController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<GlobalCodeDto>> create(
-            @RequestHeader("orgId") Long orgId,
             @Valid @RequestBody GlobalCodeDto dto) {
-        var created = service.create(orgId, dto);
+        var created = service.create(dto);
         return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
                 .success(true).message("Code created").data(created).build());
     }
@@ -64,20 +63,18 @@ public class GlobalCodeController {
     @GetMapping("/type/{codeType}")
     public ResponseEntity<ApiResponse<List<GlobalCodeDto>>> listByType(
             @PathVariable String codeType,
-            @RequestHeader("orgId") Long orgId,
             @RequestParam(value = "active", required = false) Boolean active) {
-        var list = service.search(orgId, codeType, active, "");
+        var list = service.search(codeType, active, "");
         return ResponseEntity.ok(ApiResponse.<List<GlobalCodeDto>>builder()
                 .success(true).message("Codes filtered").data(list).build());
     }
 
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<GlobalCodeDto>>> search(
-            @RequestHeader("orgId") Long orgId,
             @RequestParam(value = "q", required = false, defaultValue = "") String q,
             @RequestParam(value = "codeType", required = false) String codeType,
             @RequestParam(value = "active", required = false) Boolean active) {
-        var list = service.search(orgId, codeType, active, q);
+        var list = service.search(codeType, active, q);
         return ResponseEntity.ok(ApiResponse.<List<GlobalCodeDto>>builder()
                 .success(true).message("Codes search results").data(list).build());
     }

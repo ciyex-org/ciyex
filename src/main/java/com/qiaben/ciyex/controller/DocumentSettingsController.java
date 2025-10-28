@@ -25,7 +25,7 @@ public class DocumentSettingsController {
     @GetMapping("/{orgId}")
     public ResponseEntity<ApiResponse<DocumentSettingsDto>> get(@PathVariable Long orgId) {
         try {
-            var data = service.get(orgId);
+            var data = service.get();
             return ResponseEntity.ok(ApiResponse.<DocumentSettingsDto>builder()
                     .success(true).data(data).build());
         } catch (Exception e) {
@@ -48,10 +48,10 @@ public class DocumentSettingsController {
 
     // --- Categories ---
 
-    @GetMapping("/{orgId}/categories")
+    @GetMapping("/categories")
     public ResponseEntity<ApiResponse<List<DocumentSettingsDto.Category>>> getCategories(@PathVariable Long orgId) {
         try {
-            var data = service.getCategories(orgId);
+            var data = service.getCategories();
             return ResponseEntity.ok(ApiResponse.<List<DocumentSettingsDto.Category>>builder()
                     .success(true).data(data).build());
         } catch (Exception e) {
@@ -60,13 +60,12 @@ public class DocumentSettingsController {
         }
     }
 
-    @PostMapping("/{orgId}/categories/{name}/{active}")
+    @PostMapping("/categories/{name}/{active}")
     public ResponseEntity<ApiResponse<List<DocumentSettingsDto.Category>>> addCategory(
-            @PathVariable Long orgId,
             @PathVariable String name,
             @PathVariable boolean active) {
         try {
-            var data = service.addCategory(orgId, name, active, "admin");
+            var data = service.addCategory(name, active, "admin");
             return ResponseEntity.ok(ApiResponse.<List<DocumentSettingsDto.Category>>builder()
                     .success(true).message("Category added: " + name).data(data).build());
         } catch (Exception e) {

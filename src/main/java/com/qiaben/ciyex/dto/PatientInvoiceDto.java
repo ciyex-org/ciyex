@@ -1,7 +1,5 @@
 package com.qiaben.ciyex.dto;
 
-
-
 import com.qiaben.ciyex.entity.PatientInvoice.Status;
 import java.math.BigDecimal;
 import java.util.List;

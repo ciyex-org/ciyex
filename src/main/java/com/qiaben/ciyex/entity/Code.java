@@ -26,7 +26,7 @@
 //    private String externalId;
 //
 //    
-//    private Long orgId;
+//
 //
 //    @Column(name = "patient_id", nullable = false)
 //    private Long patientId;
@@ -76,13 +76,7 @@
 //    private LocalDateTime updatedAt;
 //}
 
-
-
-
-
-
 package com.qiaben.ciyex.entity;
-
 
 import jakarta.persistence.*;
 import lombok.*;

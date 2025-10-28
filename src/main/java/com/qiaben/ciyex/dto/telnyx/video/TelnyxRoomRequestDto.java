@@ -11,7 +11,5 @@ public class TelnyxRoomRequestDto {
     private String webhookEventFailoverUrl;
     private Integer webhookTimeoutSecs;
 
-
 }
-
 

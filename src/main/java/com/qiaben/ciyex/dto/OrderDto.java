@@ -14,7 +14,6 @@ public class OrderDto {
     private Double amount;
     private String category;
 
-
     private Audit audit;
     private String fhirId;
 

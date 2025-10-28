@@ -27,39 +27,39 @@
 //    private static final DateTimeFormatter ISO_TS = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 //
 //    @Transactional
-//    public ProviderNoteDto create(Long orgId, Long patientId, Long encounterId, ProviderNoteDto d) {
+//    public ProviderNoteDto create(Long patientId, Long encounterId, ProviderNoteDto d) {
 //        ProviderNote e = new ProviderNote();
-//        apply(e, orgId, patientId, encounterId, d);
+//        apply(e,  patientId, encounterId, d);
 //        ProviderNote saved = repo.save(e);
 //        safeExternalCreate(saved);
 //        return toDto(saved);
 //    }
 //
 //    @Transactional
-//    public ProviderNoteDto update(Long orgId, Long patientId, Long encounterId, Long id, ProviderNoteDto d) {
+//    public ProviderNoteDto update(Long patientId, Long encounterId, Long id, ProviderNoteDto d) {
 //        ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
-//        apply(e, orgId, patientId, encounterId, d);
+//        apply(e,  patientId, encounterId, d);
 //        ProviderNote updated = repo.save(e);
 //        safeExternalUpdate(updated);
 //        return toDto(updated);
 //    }
 //
 //    @Transactional(readOnly = true)
-//    public ProviderNoteDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public ProviderNoteDto getOne(Long patientId, Long encounterId, Long id) {
 //        ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
 //        return toDto(e);
 //    }
 //
 //    @Transactional(readOnly = true)
-//    public List<ProviderNoteDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+//    public List<ProviderNoteDto> getAllByEncounter(Long patientId, Long encounterId) {
 //        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
 //                .stream().map(this::toDto).toList();
 //    }
 //
 //    @Transactional
-//    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public void delete(Long patientId, Long encounterId, Long id) {
 //        ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
 //        repo.delete(e);
@@ -68,8 +68,8 @@
 //
 //    /* ---------- mapping & parsing ---------- */
 //
-//    private void apply(ProviderNote e, Long orgId, Long patientId, Long encounterId, ProviderNoteDto d) {
-//        e.setOrgId(orgId);
+//    private void apply(ProviderNote e,  Long patientId, Long encounterId, ProviderNoteDto d) {
+//
 //        e.setPatientId(patientId);
 //        e.setEncounterId(encounterId);
 //
@@ -90,7 +90,7 @@
 //    private ProviderNoteDto toDto(ProviderNote e) {
 //        return ProviderNoteDto.builder()
 //                .id(s(e.getId()))
-//                .orgId(s(e.getOrgId()))
+
 //                .patientId(s(e.getPatientId()))
 //                .encounterId(s(e.getEncounterId()))
 //                .noteTitle(e.getNoteTitle())
@@ -184,7 +184,7 @@ public class ProviderNoteService {
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
     // Create
-    public ProviderNoteDto create(Long orgId, Long patientId, Long encounterId, ProviderNoteDto dto) {
+    public ProviderNoteDto create(Long patientId, Long encounterId, ProviderNoteDto dto) {
         ProviderNote e = new ProviderNote();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -194,20 +194,20 @@ public class ProviderNoteService {
     }
 
     // Read one
-    public ProviderNoteDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public ProviderNoteDto getOne(Long patientId, Long encounterId, Long id) {
         ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
         return toDto(e);
     }
 
     // List
-    public List<ProviderNoteDto> list(Long orgId, Long patientId, Long encounterId) {
+    public List<ProviderNoteDto> list(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // Update (blocked if signed)
-    public ProviderNoteDto update(Long orgId, Long patientId, Long encounterId, Long id, ProviderNoteDto dto) {
+    public ProviderNoteDto update(Long patientId, Long encounterId, Long id, ProviderNoteDto dto) {
         ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -219,7 +219,7 @@ public class ProviderNoteService {
     }
 
     // Delete (blocked if signed)
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -229,7 +229,7 @@ public class ProviderNoteService {
     }
 
     // eSign (idempotent)
-    public ProviderNoteDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
+    public ProviderNoteDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
@@ -240,7 +240,7 @@ public class ProviderNoteService {
         e = repo.save(e);
         return toDto(e);
     }
-    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
 

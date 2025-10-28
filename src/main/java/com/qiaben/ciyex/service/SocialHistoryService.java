@@ -24,9 +24,9 @@
 //
 //    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 //
-//    public SocialHistoryDto create(Long orgId, Long patientId, Long encounterId, SocialHistoryDto in) {
+//    public SocialHistoryDto create(Long patientId, Long encounterId, SocialHistoryDto in) {
 //        SocialHistory sh = new SocialHistory();
-//        sh.setOrgId(orgId);
+//
 //        sh.setPatientId(patientId);
 //        sh.setEncounterId(encounterId);
 //
@@ -54,7 +54,7 @@
 //        return mapToDto(saved);
 //    }
 //
-//    public SocialHistoryDto update(Long orgId, Long patientId, Long encounterId, Long id, SocialHistoryDto in) {
+//    public SocialHistoryDto update(Long patientId, Long encounterId, Long id, SocialHistoryDto in) {
 //        SocialHistory sh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
 //
@@ -83,7 +83,7 @@
 //        return mapToDto(updated);
 //    }
 //
-//    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public void delete(Long patientId, Long encounterId, Long id) {
 //        SocialHistory sh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
 //
@@ -97,17 +97,17 @@
 //        repo.delete(toDelete);
 //    }
 //
-//    public SocialHistoryDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public SocialHistoryDto getOne(Long patientId, Long encounterId, Long id) {
 //        SocialHistory sh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
 //        return mapToDto(sh);
 //    }
 //
-//    public List<SocialHistoryDto> getAllByPatient(Long orgId, Long patientId) {
+//    public List<SocialHistoryDto> getAllByPatient(Long patientId) {
 //        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
-//    public List<SocialHistoryDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+//    public List<SocialHistoryDto> getAllByEncounter(Long patientId, Long encounterId) {
 //        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 //    }
 //
@@ -182,7 +182,7 @@ public class SocialHistoryService {
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // CREATE (container + entries)
-    public SocialHistoryDto create(Long orgId, Long patientId, Long encounterId, SocialHistoryDto dto) {
+    public SocialHistoryDto create(Long patientId, Long encounterId, SocialHistoryDto dto) {
         SocialHistory e = new SocialHistory();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -192,7 +192,7 @@ public class SocialHistoryService {
     }
 
     // READ one container (first if multiple)
-    public SocialHistoryDto getOne(Long orgId, Long patientId, Long encounterId) {
+    public SocialHistoryDto getOne(Long patientId, Long encounterId) {
         List<SocialHistory> list = repo.findByPatientIdAndEncounterId(patientId, encounterId);
         SocialHistory e = list.isEmpty() ? null : list.get(0);
         if (e == null) throw new IllegalArgumentException("Social History not found");
@@ -200,14 +200,14 @@ public class SocialHistoryService {
     }
 
     // READ by id
-    public SocialHistoryDto getById(Long orgId, Long patientId, Long encounterId, Long id) {
+    public SocialHistoryDto getById(Long patientId, Long encounterId, Long id) {
         SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
         return toDto(e);
     }
 
     // UPDATE container (blocked if signed)
-    public SocialHistoryDto update(Long orgId, Long patientId, Long encounterId, Long id, SocialHistoryDto dto) {
+    public SocialHistoryDto update(Long patientId, Long encounterId, Long id, SocialHistoryDto dto) {
         SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -219,7 +219,7 @@ public class SocialHistoryService {
     }
 
     // DELETE container (blocked if signed)
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -229,7 +229,7 @@ public class SocialHistoryService {
     }
 
     // eSIGN (idempotent)
-    public SocialHistoryDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
+    public SocialHistoryDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
@@ -241,7 +241,7 @@ public class SocialHistoryService {
     }
 
     // PRINT (PDF) — also stamps printedAt
-    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
         e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));

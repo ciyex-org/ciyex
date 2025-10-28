@@ -25,7 +25,7 @@
 ////        chiefComplaint.setComplaint(dto.getComplaint());
 ////        chiefComplaint.setDetails(dto.getDetails());
 ////        chiefComplaint.setEncounterId(dto.getEncounterId());
-////        chiefComplaint.setOrgId(RequestContext.get().getTenantName());  // Set orgId
+
 ////        chiefComplaint.setPatientId(dto.getPatientId());
 ////        chiefComplaint = chiefComplaintRepository.save(chiefComplaint);
 ////        return mapToDto(chiefComplaint);
@@ -52,7 +52,7 @@
 ////        // Set the updated data
 ////        chiefComplaint.setComplaint(dto.getComplaint());
 ////        chiefComplaint.setDetails(dto.getDetails());
-////        chiefComplaint.setOrgId(RequestContext.get().getTenantName());  // Update orgId
+
 ////        chiefComplaint.setPatientId(dto.getPatientId());
 ////
 ////        // Save the updated chief complaint
@@ -244,7 +244,7 @@ public class ChiefComplaintService {
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
     // CREATE
-    public ChiefComplaintDto create(Long orgId, Long patientId, Long encounterId, ChiefComplaintDto dto) {
+    public ChiefComplaintDto create(Long patientId, Long encounterId, ChiefComplaintDto dto) {
         ChiefComplaint e = new ChiefComplaint();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -254,20 +254,20 @@ public class ChiefComplaintService {
     }
 
     // LIST
-    public List<ChiefComplaintDto> list(Long orgId, Long patientId, Long encounterId) {
+    public List<ChiefComplaintDto> list(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // GET ONE
-    public ChiefComplaintDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public ChiefComplaintDto getOne(Long patientId, Long encounterId, Long id) {
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Chief complaint not found"));
         return toDto(e);
     }
 
     // UPDATE (blocked if signed)
-    public ChiefComplaintDto update(Long orgId, Long patientId, Long encounterId, Long id, ChiefComplaintDto dto) {
+    public ChiefComplaintDto update(Long patientId, Long encounterId, Long id, ChiefComplaintDto dto) {
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Chief complaint not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -279,7 +279,7 @@ public class ChiefComplaintService {
     }
 
     // DELETE (blocked if signed)
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Chief complaint not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -289,7 +289,7 @@ public class ChiefComplaintService {
     }
 
     // ESIGN (no request body; idempotent)
-    public ChiefComplaintDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
+    public ChiefComplaintDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Chief complaint not found"));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
@@ -302,7 +302,7 @@ public class ChiefComplaintService {
     }
 
     // PRINT (PDF) — stamps printedAt
-    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Chief complaint not found"));
 

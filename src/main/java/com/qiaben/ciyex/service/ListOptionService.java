@@ -100,13 +100,13 @@ public class ListOptionService {
 
     // Service method to fetch list options based on list_id
     public List<ListOptionDto> getListOptionsByListId(String listId) {
-        // Use tenantName instead of orgId for context-based filtering.
+        
         RequestContext ctx = RequestContext.get();
         String tenantName = ctx != null ? ctx.getTenantName() : null;
         if (tenantName == null || tenantName.isBlank()) {
             throw new IllegalStateException("No tenantName found in request context");
         }
-        // Existing repository expects orgId String; pass tenantName directly (orgId deprecated).
+        
         List<ListOption> listOptions = repository.findByListId(listId);
         return listOptions.stream().map(this::convertToDto).collect(Collectors.toList());
     }

@@ -23,9 +23,9 @@
 //
 //    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 //
-//    public CodeDto create(Long orgId, Long patientId, Long encounterId, CodeDto in) {
+//    public CodeDto create(Long patientId, Long encounterId, CodeDto in) {
 //        Code e = Code.builder()
-//                .orgId(orgId).patientId(patientId).encounterId(encounterId)
+
 //                .codeType(in.getCodeType()).code(in.getCode()).modifier(in.getModifier())
 //                .active(in.getActive())
 //                .description(in.getDescription()).shortDescription(in.getShortDescription())
@@ -48,7 +48,7 @@
 //        return mapToDto(saved);
 //    }
 //
-//    public CodeDto update(Long orgId, Long patientId, Long encounterId, Long id, CodeDto in) {
+//    public CodeDto update(Long patientId, Long encounterId, Long id, CodeDto in) {
 //        Code e = repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
 //                .filter(c -> c.getId().equals(id))
 //                .findFirst()
@@ -76,7 +76,7 @@
 //        return mapToDto(updated);
 //    }
 //
-//    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public void delete(Long patientId, Long encounterId, Long id) {
 //        Code e = repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
 //                .filter(c -> c.getId().equals(id))
 //                .findFirst().orElseThrow(() -> new IllegalArgumentException("Code not found"));
@@ -84,7 +84,7 @@
 //        repo.delete(e);
 //    }
 //
-//    public CodeDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public CodeDto getOne(Long patientId, Long encounterId, Long id) {
 //        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
 //                .filter(c -> c.getId().equals(id))
 //                .findFirst()
@@ -92,16 +92,16 @@
 //                .orElseThrow(() -> new IllegalArgumentException("Code not found"));
 //    }
 //
-//    public List<CodeDto> getAllByPatient(Long orgId, Long patientId) {
+//    public List<CodeDto> getAllByPatient(Long patientId) {
 //        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
-//    public List<CodeDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+//    public List<CodeDto> getAllByEncounter(Long patientId, Long encounterId) {
 //        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
 //                .stream().map(this::mapToDto).toList();
 //    }
 //
-//    public List<CodeDto> searchInEncounter(Long orgId, Long patientId, Long encounterId,
+//    public List<CodeDto> searchInEncounter(Long patientId, Long encounterId,
 //                                           String codeType, Boolean active, String q) {
 //        return repo.searchInEncounter(patientId, encounterId, codeType, active, q)
 //                .stream().map(this::mapToDto).toList();
@@ -170,7 +170,7 @@ public class CodeService {
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
     // CREATE
-    public CodeDto create(Long orgId, Long patientId, Long encounterId, CodeDto dto) {
+    public CodeDto create(Long patientId, Long encounterId, CodeDto dto) {
         Code e = new Code();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -180,20 +180,20 @@ public class CodeService {
     }
 
     // LIST
-    public List<CodeDto> list(Long orgId, Long patientId, Long encounterId) {
+    public List<CodeDto> list(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // GET ONE
-    public CodeDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public CodeDto getOne(Long patientId, Long encounterId, Long id) {
         Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
         return toDto(e);
     }
 
     // UPDATE (blocked if signed)
-    public CodeDto update(Long orgId, Long patientId, Long encounterId, Long id, CodeDto dto) {
+    public CodeDto update(Long patientId, Long encounterId, Long id, CodeDto dto) {
         Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -205,7 +205,7 @@ public class CodeService {
     }
 
     // DELETE (blocked if signed)
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -215,7 +215,7 @@ public class CodeService {
     }
 
     // ESIGN (idempotent, no request body)
-    public CodeDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
+    public CodeDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
@@ -228,7 +228,7 @@ public class CodeService {
     }
 
     // PRINT (PDF) — stamps printedAt
-    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
 

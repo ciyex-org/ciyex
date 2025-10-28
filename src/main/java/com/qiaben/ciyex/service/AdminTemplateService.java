@@ -27,7 +27,7 @@ public class AdminTemplateService {
 
     @Transactional
     public AdminTemplateDto create(AdminTemplateDto dto) {
-        // orgId removed from AdminTemplate; create directly from DTO
+        
         AdminTemplate entity = mapToEntity(dto);
         entity = repository.save(entity);
 

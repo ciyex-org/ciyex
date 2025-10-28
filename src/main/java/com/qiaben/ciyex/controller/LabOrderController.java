@@ -28,13 +28,9 @@ public class LabOrderController {
     // Controller-only filtering to avoid SQL comparing varchar patient_id to bigint
     @GetMapping("/{patientId}")
     public ResponseEntity<ApiResponse<List<LabOrderDto>>> listForPatient(
-            @RequestHeader(value = "X-Org-Id", required = false) String orgHeader,
             @PathVariable Long patientId) {
-        List<Long> orgIds = parseOrgIds(orgHeader, null);
         try {
-            seedRequestContextFirst(orgIds);
-
-            ApiResponse<List<LabOrderDto>> all = service.getAll(orgIds);
+            ApiResponse<List<LabOrderDto>> all = service.getAll();
             if (all == null) {
                 return ResponseEntity.ok(ApiResponse.<List<LabOrderDto>>builder()
                         .success(false)
@@ -71,14 +67,10 @@ public class LabOrderController {
     // Fetch by ID only, then verify patientId in memory (no patient_id comparison in SQL)
     @GetMapping("/{patientId}/{id}")
     public ResponseEntity<ApiResponse<LabOrderDto>> getForPatient(
-            @RequestHeader(value = "X-Org-Id", required = false) String orgHeader,
             @PathVariable Long patientId,
             @PathVariable Long id) {
-        List<Long> orgIds = parseOrgIds(orgHeader, null);
         try {
-            seedRequestContextFirst(orgIds);
-
-            LabOrderDto dto = service.getById(id, orgIds);
+            LabOrderDto dto = service.getById(id);
             if (dto == null || dto.getPatientId() == null || !Objects.equals(dto.getPatientId(), patientId)) {
                 return ResponseEntity.ok(ApiResponse.<LabOrderDto>builder()
                         .success(false)
@@ -106,12 +98,9 @@ public class LabOrderController {
     // ---- CREATE for patient ----
     @PostMapping("/{patientId}")
     public ResponseEntity<ApiResponse<LabOrderDto>> createForPatient(
-            @RequestHeader(value = "X-Org-Id", required = false) String orgHeader,
             @PathVariable Long patientId,
             @RequestBody LabOrderDto dto) {
-        List<Long> orgIds = parseOrgIds(orgHeader, null); // orgId deprecated, using tenantName from context
         try {
-            seedRequestContextFirst(orgIds);
 
             if (dto.getPatientId() == null) {
                 dto.setPatientId(patientId);
@@ -119,7 +108,7 @@ public class LabOrderController {
                 throw new IllegalArgumentException("patientId in path does not match patientId in payload");
             }
 
-            LabOrderDto created = service.create(dto, orgIds);
+            LabOrderDto created = service.create(dto);
             return ResponseEntity.ok(ApiResponse.<LabOrderDto>builder()
                     .success(true)
                     .message("Lab order created successfully")
@@ -140,15 +129,11 @@ public class LabOrderController {
     // Verify patient match in controller using getById(..), then update by id only
     @PutMapping("/{patientId}/{id}")
     public ResponseEntity<ApiResponse<LabOrderDto>> updateForPatient(
-            @RequestHeader(value = "X-Org-Id", required = false) String orgHeader,
             @PathVariable Long patientId,
             @PathVariable Long id,
             @RequestBody LabOrderDto dto) {
-        List<Long> orgIds = parseOrgIds(orgHeader, null); // orgId deprecated, using tenantName from context
         try {
-            seedRequestContextFirst(orgIds);
-
-            LabOrderDto existing = service.getById(id, orgIds);
+            LabOrderDto existing = service.getById(id);
             if (existing == null || existing.getPatientId() == null || !Objects.equals(existing.getPatientId(), patientId)) {
                 return ResponseEntity.ok(ApiResponse.<LabOrderDto>builder()
                         .success(false)
@@ -157,7 +142,7 @@ public class LabOrderController {
             }
 
             dto.setPatientId(patientId);
-            LabOrderDto updated = service.update(id, dto, orgIds);
+            LabOrderDto updated = service.update(id, dto);
             return ResponseEntity.ok(ApiResponse.<LabOrderDto>builder()
                     .success(true)
                     .message("Lab order updated successfully")
@@ -178,14 +163,10 @@ public class LabOrderController {
     // Verify patient match in controller using getById(..), then delete by id only
     @DeleteMapping("/{patientId}/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteForPatient(
-            @RequestHeader(value = "X-Org-Id", required = false) String orgHeader,
             @PathVariable Long patientId,
             @PathVariable Long id) {
-        List<Long> orgIds = parseOrgIds(orgHeader, null);
         try {
-            seedRequestContextFirst(orgIds);
-
-            LabOrderDto existing = service.getById(id, orgIds);
+            LabOrderDto existing = service.getById(id);
             if (existing == null || existing.getPatientId() == null || !Objects.equals(existing.getPatientId(), patientId)) {
                 return ResponseEntity.ok(ApiResponse.<Void>builder()
                         .success(false)
@@ -193,7 +174,7 @@ public class LabOrderController {
                         .build());
             }
 
-            service.delete(id, orgIds);
+            service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)
                     .message("Lab order deleted successfully")
@@ -207,33 +188,5 @@ public class LabOrderController {
         } finally {
             RequestContext.clear();
         }
-    }
-
-    // --- helpers ---
-    private List<Long> parseOrgIds(String orgHeader, Long singleFallback) {
-        List<Long> ids = new ArrayList<>();
-        if (orgHeader != null && !orgHeader.isBlank()) {
-            String[] parts = orgHeader.split("[,;]");
-            for (String p : parts) {
-                try {
-                    String trimmed = p.trim();
-                    if (!trimmed.isEmpty()) ids.add(Long.parseLong(trimmed));
-                } catch (NumberFormatException ignored) {}
-            }
-        }
-        if (ids.isEmpty() && singleFallback != null) ids.add(singleFallback);
-        return ids;
-    }
-
-    private void seedRequestContextFirst(List<Long> orgIds) {
-        if (orgIds == null || orgIds.isEmpty()) return;
-        Long first = orgIds.get(0);
-        var ctx = RequestContext.get();
-        if (ctx == null) {
-            ctx = new RequestContext();
-            RequestContext.set(ctx);
-        }
-        // Legacy orgId support - convert Long to String for tenantName
-        ctx.setTenantName("practice_" + first);
     }
 }

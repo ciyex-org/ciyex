@@ -6,7 +6,7 @@
 //public class DateTimeFinalizedDto {
 //    private Long id;
 //    private String externalId;        // optional (FHIR id)
-//    private Long orgId;
+//
 //    private Long patientId;
 //    private Long encounterId;
 //
@@ -36,11 +36,6 @@
 //        private String lastModifiedDate; // yyyy-MM-dd
 //    }
 //}
-
-
-
-
-
 
 package com.qiaben.ciyex.dto;
 

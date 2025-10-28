@@ -32,7 +32,6 @@ public class InsuranceCompany extends AuditableEntity {
     @Column(name = "payer_id")
     private String payerId;
 
-
     @Column(name = "postal_code")
     private String postalCode;
 

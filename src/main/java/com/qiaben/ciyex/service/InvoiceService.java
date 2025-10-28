@@ -29,9 +29,8 @@ public class InvoiceService {
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    public InvoiceDto create(Long orgId, Long patientId, Long encounterId, InvoiceDto in) {
-        Invoice inv = new Invoice();
-        inv.setOrgId(orgId); inv.setPatientId(patientId); inv.setEncounterId(encounterId);
+    public InvoiceDto create(Long patientId, Long encounterId, InvoiceDto in) {
+        Invoice inv = new Invoice(); inv.setPatientId(patientId); inv.setEncounterId(encounterId);
         inv.setInvoiceNumber(in.getInvoiceNumber());
         inv.setStatus(in.getStatus());
         inv.setCurrency(in.getCurrency());
@@ -82,7 +81,7 @@ public class InvoiceService {
         return mapToDto(saved);
     }
 
-    public InvoiceDto update(Long orgId, Long patientId, Long encounterId, Long id, InvoiceDto in) {
+    public InvoiceDto update(Long patientId, Long encounterId, Long id, InvoiceDto in) {
         Invoice inv = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
 
@@ -132,24 +131,24 @@ public class InvoiceService {
         return mapToDto(updated);
     }
 
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         Invoice inv = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
         external.ifPresent(ext -> { if (inv.getExternalId()!=null) ext.delete(inv.getExternalId()); });
         repo.delete(inv);
     }
 
-    public InvoiceDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public InvoiceDto getOne(Long patientId, Long encounterId, Long id) {
         Invoice inv = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
         return mapToDto(inv);
     }
 
-    public List<InvoiceDto> getAllByPatient(Long orgId, Long patientId) {
+    public List<InvoiceDto> getAllByPatient(Long patientId) {
         return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
     }
 
-    public List<InvoiceDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+    public List<InvoiceDto> getAllByEncounter(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::mapToDto).toList();
     }

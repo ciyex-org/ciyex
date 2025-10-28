@@ -1,12 +1,9 @@
 package com.qiaben.ciyex.entity;
 
-
-
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
-
 
 @Entity
 @Table(name = "vitals")

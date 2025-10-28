@@ -34,10 +34,10 @@
 //
 //    @Transactional
 //    public ScheduleDto create(ScheduleDto dto) {
-//        Long orgId = getCurrentOrgId();
-//        if (orgId == null) throw new SecurityException("No orgId available in request context");  // same guard :contentReference[oaicite:4]{index=4}L27-L35
+
+//  // same guard :contentReference[oaicite:4]{index=4}L27-L35
 //
-//        dto.setOrgId(orgId);
+//
 //
 //        // (Optional validations)
 //        if (dto.getProviderId() == null || dto.getStartDate() == null || dto.getStartTime() == null
@@ -46,7 +46,7 @@
 //        }
 //
 //        ProviderSchedule entity = toEntity(dto);
-//        entity.setOrgId(orgId);
+//
 //        entity.setCreatedDate(LocalDateTime.now().toString());
 //        entity.setLastModifiedDate(LocalDateTime.now().toString());
 //
@@ -65,14 +65,14 @@
 //
 //    @Transactional(readOnly = true)
 //    public ScheduleDto getById(Long id) {
-//        Long orgId = getCurrentOrgId();
-//        if (orgId == null) throw new SecurityException("No orgId available in request context");   // same pattern :contentReference[oaicite:6]{index=6}L86-L97
+
+//   // same pattern :contentReference[oaicite:6]{index=6}L86-L97
 //
 //        ProviderSchedule s = repository.findById(id)
 //                .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
 //
-//        if (!orgId.equals(s.getOrgId())) {
-//            throw new SecurityException("Access denied: Schedule id " + id + " does not belong to orgId " + orgId);
+
+
 //        }
 //
 //        ScheduleDto dto = toDto(s);
@@ -93,14 +93,14 @@
 //
 //    @Transactional
 //    public ScheduleDto update(Long id, ScheduleDto dto) {
-//        Long orgId = getCurrentOrgId();
-//        if (orgId == null) throw new SecurityException("No orgId available in request context");   // same pattern :contentReference[oaicite:8]{index=8}L170-L181
+
+//   // same pattern :contentReference[oaicite:8]{index=8}L170-L181
 //
 //        ProviderSchedule s = repository.findById(id)
 //                .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
 //
-//        if (!orgId.equals(s.getOrgId())) {
-//            throw new SecurityException("Access denied: Schedule id " + id + " does not belong to orgId " + orgId);
+
+
 //        }
 //
 //        // Map updates
@@ -130,13 +130,13 @@
 //
 //    @Transactional
 //    public void delete(Long id) {
-//        Long orgId = getCurrentOrgId();
-//        if (orgId == null) throw new SecurityException("No orgId available in request context");   // same pattern :contentReference[oaicite:10]{index=10}L225-L237
+
+//   // same pattern :contentReference[oaicite:10]{index=10}L225-L237
 //
 //        ProviderSchedule s = repository.findById(id)
 //                .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
-//        if (!orgId.equals(s.getOrgId())) {
-//            throw new SecurityException("Access denied: Schedule id " + id + " does not belong to orgId " + orgId);
+
+
 //        }
 //
 //        String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -150,7 +150,7 @@
 //
 //    @Transactional(readOnly = true)
 //    public ApiResponse<List<ScheduleDto>> listByProvider(Long providerId) {
-//        Long orgId = getCurrentOrgId();
+
 //        List<ProviderSchedule> list = repository.findByProviderId(providerId);
 //        return ApiResponse.<List<ScheduleDto>>builder()
 //                .success(true)
@@ -161,7 +161,7 @@
 //
 //    @Transactional(readOnly = true)
 //    public ApiResponse<List<ScheduleDto>> listAll() {
-//        Long orgId = getCurrentOrgId();
+
 //        List<ProviderSchedule> list = repository.findAll();         // mirrors ProviderService.getAllProviders :contentReference[oaicite:11]{index=11}L268-L288
 //        return ApiResponse.<List<ScheduleDto>>builder()
 //                .success(true)
@@ -180,7 +180,7 @@
 //    private ProviderSchedule toEntity(ScheduleDto dto) {
 //        return ProviderSchedule.builder()
 //                .id(dto.getId())
-//                .orgId(RequestContext.get().getTenantName())
+
 //                .providerId(dto.getProviderId())
 //                .title(dto.getTitle())
 //                .location(dto.getLocation())
@@ -215,9 +215,8 @@
 //        return dto;
 //    }
 //
-//    private Long getCurrentOrgId() {
-//        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;       // same helper :contentReference[oaicite:13]{index=13}L316-L328
-//        if (orgId == null) log.warn("orgId is null in RequestContext");
-//        return orgId;
+//    L316-L328
+//
+
 //    }
 //}

@@ -30,7 +30,7 @@ public class CoverageService {
 
     @Transactional
     public CoverageDto create(CoverageDto dto) {
-        // orgId deprecated; tenantName-based isolation handled at schema level.
+        
         Coverage coverage = mapToEntity(dto);
 
         // Attach insurance company only if the client provided it
@@ -136,8 +136,8 @@ public class CoverageService {
 
     // ---- helpers ----
 
-    // orgId deprecated: tenant isolation via schema. Method retained for backward compatibility.
-    // getCurrentOrgIdOrThrow retained for legacy callers; returns placeholder since orgId deprecated.
+    
+    
     private Long getCurrentOrgIdOrThrow(String op) { return -1L; }
 
     private Coverage mapToEntity(CoverageDto dto) {
@@ -184,7 +184,7 @@ public class CoverageService {
         dto.setCoverageStartDate(coverage.getCoverageStartDate());
         dto.setCoverageEndDate(coverage.getCoverageEndDate());
         dto.setPatientId(coverage.getPatientId());
-    // orgId removed from DTO
+    
         dto.setProvider(coverage.getProvider());
         dto.setEffectiveDate(coverage.getEffectiveDate());
         dto.setEffectiveDateEnd(coverage.getEffectiveDateEnd());
@@ -233,7 +233,7 @@ public class CoverageService {
         if (dto.getCoverageStartDate() != null) coverage.setCoverageStartDate(dto.getCoverageStartDate());
         if (dto.getCoverageEndDate() != null) coverage.setCoverageEndDate(dto.getCoverageEndDate());
         if (dto.getPatientId() != null) coverage.setPatientId(dto.getPatientId());
-    // orgId removed from DTO
+    
         if (dto.getProvider() != null) coverage.setProvider(dto.getProvider());
         if (dto.getEffectiveDate() != null) coverage.setEffectiveDate(dto.getEffectiveDate());
         if (dto.getEffectiveDateEnd() != null) coverage.setEffectiveDateEnd(dto.getEffectiveDateEnd());

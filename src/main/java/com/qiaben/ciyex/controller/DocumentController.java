@@ -16,7 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/{orgId}/patients/{patientId}/documents")
+@RequestMapping("/api/patients/{patientId}/documents")
 @Slf4j
 public class DocumentController {
 
@@ -29,13 +29,12 @@ public class DocumentController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<DocumentDto>> upload(
-            @PathVariable Long orgId,
             @PathVariable Long patientId,
             @RequestPart("dto") String dtoJson,
             @RequestPart("file") MultipartFile file) {
         try {
             DocumentDto dto = objectMapper.readValue(dtoJson, DocumentDto.class);
-            DocumentDto created = service.create(orgId, patientId, dto, file);
+            DocumentDto created = service.create(patientId, dto, file);
 
             return ResponseEntity.ok(ApiResponse.<DocumentDto>builder()
                     .success(true)
@@ -59,18 +58,16 @@ public class DocumentController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<DocumentDto>>> list(
-            @PathVariable Long orgId,
             @PathVariable Long patientId) {
-        return ResponseEntity.ok(service.getAllForPatient(orgId, patientId));
+        return ResponseEntity.ok(service.getAllForPatient(patientId));
     }
 
     @GetMapping("/{documentId}/download")
     public ResponseEntity<InputStreamResource> download(
-            @PathVariable Long orgId,
             @PathVariable Long patientId,
             @PathVariable Long documentId) {
         try {
-            DownloadResult result = service.download(orgId, documentId);
+            DownloadResult result = service.download(documentId);
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(result.getContentType()))
                     .header(HttpHeaders.CONTENT_DISPOSITION,
@@ -89,11 +86,10 @@ public class DocumentController {
 
     @DeleteMapping("/{documentId}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long orgId,
             @PathVariable Long patientId,
             @PathVariable Long documentId) {
         try {
-            service.delete(orgId, documentId);
+            service.delete(documentId);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)
                     .message("Document deleted successfully")

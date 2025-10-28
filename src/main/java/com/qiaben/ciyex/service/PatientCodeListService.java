@@ -23,31 +23,21 @@ public class PatientCodeListService {
     @PersistenceContext
     private EntityManager em;
 
-    /** Set the PostgreSQL schema for this transaction using the orgId. */
-    private void setSearchPath(Long orgId) {
-        if (orgId == null) throw new IllegalArgumentException("orgId cannot be null");
-        // practice_{orgId} must exist (you already provision it).
-        em.createNativeQuery("set local search_path to practice_" + orgId).executeUpdate();
-    }
-
     @Transactional(readOnly = true)
-    public List<PatientCodeListDto> findAll(Long orgId) {
-        setSearchPath(orgId);
+    public List<PatientCodeListDto> findAll() {
         return repo.findAll()
                 .stream().map(this::toDto).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public PatientCodeListDto getById(Long orgId, Long id) {
-        setSearchPath(orgId);
+    public PatientCodeListDto getById(Long id) {
         Optional<PatientCodeList> opt = repo.findById(id);
         return opt.map(this::toDto).orElse(null);
     }
 
     @Transactional
-    public PatientCodeListDto create(Long orgId, PatientCodeListDto dto) {
-        setSearchPath(orgId);
-        PatientCodeList entity = fromDto(orgId, dto, new PatientCodeList());
+    public PatientCodeListDto create(PatientCodeListDto dto) {
+        PatientCodeList entity = fromDto(dto, new PatientCodeList());
         PatientCodeList saved = repo.save(entity);
         if (saved.isDefault()) {
             repo.clearDefaultsExcept(saved.getId());
@@ -56,12 +46,11 @@ public class PatientCodeListService {
     }
 
     @Transactional
-    public PatientCodeListDto update(Long orgId, Long id, PatientCodeListDto dto) {
-        setSearchPath(orgId);
+    public PatientCodeListDto update(Long id, PatientCodeListDto dto) {
         PatientCodeList entity = repo.findById(id).orElse(null);
         if (entity == null) return null;
 
-        entity = fromDto(orgId, dto, entity);
+        entity = fromDto(dto, entity);
         PatientCodeList saved = repo.save(entity);
         if (saved.isDefault()) {
             repo.clearDefaultsExcept(saved.getId());
@@ -70,8 +59,7 @@ public class PatientCodeListService {
     }
 
     @Transactional
-    public boolean delete(Long orgId, Long id) {
-        setSearchPath(orgId);
+    public boolean delete(Long id) {
         PatientCodeList entity = repo.findById(id).orElse(null);
         if (entity == null) return false;
         repo.deleteById(id);
@@ -79,13 +67,11 @@ public class PatientCodeListService {
     }
 
     @Transactional
-    public List<PatientCodeListDto> saveBulk(Long orgId, List<PatientCodeListDto> rows) {
-        setSearchPath(orgId);
+    public List<PatientCodeListDto> saveBulk(List<PatientCodeListDto> rows) {
 
-        // Enforce orgId & single default (keep first true)
+        
         boolean seenDefault = false;
         for (PatientCodeListDto r : rows) {
-            r.orgId = orgId;
             if (r.isDefault) {
                 if (seenDefault) r.isDefault = false;
                 else seenDefault = true;
@@ -97,7 +83,7 @@ public class PatientCodeListService {
                     PatientCodeList e = (r.id != null)
                             ? repo.findById(r.id).orElse(new PatientCodeList())
                             : new PatientCodeList();
-                    return fromDto(orgId, r, e);
+                    return fromDto(r, e);
                 })
                 .sorted(Comparator.comparing(PatientCodeList::getOrderIndex))
                 .collect(Collectors.toList());
@@ -113,8 +99,7 @@ public class PatientCodeListService {
     }
 
     @Transactional
-    public PatientCodeListDto setDefault(Long orgId, Long id) {
-        setSearchPath(orgId);
+    public PatientCodeListDto setDefault(Long id) {
         PatientCodeList e = repo.findById(id).orElse(null);
         if (e == null) return null;
         e.setDefault(true);
@@ -125,7 +110,7 @@ public class PatientCodeListService {
 
     // ---- mapping helpers ----
 
-    private PatientCodeList fromDto(Long orgId, PatientCodeListDto dto, PatientCodeList e) {
+    private PatientCodeList fromDto(PatientCodeListDto dto, PatientCodeList e) {
         if (dto.title != null) e.setTitle(dto.title);
         if (dto.order != null) e.setOrderIndex(dto.order);
         e.setDefault(dto.isDefault);

@@ -15,7 +15,6 @@ public class PatientPaymentAllocation extends AuditableEntity {
     @ManyToOne
     @JoinColumn(name = "payment_id", nullable = false)
 
-
     private PatientPayment payment;
 
     @ManyToOne

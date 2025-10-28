@@ -16,7 +16,6 @@ public class PaymentDTO {
     @NotNull(message = "Bill date is required")
     private LocalDate billDate;
 
-
     public String getId() {
         return id;
     }

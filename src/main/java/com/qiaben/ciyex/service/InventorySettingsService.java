@@ -16,7 +16,7 @@ public class InventorySettingsService {
     private final InventorySettingsRepository repository;
 
     @Transactional
-    public InventorySettingsDto getSettings(Long orgId) {
+    public InventorySettingsDto getSettings() {
         InventorySettings entity = repository.findFirstByOrderByIdAsc()
                 .orElseGet(() -> {
                     InventorySettings defaults = InventorySettings.builder()
@@ -30,7 +30,7 @@ public class InventorySettingsService {
     }
 
     @Transactional
-    public InventorySettingsDto updateSettings(Long orgId, InventorySettingsDto dto) {
+    public InventorySettingsDto updateSettings(InventorySettingsDto dto) {
         InventorySettings entity = repository.findFirstByOrderByIdAsc()
                 .orElse(InventorySettings.builder().build());
 

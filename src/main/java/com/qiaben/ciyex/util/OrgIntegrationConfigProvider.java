@@ -533,7 +533,7 @@ String tenantGroup = getCurrentTenant();
     /**
      * Get S3 document storage config
      */
-    public S3Config getS3DocumentStorage(Long orgId) {
+    public S3Config getS3DocumentStorage() {
         try {
             String tenantGroup = getCurrentTenant();
             Map<String, Object> attributes = keycloakOrgService.getAllAttributes(tenantGroup);

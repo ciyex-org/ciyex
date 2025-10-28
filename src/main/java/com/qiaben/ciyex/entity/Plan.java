@@ -25,7 +25,7 @@
 //    private Long id;
 //
 //    
-//    private Long orgId;
+//
 //
 //    @Column(name = "patient_id", nullable = false)
 //    private Long patientId;
@@ -100,9 +100,6 @@
 //    }
 //}
 
-
-
-
 package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
@@ -120,8 +117,6 @@ public class Plan extends AuditableEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-         private Long orgId;
     @Column(name = "patient_id", nullable = false) private Long patientId;
     @Column(name = "encounter_id", nullable = false) private Long encounterId;
 

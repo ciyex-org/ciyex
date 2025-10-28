@@ -20,11 +20,9 @@ public class GpsController {
     }
 
     @GetMapping("/api/gps/config")
-    public Map<String, String> getGpsConfig(@RequestHeader("x-org-id") Long orgId) {
+    public Map<String, String> getGpsConfig() {
         try {
-            RequestContext ctx = new RequestContext();
-            ctx.setOrgId(orgId);
-            RequestContext.set(ctx);
+
 
             GpsConfig gpsConfig = configProvider.getGpsForCurrentOrg();
             Map<String, String> config = new HashMap<>();

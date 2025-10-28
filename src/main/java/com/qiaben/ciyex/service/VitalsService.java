@@ -38,13 +38,13 @@ public class VitalsService {
                 .orElse(null);
     }
 
-    public List<VitalsDto> getByEncounter(Long orgId, Long patientId, Long encounterId) {
+    public List<VitalsDto> getByEncounter(Long patientId, Long encounterId) {
         return repository.findByPatientIdAndEncounterId(patientId, encounterId).stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
 
-    public VitalsDto update(Long orgId, Long patientId, Long encounterId, Long id, VitalsDto dto) {
+    public VitalsDto update(Long patientId, Long encounterId, Long id, VitalsDto dto) {
         Vitals existing = repository.findById(id).orElseThrow();
         existing.setWeightKg(dto.getWeightKg());
         existing.setBpSystolic(dto.getBpSystolic());
@@ -59,7 +59,7 @@ public class VitalsService {
         return toDto(updated);
     }
 
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         Vitals existing = repository.findById(id).orElseThrow();
         if (existing.getPatientId().equals(patientId)
                 && existing.getEncounterId().equals(encounterId)) {
@@ -68,7 +68,7 @@ public class VitalsService {
         }
     }
 
-    public VitalsDto eSign(Long orgId, Long patientId, Long encounterId, Long id) {
+    public VitalsDto eSign(Long patientId, Long encounterId, Long id) {
         Vitals vitals = repository.findById(id).orElseThrow();
         if (!vitals.getPatientId().equals(patientId)
                 || !vitals.getEncounterId().equals(encounterId)) {
@@ -80,7 +80,7 @@ public class VitalsService {
         return toDto(saved);
     }
 
-    public byte[] print(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] print(Long patientId, Long encounterId, Long id) {
         Vitals vitals = repository.findById(id).orElseThrow();
         if (!vitals.getPatientId().equals(patientId)
                 || !vitals.getEncounterId().equals(encounterId)) {

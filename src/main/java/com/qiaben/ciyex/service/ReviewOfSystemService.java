@@ -24,9 +24,9 @@
 //    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 //
 //    // CREATE
-//    public ReviewOfSystemDto create(Long orgId, Long patientId, Long encounterId, ReviewOfSystemDto in) {
+//    public ReviewOfSystemDto create(Long patientId, Long encounterId, ReviewOfSystemDto in) {
 //        ReviewOfSystem e = ReviewOfSystem.builder()
-//                .orgId(orgId).patientId(patientId).encounterId(encounterId)
+
 //                .systemName(in.getSystemName())
 //                .isNegative(in.getIsNegative())
 //                .notes(in.getNotes())
@@ -46,7 +46,7 @@
 //    }
 //
 //    // UPDATE
-//    public ReviewOfSystemDto update(Long orgId, Long patientId, Long encounterId, Long id, ReviewOfSystemDto in) {
+//    public ReviewOfSystemDto update(Long patientId, Long encounterId, Long id, ReviewOfSystemDto in) {
 //        ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
 //
@@ -66,7 +66,7 @@
 //    }
 //
 //    // DELETE
-//    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public void delete(Long patientId, Long encounterId, Long id) {
 //        ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
 //
@@ -75,18 +75,18 @@
 //    }
 //
 //    // GET ONE
-//    public ReviewOfSystemDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public ReviewOfSystemDto getOne(Long patientId, Long encounterId, Long id) {
 //        ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
 //        return mapToDto(e);
 //    }
 //
 //    // LISTS
-//    public List<ReviewOfSystemDto> getAllByPatient(Long orgId, Long patientId) {
+//    public List<ReviewOfSystemDto> getAllByPatient(Long patientId) {
 //        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
-//    public List<ReviewOfSystemDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+//    public List<ReviewOfSystemDto> getAllByEncounter(Long patientId, Long encounterId) {
 //        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 //    }
 //
@@ -147,7 +147,7 @@ public class ReviewOfSystemService {
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // CREATE
-    public ReviewOfSystemDto create(Long orgId, Long patientId, Long encounterId, ReviewOfSystemDto dto) {
+    public ReviewOfSystemDto create(Long patientId, Long encounterId, ReviewOfSystemDto dto) {
         ReviewOfSystem e = new ReviewOfSystem();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -157,20 +157,20 @@ public class ReviewOfSystemService {
     }
 
     // GET ONE
-    public ReviewOfSystemDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public ReviewOfSystemDto getOne(Long patientId, Long encounterId, Long id) {
         ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
         return toDto(e);
     }
 
     // LIST
-    public List<ReviewOfSystemDto> list(Long orgId, Long patientId, Long encounterId) {
+    public List<ReviewOfSystemDto> list(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // UPDATE (locked if signed)
-    public ReviewOfSystemDto update(Long orgId, Long patientId, Long encounterId, Long id, ReviewOfSystemDto dto) {
+    public ReviewOfSystemDto update(Long patientId, Long encounterId, Long id, ReviewOfSystemDto dto) {
         ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -182,7 +182,7 @@ public class ReviewOfSystemService {
     }
 
     // DELETE (locked if signed)
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -192,7 +192,7 @@ public class ReviewOfSystemService {
     }
 
     // eSIGN (idempotent)
-    public ReviewOfSystemDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
+    public ReviewOfSystemDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
@@ -205,7 +205,7 @@ public class ReviewOfSystemService {
     }
 
     // PRINT (PDF) — also stamps printedAt
-    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
 

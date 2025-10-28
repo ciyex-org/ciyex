@@ -16,7 +16,6 @@ public class TelnyxRoomResponseDto {
     private String webhookEventFailoverUrl;
     private Integer webhookTimeoutSecs;
 
-
     // Nested Session DTO
     @Data
     public static class SessionDto {

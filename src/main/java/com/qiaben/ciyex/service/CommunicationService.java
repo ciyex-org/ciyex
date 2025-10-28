@@ -140,37 +140,12 @@ public class CommunicationService {
 
     @Transactional(readOnly = true)
     public CommunicationDto getItem(Long patientId, Long id) {
-        return null;/*repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId))
-                .stream()
-                .filter(c -> c.getId().equals(id))
-                .findFirst()
-                .map(this::toDto)
-                .orElseThrow(() -> new RuntimeException("Communication not found: " + id));*/
+        return null;
     }
 
     /* ------------------- UPDATE ------------------- */
     @Transactional
-    public CommunicationDto updateItem(Long patientId, Long id, CommunicationDto patch) {/*
-        List<Communication> rows = repo.findAllByPatientIdAndOrgIdText(
-                String.valueOf(patientId), String.valueOf(orgId));
-        Communication row = rows.stream()
-                .filter(r -> r.getId().equals(id))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Communication not found id=" + id));
-
-        if (patch.getPayload() != null) row.setPayload(patch.getPayload());
-        if (patch.getStatus() != null) row.setStatus(patch.getStatus());
-        row.setLastModifiedDate(LocalDateTime.now().toString());
-        repo.save(row);
-
-        if (row.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
-                ExternalStorage<CommunicationDto> ext = storageResolver.resolve(CommunicationDto.class);
-                ext.update(toDto(row), row.getExternalId());
-            }
-        }
-        return toDto(row);*/
+    public CommunicationDto updateItem(Long patientId, Long id, CommunicationDto patch) {
         return null;
     }
 
@@ -196,24 +171,7 @@ public class CommunicationService {
     /* ------------------- DELETE ------------------- */
     @Transactional
     public void deleteItem(Long patientId, Long id) {
-      /*  List<Communication> rows = repo.findAllByPatientIdAndOrgIdText(
-                String.valueOf(patientId), String.valueOf(orgId));
-        String externalId = rows.stream().findFirst().map(Communication::getExternalId).orElse(null);
-
-        int n = repo.deleteOneByIdAndPatientIdAndOrgIdText(
-                String.valueOf(id), String.valueOf(patientId), String.valueOf(orgId));
-        if (n == 0) throw new RuntimeException("Delete failed: not found");
-
-        if (externalId != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
-                ExternalStorage<CommunicationDto> ext = storageResolver.resolve(CommunicationDto.class);
-                List<Communication> fresh = repo.findAllByPatientIdAndOrgIdText(
-                        String.valueOf(patientId), String.valueOf(orgId));
-                if (fresh.isEmpty()) ext.delete(externalId);
-                else ext.update(toDto(fresh.get(0)), externalId);
-            }
-        }*/
+      
     }
 
     @Transactional
@@ -236,10 +194,7 @@ public class CommunicationService {
     /* ------------------- SEARCH ------------------- */
     @Transactional(readOnly = true)
     public List<CommunicationDto> searchAll() {
-        /*return repo.findByOrgIdText(String.valueOf(orgId))
-                .stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());*/
+        
         return null;
     }
 

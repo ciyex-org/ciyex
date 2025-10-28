@@ -23,9 +23,9 @@
 //
 //    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 //
-//    public DateTimeFinalizedDto create(Long orgId, Long patientId, Long encounterId, DateTimeFinalizedDto in) {
+//    public DateTimeFinalizedDto create(Long patientId, Long encounterId, DateTimeFinalizedDto in) {
 //        DateTimeFinalized e = DateTimeFinalized.builder()
-//                .orgId(orgId).patientId(patientId).encounterId(encounterId)
+
 //                .targetType(in.getTargetType())
 //                .targetId(in.getTargetId())
 //                .targetVersion(in.getTargetVersion())
@@ -53,7 +53,7 @@
 //        return mapToDto(saved);
 //    }
 //
-//    public DateTimeFinalizedDto update(Long orgId, Long patientId, Long encounterId, Long id, DateTimeFinalizedDto in) {
+//    public DateTimeFinalizedDto update(Long patientId, Long encounterId, Long id, DateTimeFinalizedDto in) {
 //        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
 //
@@ -83,7 +83,7 @@
 //        return mapToDto(updated);
 //    }
 //
-//    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public void delete(Long patientId, Long encounterId, Long id) {
 //        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
 //
@@ -94,17 +94,17 @@
 //        repo.delete(e);
 //    }
 //
-//    public DateTimeFinalizedDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public DateTimeFinalizedDto getOne(Long patientId, Long encounterId, Long id) {
 //        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
 //        return mapToDto(e);
 //    }
 //
-//    public List<DateTimeFinalizedDto> getAllByPatient(Long orgId, Long patientId) {
+//    public List<DateTimeFinalizedDto> getAllByPatient(Long patientId) {
 //        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
-//    public List<DateTimeFinalizedDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+//    public List<DateTimeFinalizedDto> getAllByEncounter(Long patientId, Long encounterId) {
 //        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 //    }
 //
@@ -173,7 +173,7 @@ public class DateTimeFinalizedService {
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
-    public DateTimeFinalizedDto create(Long orgId, Long patientId, Long encounterId, DateTimeFinalizedDto dto) {
+    public DateTimeFinalizedDto create(Long patientId, Long encounterId, DateTimeFinalizedDto dto) {
         DateTimeFinalized e = new DateTimeFinalized();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -183,19 +183,19 @@ public class DateTimeFinalizedService {
     }
 
     // Read
-    public DateTimeFinalizedDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public DateTimeFinalizedDto getOne(Long patientId, Long encounterId, Long id) {
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
         return toDto(e);
     }
 
-    public List<DateTimeFinalizedDto> list(Long orgId, Long patientId, Long encounterId) {
+    public List<DateTimeFinalizedDto> list(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // Update (LOCKED if eSigned)
-    public DateTimeFinalizedDto update(Long orgId, Long patientId, Long encounterId, Long id, DateTimeFinalizedDto dto) {
+    public DateTimeFinalizedDto update(Long patientId, Long encounterId, Long id, DateTimeFinalizedDto dto) {
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
 
@@ -209,7 +209,7 @@ public class DateTimeFinalizedService {
     }
 
     // Delete (BLOCKED if eSigned)
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
 
@@ -220,7 +220,7 @@ public class DateTimeFinalizedService {
     }
 
     // eSign (idempotent)
-    public DateTimeFinalizedDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
+    public DateTimeFinalizedDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
 
@@ -240,7 +240,7 @@ public class DateTimeFinalizedService {
     }
 
     // Print (PDF) — stamps printedAt
-    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
 

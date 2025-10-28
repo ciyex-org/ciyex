@@ -21,7 +21,6 @@ public class VitalsController {
 
     @PostMapping("/{patientId}/{encounterId}")
     public ApiResponse<VitalsDto> create(
-            @RequestHeader("orgId") Long orgId,
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody VitalsDto dto) {
@@ -34,7 +33,6 @@ public class VitalsController {
 
     @GetMapping("/{patientId}/{encounterId}/{id}")
     public ApiResponse<VitalsDto> get(
-            @RequestHeader("orgId") Long orgId,
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id) {
@@ -47,19 +45,17 @@ public class VitalsController {
 
     @GetMapping("/{patientId}/{encounterId}")
     public ApiResponse<List<VitalsDto>> getByEncounter(
-            @RequestHeader("orgId") Long orgId,
             @PathVariable Long patientId,
             @PathVariable Long encounterId) {
         return ApiResponse.<List<VitalsDto>>builder()
                 .success(true)
                 .message("Vitals by encounter")
-                .data(service.getByEncounter(orgId, patientId, encounterId))
+                .data(service.getByEncounter(patientId, encounterId))
                 .build();
     }
 
     @PutMapping("/{patientId}/{encounterId}/{id}")
     public ApiResponse<VitalsDto> update(
-            @RequestHeader("orgId") Long orgId,
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
@@ -67,17 +63,16 @@ public class VitalsController {
         return ApiResponse.<VitalsDto>builder()
                 .success(true)
                 .message("Vitals updated")
-                .data(service.update(orgId, patientId, encounterId, id, dto))
+                .data(service.update(patientId, encounterId, id, dto))
                 .build();
     }
 
     @DeleteMapping("/{patientId}/{encounterId}/{id}")
     public ApiResponse<Void> delete(
-            @RequestHeader("orgId") Long orgId,
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id) {
-        service.delete(orgId, patientId, encounterId, id);
+        service.delete(patientId, encounterId, id);
         return ApiResponse.<Void>builder()
                 .success(true)
                 .message("Vitals deleted")
@@ -86,24 +81,22 @@ public class VitalsController {
 
     @PostMapping("/{patientId}/{encounterId}/{id}/esign")
     public ApiResponse<VitalsDto> eSign(
-            @RequestHeader("orgId") Long orgId,
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id) {
         return ApiResponse.<VitalsDto>builder()
                 .success(true)
                 .message("Vitals signed")
-                .data(service.eSign(orgId, patientId, encounterId, id))
+                .data(service.eSign(patientId, encounterId, id))
                 .build();
     }
 
     @GetMapping("/{patientId}/{encounterId}/{id}/print")
     public ResponseEntity<byte[]> print(
-            @RequestHeader("orgId") Long orgId,
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id) {
-        byte[] pdf = service.print(orgId, patientId, encounterId, id);
+        byte[] pdf = service.print(patientId, encounterId, id);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=vitals-" + id + ".pdf")
                 .contentType(MediaType.APPLICATION_PDF)

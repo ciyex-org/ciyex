@@ -24,9 +24,9 @@
 ////
 ////    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 ////
-////    public SignoffDto create(Long orgId, Long patientId, Long encounterId, SignoffDto in) {
+////    public SignoffDto create(Long patientId, Long encounterId, SignoffDto in) {
 ////        Signoff e = Signoff.builder()
-////                .orgId(orgId).patientId(patientId).encounterId(encounterId)
+
 ////                .targetType(in.getTargetType())
 ////                .targetId(in.getTargetId())
 ////                .targetVersion(in.getTargetVersion())
@@ -52,7 +52,7 @@
 ////        return mapToDto(saved);
 ////    }
 ////
-////    public SignoffDto update(Long orgId, Long patientId, Long encounterId, Long id, SignoffDto in) {
+////    public SignoffDto update(Long patientId, Long encounterId, Long id, SignoffDto in) {
 ////        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 ////                .orElseThrow(() -> new IllegalArgumentException("Signoff not found"));
 ////
@@ -78,7 +78,7 @@
 ////        return mapToDto(updated);
 ////    }
 ////
-////    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+////    public void delete(Long patientId, Long encounterId, Long id) {
 ////        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 ////                .orElseThrow(() -> new IllegalArgumentException("Signoff not found"));
 ////        external.ifPresent(ext -> {
@@ -87,17 +87,17 @@
 ////        repo.delete(e);
 ////    }
 ////
-////    public SignoffDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+////    public SignoffDto getOne(Long patientId, Long encounterId, Long id) {
 ////        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 ////                .orElseThrow(() -> new IllegalArgumentException("Signoff not found"));
 ////        return mapToDto(e);
 ////    }
 ////
-////    public List<SignoffDto> getAllByPatient(Long orgId, Long patientId) {
+////    public List<SignoffDto> getAllByPatient(Long patientId) {
 ////        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 ////    }
 ////
-////    public List<SignoffDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+////    public List<SignoffDto> getAllByEncounter(Long patientId, Long encounterId) {
 ////        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 ////    }
 ////
@@ -157,9 +157,9 @@
 //    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 //
 //    @Transactional
-//    public SignoffDto create(Long orgId, Long patientId, Long encounterId, SignoffDto in) {
+//    public SignoffDto create(Long patientId, Long encounterId, SignoffDto in) {
 //        Signoff e = Signoff.builder()
-//                .orgId(orgId).patientId(patientId).encounterId(encounterId)
+
 //                .targetType(in.getTargetType())
 //                .targetId(in.getTargetId())
 //                .targetVersion(in.getTargetVersion())
@@ -186,7 +186,7 @@
 //    }
 //
 //    @Transactional
-//    public SignoffDto update(Long orgId, Long patientId, Long encounterId, Long id, SignoffDto in) {
+//    public SignoffDto update(Long patientId, Long encounterId, Long id, SignoffDto in) {
 //        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Signoff not found"));
 //
@@ -215,7 +215,7 @@
 //    }
 //
 //    @Transactional
-//    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public void delete(Long patientId, Long encounterId, Long id) {
 //        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Signoff not found"));
 //
@@ -229,20 +229,20 @@
 //    }
 //
 //    @Transactional(readOnly = true)
-//    public SignoffDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public SignoffDto getOne(Long patientId, Long encounterId, Long id) {
 //        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Signoff not found"));
 //        return mapToDto(e);
 //    }
 //
 //    @Transactional(readOnly = true)
-//    public List<SignoffDto> getAllByPatient(Long orgId, Long patientId) {
+//    public List<SignoffDto> getAllByPatient(Long patientId) {
 //        return repo.findByPatientId(patientId)
 //                .stream().map(this::mapToDto).toList();
 //    }
 //
 //    @Transactional(readOnly = true)
-//    public List<SignoffDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+//    public List<SignoffDto> getAllByEncounter(Long patientId, Long encounterId) {
 //        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
 //                .stream().map(this::mapToDto).toList();
 //    }
@@ -320,7 +320,7 @@ public class SignoffService {
 
     // ---- CRUD
 
-    public SignoffDto create(Long orgId, Long patientId, Long encounterId, SignoffDto dto) {
+    public SignoffDto create(Long patientId, Long encounterId, SignoffDto dto) {
         Signoff e = new Signoff();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -330,18 +330,18 @@ public class SignoffService {
         return toDto(e);
     }
 
-    public List<SignoffDto> list(Long orgId, Long patientId, Long encounterId) {
+    public List<SignoffDto> list(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
-    public SignoffDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public SignoffDto getOne(Long patientId, Long encounterId, Long id) {
         Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Sign-off not found"));
         return toDto(e);
     }
 
-    public SignoffDto update(Long orgId, Long patientId, Long encounterId, Long id, SignoffDto dto) {
+    public SignoffDto update(Long patientId, Long encounterId, Long id, SignoffDto dto) {
         Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Sign-off not found"));
         if (isLocked(e)) throw new IllegalStateException("Signed/locked sign-offs are read-only.");
@@ -350,7 +350,7 @@ public class SignoffService {
         return toDto(e);
     }
 
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Sign-off not found"));
         if (isLocked(e)) throw new IllegalStateException("Signed/locked sign-offs cannot be deleted.");
@@ -359,7 +359,7 @@ public class SignoffService {
 
     // ---- eSign
 
-    public SignoffDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
+    public SignoffDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Sign-off not found"));
 
@@ -384,7 +384,7 @@ public class SignoffService {
 
     // ---- Print PDF
 
-    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Sign-off not found"));
 

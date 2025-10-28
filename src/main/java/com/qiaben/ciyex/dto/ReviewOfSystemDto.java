@@ -8,7 +8,7 @@
 //    private Long id;
 //    private String externalId;
 //
-//    private Long orgId;       // tenant
+//       // tenant
 //    private Long patientId;   // scope
 //    private Long encounterId; // scope
 //
@@ -23,8 +23,6 @@
 //    private String createdDate;        // yyyy-MM-dd
 //    private String lastModifiedDate;   // yyyy-MM-dd
 //}
-
-
 
 package com.qiaben.ciyex.dto;
 

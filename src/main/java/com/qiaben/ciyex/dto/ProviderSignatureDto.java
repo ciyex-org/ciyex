@@ -6,7 +6,7 @@
 //public class ProviderSignatureDto {
 //    private Long id;
 //    private String externalId;      // optional - FHIR id if mirrored
-//    private Long orgId;
+//
 //    private Long patientId;
 //    private Long encounterId;
 //
@@ -29,8 +29,6 @@
 //        private String lastModifiedDate; // yyyy-MM-dd
 //    }
 //}
-
-
 
 package com.qiaben.ciyex.dto;
 

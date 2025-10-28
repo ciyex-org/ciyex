@@ -22,7 +22,7 @@
 //    public ResponseEntity<ApiResponse<List<AssignedProviderDto>>> getAllByPatient(
 //            @PathVariable Long patientId,
 //            @RequestHeader("orgId") Long orgId) {
-//        var list = service.getAllByPatient(orgId, patientId);
+//        var list = service.getAllByPatient(patientId);
 //        return ResponseEntity.ok(ApiResponse.<List<AssignedProviderDto>>builder()
 //                .success(true).message("Assigned providers fetched").data(list).build());
 //    }
@@ -32,7 +32,7 @@
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
 //            @RequestHeader("orgId") Long orgId) {
-//        var list = service.getAllByEncounter(orgId, patientId, encounterId);
+//        var list = service.getAllByEncounter(patientId, encounterId);
 //        return ResponseEntity.ok(ApiResponse.<List<AssignedProviderDto>>builder()
 //                .success(true).message("Assigned providers fetched").data(list).build());
 //    }
@@ -43,7 +43,7 @@
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
 //            @RequestHeader("orgId") Long orgId) {
-//        var dto = service.getOne(orgId, patientId, encounterId, id);
+//        var dto = service.getOne(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<AssignedProviderDto>builder()
 //                .success(true).message("Assigned provider fetched").data(dto).build());
 //    }
@@ -52,9 +52,8 @@
 //    public ResponseEntity<ApiResponse<AssignedProviderDto>> create(
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
-//            @RequestHeader("orgId") Long orgId,
-//            @RequestBody AssignedProviderDto dto) {
-//        var created = service.create(orgId, patientId, encounterId, dto);
+//            //            @RequestBody AssignedProviderDto dto) {
+//        var created = service.create(patientId, encounterId, dto);
 //        return ResponseEntity.ok(ApiResponse.<AssignedProviderDto>builder()
 //                .success(true).message("Assigned provider created").data(created).build());
 //    }
@@ -64,9 +63,8 @@
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId,
-//            @RequestBody AssignedProviderDto dto) {
-//        var updated = service.update(orgId, patientId, encounterId, id, dto);
+//            //            @RequestBody AssignedProviderDto dto) {
+//        var updated = service.update(patientId, encounterId, id, dto);
 //        return ResponseEntity.ok(ApiResponse.<AssignedProviderDto>builder()
 //                .success(true).message("Assigned provider updated").data(updated).build());
 //    }
@@ -77,7 +75,7 @@
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
 //            @RequestHeader("orgId") Long orgId) {
-//        service.delete(orgId, patientId, encounterId, id);
+//        service.delete(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<Void>builder()
 //                .success(true).message("Assigned provider deleted").build());
 //    }
@@ -115,9 +113,8 @@ public class AssignedProviderController {
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<AssignedProviderDto>>> list(
             @PathVariable Long patientId,
-            @PathVariable Long encounterId,
-            @RequestHeader("orgId") Long orgId) {
-        var items = service.list(orgId, patientId, encounterId);
+            @PathVariable Long encounterId) {
+        var items = service.list(patientId, encounterId);
         return ResponseEntity.ok(ApiResponse.<List<AssignedProviderDto>>builder()
                 .success(true).message("Assigned providers fetched").data(items).build());
     }
@@ -127,10 +124,9 @@ public class AssignedProviderController {
     public ResponseEntity<ApiResponse<AssignedProviderDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long id) {
         try {
-            var dto = service.getOne(orgId, patientId, encounterId, id);
+            var dto = service.getOne(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<AssignedProviderDto>builder()
                     .success(true).message("Assigned provider fetched").data(dto).build());
         } catch (IllegalArgumentException ex) {
@@ -144,9 +140,8 @@ public class AssignedProviderController {
     public ResponseEntity<ApiResponse<AssignedProviderDto>> create(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @RequestHeader("orgId") Long orgId,
             @RequestBody AssignedProviderDto dto) {
-        var saved = service.create(orgId, patientId, encounterId, dto);
+        var saved = service.create(patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<AssignedProviderDto>builder()
                 .success(true).message("Assigned provider created").data(saved).build());
     }
@@ -157,10 +152,9 @@ public class AssignedProviderController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId,
             @RequestBody AssignedProviderDto dto) {
         try {
-            var saved = service.update(orgId, patientId, encounterId, id, dto);
+            var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<AssignedProviderDto>builder()
                     .success(true).message("Assigned provider updated").data(saved).build());
         } catch (IllegalStateException ex) {
@@ -177,10 +171,9 @@ public class AssignedProviderController {
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long id) {
         try {
-            service.delete(orgId, patientId, encounterId, id);
+            service.delete(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true).message("Assigned provider deleted").build());
         } catch (IllegalStateException ex) {
@@ -198,11 +191,10 @@ public class AssignedProviderController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId,
             Principal principal) {
         try {
             String user = (principal != null) ? principal.getName() : "system";
-            var dto = service.eSign(orgId, patientId, encounterId, id, user);
+            var dto = service.eSign(patientId, encounterId, id, user);
             return ResponseEntity.ok(ApiResponse.<AssignedProviderDto>builder()
                     .success(true).message("Assigned provider e-signed").data(dto).build());
         } catch (IllegalArgumentException ex) {
@@ -220,9 +212,8 @@ public class AssignedProviderController {
     public ResponseEntity<byte[]> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
-        byte[] pdf = service.renderPdf(orgId, patientId, encounterId, id);
+            @PathVariable Long id) {
+        byte[] pdf = service.renderPdf(patientId, encounterId, id);
         String filename = "assigned-provider-" + id + ".pdf";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")

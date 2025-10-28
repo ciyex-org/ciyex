@@ -44,7 +44,7 @@ public class OrderService {
 
     @Transactional
     public OrderDto create(OrderDto dto) {
-        // Single-tenant: no orgId check needed
+        
         Order entity = mapToEntity(dto);
 
 
@@ -116,7 +116,7 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public Page<OrderDto> getAll(Pageable pageable) {
-        // Single-tenant: no orgId check needed
+        
         return repository.findAll(pageable).map(this::mapToDto);
     }
 
@@ -178,7 +178,7 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public List<MonthlyOrderCountDto> countOrdersByMonth(Long orgId) {
+    public List<MonthlyOrderCountDto> countOrdersByMonth() {
         return repository.countOrdersByMonth().stream()
                 .map(r -> new MonthlyOrderCountDto(((Number) r[0]).intValue(), ((Number) r[1]).longValue()))
                 .toList();
@@ -238,11 +238,7 @@ public class OrderService {
     }
 
 
-    private Long getCurrentOrgId() {
-        // Tenant isolation is now handled at schema level
-        // orgId is no longer tracked in RequestContext
-        return null;
-    }
+    
 
     private String now() {
         return LocalDateTime.now().toString();

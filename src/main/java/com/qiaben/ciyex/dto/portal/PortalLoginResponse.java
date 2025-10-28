@@ -28,12 +28,10 @@ public class PortalLoginResponse {
 
     @Data
     public static class OrgInfo {
-        private Long orgId;
         private String orgName;
         private String role;
 
         public OrgInfo(Long orgId, String orgName, String role) {
-            this.orgId = orgId;
             this.orgName = orgName;
             this.role = role;
         }

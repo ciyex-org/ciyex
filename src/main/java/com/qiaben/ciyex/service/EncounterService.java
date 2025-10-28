@@ -31,7 +31,7 @@ public class EncounterService {
     }
 
     @Transactional
-    public EncounterDto createEncounter(Long patientId, EncounterDto dto, Long orgId) {
+    public EncounterDto createEncounter(Long patientId, EncounterDto dto) {
         Encounter encounter = mapToEntity(dto);
         encounter.setId(null);
         encounter.setPatientId(patientId);                 // NEW
@@ -43,13 +43,13 @@ public class EncounterService {
     }
 
     @Transactional(readOnly = true)
-    public List<EncounterDto> listByPatient(Long patientId, Long orgId) {
+    public List<EncounterDto> listByPatient(Long patientId) {
         return encounterRepository.findByPatientId(patientId)
                 .stream().map(this::mapToDto).toList();
     }
 
     @Transactional(readOnly = true)
-    public EncounterDto getByIdForPatient(Long id, Long patientId, Long orgId) {
+    public EncounterDto getByIdForPatient(Long id, Long patientId) {
         Encounter encounter = encounterRepository
                 .findByIdAndPatientId(id, patientId)
                 .orElseThrow(() -> new RuntimeException("Encounter not found"));
@@ -57,12 +57,12 @@ public class EncounterService {
     }
 
     @Transactional
-    public EncounterDto updateEncounter(Long id, Long patientId, EncounterDto dto, Long orgId) {
+    public EncounterDto updateEncounter(Long id, Long patientId, EncounterDto dto) {
         Encounter encounter = encounterRepository
                 .findByIdAndPatientId(id, patientId)
                 .orElseThrow(() -> new RuntimeException("Encounter not found"));
 
-        // Do NOT overwrite id/patientId/orgId here
+        
         encounter.setVisitCategory(dto.getVisitCategory());
         encounter.setEncounterProvider(dto.getEncounterProvider());
         encounter.setType(dto.getType());
@@ -75,28 +75,28 @@ public class EncounterService {
     }
 
     @Transactional
-    public void deleteEncounter(Long id, Long patientId, Long orgId) {
+    public void deleteEncounter(Long id, Long patientId) {
         long deleted = encounterRepository.deleteByIdAndPatientId(id, patientId);
         if (deleted == 0) {
             throw new RuntimeException("Encounter not found");
         }
     }
     @Transactional
-    public EncounterDto signEncounter(Long id, Long patientId, Long orgId) {
-        return updateStatus(id, patientId, orgId, EncounterStatus.SIGNED);
+    public EncounterDto signEncounter(Long id, Long patientId) {
+        return updateStatus(id, patientId,  EncounterStatus.SIGNED);
     }
 
     @Transactional
-    public EncounterDto unsignEncounter(Long id, Long patientId, Long orgId) {
-        return updateStatus(id, patientId, orgId, EncounterStatus.UNSIGNED);
+    public EncounterDto unsignEncounter(Long id, Long patientId) {
+        return updateStatus(id, patientId,  EncounterStatus.UNSIGNED);
     }
 
     @Transactional
-    public EncounterDto markIncomplete(Long id, Long patientId, Long orgId) {
-        return updateStatus(id, patientId, orgId, EncounterStatus.INCOMPLETE);
+    public EncounterDto markIncomplete(Long id, Long patientId) {
+        return updateStatus(id, patientId,  EncounterStatus.INCOMPLETE);
     }
 
-    private EncounterDto updateStatus(Long id, Long patientId, Long orgId, EncounterStatus status) {
+    private EncounterDto updateStatus(Long id, Long patientId,  EncounterStatus status) {
         Encounter encounter = encounterRepository
                 .findByIdAndPatientId(id, patientId)
                 .orElseThrow(() -> new RuntimeException("Encounter not found"));
@@ -167,23 +167,23 @@ public class EncounterService {
 //
 //    private final EncounterRepository repo;
 //
-//    public List<EncounterDto> list(Long orgId, Long patientId, EncounterStatus status) {
+//    public List<EncounterDto> list(Long patientId, EncounterStatus status) {
 //        List<Encounter> list = (status == null)
-//                ? repo.findByPatientIdAndOrgIdOrderByIdDesc(patientId, orgId)
+
 //                : repo.findByPatientIdAndOrgIdAndStatusOrderByIdDesc(patientId, status);
 //        return list.stream().map(EncounterMapper::toDto).toList();
 //    }
 //
-//    public EncounterDto create(Long orgId, Long patientId, EncounterDto dto) {
+//    public EncounterDto create(Long patientId, EncounterDto dto) {
 //        Encounter e = EncounterMapper.toEntity(dto);
 //        e.setId(null);
-//        e.setOrgId(orgId);
+//
 //        e.setPatientId(patientId);
 //        if (e.getStatus() == null) e.setStatus(EncounterStatus.UNSIGNED);
 //        return EncounterMapper.toDto(repo.save(e));
 //    }
 //
-//    public EncounterDto update(Long orgId, Long patientId, Long id, EncounterDto dto) {
+//    public EncounterDto update(Long patientId, Long id, EncounterDto dto) {
 //        Encounter e = repo.findByIdAndPatientId(id, patientId)
 //                .orElseThrow(() -> new NoSuchElementException("Encounter not found"));
 //        e.setVisitCategory(dto.getVisitCategory());
@@ -196,30 +196,30 @@ public class EncounterService {
 //        return EncounterMapper.toDto(repo.save(e));
 //    }
 //
-//    public void delete(Long orgId, Long patientId, Long id) {
+//    public void delete(Long patientId, Long id) {
 //        long n = repo.deleteByIdAndPatientId(id, patientId);
 //        if (n == 0) throw new NoSuchElementException("Encounter not found");
 //    }
 //
-//    public EncounterDto mark(Long orgId, Long patientId, Long id, EncounterStatus s) {
+//    public EncounterDto mark(Long patientId, Long id, EncounterStatus s) {
 //        Encounter e = repo.findByIdAndPatientId(id, patientId)
 //                .orElseThrow(() -> new NoSuchElementException("Encounter not found"));
 //        e.setStatus(s);
 //        return EncounterMapper.toDto(repo.save(e));
 //    }
 //
-//    public Map<EncounterStatus, Long> reviewCounts(Long orgId, String provider, Instant from, Instant to) {
+//    public Map<EncounterStatus, Long> reviewCounts(String provider, Instant from, Instant to) {
 //        Map<EncounterStatus, Long> m = new EnumMap<>(EncounterStatus.class);
-//        for (Object[] row : repo.countByStatus(orgId, emptyToNull(provider), from, to)) {
+
 //            m.put((EncounterStatus) row[0], (Long) row[1]);
 //        }
 //        for (EncounterStatus s : EncounterStatus.values()) m.putIfAbsent(s, 0L);
 //        return m;
 //    }
 //
-//    public Page<EncounterReviewRowDto> reviewList(Long orgId, EncounterStatus status, String provider,
+//    public Page<EncounterReviewRowDto> reviewList(EncounterStatus status, String provider,
 //                                                  Instant from, Instant to, Pageable pageable) {
-//        return repo.reviewList(orgId, status, emptyToNull(provider), from, to, pageable)
+
 //                .map(EncounterMapper::toReviewRow);
 //    }
 //

@@ -23,11 +23,9 @@ public class CoverageController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<CoverageDto>> create(
-            @RequestBody CoverageDto dto,
-            @RequestHeader("orgId") Long orgId) {
+            @RequestBody CoverageDto dto) {
         try {
             RequestContext ctx = new RequestContext();
-                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             // orgId removed from DTO; tenant inferred from RequestContext.
@@ -51,11 +49,9 @@ public class CoverageController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<CoverageDto>> get(
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long id) {
         try {
             RequestContext ctx = new RequestContext();
-                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             CoverageDto coverage = service.getById(id);
@@ -78,11 +74,9 @@ public class CoverageController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<CoverageDto>> update(
             @PathVariable Long id,
-            @RequestBody CoverageDto dto,
-            @RequestHeader("orgId") Long orgId) {
+            @RequestBody CoverageDto dto) {
         try {
             RequestContext ctx = new RequestContext();
-                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             // orgId removed from DTO; tenant inferred from RequestContext.
@@ -106,11 +100,9 @@ public class CoverageController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long id) {
         try {
             RequestContext ctx = new RequestContext();
-                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             service.delete(id);
@@ -134,11 +126,9 @@ public class CoverageController {
     @GetMapping("/{id}/{patientId}")
     public ResponseEntity<ApiResponse<CoverageDto>> getByIdAndPatient(
             @PathVariable Long id,
-            @PathVariable Long patientId,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long patientId) {
         try {
             RequestContext ctx = new RequestContext();
-                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             CoverageDto dto = service.getByIdAndPatientId(id, patientId);
@@ -162,11 +152,9 @@ public class CoverageController {
     public ResponseEntity<ApiResponse<CoverageDto>> updateByIdAndPatient(
             @PathVariable Long id,
             @PathVariable Long patientId,
-            @RequestBody CoverageDto dto,
-            @RequestHeader("orgId") Long orgId) {
+            @RequestBody CoverageDto dto) {
         try {
             RequestContext ctx = new RequestContext();
-                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             // orgId removed from DTO; tenant inferred from RequestContext.
@@ -190,11 +178,9 @@ public class CoverageController {
     @DeleteMapping("/{id}/{patientId}")
     public ResponseEntity<ApiResponse<Void>> deleteByIdAndPatient(
             @PathVariable Long id,
-            @PathVariable Long patientId,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long patientId) {
         try {
             RequestContext ctx = new RequestContext();
-                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             service.deleteByIdAndPatientId(id, patientId);
@@ -214,11 +200,9 @@ public class CoverageController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<CoverageDto>>> getAllCoverages(
-            @RequestHeader("orgId") Long orgId) {
+    public ResponseEntity<ApiResponse<List<CoverageDto>>> getAllCoverages() {
         try {
             RequestContext ctx = new RequestContext();
-                // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
 
             List<CoverageDto> coverages = service.getAllCoverages();

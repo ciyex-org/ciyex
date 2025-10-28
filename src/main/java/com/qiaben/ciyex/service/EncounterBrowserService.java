@@ -25,9 +25,7 @@ public class EncounterBrowserService {
     }
 
     @Transactional(readOnly = true) // ✅ now valid
-    public Page<EncounterDto> listAllForOrg(
-            Long orgId,
-            Optional<EncounterStatus> statusOpt,
+    public Page<EncounterDto> listAll(Optional<EncounterStatus> statusOpt,
             boolean recentOnly,
             int recentCount,
             Pageable pageable

@@ -35,5 +35,5 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
 
     // ✅ Lookup patient by externalId + orgId
     @Query("SELECT p FROM Patient p WHERE p.externalId = :externalId")
-    Optional<Patient> findByExternalIdAndOrgId(String externalId);
+    Optional<Patient> findByExternalId(String externalId);
 }

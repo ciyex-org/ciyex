@@ -1,6 +1,5 @@
 
 
-
 package com.qiaben.ciyex.entity;
 
 import java.time.LocalDateTime;
@@ -50,10 +49,6 @@ private LocalDateTime encounterDate;
 
 }
 
-
-
-
-
 //package com.qiaben.ciyex.entity;
 //
 //import jakarta.persistence.*;
@@ -69,7 +64,7 @@ private LocalDateTime encounterDate;
 //    private Long id;
 //
 //    @Column(nullable = false)  // org scoping
-//    private Long orgId;
+//
 //
 //    @Column(nullable = false)
 //    private Long patientId;

@@ -1,6 +1,5 @@
 package com.qiaben.ciyex.dto.telnyx.messaging;
 
-
 import lombok.Data;
 
 @Data

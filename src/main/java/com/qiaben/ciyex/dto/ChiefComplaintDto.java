@@ -8,7 +8,7 @@
 ////    private String complaint;
 ////    private String details;
 ////    private Long encounterId;
-////    private Long orgId; // Organization ID passed in header
+//// // Organization ID passed in header
 ////    private LocalDateTime createdAt;
 ////    private LocalDateTime updatedAt;
 ////    private Long patientId;
@@ -54,13 +54,9 @@
 ////        this.encounterId = encounterId;
 ////    }
 ////
-////    public Long getOrgId() {
-////        return orgId;
-////    }
+////    
 ////
-////    public void setOrgId(Long orgId) {
-////        this.orgId = orgId;
-////    }
+////    
 ////
 ////    public LocalDateTime getCreatedAt() {
 ////        return createdAt;
@@ -90,7 +86,7 @@
 //    private String complaint;
 //    private String details;
 //    private Long encounterId;
-//    private Long orgId; // Organization ID passed in header
+// // Organization ID passed in header
 //    private LocalDateTime createdAt;
 //    private LocalDateTime updatedAt;
 //    private Long patientId;
@@ -136,13 +132,9 @@
 //        this.encounterId = encounterId;
 //    }
 //
-//    public Long getOrgId() {
-//        return orgId;
-//    }
+//    
 //
-//    public void setOrgId(Long orgId) {
-//        this.orgId = orgId;
-//    }
+//    
 //
 //    public LocalDateTime getCreatedAt() {
 //        return createdAt;
@@ -162,8 +154,6 @@
 //}
 //
 //
-
-
 
 package com.qiaben.ciyex.dto;
 

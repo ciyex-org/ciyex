@@ -1,7 +1,5 @@
 package com.qiaben.ciyex.entity;
 
-
-
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -16,7 +14,6 @@ public class PatientInvoice extends AuditableEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false) private Long orgId;
     @Column(nullable = false) private Long patientId;
 
     @Enumerated(EnumType.STRING) @Column(nullable = false)
@@ -75,13 +72,9 @@ private LocalDate backdate;
         this.id = id;
     }
 
-    public Long getOrgId() {
-        return orgId;
-    }
+    
 
-    public void setOrgId(Long orgId) {
-        this.orgId = orgId;
-    }
+    
 
     public Long getPatientId() {
         return patientId;

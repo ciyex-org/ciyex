@@ -25,8 +25,7 @@ public class CommunicationController {
     /* ------------------- CREATE ------------------- */
     @PostMapping
     public ResponseEntity<ApiResponse<CommunicationDto>> create(
-            @RequestBody CommunicationDto dto,
-            @RequestHeader("x-org-id") Long orgId) {
+            @RequestBody CommunicationDto dto) {
         try {
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated by interceptor.
@@ -52,8 +51,7 @@ public class CommunicationController {
     /* ------------------- GET BY PATIENT ------------------- */
     @GetMapping("/patient/{patientId}")
     public ResponseEntity<ApiResponse<List<CommunicationDto>>> getByPatient(
-            @PathVariable Long patientId,
-            @RequestHeader("x-org-id") Long orgId) {
+            @PathVariable Long patientId) {
         try {
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated by interceptor.
@@ -79,8 +77,7 @@ public class CommunicationController {
     /* ------------------- GET ONE ------------------- */
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<CommunicationDto>> getOne(
-            @PathVariable Long id,
-            @RequestHeader("x-org-id") Long orgId) {
+            @PathVariable Long id) {
         try {
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated by interceptor.
@@ -111,8 +108,7 @@ public class CommunicationController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<CommunicationDto>> update(
             @PathVariable Long id,
-            @RequestBody CommunicationDto dto,
-            @RequestHeader("x-org-id") Long orgId) {
+            @RequestBody CommunicationDto dto) {
         try {
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated by interceptor.
@@ -138,8 +134,7 @@ public class CommunicationController {
     /* ------------------- ARCHIVE ------------------- */
     @PutMapping("/archive/{id}")
     public ResponseEntity<ApiResponse<CommunicationDto>> archive(
-            @PathVariable Long id,
-            @RequestHeader("x-org-id") Long orgId) {
+            @PathVariable Long id) {
         try {
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated by interceptor.
@@ -166,8 +161,7 @@ public class CommunicationController {
     /* ------------------- RESTORE ------------------- */
     @PutMapping("/restore/{id}")
     public ResponseEntity<ApiResponse<CommunicationDto>> restore(
-            @PathVariable Long id,
-            @RequestHeader("x-org-id") Long orgId) {
+            @PathVariable Long id) {
         try {
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated by interceptor.
@@ -194,8 +188,7 @@ public class CommunicationController {
     /* ------------------- DELETE ------------------- */
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long id,
-            @RequestHeader("x-org-id") Long orgId) {
+            @PathVariable Long id) {
         try {
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated by interceptor.

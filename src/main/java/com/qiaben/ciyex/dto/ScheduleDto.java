@@ -1,9 +1,7 @@
 package com.qiaben.ciyex.dto;
 
-
 import lombok.Data;
 import java.util.List;
-
 
 /**
  * DTO carries ALL schedule details to/from the API.
@@ -16,20 +14,16 @@ public class ScheduleDto {
     private Long providerId; // internal provider/practitioner id
     private String externalId; // FHIR Schedule id
 
-
     // one-time window
     private String start; // ISO-8601
     private String end; // ISO-8601
 
-
     // actors
     private List<String> actorReferences; // e.g., ["Practitioner/123", "Location/456"]
-
 
     // recurrence (non-native FHIR fields, persisted as extensions)
     private Recurrence recurrence; // null when one-time only
     private String timezone; // IANA tz for preview/slot generation
-
 
     // optional display metadata (pulled from external)
     private String serviceCategory;
@@ -38,16 +32,13 @@ public class ScheduleDto {
     private String status; // active/inactive
     private String comment;
 
-
     private Audit audit; // audit timestamps from local persistence
-
 
     @Data
     public static class Audit {
         private String createdDate;
         private String lastModifiedDate;
     }
-
 
     @Data
     public static class Recurrence {

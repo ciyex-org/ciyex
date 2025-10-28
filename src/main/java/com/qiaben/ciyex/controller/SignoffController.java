@@ -20,16 +20,16 @@
 //
 //    @GetMapping("/{patientId}")
 //    public ResponseEntity<ApiResponse<List<SignoffDto>>> getAllByPatient(
-//            @PathVariable Long patientId, @RequestHeader("orgId") Long orgId) {
-//        var list = service.getAllByPatient(orgId, patientId);
+//            @PathVariable Long patientId) {
+//        var list = service.getAllByPatient(patientId);
 //        return ResponseEntity.ok(ApiResponse.<List<SignoffDto>>builder()
 //                .success(true).message("Signoffs fetched").data(list).build());
 //    }
 //
 //    @GetMapping("/{patientId}/{encounterId}")
 //    public ResponseEntity<ApiResponse<List<SignoffDto>>> getAllByEncounter(
-//            @PathVariable Long patientId, @PathVariable Long encounterId, @RequestHeader("orgId") Long orgId) {
-//        var list = service.getAllByEncounter(orgId, patientId, encounterId);
+//            @PathVariable Long patientId, @PathVariable Long encounterId) {
+//        var list = service.getAllByEncounter(patientId, encounterId);
 //        return ResponseEntity.ok(ApiResponse.<List<SignoffDto>>builder()
 //                .success(true).message("Signoffs fetched").data(list).build());
 //    }
@@ -38,7 +38,7 @@
 //    public ResponseEntity<ApiResponse<SignoffDto>> getOne(
 //            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
 //            @RequestHeader("orgId") Long orgId) {
-//        var dto = service.getOne(orgId, patientId, encounterId, id);
+//        var dto = service.getOne(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<SignoffDto>builder()
 //                .success(true).message("Signoff fetched").data(dto).build());
 //    }
@@ -46,9 +46,8 @@
 //    @PostMapping("/{patientId}/{encounterId}")
 //    public ResponseEntity<ApiResponse<SignoffDto>> create(
 //            @PathVariable Long patientId, @PathVariable Long encounterId,
-//            @RequestHeader("orgId") Long orgId,
-//            @RequestBody SignoffDto dto) {
-//        var created = service.create(orgId, patientId, encounterId, dto);
+//            //            @RequestBody SignoffDto dto) {
+//        var created = service.create(patientId, encounterId, dto);
 //        return ResponseEntity.ok(ApiResponse.<SignoffDto>builder()
 //                .success(true).message("Signoff created").data(created).build());
 //    }
@@ -56,9 +55,8 @@
 //    @PutMapping("/{patientId}/{encounterId}/{id}")
 //    public ResponseEntity<ApiResponse<SignoffDto>> update(
 //            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId,
-//            @RequestBody SignoffDto dto) {
-//        var updated = service.update(orgId, patientId, encounterId, id, dto);
+//            //            @RequestBody SignoffDto dto) {
+//        var updated = service.update(patientId, encounterId, id, dto);
 //        return ResponseEntity.ok(ApiResponse.<SignoffDto>builder()
 //                .success(true).message("Signoff updated").data(updated).build());
 //    }
@@ -67,7 +65,7 @@
 //    public ResponseEntity<ApiResponse<Void>> delete(
 //            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
 //            @RequestHeader("orgId") Long orgId) {
-//        service.delete(orgId, patientId, encounterId, id);
+//        service.delete(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<Void>builder()
 //                .success(true).message("Signoff deleted").build());
 //    }
@@ -102,9 +100,8 @@ public class SignoffController {
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<SignoffDto>>> list(
             @PathVariable Long patientId,
-            @PathVariable Long encounterId,
-            @RequestHeader("orgId") Long orgId) {
-        var items = service.list(orgId, patientId, encounterId);
+            @PathVariable Long encounterId) {
+        var items = service.list(patientId, encounterId);
         return ResponseEntity.ok(ApiResponse.<List<SignoffDto>>builder()
                 .success(true).message("Sign-offs fetched").data(items).build());
     }
@@ -114,10 +111,9 @@ public class SignoffController {
     public ResponseEntity<ApiResponse<SignoffDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long id) {
         try {
-            var dto = service.getOne(orgId, patientId, encounterId, id);
+            var dto = service.getOne(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<SignoffDto>builder()
                     .success(true).message("Sign-off fetched").data(dto).build());
         } catch (IllegalArgumentException ex) {
@@ -131,9 +127,8 @@ public class SignoffController {
     public ResponseEntity<ApiResponse<SignoffDto>> create(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @RequestHeader("orgId") Long orgId,
             @RequestBody(required = false) SignoffDto dto) {
-        var saved = service.create(orgId, patientId, encounterId, dto != null ? dto : new SignoffDto());
+        var saved = service.create(patientId, encounterId, dto != null ? dto : new SignoffDto());
         return ResponseEntity.ok(ApiResponse.<SignoffDto>builder()
                 .success(true).message("Sign-off created").data(saved).build());
     }
@@ -144,10 +139,9 @@ public class SignoffController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId,
             @RequestBody SignoffDto dto) {
         try {
-            var saved = service.update(orgId, patientId, encounterId, id, dto);
+            var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<SignoffDto>builder()
                     .success(true).message("Sign-off updated").data(saved).build());
         } catch (IllegalStateException ex) {
@@ -164,10 +158,9 @@ public class SignoffController {
     public ResponseEntity<?> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
+            @PathVariable Long id) {
         try {
-            service.delete(orgId, patientId, encounterId, id);
+            service.delete(patientId, encounterId, id);
             return ResponseEntity.noContent().build();
         } catch (IllegalStateException ex) {
             return ResponseEntity.status(423)
@@ -184,11 +177,10 @@ public class SignoffController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId,
             Principal principal) {
         try {
             String user = (principal != null) ? principal.getName() : "system";
-            var dto = service.eSign(orgId, patientId, encounterId, id, user);
+            var dto = service.eSign(patientId, encounterId, id, user);
             return ResponseEntity.ok(ApiResponse.<SignoffDto>builder()
                     .success(true).message("Sign-off e-signed").data(dto).build());
         } catch (IllegalArgumentException ex) {
@@ -206,9 +198,8 @@ public class SignoffController {
     public ResponseEntity<byte[]> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
-            @RequestHeader("orgId") Long orgId) {
-        byte[] pdf = service.renderPdf(orgId, patientId, encounterId, id);
+            @PathVariable Long id) {
+        byte[] pdf = service.renderPdf(patientId, encounterId, id);
         String filename = "signoff-" + id + ".pdf";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")

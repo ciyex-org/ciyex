@@ -23,9 +23,9 @@
 //
 //    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 //
-//    public AssignedProviderDto create(Long orgId, Long patientId, Long encounterId, AssignedProviderDto in) {
+//    public AssignedProviderDto create(Long patientId, Long encounterId, AssignedProviderDto in) {
 //        AssignedProvider e = AssignedProvider.builder()
-//                .orgId(orgId).patientId(patientId).encounterId(encounterId)
+
 //                .providerId(in.getProviderId())
 //                .role(in.getRole())
 //                .startDate(in.getStartDate())
@@ -46,7 +46,7 @@
 //        return mapToDto(saved);
 //    }
 //
-//    public AssignedProviderDto update(Long orgId, Long patientId, Long encounterId, Long id, AssignedProviderDto in) {
+//    public AssignedProviderDto update(Long patientId, Long encounterId, Long id, AssignedProviderDto in) {
 //        AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
 //
@@ -69,7 +69,7 @@
 //        return mapToDto(updated);
 //    }
 //
-//    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public void delete(Long patientId, Long encounterId, Long id) {
 //        AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
 //
@@ -80,17 +80,17 @@
 //        repo.delete(e);
 //    }
 //
-//    public AssignedProviderDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public AssignedProviderDto getOne(Long patientId, Long encounterId, Long id) {
 //        AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
 //        return mapToDto(e);
 //    }
 //
-//    public List<AssignedProviderDto> getAllByPatient(Long orgId, Long patientId) {
+//    public List<AssignedProviderDto> getAllByPatient(Long patientId) {
 //        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
 //    }
 //
-//    public List<AssignedProviderDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+//    public List<AssignedProviderDto> getAllByEncounter(Long patientId, Long encounterId) {
 //        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
 //    }
 //
@@ -152,7 +152,7 @@ public class AssignedProviderService {
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
-    public AssignedProviderDto create(Long orgId, Long patientId, Long encounterId, AssignedProviderDto dto) {
+    public AssignedProviderDto create(Long patientId, Long encounterId, AssignedProviderDto dto) {
         AssignedProvider e = new AssignedProvider();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -162,19 +162,19 @@ public class AssignedProviderService {
     }
 
     // Read
-    public AssignedProviderDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public AssignedProviderDto getOne(Long patientId, Long encounterId, Long id) {
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
         return toDto(e);
     }
 
-    public List<AssignedProviderDto> list(Long orgId, Long patientId, Long encounterId) {
+    public List<AssignedProviderDto> list(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
     // Update (LOCKED if eSigned)
-    public AssignedProviderDto update(Long orgId, Long patientId, Long encounterId, Long id, AssignedProviderDto dto) {
+    public AssignedProviderDto update(Long patientId, Long encounterId, Long id, AssignedProviderDto dto) {
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
 
@@ -188,7 +188,7 @@ public class AssignedProviderService {
     }
 
     // Delete (BLOCKED if eSigned)
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
 
@@ -200,7 +200,7 @@ public class AssignedProviderService {
     }
 
     // eSign (idempotent)
-    public AssignedProviderDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
+    public AssignedProviderDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
 
@@ -216,7 +216,7 @@ public class AssignedProviderService {
     }
 
     // Print (PDF) — also stamps printedAt
-    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
 

@@ -36,12 +36,12 @@ public class LabOrderService {
     }
 
     @Transactional
-    public LabOrderDto create(LabOrderDto dto, List<Long> allowedOrgIds) {
+    public LabOrderDto create(LabOrderDto dto) {
         // Tenant isolation is now handled at schema level
         // Long chosenOrgId = resolveOrgIdForCreate(dto, allowedOrgIds);
-        // if (chosenOrgId == null) throw new SecurityException("No allowed orgId available in request");
+        
         // ensureRequestContextOrg(chosenOrgId);
-        // dto.setOrgId(chosenOrgId);
+        //
 
         if (dto.getTestCode() == null) {
             throw new IllegalArgumentException("testCode is required");
@@ -65,14 +65,14 @@ public class LabOrderService {
     }
 
     @Transactional(readOnly = true)
-    public LabOrderDto getById(Long id, Collection<Long> allowedOrgIds) {
+    public LabOrderDto getById(Long id) {
         LabOrder order = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id));
         return mapToDto(order);
     }
 
     @Transactional
-    public LabOrderDto update(Long id, LabOrderDto dto, Collection<Long> allowedOrgIds) {
+    public LabOrderDto update(Long id, LabOrderDto dto) {
         LabOrder order = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id));
         updateEntityFromDto(order, dto);
@@ -81,7 +81,7 @@ public class LabOrderService {
     }
 
     @Transactional
-    public void delete(Long id, Collection<Long> allowedOrgIds) {
+    public void delete(Long id) {
         LabOrder order = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id));
         repository.delete(order);
@@ -89,12 +89,7 @@ public class LabOrderService {
 
     @Transactional(readOnly = true)
     public ApiResponse<List<LabOrderDto>> getAll(Collection<Long> allowedOrgIds) {
-        if (allowedOrgIds == null || allowedOrgIds.isEmpty()) {
-            return ApiResponse.<List<LabOrderDto>>builder()
-                    .success(false)
-                    .message("No orgId available in request")
-                    .build();
-        }
+        
         List<LabOrder> orders = repository.findAll();
         List<LabOrderDto> dtos = orders.stream().map(this::mapToDto).collect(Collectors.toList());
         return ApiResponse.<List<LabOrderDto>>builder()
@@ -105,13 +100,8 @@ public class LabOrderService {
     }
 
     @Transactional(readOnly = true)
-    public ApiResponse<List<LabOrderDto>> getAllByPatient(Long patientId, Collection<Long> allowedOrgIds) {
-        if (allowedOrgIds == null || allowedOrgIds.isEmpty()) {
-            return ApiResponse.<List<LabOrderDto>>builder()
-                    .success(false)
-                    .message("No orgId available in request")
-                    .build();
-        }
+    public ApiResponse<List<LabOrderDto>> getAllByPatient(Long patientId) {
+        
         List<LabOrder> orders = repository.findAllByPatientId(patientId);
         List<LabOrderDto> dtos = orders.stream().map(this::mapToDto).collect(Collectors.toList());
         return ApiResponse.<List<LabOrderDto>>builder()
@@ -122,14 +112,14 @@ public class LabOrderService {
     }
 
     @Transactional(readOnly = true)
-    public LabOrderDto getByIdForPatient(Long id, Long patientId, Collection<Long> allowedOrgIds) {
+    public LabOrderDto getByIdForPatient(Long id, Long patientId) {
         LabOrder order = repository.findByIdAndPatientId(id, patientId)
                 .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id + " for patient: " + patientId));
         return mapToDto(order);
     }
 
     @Transactional
-    public void deleteForPatient(Long id, Long patientId, Collection<Long> allowedOrgIds) {
+    public void deleteForPatient(Long id, Long patientId) {
         LabOrder order = repository.findByIdAndPatientId(id, patientId)
                 .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id + " for patient: " + patientId));
         repository.delete(order);
@@ -137,17 +127,6 @@ public class LabOrderService {
 
     // ---- internals ----
 
-    private void ensureRequestContextOrg(Long orgId) {
-        if (orgId == null) return;
-        // Tenant isolation is now handled at schema level
-        // orgId is no longer tracked in RequestContext - schema-based isolation handles this
-    }
-
-    private void authorize(Long recordOrgId, Collection<Long> allowedOrgIds) {
-        if (recordOrgId == null || allowedOrgIds == null || !allowedOrgIds.contains(recordOrgId)) {
-            throw new SecurityException("Access denied: org " + recordOrgId + " not permitted");
-        }
-    }
 
     private String safeStorageType() {
         try {

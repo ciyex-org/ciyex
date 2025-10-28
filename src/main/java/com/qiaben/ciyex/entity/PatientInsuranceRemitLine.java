@@ -1,7 +1,5 @@
 package com.qiaben.ciyex.entity;
 
-
-
 import jakarta.persistence.*;
 import lombok.EqualsAndHashCode;
 
@@ -14,7 +12,7 @@ public class PatientInsuranceRemitLine extends AuditableEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false) private Long orgId;
+    @Column(nullable = false)
 
     public Long getId() {
         return id;
@@ -24,13 +22,9 @@ public class PatientInsuranceRemitLine extends AuditableEntity {
         this.id = id;
     }
 
-    public Long getOrgId() {
-        return orgId;
-    }
+    
 
-    public void setOrgId(Long orgId) {
-        this.orgId = orgId;
-    }
+    
 
     public Long getPatientId() {
         return patientId;

@@ -19,17 +19,10 @@ public class PatientCodeListController {
 
     private final PatientCodeListService service;
 
-    private Long requireOrgId(Long orgId) {
-        if (orgId == null) throw new IllegalArgumentException("Missing X-Org-Id header");
-        return orgId;
-    }
-
     @GetMapping
-    public ResponseEntity<ApiResponse<List<PatientCodeListDto>>> list(
-            @RequestHeader(name = "X-Org-Id", required = false) Long orgId
-    ) {
+    public ResponseEntity<ApiResponse<List<PatientCodeListDto>>> list() {
         try {
-            List<PatientCodeListDto> data = service.findAll(requireOrgId(orgId));
+            List<PatientCodeListDto> data = service.findAll();
             return ResponseEntity.ok(ApiResponse.<List<PatientCodeListDto>>builder()
                     .success(true).message("Patient code lists retrieved successfully").data(data).build());
         } catch (Exception e) {
@@ -41,11 +34,9 @@ public class PatientCodeListController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<PatientCodeListDto>> get(
-            @PathVariable Long id,
-            @RequestHeader(name = "X-Org-Id", required = false) Long orgId
-    ) {
+            @PathVariable Long id) {
         try {
-            PatientCodeListDto dto = service.getById(requireOrgId(orgId), id);
+            PatientCodeListDto dto = service.getById(id);
             if (dto == null) {
                 return ResponseEntity.ok(ApiResponse.<PatientCodeListDto>builder()
                         .success(false).message("Patient code list not found with id: " + id).build());
@@ -61,12 +52,9 @@ public class PatientCodeListController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<PatientCodeListDto>> create(
-            @RequestBody PatientCodeListDto dto,
-            @RequestHeader(name = "X-Org-Id", required = false) Long orgId
-    ) {
+            @RequestBody PatientCodeListDto dto) {
         try {
-            Long o = requireOrgId(orgId);
-            PatientCodeListDto created = service.create(o, dto);
+            PatientCodeListDto created = service.create(dto);
             return ResponseEntity.created(URI.create("/api/patient-codes/" + created.id))
                     .body(ApiResponse.<PatientCodeListDto>builder()
                             .success(true).message("Patient code list created successfully").data(created).build());
@@ -80,11 +68,9 @@ public class PatientCodeListController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<PatientCodeListDto>> update(
             @PathVariable Long id,
-            @RequestBody PatientCodeListDto dto,
-            @RequestHeader(name = "X-Org-Id", required = false) Long orgId
-    ) {
+            @RequestBody PatientCodeListDto dto) {
         try {
-            PatientCodeListDto updated = service.update(requireOrgId(orgId), id, dto);
+            PatientCodeListDto updated = service.update(id, dto);
             if (updated == null) {
                 return ResponseEntity.ok(ApiResponse.<PatientCodeListDto>builder()
                         .success(false).message("Patient code list not found with id: " + id).build());
@@ -100,11 +86,9 @@ public class PatientCodeListController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long id,
-            @RequestHeader(name = "X-Org-Id", required = false) Long orgId
-    ) {
+            @PathVariable Long id) {
         try {
-            boolean ok = service.delete(requireOrgId(orgId), id);
+            boolean ok = service.delete(id);
             if (!ok) {
                 return ResponseEntity.ok(ApiResponse.<Void>builder()
                         .success(false).message("Patient code list not found with id: " + id).build());
@@ -120,11 +104,9 @@ public class PatientCodeListController {
 
     @PostMapping("/bulk")
     public ResponseEntity<ApiResponse<List<PatientCodeListDto>>> bulkUpsert(
-            @RequestBody List<PatientCodeListDto> rows,
-            @RequestHeader(name = "X-Org-Id", required = false) Long orgId
-    ) {
+            @RequestBody List<PatientCodeListDto> rows) {
         try {
-            List<PatientCodeListDto> data = service.saveBulk(requireOrgId(orgId), rows);
+            List<PatientCodeListDto> data = service.saveBulk(rows);
             return ResponseEntity.ok(ApiResponse.<List<PatientCodeListDto>>builder()
                     .success(true).message("Patient code lists saved successfully").data(data).build());
         } catch (Exception e) {
@@ -136,11 +118,9 @@ public class PatientCodeListController {
 
     @PostMapping("/{id}/set-default")
     public ResponseEntity<ApiResponse<PatientCodeListDto>> setDefault(
-            @PathVariable Long id,
-            @RequestHeader(name = "X-Org-Id", required = false) Long orgId
-    ) {
+            @PathVariable Long id) {
         try {
-            PatientCodeListDto data = service.setDefault(requireOrgId(orgId), id);
+            PatientCodeListDto data = service.setDefault(id);
             if (data == null) {
                 return ResponseEntity.ok(ApiResponse.<PatientCodeListDto>builder()
                         .success(false).message("Patient code list not found with id: " + id).build());

@@ -39,7 +39,7 @@ public class PortalApprovalService {
     private final KeycloakUserService keycloakUserService;
 
     /**
-     * Get all pending portal users waiting for approval
+     * Get pending portal users for a specific organization
      */
     public ApiResponse<List<PortalUserDto>> getPendingUsers() {
         try {
@@ -54,31 +54,7 @@ public class PortalApprovalService {
                     .data(userDtos)
                     .build();
         } catch (Exception e) {
-            log.error("Error retrieving pending users", e);
-            return ApiResponse.<List<PortalUserDto>>builder()
-                    .success(false)
-                    .message("Failed to retrieve pending users")
-                    .build();
-        }
-    }
-
-    /**
-     * Get pending portal users for a specific organization
-     */
-    public ApiResponse<List<PortalUserDto>> getPendingUsersByOrg(Long orgId) {
-        try {
-            List<PortalUser> pendingUsers = portalUserRepository.findPendingUsers();
-            List<PortalUserDto> userDtos = pendingUsers.stream()
-                    .map(PortalUserDto::fromEntity)
-                    .collect(Collectors.toList());
-
-            return ApiResponse.<List<PortalUserDto>>builder()
-                    .success(true)
-                    .message("Pending users retrieved successfully")
-                    .data(userDtos)
-                    .build();
-        } catch (Exception e) {
-            log.error("Error retrieving pending users for org: {}", orgId, e);
+            log.error("Error retrieving pending users for org: {}",  e);
             return ApiResponse.<List<PortalUserDto>>builder()
                     .success(false)
                     .message("Failed to retrieve pending users")

@@ -24,9 +24,9 @@
 //
 //    private static final DateTimeFormatter DTF = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 //
-//    public PlanDto create(Long orgId, Long patientId, Long encounterId, PlanDto in) {
+//    public PlanDto create(Long patientId, Long encounterId, PlanDto in) {
 //        Plan p = new Plan();
-//        p.setOrgId(orgId);
+//
 //        p.setPatientId(patientId);
 //        p.setEncounterId(encounterId);
 //        p.setDiagnosticPlan(in.getDiagnosticPlan());
@@ -48,7 +48,7 @@
 //        return mapToDto(saved);
 //    }
 //
-//    public PlanDto update(Long orgId, Long patientId, Long encounterId, Long id, PlanDto in) {
+//    public PlanDto update(Long patientId, Long encounterId, Long id, PlanDto in) {
 //        Plan p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
 //
@@ -71,7 +71,7 @@
 //        return mapToDto(updated);
 //    }
 //
-//    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public void delete(Long patientId, Long encounterId, Long id) {
 //        Plan p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
 //        repo.delete(p);
@@ -82,18 +82,18 @@
 //        });
 //    }
 //
-//    public PlanDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+//    public PlanDto getOne(Long patientId, Long encounterId, Long id) {
 //        Plan p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
 //                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
 //        return mapToDto(p);
 //    }
 //
-//    public List<PlanDto> getAllByPatient(Long orgId, Long patientId) {
+//    public List<PlanDto> getAllByPatient(Long patientId) {
 //        return repo.findByPatientId(patientId)
 //                .stream().map(this::mapToDto).toList();
 //    }
 //
-//    public List<PlanDto> getAllByEncounter(Long orgId, Long patientId, Long encounterId) {
+//    public List<PlanDto> getAllByEncounter(Long patientId, Long encounterId) {
 //        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
 //                .stream().map(this::mapToDto).toList();
 //    }
@@ -157,25 +157,24 @@ public class PlanService {
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
-    public PlanDto create(Long orgId, Long patientId, Long encounterId, PlanDto dto) {
-        Plan e = new Plan();
-        e.setOrgId(orgId); e.setPatientId(patientId); e.setEncounterId(encounterId);
+    public PlanDto create(Long patientId, Long encounterId, PlanDto dto) {
+        Plan e = new Plan(); e.setPatientId(patientId); e.setEncounterId(encounterId);
         applyEditable(e, dto);
         return toDto(repo.save(e));
     }
 
-    public List<PlanDto> list(Long orgId, Long patientId, Long encounterId) {
+    public List<PlanDto> list(Long patientId, Long encounterId) {
         return repo.findByPatientIdAndEncounterId(patientId, encounterId)
                 .stream().map(this::toDto).toList();
     }
 
-    public PlanDto getOne(Long orgId, Long patientId, Long encounterId, Long id) {
+    public PlanDto getOne(Long patientId, Long encounterId, Long id) {
         Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
         return toDto(e);
     }
 
-    public PlanDto update(Long orgId, Long patientId, Long encounterId, Long id, PlanDto dto) {
+    public PlanDto update(Long patientId, Long encounterId, Long id, PlanDto dto) {
         Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed plan is read-only.");
@@ -183,14 +182,14 @@ public class PlanService {
         return toDto(repo.save(e));
     }
 
-    public void delete(Long orgId, Long patientId, Long encounterId, Long id) {
+    public void delete(Long patientId, Long encounterId, Long id) {
         Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed plan cannot be deleted.");
         repo.delete(e);
     }
 
-    public PlanDto eSign(Long orgId, Long patientId, Long encounterId, Long id, String signedBy) {
+    public PlanDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
@@ -201,7 +200,7 @@ public class PlanService {
         return toDto(repo.save(e));
     }
 
-    public byte[] renderPdf(Long orgId, Long patientId, Long encounterId, Long id) {
+    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
         e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));
