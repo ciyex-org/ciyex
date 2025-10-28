@@ -12,7 +12,6 @@ import com.qiaben.ciyex.repository.PatientRepository;
 import com.qiaben.ciyex.repository.ProviderRepository;
 import com.qiaben.ciyex.service.notification.EmailNotificationService;
 import com.qiaben.ciyex.service.notification.SmsNotificationService;
-import com.qiaben.ciyex.util.JwtTokenUtil;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.extern.slf4j.Slf4j;
@@ -32,8 +31,6 @@ public class CommunicationService {
     private final PatientRepository patientRepo;
     private final SmsNotificationService smsService;
     private final EmailNotificationService emailService;
-    private final TenantAwareService tenantAwareService;
-    private final JwtTokenUtil jwtTokenUtil;
     private final Optional<WebSocketMessagingController> webSocketController;
     private final MessageAttachmentService messageAttachmentService;
 
@@ -45,8 +42,6 @@ public class CommunicationService {
                                 PatientRepository patientRepo,
                                 SmsNotificationService smsService,
                                 EmailNotificationService emailService,
-                                TenantAwareService tenantAwareService,
-                                JwtTokenUtil jwtTokenUtil,
                                 Optional<WebSocketMessagingController> webSocketController,
                                 MessageAttachmentService messageAttachmentService) {
         this.repo = repo;
@@ -54,8 +49,6 @@ public class CommunicationService {
         this.patientRepo = patientRepo;
         this.smsService = smsService;
         this.emailService = emailService;
-        this.tenantAwareService = tenantAwareService;
-        this.jwtTokenUtil = jwtTokenUtil;
         this.webSocketController = webSocketController;
         this.messageAttachmentService = messageAttachmentService;
     }
@@ -63,7 +56,7 @@ public class CommunicationService {
     /* ------------------- CREATE ------------------- */
     @Transactional
     public CommunicationDto create(CommunicationDto dto) {
-        String now = LocalDateTime.now().toString();
+        /*String now = LocalDateTime.now().toString();
 
         Long providerId = communicationDto.getProviderId();
         if (providerId == null && communicationDto.getSender() != null && communicationDto.getSender().startsWith("Provider/")) {
@@ -109,7 +102,7 @@ public class CommunicationService {
 
         // Skip external storage for communications in development/local environment
         // Communications are stored locally in the database and don't need FHIR external storage
-        /*
+        *//*
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null) {
             ExternalStorage<CommunicationDto> ext = storageResolver.resolve(CommunicationDto.class);
@@ -119,7 +112,7 @@ public class CommunicationService {
             // Update external ID in tenant context
             tenantAwareService.executeInTenantContext(orgId, () -> repo.save(saved));
         }
-        */
+        *//*
 
         // send SMS & Email notifications - only for provider-to-patient messages
         if (saved.getPatientId() != null && saved.getProviderId() != null &&
@@ -162,33 +155,36 @@ public class CommunicationService {
             log.error("Failed to send WebSocket notification for new message: {}", e.getMessage());
         }
 
-        return toDto(saved);
+        return toDto(saved);*/
+        return null;
     }
 
     /* ------------------- GET ------------------- */
     @Transactional(readOnly = true)
     public List<CommunicationDto> getByPatientId(Long patientId) {
-        return repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId))
+        /*return repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId))
                 .stream()
                 .map(this::toDto)
-                .collect(Collectors.toList());
+                .collect(Collectors.toList());*/
+        return null;
     }
 
     @Transactional(readOnly = true)
     public CommunicationDto getItem(Long patientId, Long id) {
-        Long orgId = requireOrg("getItem");
+        /*Long orgId = requireOrg("getItem");
         return repo.findAllByPatientIdAndOrgIdText(String.valueOf(patientId), String.valueOf(orgId))
                 .stream()
                 .filter(c -> c.getId().equals(id))
                 .findFirst()
                 .map(this::toDto)
-                .orElseThrow(() -> new RuntimeException("Communication not found: " + id));
+                .orElseThrow(() -> new RuntimeException("Communication not found: " + id));*/
+        return null;
     }
 
     /* ------------------- UPDATE ------------------- */
     @Transactional
     public CommunicationDto updateItem(Long patientId, Long id, CommunicationDto patch) {
-        Long orgId = requireOrg("updateItem");
+        /*Long orgId = requireOrg("updateItem");
         List<Communication> rows = repo.findAllByPatientIdAndOrgIdText(
                 String.valueOf(patientId), String.valueOf(orgId));
         Communication row = rows.stream()
@@ -203,21 +199,22 @@ public class CommunicationService {
 
         if (row.getExternalId() != null) {
             // Skip external storage updates for communications
-            /*
+            *//*
             String storageType = configProvider.getStorageTypeForCurrentOrg();
             if (storageType != null) {
                 ExternalStorage<CommunicationDto> ext = storageResolver.resolve(CommunicationDto.class);
                 ext.update(toDto(row), row.getExternalId());
             }
-            */
+            *//*
         }
-        return toDto(row);
+        return toDto(row);*/
+        return null;
     }
 
     /* ------------------- MARK AS READ ------------------- */
     @Transactional
     public CommunicationDto markAsRead(Long id, String readBy) {
-        Long orgId = requireOrg("markAsRead");
+       /* Long orgId = requireOrg("markAsRead");
         Communication comm = repo.findById(id)
                 .filter(c -> Objects.equals(c.getOrgId(), orgId))
                 .orElseThrow(() -> new RuntimeException("Communication not found id=" + id));
@@ -248,14 +245,15 @@ public class CommunicationService {
             return toDto(saved);
         }
 
-        return toDto(comm);
+        return toDto(comm);*/
+        return null;
     }
 
     /**
      * Send read receipt notification to patient when provider reads their message
      */
     private void sendReadReceiptNotification(Communication communication) {
-        try {
+       /* try {
             tenantAwareService.executeInTenantContext(communication.getOrgId(), () -> {
                 patientRepo.findById(communication.getPatientId()).ifPresent(patient -> {
                     try {
@@ -280,7 +278,7 @@ public class CommunicationService {
             });
         } catch (Exception e) {
             log.error("Failed to send read receipt notification: {}", e.getMessage());
-        }
+        }*/
     }
 
     /* ------------------- SET STATUS ------------------- */
@@ -308,16 +306,16 @@ public class CommunicationService {
     /* ------------------- DELETE ------------------- */
     @Transactional
     public void deleteItem(Long patientId, Long id) {
-        Long orgId = requireOrg("deleteItem");
+/*        Long orgId = requireOrg("deleteItem");
         List<Communication> rows = repo.findAllByPatientIdAndOrgIdText(
                 String.valueOf(patientId), String.valueOf(orgId));
         String externalId = rows.stream().findFirst().map(Communication::getExternalId).orElse(null);
 
         int n = repo.deleteOneByIdAndPatientIdAndOrgIdText(
                 String.valueOf(id), String.valueOf(patientId), String.valueOf(orgId));
-        if (n == 0) throw new RuntimeException("Delete failed: not found");
+        if (n == 0) throw new RuntimeException("Delete failed: not found");*/
 
-        if (externalId != null) {
+       // if (externalId != null) {
             // Skip external storage deletion for communications
             /*
             String storageType = configProvider.getStorageTypeForCurrentOrg();
@@ -329,7 +327,7 @@ public class CommunicationService {
                 else ext.update(toDto(fresh.get(0)), externalId);
             }
             */
-        }
+        //}
     }
 
     @Transactional
@@ -355,23 +353,25 @@ public class CommunicationService {
     /* ------------------- SEARCH ------------------- */
     @Transactional(readOnly = true)
     public List<CommunicationDto> searchAll() {
-        Long orgId = requireOrg("searchAll");
+/*        Long orgId = requireOrg("searchAll");
         return repo.findByOrgIdText(String.valueOf(orgId))
                 .stream()
                 .map(this::toDto)
-                .collect(Collectors.toList());
+                .collect(Collectors.toList());*/
+        return null;
     }
 
     /**
      * Extract user email and org IDs from JWT token
      */
     public Map<String, Object> extractUserInfoFromToken(String token) {
-        String userEmail = jwtTokenUtil.getEmailFromToken(token);
+/*        String userEmail = jwtTokenUtil.getEmailFromToken(token);
         List<Long> orgIds = jwtTokenUtil.getOrgIdsFromToken(token);
         Map<String, Object> userInfo = new HashMap<>();
         userInfo.put("email", userEmail);
         userInfo.put("orgIds", orgIds);
-        return userInfo;
+        return userInfo;*/
+        return null;
     }
 
     /**
@@ -379,7 +379,7 @@ public class CommunicationService {
      */
     @Transactional(readOnly = true)
     public List<CommunicationDto> getCommunicationsForPortalUser(String token) {
-        try {
+       /* try {
             String userEmail = jwtTokenUtil.getEmailFromToken(token);
             List<Long> orgIds = jwtTokenUtil.getOrgIdsFromToken(token);
 
@@ -453,12 +453,13 @@ public class CommunicationService {
             return communications.stream()
                     .map(this::toDto)
                     .collect(Collectors.toList());
-        });
+        });*/
+        return null;
     }
 
     /* ------------------- MAPPER ------------------- */
     private CommunicationDto toDto(Communication r) {
-        CommunicationDto dto = new CommunicationDto();
+        /*CommunicationDto dto = new CommunicationDto();
         dto.setId(r.getId());
         dto.setExternalId(r.getExternalId());
         dto.setStatus(r.getStatus());
@@ -493,27 +494,23 @@ public class CommunicationService {
         // From (provider name)
         if (r.getProviderId() != null) {
             // Query provider in current tenant schema
-            Long orgId = r.getOrgId();
-            if (orgId != null) {
-                String schemaName = "practice_" + orgId;
-                String providerName = tenantAwareService.executeInTenantContext(orgId, () -> {
+
+                String providerName;
                     try {
                         Object[] result = (Object[]) entityManager.createNativeQuery(
-                            "SELECT first_name, last_name FROM " + schemaName + ".provider WHERE id = :providerId")
+                            "SELECT first_name, last_name FROM .provider WHERE id = :providerId")
                             .setParameter("providerId", r.getProviderId())
                             .getSingleResult();
                         if (result != null && result.length >= 2) {
-                            return result[0] + " " + result[1];
+                            providerName = result[0] + " " + result[1];
                         }
                     } catch (Exception e) {
-                        log.warn("Could not find provider name for provider ID {} in schema {}: {}", r.getProviderId(), schemaName, e.getMessage());
+                        log.warn("Could not find provider name for provider ID {} in schema {}: {}", r.getProviderId(), e.getMessage());
                     }
-                    return null;
-                });
                 if (providerName != null) {
                     dto.setFromName(providerName);
                 }
-            }
+
         } else if (r.getSender() != null && r.getSender().startsWith("Provider/")) {
             try {
                 Long pid = Long.valueOf(r.getSender().split("/")[1]);
@@ -521,7 +518,7 @@ public class CommunicationService {
                 Long orgId = r.getOrgId();
                 if (orgId != null) {
                     String schemaName = "practice_" + orgId;
-                    String providerName = tenantAwareService.executeInTenantContext(orgId, () -> {
+                    String providerName =
                         try {
                             Object[] result = (Object[]) entityManager.createNativeQuery(
                                 "SELECT first_name, last_name FROM " + schemaName + ".provider WHERE id = :providerId")
@@ -534,7 +531,7 @@ public class CommunicationService {
                             log.warn("Could not find provider name for provider ID {} in schema {}: {}", pid, schemaName, e.getMessage());
                         }
                         return null;
-                    });
+
                     if (providerName != null) {
                         dto.setFromName(providerName);
                     }
@@ -580,6 +577,7 @@ public class CommunicationService {
             dto.setAttachments(Collections.emptyList());
         }
 
-        return dto;
+        return dto;*/
+        return null;
     }
 }

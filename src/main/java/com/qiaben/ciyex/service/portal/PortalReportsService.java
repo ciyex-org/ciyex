@@ -55,10 +55,8 @@ public class PortalReportsService {
             }
 
             Long ehrPatientId = portalUser.getPortalPatient().getEhrPatientId();
-            Long orgId = portalUser.getOrgId();
-
             // Get all documents for this patient and filter for report categories
-            com.qiaben.ciyex.dto.ApiResponse<List<DocumentDto>> sharedResponse = documentService.getAllForPatient(orgId, ehrPatientId);
+            com.qiaben.ciyex.dto.ApiResponse<List<DocumentDto>> sharedResponse = documentService.getAllForPatient(ehrPatientId);
             if (sharedResponse.isSuccess() && sharedResponse.getData() != null) {
                 List<DocumentDto> reports = sharedResponse.getData()
                         .stream()

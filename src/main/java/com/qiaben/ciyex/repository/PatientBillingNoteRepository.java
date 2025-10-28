@@ -1,5 +1,6 @@
 package com.qiaben.ciyex.repository;
 
+import com.azure.core.http.HttpHeaders;
 import com.qiaben.ciyex.entity.NoteTargetType;
 import com.qiaben.ciyex.entity.PatientBillingNote;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,4 +13,6 @@ public interface PatientBillingNoteRepository extends JpaRepository<PatientBilli
     List<PatientBillingNote> findByPatientIdAndTargetTypeAndTargetIdOrderByIdAsc(
             Long patientId, NoteTargetType type, Long targetId
     );
+
+    HttpHeaders findByPatientIdAndTargetTypeAndTargetIdOrderByCreatedAtAsc(Long patientId, NoteTargetType noteTargetType, Long invoiceId);
 }

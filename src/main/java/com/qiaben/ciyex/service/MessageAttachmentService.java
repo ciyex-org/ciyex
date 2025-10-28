@@ -43,7 +43,7 @@ public class MessageAttachmentService {
     }
 
     @Transactional
-    public MessageAttachmentDto create(Long orgId, Long messageId, MessageAttachmentDto dto, MultipartFile file) {
+    public MessageAttachmentDto create(Long messageId, MessageAttachmentDto dto, MultipartFile file) {
         // 1. File size validation (using default limits for now - could be configurable later)
         long fileSize = file.getSize();
         long maxSize = 10 * 1024 * 1024; // 10MB default
@@ -77,7 +77,7 @@ public class MessageAttachmentService {
                 fileBytes = EncryptionUtil.encrypt(fileBytes, key, iv);
                 base64Key = Base64.getEncoder().encodeToString(key.getEncoded());
                 base64Iv = Base64.getEncoder().encodeToString(iv);
-                log.info("Applied encryption for message attachment file={} orgId={}", file.getOriginalFilename(), orgId);
+                log.info("Applied encryption for message attachment file={} Tenant={}", file.getOriginalFilename());
             } catch (Exception e) {
                 throw new RuntimeException("Encryption failed", e);
             }
@@ -86,18 +86,18 @@ public class MessageAttachmentService {
         // 5. Upload to S3 (or store locally for testing)
         S3Config s3Config;
         try {
-            s3Config = configProvider.getS3DocumentStorage(orgId);
+            s3Config = configProvider.getS3DocumentStorage();
         } catch (Exception e) {
             // For testing/development, create a mock S3 config
-            log.warn("S3 config not found for orgId={}, using local storage for testing", orgId);
+            log.warn("S3 config not found for Tenant={}, using local storage for testing");
             s3Config = new S3Config();
-            s3Config.setBucket("test-bucket");
+/*            s3Config.setBucket("test-bucket");
             s3Config.setRegion("us-east-1");
             s3Config.setAccessKey("test-key");
-            s3Config.setSecretKey("test-secret");
+            s3Config.setSecretKey("test-secret");*/
         }
 
-        String key = "message-attachments/" + orgId + "/" + messageId + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
+        String key = "message-attachments/" + "/" + messageId + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
 
         // For testing, we'll skip actual S3 upload and just store the file path
         if (s3Config.getBucket().equals("test-bucket")) {
@@ -127,7 +127,6 @@ public class MessageAttachmentService {
         dto.setS3Key(key);
 
         MessageAttachment entity = mapToEntity(dto);
-        entity.setOrgId(orgId);
         entity.setCreatedDate(LocalDateTime.now());
         entity.setLastModifiedDate(LocalDateTime.now());
         entity.setEncryptionKey(base64Key);
@@ -142,21 +141,21 @@ public class MessageAttachmentService {
     }
 
     @Transactional
-    public void delete(Long orgId, Long attachmentId) {
-        MessageAttachment attachment = repository.findByIdAndOrgId(attachmentId, orgId)
+    public void delete(Long attachmentId) {
+        MessageAttachment attachment = repository.findByIdAndOrgId(attachmentId)
                 .orElseThrow(() -> new RuntimeException("Message attachment not found"));
 
         S3Config s3Config;
         try {
-            s3Config = configProvider.getS3DocumentStorage(orgId);
+            s3Config = configProvider.getS3DocumentStorage();
         } catch (Exception e) {
             // For testing/development, create a mock S3 config
-            log.warn("S3 config not found for orgId={}, using local storage for testing", orgId);
+            log.warn("S3 config not found for Tenant={}, using local storage for testing");
             s3Config = new S3Config();
-            s3Config.setBucket("test-bucket");
+    /*        s3Config.setBucket("test-bucket");
             s3Config.setRegion("us-east-1");
             s3Config.setAccessKey("test-key");
-            s3Config.setSecretKey("test-secret");
+            s3Config.setSecretKey("test-secret");*/
         }
 
         // For testing, we'll skip actual S3 delete
@@ -179,21 +178,21 @@ public class MessageAttachmentService {
     }
 
     @Transactional(readOnly = true)
-    public DownloadResult download(Long orgId, Long attachmentId) {
-        MessageAttachment attachment = repository.findByIdAndOrgId(attachmentId, orgId)
+    public DownloadResult download(Long attachmentId) {
+        MessageAttachment attachment = repository.findByIdAndOrgId(attachmentId)
                 .orElseThrow(() -> new RuntimeException("Message attachment not found"));
 
         S3Config s3Config;
         try {
-            s3Config = configProvider.getS3DocumentStorage(orgId);
+            s3Config = configProvider.getS3DocumentStorage();
         } catch (Exception e) {
             // For testing/development, create a mock S3 config
-            log.warn("S3 config not found for orgId={}, using local storage for testing", orgId);
+            log.warn("S3 config not found for Tenant={}, using local storage for testing");
             s3Config = new S3Config();
-            s3Config.setBucket("test-bucket");
+/*            s3Config.setBucket("test-bucket");
             s3Config.setRegion("us-east-1");
             s3Config.setAccessKey("test-key");
-            s3Config.setSecretKey("test-secret");
+            s3Config.setSecretKey("test-secret");*/
         }
 
         // For testing, we'll return a dummy file since we didn't actually upload to S3
@@ -242,8 +241,8 @@ public class MessageAttachmentService {
     }
 
     @Transactional(readOnly = true)
-    public ApiResponse<List<MessageAttachmentDto>> getAllForMessage(Long orgId, Long messageId) {
-        List<MessageAttachment> attachments = repository.findAllByOrgIdAndMessageId(orgId, messageId);
+    public ApiResponse<List<MessageAttachmentDto>> getAllForMessage(Long messageId) {
+        List<MessageAttachment> attachments = repository.findAllByMessageId(messageId);
         List<MessageAttachmentDto> dtos = attachments.stream().map(this::mapToDto).collect(Collectors.toList());
         return ApiResponse.<List<MessageAttachmentDto>>builder()
                 .success(true)
@@ -253,8 +252,8 @@ public class MessageAttachmentService {
     }
 
     @Transactional(readOnly = true)
-    public MessageAttachmentDto getById(Long orgId, Long attachmentId) {
-        MessageAttachment attachment = repository.findByIdAndOrgId(attachmentId, orgId)
+    public MessageAttachmentDto getById(Long attachmentId) {
+        MessageAttachment attachment = repository.findByIdAndOrgId(attachmentId)
                 .orElseThrow(() -> new RuntimeException("Message attachment not found"));
         return mapToDto(attachment);
     }

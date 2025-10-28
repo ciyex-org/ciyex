@@ -58,10 +58,9 @@ public class PortalMessageAttachmentService {
             }
 
             Long ehrPatientId = portalUser.getPortalPatient().getEhrPatientId();
-            Long orgId = portalUser.getOrgId();
 
             // Get message attachments for this message
-            List<MessageAttachment> attachments = messageAttachmentRepository.findAllByOrgIdAndMessageId(orgId, messageId);
+            List<MessageAttachment> attachments = messageAttachmentRepository.findAllMessageId(messageId);
 
             // Filter to only show attachments for messages involving this patient
             // (You might want to add additional validation here to ensure the message belongs to this patient)
@@ -111,11 +110,8 @@ public class PortalMessageAttachmentService {
                         .message("User not approved")
                         .build();
             }
-
-            Long orgId = portalUser.getOrgId();
-
             // Upload the attachment using the regular service
-            MessageAttachmentDto createdAttachment = messageAttachmentService.create(orgId, messageId, dto, file);
+            MessageAttachmentDto createdAttachment = messageAttachmentService.create(messageId, dto, file);
 
             // Convert to portal DTO
             PortalMessageAttachmentDto portalAttachment = toPortalMessageAttachmentDto(
@@ -159,11 +155,8 @@ public class PortalMessageAttachmentService {
                         .message("User not approved")
                         .build();
             }
-
-            Long orgId = portalUser.getOrgId();
-
             // Delete the attachment using the regular service
-            messageAttachmentService.delete(orgId, attachmentId);
+            messageAttachmentService.delete(attachmentId);
 
             return ApiResponse.<Void>builder()
                     .success(true)
@@ -194,7 +187,6 @@ public class PortalMessageAttachmentService {
         return PortalMessageAttachmentDto.builder()
                 .id(attachment.getId())
                 .messageId(attachment.getMessageId())
-                .orgId(attachment.getOrgId())
                 .category(attachment.getCategory())
                 .type(attachment.getType())
                 .fileName(attachment.getFileName())
@@ -226,11 +218,8 @@ public class PortalMessageAttachmentService {
             if (portalUser.getStatus() != PortalStatus.APPROVED) {
                 throw new RuntimeException("User not approved");
             }
-
-            Long orgId = portalUser.getOrgId();
-
             // Get the download result using the regular service
-            return messageAttachmentService.download(orgId, attachmentId);
+            return messageAttachmentService.download(attachmentId);
 
         } catch (Exception e) {
             log.error("Error getting attachment download for portal user: {}, attachment: {}", portalUserId, attachmentId, e);

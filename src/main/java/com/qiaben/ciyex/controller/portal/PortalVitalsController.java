@@ -4,8 +4,6 @@ import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalVitalsDto;
 import com.qiaben.ciyex.service.portal.PortalVitalsService;
 import com.qiaben.ciyex.service.VitalsService;
-import com.qiaben.ciyex.util.JwtTokenUtil;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -29,7 +27,6 @@ public class PortalVitalsController {
 
     private final PortalVitalsService vitalsService;
     private final VitalsService sharedVitalsService;
-    private final JwtTokenUtil jwtUtil;
 
     /**
      * Get the recent vitals for the currently logged-in patient
@@ -37,22 +34,22 @@ public class PortalVitalsController {
      */
     @GetMapping("/recent")
     @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
-    public ApiResponse<List<PortalVitalsDto>> getRecentVitals(HttpServletRequest request) {
-        String token = resolveToken(request);
-        if (token == null) {
+    public ApiResponse<List<PortalVitalsDto>> getRecentVitals(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             return ApiResponse.<List<PortalVitalsDto>>builder()
                     .success(false)
-                    .message("Unauthorized - missing token")
+                    .message("Unauthorized - not authenticated")
                     .build();
         }
 
         try {
-            Long userId = jwtUtil.getUserIdFromToken(token);
-            return vitalsService.getRecentVitals(userId);
+            // Get Keycloak user UUID from authentication
+            String keycloakUserId = authentication.getName();
+            return vitalsService.getRecentVitals(keycloakUserId);
         } catch (Exception e) {
             return ApiResponse.<List<PortalVitalsDto>>builder()
                     .success(false)
-                    .message("Invalid token")
+                    .message("Failed to retrieve vitals: " + e.getMessage())
                     .build();
         }
     }
@@ -63,36 +60,26 @@ public class PortalVitalsController {
      */
     @GetMapping
     @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
-    public ApiResponse<List<PortalVitalsDto>> getAllVitals(HttpServletRequest request) {
-        String token = resolveToken(request);
-        if (token == null) {
+    public ApiResponse<List<PortalVitalsDto>> getAllVitals(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             return ApiResponse.<List<PortalVitalsDto>>builder()
                     .success(false)
-                    .message("Unauthorized - missing token")
+                    .message("Unauthorized - not authenticated")
                     .build();
         }
 
         try {
-            Long userId = jwtUtil.getUserIdFromToken(token);
-            return vitalsService.getAllVitals(userId);
+            // Get Keycloak user UUID from authentication
+            String keycloakUserId = authentication.getName();
+            return vitalsService.getAllVitals(keycloakUserId);
         } catch (Exception e) {
             return ApiResponse.<List<PortalVitalsDto>>builder()
                     .success(false)
-                    .message("Invalid token")
+                    .message("Failed to retrieve vitals: " + e.getMessage())
                     .build();
         }
     }
 
-    /**
-     * Extract Bearer token from Authorization header
-     */
-    private String resolveToken(HttpServletRequest request) {
-        String bearerToken = request.getHeader("Authorization");
-        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
-        }
-        return null;
-    }
 
     /**
      * Get vitals for the currently logged-in portal patient (same as /api/vitals/my but through portal proxy)
@@ -100,12 +87,11 @@ public class PortalVitalsController {
      */
     @GetMapping("/my")
     @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
-    public ApiResponse<List<PortalVitalsDto>> getMyVitals(
-            @RequestHeader(value = "x-org-id", required = false) Long orgId,
-            Authentication authentication) {
+    public ApiResponse<List<PortalVitalsDto>> getMyVitals(Authentication authentication) {
 
-        String email = authentication.getName();
-        Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(email, orgId);
+        // Get Keycloak user UUID from authentication
+        String keycloakUserId = authentication.getName();
+        Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(keycloakUserId);
 
         if (ehrPatientId == null) {
             return ApiResponse.<List<PortalVitalsDto>>builder()
@@ -116,7 +102,7 @@ public class PortalVitalsController {
         }
 
         // Get all vitals for this patient using the shared service
-        List<PortalVitalsDto> vitals = sharedVitalsService.getVitalsByPatient(orgId, ehrPatientId)
+        List<PortalVitalsDto> vitals = sharedVitalsService.getVitalsByPatient(ehrPatientId)
                 .stream()
                 .map(vital -> PortalVitalsDto.builder()
                         .id(vital.getId())

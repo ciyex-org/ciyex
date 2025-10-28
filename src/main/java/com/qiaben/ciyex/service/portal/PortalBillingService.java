@@ -54,10 +54,9 @@ public class PortalBillingService {
             }
 
             Long ehrPatientId = portalUser.getPortalPatient().getEhrPatientId();
-            Long orgId = portalUser.getOrgId();
 
             // Get all invoices for this patient
-            List<InvoiceDto> invoices = invoiceService.getAllByPatient(orgId, ehrPatientId);
+            List<InvoiceDto> invoices = invoiceService.getAllByPatient(ehrPatientId);
 
             return ApiResponse.<List<InvoiceDto>>builder()
                     .success(true)
@@ -105,10 +104,9 @@ public class PortalBillingService {
             }
 
             Long ehrPatientId = portalUser.getPortalPatient().getEhrPatientId();
-            Long orgId = portalUser.getOrgId();
 
             // Get all invoices for this patient and take the most recent 10
-            List<InvoiceDto> invoices = invoiceService.getAllByPatient(orgId, ehrPatientId)
+            List<InvoiceDto> invoices = invoiceService.getAllByPatient(ehrPatientId)
                     .stream()
                     .sorted((a, b) -> {
                         // Sort by issue date descending (most recent first)

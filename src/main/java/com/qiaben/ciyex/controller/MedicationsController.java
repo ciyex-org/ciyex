@@ -22,9 +22,9 @@ public class MedicationsController {
 
     @GetMapping("/my")
     @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
-    public ResponseEntity<?> getMyMedications(HttpServletRequest request) {
+    public ResponseEntity<?> getMyMedications() {
         try {
-            List<MedicationRequestDto> medications = medicationsService.getMedicationsForPortalUser(request);
+            List<MedicationRequestDto> medications = medicationsService.getMedicationsForPortalUser();
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Patient medications retrieved",

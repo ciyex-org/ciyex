@@ -5,7 +5,6 @@ import com.qiaben.ciyex.dto.InvoiceDto;
 import com.qiaben.ciyex.service.portal.PortalBillingService;
 import com.qiaben.ciyex.service.InvoiceService;
 import com.qiaben.ciyex.service.VitalsService;
-import com.qiaben.ciyex.util.JwtTokenUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,7 +30,6 @@ public class PortalBillingController {
     private final PortalBillingService billingService;
     private final InvoiceService sharedInvoiceService;
     private final VitalsService sharedVitalsService; // For getting EHR patient ID mapping
-    private final JwtTokenUtil jwtUtil;
 
     /**
      * Get recent invoices for the currently logged-in patient
@@ -48,7 +46,6 @@ public class PortalBillingController {
         }
 
         try {
-            Long userId = jwtUtil.getUserIdFromToken(token);
             return billingService.getRecentInvoices(userId);
         } catch (Exception e) {
             return ApiResponse.<List<InvoiceDto>>builder()
@@ -73,7 +70,6 @@ public class PortalBillingController {
         }
 
         try {
-            Long userId = jwtUtil.getUserIdFromToken(token);
             return billingService.getAllInvoices(userId);
         } catch (Exception e) {
             return ApiResponse.<List<InvoiceDto>>builder()
@@ -104,7 +100,7 @@ public class PortalBillingController {
             Authentication authentication) {
 
         String email = authentication.getName();
-        Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(email, orgId);
+        Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(email);
 
         if (ehrPatientId == null) {
             return ApiResponse.<List<InvoiceDto>>builder()
@@ -115,7 +111,7 @@ public class PortalBillingController {
         }
 
         // Get all invoices for this patient using the shared service
-        List<InvoiceDto> invoices = sharedInvoiceService.getAllByPatient(orgId, ehrPatientId);
+        List<InvoiceDto> invoices = sharedInvoiceService.getAllByPatient(ehrPatientId);
 
         return ApiResponse.<List<InvoiceDto>>builder()
                 .success(true)

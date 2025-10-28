@@ -46,7 +46,7 @@
 //         try {
 //             Pageable pageable = toPageable(page, size, sort);
 //             Page<EncounterDto> result = encounterService.listAll(
-//                     orgId, status, patientId, provider, from, to, pageable
+//                     status, patientId, provider, from, to, pageable
 //             );
 //             return ResponseEntity.ok(ApiResponse.<Page<EncounterDto>>builder()
 //                     .success(true)

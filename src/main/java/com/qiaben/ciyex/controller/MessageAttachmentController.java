@@ -29,13 +29,13 @@ public class MessageAttachmentController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<MessageAttachmentDto>> upload(
-            @PathVariable Long orgId,
+            
             @PathVariable Long messageId,
             @RequestPart("dto") String dtoJson,
             @RequestPart("file") MultipartFile file) {
         try {
             MessageAttachmentDto dto = objectMapper.readValue(dtoJson, MessageAttachmentDto.class);
-            MessageAttachmentDto created = service.create(orgId, messageId, dto, file);
+            MessageAttachmentDto created = service.create(messageId, dto, file);
 
             return ResponseEntity.ok(ApiResponse.<MessageAttachmentDto>builder()
                     .success(true)
@@ -59,18 +59,18 @@ public class MessageAttachmentController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<MessageAttachmentDto>>> list(
-            @PathVariable Long orgId,
+            
             @PathVariable Long messageId) {
-        return ResponseEntity.ok(service.getAllForMessage(orgId, messageId));
+        return ResponseEntity.ok(service.getAllForMessage(messageId));
     }
 
     @GetMapping("/{attachmentId}")
     public ResponseEntity<MessageAttachmentDto> getById(
-            @PathVariable Long orgId,
+            
             @PathVariable Long messageId,
             @PathVariable Long attachmentId) {
         try {
-            MessageAttachmentDto attachment = service.getById(orgId, attachmentId);
+            MessageAttachmentDto attachment = service.getById(attachmentId);
             return ResponseEntity.ok(attachment);
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
@@ -79,11 +79,11 @@ public class MessageAttachmentController {
 
     @GetMapping("/{attachmentId}/download")
     public ResponseEntity<InputStreamResource> download(
-            @PathVariable Long orgId,
+            
             @PathVariable Long messageId,
             @PathVariable Long attachmentId) {
         try {
-            DownloadResult result = service.download(orgId, attachmentId);
+            DownloadResult result = service.download(attachmentId);
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(result.getContentType()))
                     .header(HttpHeaders.CONTENT_DISPOSITION,
@@ -102,11 +102,11 @@ public class MessageAttachmentController {
 
     @DeleteMapping("/{attachmentId}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long orgId,
+            
             @PathVariable Long messageId,
             @PathVariable Long attachmentId) {
         try {
-            service.delete(orgId, attachmentId);
+            service.delete(attachmentId);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)
                     .message("Message attachment deleted successfully")

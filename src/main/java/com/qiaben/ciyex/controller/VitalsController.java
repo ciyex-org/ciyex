@@ -113,7 +113,7 @@ public class VitalsController {
     public ResponseEntity<ApiResponse<List<VitalsDto>>> getVitalsForEhr(
             @RequestHeader("orgId") Long orgId,
             @PathVariable Long patientId) {
-        List<VitalsDto> vitals = service.getVitalsByPatient(orgId, patientId);
+        List<VitalsDto> vitals = service.getVitalsByPatient(patientId);
         return ResponseEntity.ok(ApiResponse.<List<VitalsDto>>builder()
                 .success(true)
                 .message("Vitals retrieved for EHR")
@@ -165,7 +165,7 @@ public class VitalsController {
             @PathVariable Long patientId,
             @RequestParam Long encounterId,
             @RequestBody VitalsDto dto) {
-        VitalsDto saved = service.create(orgId, patientId, encounterId, dto);
+        VitalsDto saved = service.create(patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<VitalsDto>builder()
                 .success(true)
                 .message("Vitals recorded for EHR")

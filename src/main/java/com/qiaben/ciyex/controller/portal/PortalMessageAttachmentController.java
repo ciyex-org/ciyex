@@ -5,7 +5,6 @@ import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalMessageAttachmentDto;
 import com.qiaben.ciyex.service.MessageAttachmentService;
 import com.qiaben.ciyex.service.portal.PortalMessageAttachmentService;
-import com.qiaben.ciyex.util.JwtTokenUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.InputStreamResource;
@@ -27,7 +26,6 @@ import java.util.Map;
 public class PortalMessageAttachmentController {
 
     private final PortalMessageAttachmentService portalMessageAttachmentService;
-    private final JwtTokenUtil jwtTokenUtil;
 
     /**
      * Get all attachments for a specific message
@@ -81,15 +79,9 @@ public class PortalMessageAttachmentController {
             // Extract portal user ID from token
             Long portalUserId = extractPortalUserIdFromToken(request);
 
-            // Set org ID in request context
-            List<?> orgIds = jwtTokenUtil.getOrgIdsFromToken(resolveToken(request));
-            if (orgIds == null || orgIds.isEmpty()) {
-                throw new RuntimeException("No organization found in token");
-            }
 
             // Set org ID in request context
             com.qiaben.ciyex.dto.integration.RequestContext ctx = new com.qiaben.ciyex.dto.integration.RequestContext();
-            ctx.setOrgId(toLong(orgIds.get(0)));
             com.qiaben.ciyex.dto.integration.RequestContext.set(ctx);
 
             // Parse the DTO
@@ -99,7 +91,6 @@ public class PortalMessageAttachmentController {
             // Map to MessageAttachmentDto
             MessageAttachmentDto dto = new MessageAttachmentDto();
             dto.setMessageId(messageId);
-            dto.setOrgId(ctx.getOrgId());
             dto.setCategory(portalDto.getCategory());
             dto.setType(portalDto.getType());
             dto.setFileName(portalDto.getFileName());
@@ -213,11 +204,6 @@ public class PortalMessageAttachmentController {
             throw new RuntimeException("Authorization token missing");
         }
 
-        try {
-            return jwtTokenUtil.getUserIdFromToken(token);
-        } catch (Exception e) {
-            throw new RuntimeException("Invalid token");
-        }
     }
 
     /**

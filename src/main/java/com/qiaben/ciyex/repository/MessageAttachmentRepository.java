@@ -9,7 +9,6 @@ import java.util.Optional;
 
 @Repository
 public interface MessageAttachmentRepository extends JpaRepository<MessageAttachment, Long> {
-    List<MessageAttachment> findAllByOrgIdAndMessageId(Long orgId, Long messageId);
-    Optional<MessageAttachment> findByIdAndOrgId(Long id, Long orgId);
     List<MessageAttachment> findAllByMessageId(Long messageId);
+    List<MessageAttachment> findAllMessageId(Long messageId);
 }

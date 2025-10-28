@@ -80,9 +80,9 @@ public class FhirExternalOrgStorageIntegrationTest {
         // Verify the initial creation from setUpAll
         OrgDto retrievedOrg = orgStorage.get(externalId);
         assertNotNull(retrievedOrg, "Retrieved org should not be null for orgId: " + testOrgId);
-        assertEquals("Test Org - " + testOrgId, retrievedOrg.getOrgName(), "Org name should match for orgId: " + testOrgId);
-        assertEquals("123 Test St - " + testOrgId, retrievedOrg.getAddress(), "Address should match for orgId: " + testOrgId);
-        assertEquals("Test City - " + testOrgId, retrievedOrg.getCity(), "City should match for orgId: " + testOrgId);
+        assertEquals("Test Org - " + testretrievedOrg.getOrgName(), "Org name should match for orgId: " + testOrgId);
+        assertEquals("123 Test St - " + testretrievedOrg.getAddress(), "Address should match for orgId: " + testOrgId);
+        assertEquals("Test City - " + testretrievedOrg.getCity(), "City should match for orgId: " + testOrgId);
         assertEquals("TS", retrievedOrg.getState(), "State should match for orgId: " + testOrgId);
         assertEquals("12345", retrievedOrg.getPostalCode(), "Postal code should match for orgId: " + testOrgId);
         assertEquals("Test Country", retrievedOrg.getCountry(), "Country should match for orgId: " + testOrgId);
@@ -118,7 +118,7 @@ public class FhirExternalOrgStorageIntegrationTest {
         // Retrieve org
         OrgDto retrievedOrg = orgStorage.get(externalId);
         assertNotNull(retrievedOrg, "Retrieved org should not be null for orgId: " + testOrgId);
-        assertEquals("Updated Org - " + testOrgId, retrievedOrg.getOrgName(), "Org name should match updated value for orgId: " + testOrgId);
+        assertEquals("Updated Org - " + testretrievedOrg.getOrgName(), "Org name should match updated value for orgId: " + testOrgId);
         assertEquals(externalId, retrievedOrg.getFhirId(), "External ID should match for orgId: " + testOrgId);
     }
 

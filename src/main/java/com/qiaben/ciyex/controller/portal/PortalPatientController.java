@@ -3,7 +3,6 @@ package com.qiaben.ciyex.controller.portal;
 import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalPatientDto;
 import com.qiaben.ciyex.service.portal.PortalPatientService;
-import com.qiaben.ciyex.util.JwtTokenUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,7 +23,6 @@ import org.springframework.web.bind.annotation.*;
 public class PortalPatientController {
 
     private final PortalPatientService patientService;
-    private final JwtTokenUtil jwtUtil;
 
     /**
      * Get the profile of the currently logged-in patient
@@ -42,7 +40,7 @@ public class PortalPatientController {
         }
 
         try {
-            Long userId = jwtUtil.getUserIdFromToken(token);
+            Long userId;
             return patientService.getPatientInfo(userId);
         } catch (Exception e) {
             return ApiResponse.<PortalPatientDto>builder()
@@ -71,7 +69,7 @@ public class PortalPatientController {
         }
 
         try {
-            Long userId = jwtUtil.getUserIdFromToken(token);
+            Long userId;
             return patientService.updatePatientInfo(userId, updated);
         } catch (Exception e) {
             return ApiResponse.<PortalPatientDto>builder()

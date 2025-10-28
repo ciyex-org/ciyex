@@ -38,19 +38,19 @@
 //        FhirConfig config = configProvider.getForCurrentTenant(IntegrationKey.FHIR);
 //        if (config == null) throw new RuntimeException("No FHIR configuration found for the current organization");
 //        String accessToken = fhirAuthService.getCachedAccessToken();
-//        log.info("Obtained access token and FhirConfig for orgId: {}, apiUrl: {}", orgId, config.getApiUrl());
+//        log.info("Obtained access token and FhirConfig for orgId: {}, apiUrl: {}", config.getApiUrl());
 //
 //        log.info("Creating new FHIR context for orgId: {}", orgId);
 //        IGenericClient client = fhirContext.newRestfulGenericClient(config.getApiUrl());
-//        log.info("Created IGenericClient for orgId: {}, apiUrl: {}, client hash: {}", orgId, config.getApiUrl(), Integer.toHexString(client.hashCode()));
+//        log.info("Created IGenericClient for orgId: {}, apiUrl: {}, client hash: {}", config.getApiUrl(), Integer.toHexString(client.hashCode()));
 //        client.registerInterceptor(new BearerTokenAuthInterceptor(accessToken));
-//        log.info("Registered BearerTokenAuthInterceptor with token for orgId: {}, client hash: {}", orgId, Integer.toHexString(client.hashCode()));
+//        log.info("Registered BearerTokenAuthInterceptor with token for orgId: {}, client hash: {}", Integer.toHexString(client.hashCode()));
 //
 //        String interceptorId = UUID.randomUUID().toString();
-//        FhirTenantInterceptor tenantInterceptor = new FhirTenantInterceptor(orgId, client, interceptorId, fhirContext);
+//        FhirTenantInterceptor tenantInterceptor = new FhirTenantInterceptor(client, interceptorId, fhirContext);
 //        client.registerInterceptor(tenantInterceptor);
-//        log.info("Registered FhirTenantInterceptor with id: {}, orgId: {}, client hash: {}", interceptorId, orgId, Integer.toHexString(client.hashCode()));
-//        log.info("Exiting getForCurrentTenant with valid client for orgId: {}, client hash: {}", orgId, Integer.toHexString(client.hashCode()));
+//        log.info("Registered FhirTenantInterceptor with id: {}, orgId: {}, client hash: {}", interceptorId, Integer.toHexString(client.hashCode()));
+//        log.info("Exiting getForCurrentTenant with valid client for orgId: {}, client hash: {}", Integer.toHexString(client.hashCode()));
 //        return client;
 //    }
 //

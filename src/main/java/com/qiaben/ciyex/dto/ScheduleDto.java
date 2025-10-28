@@ -5,7 +5,7 @@ import java.util.List;
 
 /**
  * DTO carries ALL schedule details to/from the API.
- * Only id/orgId/providerId/externalId are stored locally; the rest comes from External (FHIR) storage.
+ * Only id/providerId/externalId are stored locally; the rest comes from External (FHIR) storage.
  */
 @Data
 public class ScheduleDto {

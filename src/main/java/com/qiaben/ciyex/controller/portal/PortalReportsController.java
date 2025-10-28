@@ -5,7 +5,6 @@ import com.qiaben.ciyex.dto.DocumentDto;
 import com.qiaben.ciyex.service.portal.PortalReportsService;
 import com.qiaben.ciyex.service.DocumentService;
 import com.qiaben.ciyex.service.VitalsService;
-import com.qiaben.ciyex.util.JwtTokenUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,7 +30,6 @@ public class PortalReportsController {
     private final PortalReportsService reportsService;
     private final DocumentService sharedDocumentService;
     private final VitalsService sharedVitalsService; // For getting EHR patient ID mapping
-    private final JwtTokenUtil jwtUtil;
 
     /**
      * Get recent reports for the currently logged-in patient
@@ -49,7 +47,7 @@ public class PortalReportsController {
         }
 
         try {
-            Long userId = jwtUtil.getUserIdFromToken(token);
+            Long userId;
             return reportsService.getRecentReports(userId);
         } catch (Exception e) {
             return ApiResponse.<List<DocumentDto>>builder()
@@ -75,7 +73,7 @@ public class PortalReportsController {
         }
 
         try {
-            Long userId = jwtUtil.getUserIdFromToken(token);
+            Long userId;
             return reportsService.getAllReports(userId);
         } catch (Exception e) {
             return ApiResponse.<List<DocumentDto>>builder()

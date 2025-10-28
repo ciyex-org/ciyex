@@ -170,7 +170,7 @@ public class EncounterService {
 //    public List<EncounterDto> list(Long patientId, EncounterStatus status) {
 //        List<Encounter> list = (status == null)
 
-//                : repo.findByPatientIdAndOrgIdAndStatusOrderByIdDesc(patientId, status);
+//                : repo.findByPatientIdAndStatusOrderByIdDesc(patientId, status);
 //        return list.stream().map(EncounterMapper::toDto).toList();
 //    }
 //

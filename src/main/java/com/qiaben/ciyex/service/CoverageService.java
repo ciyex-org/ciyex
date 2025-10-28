@@ -6,11 +6,10 @@ import com.qiaben.ciyex.entity.Coverage;
 import com.qiaben.ciyex.entity.InsuranceCompany;
 import com.qiaben.ciyex.repository.CoverageRepository;
 import com.qiaben.ciyex.repository.InsuranceCompanyRepository;
-import com.qiaben.ciyex.util.JwtTokenUtil;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,11 +23,6 @@ public class CoverageService {
 
     private final CoverageRepository coverageRepository;
     private final InsuranceCompanyRepository insuranceCompanyRepository;
-    private final TenantAwareService tenantAwareService;
-    private final JwtTokenUtil jwtTokenUtil;
-    
-    @PersistenceContext
-    private EntityManager entityManager;
 
     // ---- CRUD ----
 
@@ -99,80 +93,68 @@ public class CoverageService {
 
     // 🏥 EHR Method - Get all coverages for a patient
     @Transactional(readOnly = true)
-    public List<CoverageDto> getCoveragesByPatient(Long orgId, Long patientId) {
-        log.info("Getting coverages for patient {} in org {}", patientId, orgId);
+    public List<CoverageDto> getCoveragesByPatient(Long patientId) {
+        log.info("Getting coverages for patient {}", patientId);
         
-        return tenantAwareService.executeInTenantContext(orgId, () -> {
             List<Coverage> coverages = coverageRepository.findByPatientIdOrderByEffectiveDateDesc(patientId);
-            log.info("Found {} coverage records for patient {} in org {}", coverages.size(), patientId, orgId);
+            log.info("Found {} coverage records for patient {}", coverages.size(), patientId);
             return coverages.stream()
-                    .filter(c -> c.getOrgId().equals(orgId)) // Multi-tenant security
                     .map(this::mapToDto)
                     .collect(Collectors.toList());
-        });
     }
 
     // 👩‍⚕️ Portal Method - Map portal user email to EHR patient ID
     @Transactional(readOnly = true)
-    public Long getEhrPatientIdFromPortalUserEmail(String email, Long orgId) {
-        log.info("Looking up EHR patient ID for portal user {} in org {}", email, orgId);
+    public Long getEhrPatientIdFromPortalUserEmail(String email) {
+        log.info("Looking up EHR patient ID for portal user {}", email);
         
         if (email == null || email.trim().isEmpty()) {
             return null;
         }
         
-        return tenantAwareService.executeQueryInMasterContext(em -> {
-            try {
-                // Query the portal_patients table in public schema to find the EHR patient ID
-                Object result = em.createNativeQuery(
-                    "SELECT pp.ehr_patient_id FROM public.portal_patients pp " +
-                    "JOIN public.portal_users pu ON pp.portal_user_id = pu.id " +
-                    "WHERE pu.email = :email LIMIT 1")
-                    .setParameter("email", email)
-                    .getSingleResult();
-                
-                if (result != null) {
-                    Long patientId = ((Number) result).longValue();
-                    log.info("Found EHR patient ID {} for portal user {} in org {}", patientId, email, orgId);
-                    return patientId;
-                }
-            } catch (Exception e) {
-                log.warn("Failed to find EHR patient ID for user {}: {}", email, e.getMessage());
+        try {
+            // Query the portal_patients table in public schema to find the EHR patient ID
+            Long patientId = coverageRepository.findEhrPatientIdByPortalUserEmail(email);
+            
+            if (patientId != null) {
+                log.info("Found EHR patient ID {} for portal user {}", patientId, email);
+                return patientId;
             }
             
-            // Fallback: return patient ID 1 for testing
-            log.info("Using fallback patient ID 1 for user {} in org {}", email, orgId);
-            return 1L;
-        });
+            log.error("No EHR patient ID found for portal user {}", email);
+            throw new RuntimeException("No patient mapping found for user: " + email);
+        } catch (Exception e) {
+            log.error("Failed to find EHR patient ID for user {}: {}", email, e.getMessage());
+            throw new RuntimeException("Failed to lookup patient ID for user: " + email, e);
+        }
     }
 
     /**
-     * Get coverages for current portal user based on JWT token
+     * Get coverages for current portal user based on Keycloak authentication
      */
     @Transactional(readOnly = true) 
     public List<CoverageDto> getCoveragesForPortalUser(String token) {
         try {
-            String userEmail = jwtTokenUtil.getEmailFromToken(token);
-            List<Long> orgIds = jwtTokenUtil.getOrgIdsFromToken(token);
-            
-            if (orgIds == null || orgIds.isEmpty()) {
-                log.error("No orgIds found in token for user {}", userEmail);
-                throw new IllegalArgumentException("No organization found in token");
+            // Extract user info from Keycloak authentication context
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                log.error("No authenticated user found in security context");
+                throw new RuntimeException("User not authenticated");
             }
             
-            // Use the first orgId (primary organization)
-            Long orgId = ((Number) orgIds.get(0)).longValue();
-            log.info("Getting coverages for portal user {} in org {}", userEmail, orgId);
+            // Get Keycloak user UUID (subject) from authentication principal
+            String keycloakUserId = authentication.getName(); // This is the Keycloak user UUID
+            log.info("Processing coverage request for Keycloak user: {}", keycloakUserId);
             
-            // Get the EHR patient ID for this portal user
-            Long patientId = getEhrPatientIdFromPortalUserEmail(userEmail, orgId);
+            // Get the EHR patient ID for this Keycloak user
+            Long patientId = getEhrPatientIdFromPortalUserEmail(keycloakUserId);
             if (patientId == null) {
-                log.warn("No patient ID found for portal user {} in org {}", userEmail, orgId);
+                log.warn("No patient ID found for Keycloak user {}", keycloakUserId);
                 return List.of(); // Return empty list instead of null
             }
             
-            // Get coverages using tenant-aware query
-            return getCoveragesByPatient(orgId, patientId);
+            // Get coverages for patient
+            return getCoveragesByPatient(patientId);
             
         } catch (Exception e) {
             log.error("Error getting coverages for portal user: {}", e.getMessage(), e);
