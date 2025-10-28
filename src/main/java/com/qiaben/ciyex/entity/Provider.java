@@ -1,5 +1,6 @@
 
 package com.qiaben.ciyex.entity;
+import com.qiaben.ciyex.dto.ProviderDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,7 +13,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @Entity
 @Table(name = "provider")
-public class Provider {
+public class Provider extends ProviderDto {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

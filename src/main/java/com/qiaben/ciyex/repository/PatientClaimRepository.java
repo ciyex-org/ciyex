@@ -29,9 +29,14 @@ public interface PatientClaimRepository extends JpaRepository<PatientClaim, Long
     /** Legacy fallback: single claim per invoice (no tenant/patient scope) */
     PatientClaim findByInvoiceId(Long invoiceId);
 
+
     /** All claims for a patient (new) */
     List<PatientClaim> findAllByOrgIdAndPatientIdOrderByIdDesc(Long orgId, Long patientId);
     List<PatientClaim> findAllByOrgIdAndPatientId(Long orgId, Long patientId);
+
+    /** All claims for all patients in the org (for All Claims view) */
+    List<PatientClaim> findAllByOrgIdOrderByIdDesc(Long orgId);
+    List<PatientClaim> findAllByOrgId(Long orgId);
 
     /** All (historical) claims for a specific invoice (new) */
     List<PatientClaim> findAllByInvoiceIdAndOrgIdAndPatientIdOrderByIdDesc(Long invoiceId, Long orgId, Long patientId);
