@@ -27,28 +27,36 @@ public class TenantContextInterceptor implements HandlerInterceptor {
         try {
             // Get org ID from header
             String orgIdHeader = request.getHeader("X-Org-Id");
-            
+            log.debug("TenantContextInterceptor.preHandle - incoming X-Org-Id header: {}", orgIdHeader);
+
             if (orgIdHeader != null) {
                 Long orgId = Long.parseLong(orgIdHeader);
-                
+
+                // Ensure RequestContext exists and prefer header value over any existing value
+                RequestContext existing = RequestContext.get();
+                Long prevOrg = (existing != null ? existing.getOrgId() : null);
+                if (existing == null) {
+                    existing = new RequestContext();
+                    RequestContext.set(existing);
+                }
+
+                if (prevOrg != null && !prevOrg.equals(orgId)) {
+                    log.warn("TenantContextInterceptor - overriding existing RequestContext.orgId {} with header orgId {}", prevOrg, orgId);
+                } else {
+                    log.debug("TenantContextInterceptor - setting RequestContext.orgId to header value {}", orgId);
+                }
+                existing.setOrgId(orgId);
+
                 // Validate that the current user has access to this organization
                 if (validateUserOrgAccess(orgId)) {
-                    RequestContext context = RequestContext.get();
-                        if (context == null) {
-                            context = new RequestContext();
-                            RequestContext.set(context);
-                        }
-                        context.setOrgId(orgId);
-                        log.debug("Set orgId {} in RequestContext from X-Org-Id header", orgId);
-
-                        // Ensure tenant schema (and tables) are initialized on first use. This is idempotent.
-                        try {
-                            log.debug("Initializing tenant schema for orgId: {} before handling request", orgId);
-                            tenantSchemaInitializer.initializeTenantSchema(orgId);
-                            log.debug("Tenant schema initialization completed for orgId: {}", orgId);
-                        } catch (Exception e) {
-                            log.warn("Failed to initialize tenant schema for org {}: {}", orgId, e.getMessage());
-                        }
+                    // Ensure tenant schema (and tables) are initialized on first use. This is idempotent.
+                    try {
+                        log.debug("Initializing tenant schema for orgId: {} before handling request", orgId);
+                        tenantSchemaInitializer.initializeTenantSchema(orgId);
+                        log.debug("Tenant schema initialization completed for orgId: {}", orgId);
+                    } catch (Exception e) {
+                        log.warn("Failed to initialize tenant schema for org {}: {}", orgId, e.getMessage());
+                    }
                 } else {
                     log.warn("User does not have access to organization: {}", orgId);
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);

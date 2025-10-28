@@ -6,4 +6,5 @@ import lombok.Data;
 public class StripeConfig {
     private String apiKey;
     private String webhookSecret;
+    private String publishableKey;
 }

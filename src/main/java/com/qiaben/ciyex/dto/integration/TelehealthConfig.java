@@ -6,9 +6,10 @@ import lombok.Data;
 public class TelehealthConfig {
 
     private Long orgId; // Will be set by OrgIntegrationConfigProvider
-    private String vendor; // e.g., "twilio", "telnyx"
+    private String vendor; // e.g., "twilio", "telnyx", "jitsi"
     private Twilio twilio;
     private Telnyx telnyx;
+    private Jitsi jitsi;
 
     @Data
     public static class Twilio {
@@ -25,6 +26,15 @@ public class TelehealthConfig {
     public static class Telnyx {
         private String apiKey;
         private String fromNumber;
+    }
+
+    @Data
+    public static class Jitsi {
+        private String serverUrl; // e.g., "https://meet-stg.ciyex.com"
+        private String appId;     // Jitsi app ID for JWT
+        private String appSecret; // Jitsi app secret for JWT
+        private Boolean enableRecording;
+        private Integer defaultTokenTtl; // Default TTL in seconds
     }
 
     // Default constructor for JSON deserialization

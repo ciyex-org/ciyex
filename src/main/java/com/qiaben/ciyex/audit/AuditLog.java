@@ -25,13 +25,13 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "audit_log", indexes = {
-    @Index(name = "idx_audit_user_id", columnList = "userId"),
-    @Index(name = "idx_audit_event_time", columnList = "eventTime"),
-    @Index(name = "idx_audit_action_type", columnList = "actionType"),
-    @Index(name = "idx_audit_entity_type", columnList = "entityType"),
-    @Index(name = "idx_audit_patient_id", columnList = "patientId"),
-    @Index(name = "idx_audit_ip_address", columnList = "ipAddress"),
-    @Index(name = "idx_audit_session_id", columnList = "sessionId")
+    @Index(name = "idx_audit_user_id", columnList = "user_id"),
+    @Index(name = "idx_audit_event_time", columnList = "event_time"),
+    @Index(name = "idx_audit_action_type", columnList = "action_type"),
+    @Index(name = "idx_audit_entity_type", columnList = "entity_type"),
+    @Index(name = "idx_audit_patient_id", columnList = "patient_id"),
+    @Index(name = "idx_audit_ip_address", columnList = "ip_address"),
+    @Index(name = "idx_audit_session_id", columnList = "session_id")
 })
 @Data
 @NoArgsConstructor
@@ -46,119 +46,119 @@ public class AuditLog {
      * Timestamp when the auditable event occurred
      * Required by ONC § 170.315(d)(2)
      */
-    @Column(nullable = false)
+    @Column(name = "event_time", nullable = false)
     private LocalDateTime eventTime;
     
     /**
      * User identifier performing the action
      * Required by ONC § 170.315(d)(2)
      */
-    @Column(nullable = false, length = 100)
+    @Column(name = "user_id", nullable = false, length = 100)
     private String userId;
     
     /**
      * User's role/authority at time of action
      * Required for access control auditing per ONC § 170.315(d)(1)
      */
-    @Column(nullable = false, length = 50)
+    @Column(name = "user_role", nullable = false, length = 50)
     private String userRole;
     
     /**
      * Session identifier for the user session
      * Helps track user activity across requests
      */
-    @Column(length = 255)
+    @Column(name = "session_id", length = 255)
     private String sessionId;
     
     /**
      * Type of action performed (CREATE, READ, UPDATE, DELETE, LOGIN, LOGOUT, etc.)
      * Required by ONC § 170.315(d)(2)
      */
-    @Column(nullable = false, length = 50)
+    @Column(name = "action_type", nullable = false, length = 50)
     private String actionType;
     
     /**
      * Type of entity/resource being accessed or modified
      * Required by ONC § 170.315(d)(2)
      */
-    @Column(nullable = false, length = 100)
+    @Column(name = "entity_type", nullable = false, length = 100)
     private String entityType;
     
     /**
      * Unique identifier of the specific entity instance
      * Required by ONC § 170.315(d)(2)
      */
-    @Column(length = 100)
+    @Column(name = "entity_id", length = 100)
     private String entityId;
     
     /**
      * Patient ID if the action involves patient data
      * Critical for patient data access auditing per ONC requirements
      */
-    @Column
+    @Column(name = "patient_id")
     private Long patientId;
     
     /**
      * Human-readable description of the auditable event
      * Required by ONC § 170.315(d)(2)
      */
-    @Column(nullable = false, length = 500)
+    @Column(name = "description", nullable = false, length = 500)
     private String description;
     
     /**
      * Additional structured details about the event (JSON format)
      * Stores context-specific information for comprehensive auditing
      */
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "details", columnDefinition = "TEXT")
     private String details;
     
     /**
      * Source IP address of the request
      * Required for security auditing per ONC § 170.315(d)(9)
      */
-    @Column(length = 45) // IPv6 compatible
+    @Column(name = "ip_address", length = 45) // IPv6 compatible
     private String ipAddress;
     
     /**
      * User agent string from the request
      * Helps identify the client application/browser
      */
-    @Column(length = 500)
+    @Column(name = "user_agent", length = 500)
     private String userAgent;
     
     /**
      * API endpoint or URL accessed
      * Required by ONC § 170.315(d)(2)
      */
-    @Column(length = 500)
+    @Column(name = "endpoint", length = 500)
     private String endpoint;
     
     /**
      * HTTP method used (GET, POST, PUT, DELETE, etc.)
      * Provides context for the type of operation
      */
-    @Column(length = 10)
+    @Column(name = "http_method", length = 10)
     private String httpMethod;
     
     /**
      * Response status code
      * Helps track successful vs failed operations
      */
-    @Column
+    @Column(name = "response_status")
     private Integer responseStatus;
     
     /**
      * Success flag for the operation
      * Quick indicator for filtering successful vs failed events
      */
-    @Column(nullable = false)
+    @Column(name = "success", nullable = false)
     private Boolean success = true;
     
     /**
      * Error message if the operation failed
      * Captures failure details for security monitoring
      */
-    @Column(length = 1000)
+    @Column(name = "error_message", length = 1000)
     private String errorMessage;
     
     /**
@@ -166,21 +166,21 @@ public class AuditLog {
      * Helps prioritize security review and compliance monitoring
      */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "risk_level", nullable = false)
     private AuditRiskLevel riskLevel = AuditRiskLevel.LOW;
     
     /**
      * Whether this event requires special attention for compliance
      * Flags events that are critical for ONC certification requirements
      */
-    @Column(nullable = false)
+    @Column(name = "compliance_critical", nullable = false)
     private Boolean complianceCritical = false;
     
     /**
      * Organization/tenant ID for multi-tenant systems
      * Ensures audit logs are properly isolated
      */
-    @Column
+    @Column(name = "organization_id")
     private Long organizationId;
     
     /**
@@ -188,13 +188,14 @@ public class AuditLog {
      * Tracks access to sensitive patient data
      */
     @Enumerated(EnumType.STRING)
+    @Column(name = "data_classification")
     private DataClassification dataClassification;
     
     /**
      * Consent reference if patient consent was involved
      * Links to patient consent for data access validation
      */
-    @Column(length = 100)
+    @Column(name = "consent_reference", length = 100)
     private String consentReference;
     
     // Constructors

@@ -2,11 +2,19 @@ package com.qiaben.ciyex.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.qiaben.ciyex.dto.integration.IntegrationKey;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.dto.integration.StripeConfig;
+import com.qiaben.ciyex.dto.integration.GpsConfig;   // ✅ Added import
 import com.qiaben.ciyex.entity.OrgConfig;
 import com.qiaben.ciyex.repository.OrgConfigRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.Statement;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,21 +22,66 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Objects;
 
 @Component
+@Slf4j
 public class OrgIntegrationConfigProvider {
 
     private final ObjectMapper objectMapper;
     private final OrgConfigRepository orgConfigRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    private final DataSource dataSource;
+
     @Autowired
-    public OrgIntegrationConfigProvider(ObjectMapper objectMapper, OrgConfigRepository orgConfigRepository) {
+    public OrgIntegrationConfigProvider(ObjectMapper objectMapper, OrgConfigRepository orgConfigRepository, DataSource dataSource) {
         this.objectMapper = objectMapper;
         this.orgConfigRepository = orgConfigRepository;
+        this.dataSource = dataSource;
+    }
+
+    /**
+     * Ensures we're in the master schema (public) before executing OrgConfig operations
+     */
+    private void ensureTenantSchema(Long orgId) {
+        if (orgId == null) return;
+        String schemaName = "practice_" + orgId;
+        if (dataSource != null) {
+            try (Connection conn = dataSource.getConnection(); Statement stmt = conn.createStatement()) {
+                stmt.execute("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public");
+                log.debug("Set search_path to {} via DataSource for OrgIntegrationConfigProvider", schemaName);
+                return;
+            } catch (Exception e) {
+                log.warn("Failed to set search_path via DataSource for {}: {}", schemaName, e.getMessage());
+            }
+        }
+
+        try {
+            entityManager.createNativeQuery("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public").executeUpdate();
+            log.debug("Set search_path to {} via EntityManager (fallback)", schemaName);
+        } catch (Exception e) {
+            log.warn("Failed to set schema to {} for OrgIntegrationConfigProvider: {}", schemaName, e.getMessage());
+        }
+    }
+
+    private void ensureTenantSchemaFromContext() {
+        try {
+            RequestContext ctx = RequestContext.get();
+            if (ctx != null && ctx.getOrgId() != null) {
+                ensureTenantSchema(ctx.getOrgId());
+            }
+        } catch (Exception e) {
+            log.debug("No RequestContext available to set tenant schema: {}", e.getMessage());
+        }
     }
 
     // Core method: Always use IntegrationKey (which knows both key and class)
     @SuppressWarnings("unchecked")
     @Transactional
     public <T> T get(Long orgId, IntegrationKey integrationKey) {
+    // Ensure we're in the tenant schema for this org
+    ensureTenantSchema(orgId);
+        
         // Ensure RequestContext carries the target orgId for the duration of the lookup
         RequestContext previousContext = RequestContext.get();
         boolean contextAdjusted = false;
@@ -76,8 +129,16 @@ public class OrgIntegrationConfigProvider {
         return getForCurrentOrg(IntegrationKey.STRIPE);
     }
 
+    /** ✅ Shortcut for GPS */
+    public GpsConfig getGpsForCurrentOrg() {
+        return getForCurrentOrg(IntegrationKey.GPS);
+    }
+
     @Transactional
     public String getStorageType(Long orgId) {
+    // Ensure we're in the tenant schema for this org
+    ensureTenantSchema(orgId);
+        
         // Ensure RequestContext carries the target orgId for the duration of the lookup
         RequestContext previousContext = RequestContext.get();
         boolean contextAdjusted = false;
@@ -131,6 +192,9 @@ public class OrgIntegrationConfigProvider {
     /** ✅ NEW: Helper for S3 Document Storage */
     @Transactional
     public S3Config getS3DocumentStorage(Long orgId) {
+    // Ensure we're in the tenant schema for this org
+    ensureTenantSchema(orgId);
+        
         // Ensure RequestContext carries the target orgId for the duration of the lookup
         RequestContext previousContext = RequestContext.get();
         boolean contextAdjusted = false;
@@ -177,6 +241,67 @@ public class OrgIntegrationConfigProvider {
         Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
         if (orgId == null) throw new IllegalStateException("No orgId in request context");
         return getS3DocumentStorage(orgId);
+    }
+
+    /** ✅ Update S3 Document Storage Configuration */
+    @Transactional
+    public void updateS3DocumentStorage(Long orgId, S3Config newS3Config) {
+        // Ensure we're in the tenant schema for this org
+        ensureTenantSchema(orgId);
+
+        // Ensure RequestContext carries the target orgId for the duration of the lookup
+        RequestContext previousContext = RequestContext.get();
+        boolean contextAdjusted = false;
+        if (previousContext == null || !Objects.equals(previousContext.getOrgId(), orgId)) {
+            RequestContext context = new RequestContext();
+            if (previousContext != null) {
+                context.setAuthToken(previousContext.getAuthToken());
+                context.setFacilityId(previousContext.getFacilityId());
+                context.setRole(previousContext.getRole());
+            }
+            context.setOrgId(orgId);
+            RequestContext.set(context);
+            contextAdjusted = true;
+        }
+        try {
+            OrgConfig orgConfig = orgConfigRepository.findByOrgId(orgId)
+                    .orElseThrow(() -> new RuntimeException("OrgConfig not found for orgId: " + orgId));
+
+            // Get current integrations or create empty object
+            JsonNode integrations = orgConfig.getIntegrations();
+            if (integrations == null) {
+                integrations = objectMapper.createObjectNode();
+            }
+
+            // Convert S3Config to JsonNode
+            JsonNode s3Node = objectMapper.valueToTree(newS3Config);
+
+            // Update the document_storage.s3 path
+            ObjectNode integrationsObj = (ObjectNode) integrations;
+            ObjectNode documentStorage;
+            if (integrationsObj.has("document_storage")) {
+                documentStorage = (ObjectNode) integrationsObj.get("document_storage");
+            } else {
+                documentStorage = objectMapper.createObjectNode();
+                integrationsObj.set("document_storage", documentStorage);
+            }
+            documentStorage.set("s3", s3Node);
+
+            // Save the updated config
+            orgConfig.setIntegrations(integrationsObj);
+            orgConfigRepository.save(orgConfig);
+
+            log.info("Updated S3 document storage config for orgId: {}", orgId);
+
+        } finally {
+            if (contextAdjusted) {
+                if (previousContext != null) {
+                    RequestContext.set(previousContext);
+                } else {
+                    RequestContext.clear();
+                }
+            }
+        }
     }
 
     public static class S3Config {
@@ -228,11 +353,14 @@ public void someServiceMethod(Long orgId) {
     OpenEmrConfig openEmrConfig = integrationConfigProvider.get(orgId, IntegrationKey.OPENEMR);
     StripeConfig stripeConfig = integrationConfigProvider.get(orgId, IntegrationKey.STRIPE);
     TwilioConfig twilioConfig = integrationConfigProvider.get(orgId, IntegrationKey.TWILIO);
+    GpsConfig gpsConfig = integrationConfigProvider.get(orgId, IntegrationKey.GPS); // ✅ GPS
     // ...and so on
 
     String storageType = integrationConfigProvider.getStorageType(orgId);
+
     S3Config s3Config = integrationConfigProvider.getS3DocumentStorage(orgId);
     // Or from context:
     // S3Config s3Config = integrationConfigProvider.getS3DocumentStorageForCurrentOrg();
     // Use storageType and s3Config to resolve the appropriate ExternalOrgStorage
 }*/
+

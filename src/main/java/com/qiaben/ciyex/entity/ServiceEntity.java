@@ -10,6 +10,7 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class ServiceEntity {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -17,11 +18,12 @@ public class ServiceEntity {
     @Column(nullable = false, unique = true)
     private String name;
 
+    @Column(name = "default_price")
     private String defaultPrice;
 
-    @Column(nullable = false)
+    @Column(name = "created_date", nullable = false)
     private String createdDate;
 
-    @Column(nullable = false)
+    @Column(name = "last_modified_date", nullable = false)
     private String lastModifiedDate;
 }

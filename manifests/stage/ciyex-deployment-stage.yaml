@@ -51,4 +51,6 @@ spec:
                   key: POSTGRES_PASSWORD
             - name: NEXT_PUBLIC_API_URL
               value: "https://stg.ciyex.com/api"
+            - name: CIYEX_TENANT_AUTO_INIT
+              value: "false"
 
