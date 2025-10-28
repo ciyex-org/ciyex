@@ -1066,6 +1066,7 @@ public class PatientBillingService {
         claimRepo.save(claim);
     }
 
+
     /** Submit claim attachment */
     public void submitClaimAttachment(Long orgId, Long patientId, Long claimId, MultipartFile file) throws Exception {
         // Save file to claim entity and increment attachment count

@@ -662,6 +662,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
             return ResponseEntity.ok(ApiResponse.ok("Claim attachment submitted", dto));
         }
 
+
     
       
 }

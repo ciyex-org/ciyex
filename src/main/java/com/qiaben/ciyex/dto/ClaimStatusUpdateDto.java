@@ -7,6 +7,7 @@ public class ClaimStatusUpdateDto {
     private String remitDate;
     private BigDecimal paymentAmount;
 
+
     // Getters and setters
 
     public String getStatus() { return status; }
