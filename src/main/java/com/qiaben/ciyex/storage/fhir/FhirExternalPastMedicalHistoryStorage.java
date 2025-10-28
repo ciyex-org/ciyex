@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.storage.fhir;
 
 import com.qiaben.ciyex.dto.PastMedicalHistoryDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.provider.FhirClientProvider;
 import com.qiaben.ciyex.storage.ExternalPastMedicalHistoryStorage;
 import lombok.RequiredArgsConstructor;
@@ -46,15 +47,15 @@ public class FhirExternalPastMedicalHistoryStorage implements ExternalPastMedica
     }
 
     @Override
-    public List<PastMedicalHistoryDto> searchAll(Long orgId, Long patientId) {
-        log.info("FHIR PMH searchAll orgId={}, patientId={}", orgId, patientId);
+    public List<PastMedicalHistoryDto> searchAll(Long patientId) {
+        log.info("FHIR PMH searchAll Tenant={}, patientId={}", RequestContext.get().getTenantName(), patientId);
         // TODO: query FHIR
         return Collections.emptyList();
     }
 
     @Override
-    public List<PastMedicalHistoryDto> searchAll(Long orgId, Long patientId, Long encounterId) {
-        log.info("FHIR PMH searchAll orgId={}, patientId={}, encounterId={}", orgId, patientId, encounterId);
+    public List<PastMedicalHistoryDto> searchAll(Long patientId, Long encounterId) {
+        log.info("FHIR PMH searchAll Tenant={}, patientId={}, encounterId={}", RequestContext.get().getTenantName(), patientId, encounterId);
         // TODO: query FHIR
         return Collections.emptyList();
     }

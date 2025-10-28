@@ -20,6 +20,6 @@ public class FhirExternalInvoiceStorage implements ExternalInvoiceStorage {
     @Override public void update(String externalId, InvoiceDto dto) { }
     @Override public Optional<InvoiceDto> get(String externalId) { return Optional.empty(); }
     @Override public void delete(String externalId) { }
-    @Override public List<InvoiceDto> searchAll(Long orgId, Long patientId) { return Collections.emptyList(); }
-    @Override public List<InvoiceDto> searchAll(Long orgId, Long patientId, Long encounterId) { return Collections.emptyList(); }
+    @Override public List<InvoiceDto> searchAll(Long patientId) { return Collections.emptyList(); }
+    @Override public List<InvoiceDto> searchAll(Long patientId, Long encounterId) { return Collections.emptyList(); }
 }

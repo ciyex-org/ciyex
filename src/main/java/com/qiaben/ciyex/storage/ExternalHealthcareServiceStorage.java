@@ -6,7 +6,7 @@ import java.util.List;
 
 public interface ExternalHealthcareServiceStorage {
 
-    HealthcareServiceDto createHealthcareService(HealthcareServiceDto dto, Long orgId);
+    HealthcareServiceDto createHealthcareService(HealthcareServiceDto dto);
 
-    List<HealthcareServiceDto> getHealthcareServicesByOrgId(Long orgId);
+    List<HealthcareServiceDto> getHealthcareServices();
 }

@@ -10,6 +10,6 @@ public interface ExternalDateTimeFinalizedStorage {
     void update(String externalId, DateTimeFinalizedDto dto);
     Optional<DateTimeFinalizedDto> get(String externalId);
     void delete(String externalId);
-    List<DateTimeFinalizedDto> searchAll(Long orgId, Long patientId);
-    List<DateTimeFinalizedDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    List<DateTimeFinalizedDto> searchAll(Long patientId);
+    List<DateTimeFinalizedDto> searchAll(Long patientId, Long encounterId);
 }

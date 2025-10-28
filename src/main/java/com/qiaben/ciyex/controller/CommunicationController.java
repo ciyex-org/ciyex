@@ -212,13 +212,8 @@ public class CommunicationController {
 
     /* ------------------- GET ALL ------------------- */
     @GetMapping
-    public ResponseEntity<ApiResponse<List<CommunicationDto>>> getAllByOrg(
-            @RequestHeader("x-org-id") Long orgId) {
+    public ResponseEntity<ApiResponse<List<CommunicationDto>>> getAllByOrg() {
         try {
-            RequestContext ctx = new RequestContext();
-            // orgId deprecated; tenantName populated by interceptor.
-            RequestContext.set(ctx);
-
             List<CommunicationDto> all = service.searchAll();
             return ResponseEntity.ok(ApiResponse.<List<CommunicationDto>>builder()
                     .success(true)

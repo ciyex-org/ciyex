@@ -37,7 +37,7 @@
 //    @GetMapping("/{patientId}/{encounterId}/{id}")
 //    public ResponseEntity<ApiResponse<SignoffDto>> getOne(
 //            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        var dto = service.getOne(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<SignoffDto>builder()
 //                .success(true).message("Signoff fetched").data(dto).build());
@@ -64,7 +64,7 @@
 //    @DeleteMapping("/{patientId}/{encounterId}/{id}")
 //    public ResponseEntity<ApiResponse<Void>> delete(
 //            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        service.delete(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<Void>builder()
 //                .success(true).message("Signoff deleted").build());

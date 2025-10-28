@@ -26,7 +26,6 @@ public class ListOptionService {
     @Transactional
     public ListOptionDto create(ListOptionDto dto) {
         ListOption entity = new ListOption();
-        entity.setOrgId(RequestContext.get().getTenantName());
         entity.setListId(dto.getListId());
         entity.setOptionId(dto.getOptionId());
         entity.setTitle(dto.getTitle());
@@ -81,7 +80,6 @@ public class ListOptionService {
     private ListOptionDto convertToDto(ListOption entity) {
         ListOptionDto dto = new ListOptionDto();
         dto.setId(entity.getId());
-        dto.setOrgId(entity.getOrgId());
         dto.setListId(entity.getListId());
         dto.setOptionId(entity.getOptionId());
         dto.setTitle(entity.getTitle());

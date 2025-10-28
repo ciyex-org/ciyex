@@ -22,7 +22,7 @@
 //    @GetMapping("/{patientId}")
 //    public ResponseEntity<ApiResponse<List<AssessmentDto>>> getAllByPatient(
 //            @PathVariable Long patientId,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        var list = service.getAllByPatient(patientId);
 //        return ResponseEntity.ok(ApiResponse.<List<AssessmentDto>>builder()
 //                .success(true).message("Assessment list fetched").data(list).build());
@@ -33,7 +33,7 @@
 //    public ResponseEntity<ApiResponse<List<AssessmentDto>>> getAllByEncounter(
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        var list = service.getAllByEncounter(patientId, encounterId);
 //        return ResponseEntity.ok(ApiResponse.<List<AssessmentDto>>builder()
 //                .success(true).message("Assessment list fetched").data(list).build());
@@ -45,7 +45,7 @@
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        var dto = service.getOne(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<AssessmentDto>builder()
 //                .success(true).message("Assessment fetched").data(dto).build());
@@ -80,7 +80,7 @@
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        service.delete(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<Void>builder()
 //                .success(true).message("Assessment deleted").build());

@@ -325,7 +325,7 @@ public class ProviderService {
 
 
     @Transactional(readOnly = true)
-    public long getProviderCountByOrgId() {
+    public long getProviderCount() {
         // You might want to add security checks here if needed
         return repository.count();
     }

@@ -32,7 +32,7 @@
 //    }
 //
 //    public IGenericClient getForCurrentTenant() {
-//        Long orgId = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
+//         = RequestContext.get() != null ? RequestContext.get().getOrgId() : null;
 //        log.info("Entering getForCurrentTenant for orgId: {}", orgId);
 //        if (orgId == null) throw new IllegalStateException("No orgId in request context");
 //        FhirConfig config = configProvider.getForCurrentTenant(IntegrationKey.FHIR);

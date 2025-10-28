@@ -10,6 +10,6 @@ public interface ExternalSignoffStorage {
     void update(String externalId, SignoffDto dto);
     Optional<SignoffDto> get(String externalId);
     void delete(String externalId);
-    List<SignoffDto> searchAll(Long orgId, Long patientId);
-    List<SignoffDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    List<SignoffDto> searchAll(Long patientId);
+    List<SignoffDto> searchAll(Long patientId, Long encounterId);
 }

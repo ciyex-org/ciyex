@@ -10,6 +10,6 @@ public interface ExternalAssignedProviderStorage {
     void update(String externalId, AssignedProviderDto dto);
     Optional<AssignedProviderDto> get(String externalId);
     void delete(String externalId);
-    List<AssignedProviderDto> searchAll(Long orgId, Long patientId);
-    List<AssignedProviderDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    List<AssignedProviderDto> searchAll(Long patientId);
+    List<AssignedProviderDto> searchAll(Long patientId, Long encounterId);
 }

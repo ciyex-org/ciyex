@@ -240,7 +240,7 @@ public class FhirExternalCoverageStorage implements ExternalStorage<CoverageDto>
     }
 
     @SuppressWarnings("unused")
-    private Long extractOrgId(Coverage f) {
+    private Long extract(Coverage f) {
         // Prefer meta tag
         if (f.getMeta() != null) {
             for (Coding t : f.getMeta().getTag()) {

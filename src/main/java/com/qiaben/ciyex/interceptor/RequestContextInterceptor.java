@@ -28,7 +28,7 @@ public class RequestContextInterceptor implements HandlerInterceptor {
 How to use RequestContext in your service or controller:
 
 RequestContext ctx = RequestContext.get();
-Long orgId = ctx.getOrgId();
+ = ctx.getOrgId();
 String role = ctx.getRole();
 */
 

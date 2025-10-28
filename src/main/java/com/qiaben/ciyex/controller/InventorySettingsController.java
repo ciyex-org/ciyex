@@ -15,8 +15,8 @@ public class InventorySettingsController {
     private final InventorySettingsService service;
 
     /** ✅ Get settings for an org */
-    @GetMapping("/{orgId}")
-    public ResponseEntity<ApiResponse<InventorySettingsDto>> get(@PathVariable Long orgId) {
+    @GetMapping()
+    public ResponseEntity<ApiResponse<InventorySettingsDto>> get() {
         InventorySettingsDto dto = service.getSettings();
         return ResponseEntity.ok(
                 ApiResponse.<InventorySettingsDto>builder()
@@ -28,7 +28,7 @@ public class InventorySettingsController {
     }
 
     /** ✅ Update settings for an org */
-    @PutMapping("/{orgId}")
+    @PutMapping()
     public ResponseEntity<ApiResponse<InventorySettingsDto>> update(
             @RequestBody InventorySettingsDto dto) {
         InventorySettingsDto updated = service.updateSettings(dto);

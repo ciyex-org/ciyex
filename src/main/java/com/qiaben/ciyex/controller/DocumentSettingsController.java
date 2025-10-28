@@ -22,8 +22,8 @@ public class DocumentSettingsController {
 
     // --- Settings ---
 
-    @GetMapping("/{orgId}")
-    public ResponseEntity<ApiResponse<DocumentSettingsDto>> get(@PathVariable Long orgId) {
+    @GetMapping()
+    public ResponseEntity<ApiResponse<DocumentSettingsDto>> get() {
         try {
             var data = service.get();
             return ResponseEntity.ok(ApiResponse.<DocumentSettingsDto>builder()
@@ -49,7 +49,7 @@ public class DocumentSettingsController {
     // --- Categories ---
 
     @GetMapping("/categories")
-    public ResponseEntity<ApiResponse<List<DocumentSettingsDto.Category>>> getCategories(@PathVariable Long orgId) {
+    public ResponseEntity<ApiResponse<List<DocumentSettingsDto.Category>>> getCategories() {
         try {
             var data = service.getCategories();
             return ResponseEntity.ok(ApiResponse.<List<DocumentSettingsDto.Category>>builder()

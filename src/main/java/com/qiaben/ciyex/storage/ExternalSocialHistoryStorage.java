@@ -15,7 +15,7 @@ public interface ExternalSocialHistoryStorage {
 
     void delete(String externalId);
 
-    List<SocialHistoryDto> searchAll(Long orgId, Long patientId);
+    List<SocialHistoryDto> searchAll(Long patientId);
 
-    List<SocialHistoryDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    List<SocialHistoryDto> searchAll(Long patientId, Long encounterId);
 }

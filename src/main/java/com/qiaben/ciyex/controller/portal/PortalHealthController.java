@@ -64,7 +64,7 @@
 //         if (orgIds == null || orgIds.isEmpty()) {
 //             throw new IllegalStateException("No orgId found in patient token");
 //         }
-//         Long orgId = toLong(orgIds.get(0));
+//          = toLong(orgIds.get(0));
 //         RequestContext ctx = new RequestContext();
 //         ctx.setOrgId(orgId);
 //         RequestContext.set(ctx);

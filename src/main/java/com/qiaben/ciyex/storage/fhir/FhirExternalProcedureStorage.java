@@ -30,6 +30,6 @@ public class FhirExternalProcedureStorage implements ExternalProcedureStorage {
     @Override public Optional<ProcedureDto> get(String externalId) { return Optional.empty(); }
     @Override public void delete(String externalId) { log.info("FHIR Procedure delete {}", externalId); }
 
-    @Override public List<ProcedureDto> searchAll(Long orgId, Long patientId) { return Collections.emptyList(); }
-    @Override public List<ProcedureDto> searchAll(Long orgId, Long patientId, Long encounterId) { return Collections.emptyList(); }
+    @Override public List<ProcedureDto> searchAll(Long patientId) { return Collections.emptyList(); }
+    @Override public List<ProcedureDto> searchAll(Long patientId, Long encounterId) { return Collections.emptyList(); }
 }

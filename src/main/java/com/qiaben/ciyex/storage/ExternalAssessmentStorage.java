@@ -15,7 +15,7 @@ public interface ExternalAssessmentStorage {
 
     void delete(String externalId);
 
-    List<AssessmentDto> searchAll(Long orgId, Long patientId);
+    List<AssessmentDto> searchAll(Long patientId);
 
-    List<AssessmentDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    List<AssessmentDto> searchAll(Long patientId, Long encounterId);
 }

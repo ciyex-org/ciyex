@@ -10,5 +10,5 @@ public interface ExternalInvoiceBillStorage {
     void update(String externalId, InvoiceBillDto dto);
     Optional<InvoiceBillDto> get(String externalId);
     void delete(String externalId);
-    List<InvoiceBillDto> searchAll(Long orgId, Long userId);
+    List<InvoiceBillDto> searchAll(Long userId);
 }

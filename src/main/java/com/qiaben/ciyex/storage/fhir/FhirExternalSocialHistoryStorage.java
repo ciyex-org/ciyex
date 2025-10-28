@@ -39,12 +39,12 @@ public class FhirExternalSocialHistoryStorage implements ExternalSocialHistorySt
     public void delete(String externalId) { }
 
     @Override
-    public List<SocialHistoryDto> searchAll(Long orgId, Long patientId) {
+    public List<SocialHistoryDto> searchAll(Long patientId) {
         return Collections.emptyList();
     }
 
     @Override
-    public List<SocialHistoryDto> searchAll(Long orgId, Long patientId, Long encounterId) {
+    public List<SocialHistoryDto> searchAll(Long patientId, Long encounterId) {
         return Collections.emptyList();
     }
 }

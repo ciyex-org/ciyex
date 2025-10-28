@@ -40,7 +40,7 @@
 //    @GetMapping("/{patientId}/{encounterId}/{id}")
 //    public ResponseEntity<ApiResponse<CodeDto>> getOne(
 //            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        var dto = service.getOne(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<CodeDto>builder()
 //                .success(true).message("Code fetched").data(dto).build());
@@ -70,7 +70,7 @@
 //    @DeleteMapping("/{patientId}/{encounterId}/{id}")
 //    public ResponseEntity<ApiResponse<Void>> delete(
 //            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        service.delete(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<Void>builder()
 //                .success(true).message("Code deleted").build());

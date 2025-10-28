@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.storage.fhir;
 
 import com.qiaben.ciyex.dto.AssessmentDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.provider.FhirClientProvider;
 import com.qiaben.ciyex.storage.ExternalAssessmentStorage;
 import lombok.RequiredArgsConstructor;
@@ -46,15 +47,15 @@ public class FhirExternalAssessmentStorage implements ExternalAssessmentStorage 
     }
 
     @Override
-    public List<AssessmentDto> searchAll(Long orgId, Long patientId) {
-        log.info("FHIR ASSESSMENT searchAll orgId={}, patientId={}", orgId, patientId);
+    public List<AssessmentDto> searchAll(Long patientId) {
+        log.info("FHIR ASSESSMENT searchAll tenant={}, patientId={}", RequestContext.get().getTenantName(), patientId);
         // TODO
         return Collections.emptyList();
     }
 
     @Override
-    public List<AssessmentDto> searchAll(Long orgId, Long patientId, Long encounterId) {
-        log.info("FHIR ASSESSMENT searchAll orgId={}, patientId={}, encounterId={}", orgId, patientId, encounterId);
+    public List<AssessmentDto> searchAll(Long patientId, Long encounterId) {
+        log.info("FHIR ASSESSMENT searchAll Tenant={}, patientId={}, encounterId={}", RequestContext.get().getTenantName(), patientId, encounterId);
         // TODO
         return Collections.emptyList();
     }

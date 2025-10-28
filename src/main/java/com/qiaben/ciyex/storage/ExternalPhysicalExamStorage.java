@@ -15,7 +15,7 @@ public interface ExternalPhysicalExamStorage {
 
     void delete(String externalId);
 
-    List<PhysicalExamDto> searchAll(Long orgId, Long patientId);
+    List<PhysicalExamDto> searchAll(Long patientId);
 
-    List<PhysicalExamDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    List<PhysicalExamDto> searchAll(Long patientId, Long encounterId);
 }

@@ -42,13 +42,13 @@ public class FhirExternalPhysicalExamStorage implements ExternalPhysicalExamStor
     }
 
     @Override
-    public List<PhysicalExamDto> searchAll(Long orgId, Long patientId) {
+    public List<PhysicalExamDto> searchAll(Long patientId) {
         // TODO: query FHIR for PE by patient
         return Collections.emptyList();
     }
 
     @Override
-    public List<PhysicalExamDto> searchAll(Long orgId, Long patientId, Long encounterId) {
+    public List<PhysicalExamDto> searchAll(Long patientId, Long encounterId) {
         // TODO: query FHIR by patient + encounter
         return Collections.emptyList();
     }

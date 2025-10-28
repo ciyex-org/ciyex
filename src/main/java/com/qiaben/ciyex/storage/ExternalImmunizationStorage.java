@@ -6,7 +6,7 @@ import java.util.List;
 
 public interface ExternalImmunizationStorage {
 
-    ImmunizationDto createImmunization(ImmunizationDto dto, Long orgId);
+    ImmunizationDto createImmunization(ImmunizationDto dto);
 
-    List<ImmunizationDto> getImmunizationsByOrgId(Long orgId);
+    List<ImmunizationDto> getImmunizations();
 }

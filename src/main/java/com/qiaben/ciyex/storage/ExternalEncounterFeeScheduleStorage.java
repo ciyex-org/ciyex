@@ -11,5 +11,5 @@ public interface ExternalEncounterFeeScheduleStorage {
     Optional<FeeScheduleDto> get(String externalId);
     void delete(String externalId);
 
-    List<FeeScheduleDto> searchAll(Long orgId, Long patientId, Long encounterId, String q, String status);
+    List<FeeScheduleDto> searchAll(Long patientId, Long encounterId, String q, String status);
 }

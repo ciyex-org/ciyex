@@ -178,9 +178,9 @@ public class ProviderController {
     }
 
     @GetMapping("/count")
-    public ResponseEntity<ApiResponse<Long>> getProviderCountByOrgId() {
+    public ResponseEntity<ApiResponse<Long>> getProviderCountBy() {
         try {
-            long count = service.getProviderCountByOrgId();
+            long count = service.getProviderCount();
             return ResponseEntity.ok(
                     ApiResponse.<Long>builder()
                             .success(true)

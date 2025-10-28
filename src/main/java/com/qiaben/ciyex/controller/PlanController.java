@@ -52,7 +52,7 @@
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId
+//            
 //    ) {
 //        PlanDto out = service.getOne(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<PlanDto>builder()
@@ -62,7 +62,7 @@
 //    @GetMapping("/{patientId}")
 //    public ResponseEntity<ApiResponse<List<PlanDto>>> getAllByPatient(
 //            @PathVariable Long patientId,
-//            @RequestHeader("orgId") Long orgId
+//            
 //    ) {
 //        List<PlanDto> out = service.getAllByPatient(patientId);
 //        return ResponseEntity.ok(ApiResponse.<List<PlanDto>>builder()
@@ -73,7 +73,7 @@
 //    public ResponseEntity<ApiResponse<List<PlanDto>>> getAllByEncounter(
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
-//            @RequestHeader("orgId") Long orgId
+//            
 //    ) {
 //        List<PlanDto> out = service.getAllByEncounter(patientId, encounterId);
 //        return ResponseEntity.ok(ApiResponse.<List<PlanDto>>builder()
@@ -85,7 +85,7 @@
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId
+//            
 //    ) {
 //        service.delete(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<Void>builder()

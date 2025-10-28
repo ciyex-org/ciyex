@@ -9,6 +9,6 @@ public interface ExternalPlanStorage {
     void update(String externalId, PlanDto dto);
     Optional<PlanDto> get(String externalId);
     void delete(String externalId);
-    List<PlanDto> searchAll(Long orgId, Long patientId);
-    List<PlanDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    List<PlanDto> searchAll(Long patientId);
+    List<PlanDto> searchAll(Long patientId, Long encounterId);
 }

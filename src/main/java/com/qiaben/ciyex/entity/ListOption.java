@@ -17,7 +17,7 @@ public class ListOption extends AuditableEntity {
     private Long id;
 
     
-    private String orgId;
+    
 
     @Column(name = "list_id", nullable = false)
     private String listId;

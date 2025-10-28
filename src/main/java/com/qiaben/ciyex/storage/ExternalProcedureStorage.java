@@ -10,6 +10,6 @@ public interface ExternalProcedureStorage {
     void update(String externalId, ProcedureDto dto);
     Optional<ProcedureDto> get(String externalId);
     void delete(String externalId);
-    List<ProcedureDto> searchAll(Long orgId, Long patientId);
-    List<ProcedureDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    List<ProcedureDto> searchAll(Long patientId);
+    List<ProcedureDto> searchAll(Long patientId, Long encounterId);
 }

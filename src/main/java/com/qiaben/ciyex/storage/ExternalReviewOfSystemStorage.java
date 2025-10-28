@@ -11,6 +11,6 @@ public interface ExternalReviewOfSystemStorage {
     Optional<ReviewOfSystemDto> get(String externalId);
     void delete(String externalId);
 
-    List<ReviewOfSystemDto> searchAll(Long orgId, Long patientId);
-    List<ReviewOfSystemDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    List<ReviewOfSystemDto> searchAll(Long patientId);
+    List<ReviewOfSystemDto> searchAll(Long patientId, Long encounterId);
 }

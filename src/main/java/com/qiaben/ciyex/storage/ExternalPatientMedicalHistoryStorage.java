@@ -16,7 +16,7 @@ public interface ExternalPatientMedicalHistoryStorage {
     void delete(String externalId);
 
     // Search helpers (org + filters)
-    List<PatientMedicalHistoryDto> searchAll(Long orgId, Long patientId);
+    List<PatientMedicalHistoryDto> searchAll(Long patientId);
 
-    List<PatientMedicalHistoryDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    List<PatientMedicalHistoryDto> searchAll(Long patientId, Long encounterId);
 }

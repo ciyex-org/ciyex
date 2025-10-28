@@ -130,9 +130,9 @@ Given the large number of occurrences (500+), consider using:
 find . -name "*.java" -type f -exec sed -i 's/@PathVariable Long orgId,\s*//g' {} \;
 find . -name "*.java" -type f -exec sed -i 's/@PathVariable Long orgId)/)/' {} \;
 
-# Remove @RequestHeader("orgId") Long orgId
-find . -name "*.java" -type f -exec sed -i 's/@RequestHeader("orgId") Long orgId,\s*//g' {} \;
-find . -name "*.java" -type f -exec sed -i 's/@RequestHeader("orgId") Long orgId)/)/' {} \;
+# Remove 
+find . -name "*.java" -type f -exec sed -i 's/,\s*//g' {} \;
+find . -name "*.java" -type f -exec sed -i 's/)/)/' {} \;
 
 # Remove {orgId} from URL paths
 find . -name "*.java" -type f -exec sed -i 's/{orgId}\/patients/patients/g' {} \;

@@ -22,7 +22,7 @@
 //    public ResponseEntity<ApiResponse<List<ProviderNoteDto>>> listByEncounter(
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //
 //        var list = service.getAllByEncounter(patientId, encounterId);
 //        return ResponseEntity.ok(ApiResponse.<List<ProviderNoteDto>>builder()
@@ -34,7 +34,7 @@
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //
 //        var dto = service.getOne(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<ProviderNoteDto>builder()
@@ -69,7 +69,7 @@
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //
 //        service.delete(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<Void>builder()

@@ -63,7 +63,7 @@ public class AuditLogController {
     
     @GetMapping("/logs")
     @PreAuthorize("hasPermission(#orgId, 'AUDIT_ACCESS')")
-    public ResponseEntity<List<AuditLogDto>> getAuditLogs(@RequestHeader("orgId") Long orgId) {
+    public ResponseEntity<List<AuditLogDto>> getAuditLogs() {
         // Only authorized users can view audit logs
     }
 }

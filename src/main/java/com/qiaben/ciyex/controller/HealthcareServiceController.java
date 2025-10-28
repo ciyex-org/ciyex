@@ -21,14 +21,7 @@ public class HealthcareServiceController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<HealthcareServiceDto>> create(@RequestBody HealthcareServiceDto dto, @RequestHeader(value = "orgId") Long orgId) {
-        if (orgId == null) {
-            return ResponseEntity.badRequest().body(ApiResponse.<HealthcareServiceDto>builder()
-                    .success(false)
-                    .message("orgId is required in the request header")
-                    .build());
-        }
-
+    public ResponseEntity<ApiResponse<HealthcareServiceDto>> create(@RequestBody HealthcareServiceDto dto) {
         HealthcareServiceDto createdService = service.create(dto);
         ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
                 .success(true)
@@ -39,8 +32,9 @@ public class HealthcareServiceController {
     }
 
 
+/*
     @GetMapping
-    public ResponseEntity<ApiResponse<List<HealthcareServiceDto>>> getByOrgId(@RequestHeader(value = "orgId") Long orgId) {
+    public ResponseEntity<ApiResponse<List<HealthcareServiceDto>>> getByOrgId() {
         List<HealthcareServiceDto> services = service.getByOrgId();
         ApiResponse<List<HealthcareServiceDto>> response = new ApiResponse.Builder<List<HealthcareServiceDto>>()
                 .success(true)
@@ -49,20 +43,14 @@ public class HealthcareServiceController {
                 .build();
         return ResponseEntity.ok(response);
     }
+*/
 
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<HealthcareServiceDto>> update(
             @PathVariable Long id,
-            @RequestBody HealthcareServiceDto dto,
-            @RequestHeader(value = "orgId") Long orgId) {
-
-        if (orgId == null) {
-            return ResponseEntity.badRequest().body(ApiResponse.<HealthcareServiceDto>builder()
-                    .success(false)
-                    .message("orgId is required in the request header")
-                    .build());
-        }
+            @RequestBody HealthcareServiceDto dto
+            ) {
 
         HealthcareServiceDto updatedService = service.update(id, dto);
         ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
@@ -74,15 +62,7 @@ public class HealthcareServiceController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id, @RequestHeader(value = "orgId") Long orgId) {
-
-        if (orgId == null) {
-            return ResponseEntity.badRequest().body(ApiResponse.<Void>builder()
-                    .success(false)
-                    .message("orgId is required in the request header")
-                    .build());
-        }
-
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id ) {
         service.delete(id);
         ApiResponse<Void> response = new ApiResponse.Builder<Void>()
                 .success(true)

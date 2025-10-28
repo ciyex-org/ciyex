@@ -150,7 +150,7 @@ public class MedicalProblemController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<MedicalProblemDto>>> searchAll(@RequestHeader("orgId") Long orgId) {
+    public ResponseEntity<ApiResponse<List<MedicalProblemDto>>> searchAll() {
         try {
             RequestContext ctx = new RequestContext(); /* orgId deprecated */ RequestContext.set(ctx);
             return ResponseEntity.ok(service.searchAll());

@@ -21,7 +21,7 @@
 
 ### Automated Cleanup (36 controllers)
 The following patterns were successfully removed:
-- ✅ `@RequestHeader("orgId") Long orgId`
+- ✅ ``
 - ✅ `@RequestHeader("x-org-id") Long orgId`
 - ✅ `@PathVariable Long orgId`
 - ✅ Service method calls with orgId arguments
@@ -86,7 +86,7 @@ public ResponseEntity<ApiResponse<InventorySettingsDto>> get(@PathVariable Long 
 
 #### 4. **MedicalProblemController** (5 occurrences)
 - Lines 110, 126, 141, 155: Comments with `/* orgId deprecated */`
-- Line 153: `@RequestHeader("orgId") Long orgId`
+- Line 153: ``
 
 **Action**: Remove header and clean up comments
 
@@ -145,7 +145,7 @@ sed -i 's/@RequestHeader("x-org-id") Long orgId,\s*//g' \
     src/main/java/com/qiaben/ciyex/controller/CommunicationController.java
 
 # MedicalProblemController  
-sed -i 's/@RequestHeader("orgId") Long orgId//g' \
+sed -i 's///g' \
     src/main/java/com/qiaben/ciyex/controller/MedicalProblemController.java
 
 # GpsController

@@ -21,7 +21,7 @@
 //
 //    // ids (optional to return in responses)
 //    private String id;
-//    private String orgId;
+//    
 //    private String patientId;
 //    private String encounterId;
 //    private String createdAt;

@@ -27,6 +27,6 @@ public class FhirExternalAssignedProviderStorage implements ExternalAssignedProv
     @Override public void update(String externalId, AssignedProviderDto dto) { }
     @Override public Optional<AssignedProviderDto> get(String externalId) { return Optional.empty(); }
     @Override public void delete(String externalId) { }
-    @Override public List<AssignedProviderDto> searchAll(Long orgId, Long patientId) { return Collections.emptyList(); }
-    @Override public List<AssignedProviderDto> searchAll(Long orgId, Long patientId, Long encounterId) { return Collections.emptyList(); }
+    @Override public List<AssignedProviderDto> searchAll(Long patientId) { return Collections.emptyList(); }
+    @Override public List<AssignedProviderDto> searchAll(Long patientId, Long encounterId) { return Collections.emptyList(); }
 }

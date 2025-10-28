@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.storage.fhir;
 
 import com.qiaben.ciyex.dto.FamilyHistoryDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.provider.FhirClientProvider;
 import com.qiaben.ciyex.storage.ExternalFamilyHistoryStorage;
 import lombok.RequiredArgsConstructor;
@@ -46,15 +47,15 @@ public class FhirExternalFamilyHistoryStorage implements ExternalFamilyHistorySt
     }
 
     @Override
-    public List<FamilyHistoryDto> searchAll(Long orgId, Long patientId) {
-        log.info("FHIR FH searchAll orgId={}, patientId={}", orgId, patientId);
+    public List<FamilyHistoryDto> searchAll(Long patientId) {
+        log.info("FHIR FH searchAll Tenant={}, patientId={}", RequestContext.get().getTenantName(), patientId);
         // TODO
         return Collections.emptyList();
     }
 
     @Override
-    public List<FamilyHistoryDto> searchAll(Long orgId, Long patientId, Long encounterId) {
-        log.info("FHIR FH searchAll orgId={}, patientId={}, encounterId={}", orgId, patientId, encounterId);
+    public List<FamilyHistoryDto> searchAll(Long patientId, Long encounterId) {
+        log.info("FHIR FH searchAll Tenant={}, patientId={}, encounterId={}", RequestContext.get().getTenantName(), patientId, encounterId);
         // TODO
         return Collections.emptyList();
     }

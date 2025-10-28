@@ -26,12 +26,6 @@ public class HealthcareServiceService {
     }
 
 
-    public List<HealthcareServiceDto> getByOrgId() {
-        List<HealthcareService> services = repository.findAll();
-        return services.stream().map(this::mapToDto).collect(Collectors.toList());
-    }
-
-
     public HealthcareServiceDto update(Long id, HealthcareServiceDto dto) {
         // Fetch the healthcare service by ID
         HealthcareService entity = repository.findById(id)

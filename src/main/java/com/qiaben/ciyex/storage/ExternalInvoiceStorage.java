@@ -9,6 +9,6 @@ public interface ExternalInvoiceStorage {
     void update(String externalId, InvoiceDto dto);
     Optional<InvoiceDto> get(String externalId);
     void delete(String externalId);
-    List<InvoiceDto> searchAll(Long orgId, Long patientId);
-    List<InvoiceDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    List<InvoiceDto> searchAll(Long patientId);
+    List<InvoiceDto> searchAll(Long patientId, Long encounterId);
 }

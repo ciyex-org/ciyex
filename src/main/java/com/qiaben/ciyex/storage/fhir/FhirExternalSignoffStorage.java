@@ -30,7 +30,7 @@ public class FhirExternalSignoffStorage implements ExternalSignoffStorage {
 
     @Override public void delete(String externalId) { /* delete or mark as retracted */ }
 
-    @Override public List<SignoffDto> searchAll(Long orgId, Long patientId) { return Collections.emptyList(); }
+    @Override public List<SignoffDto> searchAll(Long patientId) { return Collections.emptyList(); }
 
-    @Override public List<SignoffDto> searchAll(Long orgId, Long patientId, Long encounterId) { return Collections.emptyList(); }
+    @Override public List<SignoffDto> searchAll(Long patientId, Long encounterId) { return Collections.emptyList(); }
 }

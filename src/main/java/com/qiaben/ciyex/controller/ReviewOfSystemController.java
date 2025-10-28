@@ -30,7 +30,7 @@
 //    @GetMapping("/{patientId}/{encounterId}")
 //    public ResponseEntity<ApiResponse<List<ReviewOfSystemDto>>> getAllByEncounter(
 //            @PathVariable Long patientId, @PathVariable Long encounterId,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        var list = service.getAllByEncounter(patientId, encounterId);
 //        return ResponseEntity.ok(ApiResponse.<List<ReviewOfSystemDto>>builder()
 //                .success(true).message("ROS fetched").data(list).build());
@@ -39,7 +39,7 @@
 //    @GetMapping("/{patientId}/{encounterId}/{id}")
 //    public ResponseEntity<ApiResponse<ReviewOfSystemDto>> getOne(
 //            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        var dto = service.getOne(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<ReviewOfSystemDto>builder()
 //                .success(true).message("ROS fetched").data(dto).build());
@@ -66,7 +66,7 @@
 //    @DeleteMapping("/{patientId}/{encounterId}/{id}")
 //    public ResponseEntity<ApiResponse<Void>> delete(
 //            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        service.delete(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<Void>builder()
 //                .success(true).message("ROS deleted").build());

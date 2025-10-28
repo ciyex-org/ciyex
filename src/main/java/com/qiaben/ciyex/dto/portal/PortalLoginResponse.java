@@ -31,7 +31,7 @@ public class PortalLoginResponse {
         private String orgName;
         private String role;
 
-        public OrgInfo(Long orgId, String orgName, String role) {
+        public OrgInfo(String orgName, String role) {
             this.orgName = orgName;
             this.role = role;
         }

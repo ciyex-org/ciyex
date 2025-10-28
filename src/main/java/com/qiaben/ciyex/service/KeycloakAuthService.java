@@ -209,23 +209,6 @@ public class KeycloakAuthService {
     }
 
     /**
-     * Get org ID from group attributes
-     */
-    public Long getOrgIdFromGroupAttributes(Map<String, Map<String, Object>> groupAttributes, String groupPath) {
-        if (groupAttributes.containsKey(groupPath)) {
-            Map<String, Object> attrs = groupAttributes.get(groupPath);
-            if (attrs.containsKey("org_id")) {
-                try {
-                    return Long.parseLong(attrs.get("org_id").toString());
-                } catch (NumberFormatException e) {
-                    log.error("Invalid org_id in group attributes: {}", attrs.get("org_id"));
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
      * Exchange authorization code for access token (OAuth 2.0 Authorization Code Flow with PKCE)
      */
     public Map<String, Object> exchangeCodeForToken(String code, String redirectUri, String codeVerifier) {

@@ -15,7 +15,7 @@ public interface ExternalFamilyHistoryStorage {
 
     void delete(String externalId);
 
-    List<FamilyHistoryDto> searchAll(Long orgId, Long patientId);
+    List<FamilyHistoryDto> searchAll(Long patientId);
 
-    List<FamilyHistoryDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    List<FamilyHistoryDto> searchAll(Long patientId, Long encounterId);
 }

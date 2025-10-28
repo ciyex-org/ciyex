@@ -11,5 +11,5 @@ public interface ExternalCodeStorage {
     Optional<CodeDto> get(String externalId);
     void delete(String externalId);
 
-    List<CodeDto> searchAll(Long orgId, Long patientId, Long encounterId, String codeType, Boolean active, String q);
+    List<CodeDto> searchAll(Long patientId, Long encounterId, String codeType, Boolean active, String q);
 }

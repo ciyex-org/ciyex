@@ -29,6 +29,6 @@ public class FhirExternalDateTimeFinalizedStorage implements ExternalDateTimeFin
     @Override public void update(String externalId, DateTimeFinalizedDto dto) { }
     @Override public Optional<DateTimeFinalizedDto> get(String externalId) { return Optional.empty(); }
     @Override public void delete(String externalId) { }
-    @Override public List<DateTimeFinalizedDto> searchAll(Long orgId, Long patientId) { return Collections.emptyList(); }
-    @Override public List<DateTimeFinalizedDto> searchAll(Long orgId, Long patientId, Long encounterId) { return Collections.emptyList(); }
+    @Override public List<DateTimeFinalizedDto> searchAll(Long patientId) { return Collections.emptyList(); }
+    @Override public List<DateTimeFinalizedDto> searchAll(Long patientId, Long encounterId) { return Collections.emptyList(); }
 }

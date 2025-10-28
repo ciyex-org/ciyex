@@ -29,7 +29,7 @@
 
 ### 1. Automated Cleanup (36 controllers)
 Created and ran Python scripts that successfully removed:
-- `@RequestHeader("orgId") Long orgId`
+- ``
 - `@RequestHeader("x-org-id") Long orgId`
 - `@PathVariable Long orgId`
 - Service method calls with orgId arguments
@@ -128,7 +128,7 @@ To:
 Removed from all requests:
 ```java
 @RequestHeader("x-org-id") Long orgId
-@RequestHeader("orgId") Long orgId
+
 ```
 
 ### Service Call Changes

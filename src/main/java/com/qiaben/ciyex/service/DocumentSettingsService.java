@@ -33,14 +33,6 @@ public class DocumentSettingsService {
         
         return toDto(entity);
     }
-
-    /**
-     * Get document settings for an organization (alias)
-     */
-    public DocumentSettingsDto getByOrgId() {
-        return get();
-    }
-
     /**
      * Create or update document settings
      */
@@ -66,14 +58,6 @@ public class DocumentSettingsService {
         
         DocumentSettings saved = repository.save(entity);
         return toDto(saved);
-    }
-
-    /**
-     * Delete document settings for an organization
-     */
-    @Transactional
-    public void deleteByOrgId() {
-        repository.findFirstByOrderByIdAsc().ifPresent(repository::delete);
     }
 
     /**

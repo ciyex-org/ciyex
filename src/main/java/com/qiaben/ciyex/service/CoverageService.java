@@ -135,11 +135,6 @@ public class CoverageService {
     }
 
     // ---- helpers ----
-
-    
-    
-    private Long getCurrentOrgIdOrThrow(String op) { return -1L; }
-
     private Coverage mapToEntity(CoverageDto dto) {
     return Coverage.builder()
                 .externalId(dto.getExternalId())

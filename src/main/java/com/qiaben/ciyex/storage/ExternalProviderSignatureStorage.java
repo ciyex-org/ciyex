@@ -10,6 +10,6 @@ public interface ExternalProviderSignatureStorage {
     void update(String externalId, ProviderSignatureDto dto);
     Optional<ProviderSignatureDto> get(String externalId);
     void delete(String externalId);
-    List<ProviderSignatureDto> searchAll(Long orgId, Long patientId);
-    List<ProviderSignatureDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    List<ProviderSignatureDto> searchAll(Long patientId);
+    List<ProviderSignatureDto> searchAll(Long patientId, Long encounterId);
 }

@@ -15,7 +15,7 @@ public interface ExternalHistoryOfPresentIllnessStorage {
 
     void delete(String externalId);
 
-    List<HistoryOfPresentIllnessDto> searchAll(Long orgId, Long patientId);
+    List<HistoryOfPresentIllnessDto> searchAll(Long patientId);
 
-    List<HistoryOfPresentIllnessDto> searchAll(Long orgId, Long patientId, Long encounterId);
+    List<HistoryOfPresentIllnessDto> searchAll(Long patientId, Long encounterId);
 }

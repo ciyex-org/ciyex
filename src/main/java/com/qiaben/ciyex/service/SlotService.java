@@ -39,8 +39,6 @@ public class SlotService {
 
     @Transactional
     public SlotDto create(SlotDto dto) {
-        Long orgId = -1L; 
-
         String externalId = null;
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null) {
@@ -69,7 +67,6 @@ public class SlotService {
 
     @Transactional(readOnly = true)
     public ApiResponse<List<SlotDto>> getAllSlots() {
-    Long orgId = -1L; // placeholder
         List<Slot> entities = repository.findAll();
         List<SlotDto> out = new ArrayList<>();
         for (Slot s : entities) {

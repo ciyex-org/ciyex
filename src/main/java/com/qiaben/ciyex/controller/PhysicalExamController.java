@@ -21,7 +21,7 @@
 //    @GetMapping("/{patientId}")
 //    public ResponseEntity<ApiResponse<List<PhysicalExamDto>>> getAllByPatient(
 //            @PathVariable Long patientId,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        var list = service.getAllByPatient(patientId);
 //        return ResponseEntity.ok(ApiResponse.<List<PhysicalExamDto>>builder()
 //                .success(true).message("Physical Exam fetched").data(list).build());
@@ -31,7 +31,7 @@
 //    public ResponseEntity<ApiResponse<List<PhysicalExamDto>>> getAllByEncounter(
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        var list = service.getAllByEncounter(patientId, encounterId);
 //        return ResponseEntity.ok(ApiResponse.<List<PhysicalExamDto>>builder()
 //                .success(true).message("Physical Exam fetched").data(list).build());
@@ -42,7 +42,7 @@
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        var dto = service.getOne(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<PhysicalExamDto>builder()
 //                .success(true).message("Physical Exam fetched").data(dto).build());
@@ -74,7 +74,7 @@
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
-//            @RequestHeader("orgId") Long orgId) {
+//            ) {
 //        service.delete(patientId, encounterId, id);
 //        return ResponseEntity.ok(ApiResponse.<Void>builder()
 //                .success(true).message("Physical Exam deleted").build());

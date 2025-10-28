@@ -26,6 +26,6 @@ public class FhirExternalProviderSignatureStorage implements ExternalProviderSig
     @Override public void update(String externalId, ProviderSignatureDto dto) { }
     @Override public Optional<ProviderSignatureDto> get(String externalId) { return Optional.empty(); }
     @Override public void delete(String externalId) { }
-    @Override public List<ProviderSignatureDto> searchAll(Long orgId, Long patientId) { return Collections.emptyList(); }
-    @Override public List<ProviderSignatureDto> searchAll(Long orgId, Long patientId, Long encounterId) { return Collections.emptyList(); }
+    @Override public List<ProviderSignatureDto> searchAll(Long patientId) { return Collections.emptyList(); }
+    @Override public List<ProviderSignatureDto> searchAll(Long patientId, Long encounterId) { return Collections.emptyList(); }
 }

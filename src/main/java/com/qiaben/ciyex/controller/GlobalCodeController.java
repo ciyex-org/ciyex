@@ -20,8 +20,7 @@ public class GlobalCodeController {
     private final GlobalCodeService service;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<GlobalCodeDto>>> getAll(
-            @RequestHeader("orgId") Long orgId) {
+    public ResponseEntity<ApiResponse<List<GlobalCodeDto>>> getAll() {
         var list = service.getAll();
         return ResponseEntity.ok(ApiResponse.<List<GlobalCodeDto>>builder()
                 .success(true).message("Codes fetched").data(list).build());

@@ -22,7 +22,7 @@
 //    public ResponseEntity<ApiResponse<ChiefComplaintDto>> create(
 //            @PathVariable Long encounterId,
 //            @RequestBody ChiefComplaintDto dto,
-//            @RequestHeader("orgid") Long orgId
+//            
 //    ) {
 //        dto.setOrgId();  // Set orgId from headers
 //        dto.setEncounterId(encounterId);  // Set encounterId from URL
@@ -51,7 +51,7 @@
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
 //            @RequestBody ChiefComplaintDto dto,
-//            @RequestHeader("orgid") Long orgId  // Extract orgId from headers
+//              // Extract orgId from headers
 //    ) {
 //        // Set the orgId in the DTO before calling the service
 //        dto.setOrgId();  // Ensure the orgId is set in the DTO
@@ -110,7 +110,7 @@
 //            @PathVariable Long patientId,
 //            @PathVariable Long encounterId,
 //            @RequestBody ChiefComplaintDto dto,
-//            @RequestHeader("orgid") Long orgId
+//            
 //    ) {
 //        dto.setOrgId();  // Set orgId from headers
 //        dto.setPatientId(patientId); // Set patientId
@@ -152,7 +152,7 @@
 //            @PathVariable Long encounterId,
 //            @PathVariable Long id,
 //            @RequestBody ChiefComplaintDto dto,
-//            @RequestHeader("orgid") Long orgId
+//            
 //    ) {
 //        dto.setOrgId();  // Ensure the orgId is set in the DTO
 //        ChiefComplaintDto updatedComplaint = chiefComplaintService.update(patientId, encounterId, id, dto);

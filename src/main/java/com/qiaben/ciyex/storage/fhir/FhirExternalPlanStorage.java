@@ -21,6 +21,6 @@ public class FhirExternalPlanStorage implements ExternalPlanStorage {
     @Override public void update(String externalId, PlanDto dto) { }
     @Override public Optional<PlanDto> get(String externalId) { return Optional.empty(); }
     @Override public void delete(String externalId) { }
-    @Override public List<PlanDto> searchAll(Long orgId, Long patientId) { return Collections.emptyList(); }
-    @Override public List<PlanDto> searchAll(Long orgId, Long patientId, Long encounterId) { return Collections.emptyList(); }
+    @Override public List<PlanDto> searchAll(Long patientId) { return Collections.emptyList(); }
+    @Override public List<PlanDto> searchAll(Long patientId, Long encounterId) { return Collections.emptyList(); }
 }

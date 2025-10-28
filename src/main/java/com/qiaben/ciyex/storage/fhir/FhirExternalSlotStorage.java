@@ -56,15 +56,15 @@ public class FhirExternalSlotStorage implements ExternalSlotStorage {
     @Transactional
     public String create(SlotDto dto) {
         String currentTenantName = requireTenantName();
-        log.debug("Creating Slot for orgId={}, dto={}", currentTenantName, dto);
+        log.debug("Creating Slot for Tenant={}, dto={}", currentTenantName, dto);
 
         Slot slot = toFhir(dto);
         String externalId;
         try {
             externalId = fhirResourceStorage.create(slot);
-            log.info("Successfully created Slot in external storage with externalId={} for orgId={}", externalId, currentTenantName);
+            log.info("Successfully created Slot in external storage with externalId={} for Tenant={}", externalId, currentTenantName);
         } catch (Exception e) {
-            log.error("Failed to create Slot in external storage for orgId={}, error={}", currentTenantName, e.getMessage(), e);
+            log.error("Failed to create Slot in external storage for Tenant={}, error={}", currentTenantName, e.getMessage(), e);
             throw new RuntimeException("Failed to sync with external storage", e);
         }
         return externalId;
@@ -73,15 +73,15 @@ public class FhirExternalSlotStorage implements ExternalSlotStorage {
     @Transactional
     public void update(SlotDto dto, String externalId) {
         String currentTenantName = requireTenantName();
-        log.debug("Updating Slot with externalId={} for orgId={}, dto={}", externalId, currentTenantName, dto);
+        log.debug("Updating Slot with externalId={} for Tenant={}, dto={}", externalId, currentTenantName, dto);
 
         Slot slot = toFhir(dto);
         slot.setId(externalId);
         try {
             fhirResourceStorage.update(slot, externalId);
-            log.info("Successfully updated Slot in external storage with externalId={} for orgId={}", externalId, currentTenantName);
+            log.info("Successfully updated Slot in external storage with externalId={} for Tenant={}", externalId, currentTenantName);
         } catch (Exception e) {
-            log.error("Failed to update Slot in external storage for orgId={}, externalId={}, error={}", currentTenantName, externalId, e.getMessage(), e);
+            log.error("Failed to update Slot in external storage for Tenant={}, externalId={}, error={}", currentTenantName, externalId, e.getMessage(), e);
             throw new RuntimeException("Failed to sync with external storage", e);
         }
     }
@@ -89,28 +89,28 @@ public class FhirExternalSlotStorage implements ExternalSlotStorage {
     @Transactional(readOnly = true)
     public SlotDto get(String externalId) {
         String currentTenantName = requireTenantName();
-        log.debug("Fetching Slot with externalId={} for orgId={}", externalId, currentTenantName);
+        log.debug("Fetching Slot with externalId={} for Tenant={}", externalId, currentTenantName);
 
         Slot slot = fhirResourceStorage.get(Slot.class, externalId);
         if (slot == null) {
-            log.warn("No FHIR Slot found with externalId={} for orgId={}", externalId, currentTenantName);
+            log.warn("No FHIR Slot found with externalId={} for Tenant={}", externalId, currentTenantName);
             throw new RuntimeException("Slot not found with externalId: " + externalId);
         }
         SlotDto dto = fromFhir(slot);
-        log.info("Retrieved SlotDto with externalId={} for orgId={}", externalId, currentTenantName);
+        log.info("Retrieved SlotDto with externalId={} for Tenant={}", externalId, currentTenantName);
         return dto;
     }
 
     @Transactional
     public void delete(String externalId) {
         String currentTenantName = requireTenantName();
-        log.debug("Deleting Slot with externalId={} for orgId={}", externalId, currentTenantName);
+        log.debug("Deleting Slot with externalId={} for Tenant={}", externalId, currentTenantName);
 
         try {
             fhirResourceStorage.delete("Slot", externalId);
-            log.info("Successfully deleted Slot in external storage with externalId={} for orgId={}", externalId, currentTenantName);
+            log.info("Successfully deleted Slot in external storage with externalId={} for Tenant={}", externalId, currentTenantName);
         } catch (Exception e) {
-            log.error("Failed to delete Slot in external storage for orgId={}, externalId={}, error={}", currentTenantName, externalId, e.getMessage(), e);
+            log.error("Failed to delete Slot in external storage for Tenant={}, externalId={}, error={}", currentTenantName, externalId, e.getMessage(), e);
             throw new RuntimeException("Failed to sync with external storage", e);
         }
     }
@@ -118,13 +118,13 @@ public class FhirExternalSlotStorage implements ExternalSlotStorage {
     @Transactional(readOnly = true)
     public List<SlotDto> searchAll() {
         String currentTenantName = requireTenantName();
-        log.debug("Searching all Slots for orgId={}", currentTenantName);
+        log.debug("Searching all Slots for Tenant={}", currentTenantName);
 
         List<Slot> slots = fhirResourceStorage.searchAll(Slot.class);
-        log.debug("Retrieved {} Slots from external storage for orgId={}", slots.size(), currentTenantName);
+        log.debug("Retrieved {} Slots from external storage for Tenant={}", slots.size(), currentTenantName);
 
         List<SlotDto> dtos = slots.stream().map(this::fromFhir).collect(Collectors.toList());
-        log.info("Returning {} SlotDtos for orgId={}", dtos.size(), currentTenantName);
+        log.info("Returning {} SlotDtos for Tenant={}", dtos.size(), currentTenantName);
         return dtos;
     }
 

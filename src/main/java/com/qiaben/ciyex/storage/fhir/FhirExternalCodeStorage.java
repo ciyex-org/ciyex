@@ -43,10 +43,10 @@ public class FhirExternalCodeStorage implements ExternalCodeStorage {
 
     // ✅ Match the interface signature exactly
     @Override
-    public List<CodeDto> searchAll(Long orgId, Long patientId, Long encounterId,
+    public List<CodeDto> searchAll(Long patientId, Long encounterId,
                                    String codeType, Boolean active, String q) {
         log.info("FHIR Code search: org={}, patient={}, encounter={}, type={}, active={}, q={}",
-                orgId, patientId, encounterId, codeType, active, q);
+                RequestContext.get().getTenantName(), patientId, encounterId, codeType, active, q);
         return Collections.emptyList();
     }
 }

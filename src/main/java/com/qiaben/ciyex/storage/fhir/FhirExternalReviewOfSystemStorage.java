@@ -28,6 +28,6 @@ public class FhirExternalReviewOfSystemStorage implements ExternalReviewOfSystem
     @Override public void update(String externalId, ReviewOfSystemDto dto) { }
     @Override public Optional<ReviewOfSystemDto> get(String externalId) { return Optional.empty(); }
     @Override public void delete(String externalId) { }
-    @Override public List<ReviewOfSystemDto> searchAll(Long orgId, Long patientId) { return Collections.emptyList(); }
-    @Override public List<ReviewOfSystemDto> searchAll(Long orgId, Long patientId, Long encounterId) { return Collections.emptyList(); }
+    @Override public List<ReviewOfSystemDto> searchAll(Long patientId) { return Collections.emptyList(); }
+    @Override public List<ReviewOfSystemDto> searchAll(Long patientId, Long encounterId) { return Collections.emptyList(); }
 }

@@ -28,7 +28,7 @@ public class FhirExternalEncounterFeeScheduleStorage implements ExternalEncounte
     @Override public void update(String externalId, FeeScheduleDto dto) { }
     @Override public Optional<FeeScheduleDto> get(String externalId) { return Optional.empty(); }
     @Override public void delete(String externalId) { }
-    @Override public List<FeeScheduleDto> searchAll(Long orgId, Long patientId, Long encounterId, String q, String status) {
+    @Override public List<FeeScheduleDto> searchAll(Long patientId, Long encounterId, String q, String status) {
         return Collections.emptyList();
     }
 }
