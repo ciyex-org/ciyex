@@ -1,0 +1,1935 @@
+{
+	"info": {
+		"_postman_id": "ciyex-api-collection",
+		"name": "Ciyex EHR API",
+		"description": "Complete API collection for Ciyex Electronic Health Records System",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "patient_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "encounter_id",
+			"value": "1",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/auth/health",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "health"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.access_token) {",
+									"        pm.collectionVariables.set('access_token', jsonData.data.access_token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"user@example.com\",\n  \"password\": \"password\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Patients",
+			"item": [
+				{
+					"name": "Get All Patients",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/patients",
+							"host": ["{{base_url}}"],
+							"path": ["api", "patients"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Patient by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/patients/{{patient_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "patients", "{{patient_id}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Patient",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"dateOfBirth\": \"1990-01-01\",\n  \"gender\": \"M\",\n  \"email\": \"john.doe@example.com\",\n  \"phone\": \"555-0100\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/patients",
+							"host": ["{{base_url}}"],
+							"path": ["api", "patients"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Patient",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"dateOfBirth\": \"1990-01-01\",\n  \"gender\": \"M\",\n  \"email\": \"john.doe.updated@example.com\",\n  \"phone\": \"555-0101\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/patients/{{patient_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "patients", "{{patient_id}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Patient",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/patients/{{patient_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "patients", "{{patient_id}}"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Encounters",
+			"item": [
+				{
+					"name": "Get All Encounters (Browse)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/encounters",
+							"host": ["{{base_url}}"],
+							"path": ["api", "encounters"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Patient Encounters",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/{{patient_id}}/encounters",
+							"host": ["{{base_url}}"],
+							"path": ["api", "{{patient_id}}", "encounters"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Encounter by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/{{patient_id}}/encounters/{{encounter_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "{{patient_id}}", "encounters", "{{encounter_id}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Encounter",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"patientId\": {{patient_id}},\n  \"encounterDate\": \"2024-01-01T10:00:00\",\n  \"encounterType\": \"Office Visit\",\n  \"status\": \"in-progress\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/{{patient_id}}/encounters",
+							"host": ["{{base_url}}"],
+							"path": ["api", "{{patient_id}}", "encounters"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Encounter",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"encounterDate\": \"2024-01-01T10:00:00\",\n  \"encounterType\": \"Office Visit\",\n  \"status\": \"completed\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/{{patient_id}}/encounters/{{encounter_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "{{patient_id}}", "encounters", "{{encounter_id}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Encounter",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/{{patient_id}}/encounters/{{encounter_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "{{patient_id}}", "encounters", "{{encounter_id}}"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Appointments",
+			"item": [
+				{
+					"name": "Get All Appointments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/appointments",
+							"host": ["{{base_url}}"],
+							"path": ["api", "appointments"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Appointment by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/appointments/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "appointments", "1"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Appointment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"patientId\": {{patient_id}},\n  \"providerId\": 1,\n  \"start\": \"2024-01-15T10:00:00\",\n  \"end\": \"2024-01-15T10:30:00\",\n  \"status\": \"booked\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/appointments",
+							"host": ["{{base_url}}"],
+							"path": ["api", "appointments"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Appointment",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"confirmed\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/appointments/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "appointments", "1"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Appointment",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/appointments/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "appointments", "1"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Clinical Data",
+			"item": [
+				{
+					"name": "Chief Complaints",
+					"item": [
+						{
+							"name": "List Chief Complaints",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/chief-complaints/{{patient_id}}/{{encounter_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "chief-complaints", "{{patient_id}}", "{{encounter_id}}"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Chief Complaint",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/chief-complaints/{{patient_id}}/{{encounter_id}}/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "chief-complaints", "{{patient_id}}", "{{encounter_id}}", "1"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Chief Complaint",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"complaint\": \"Headache\",\n  \"duration\": \"3 days\",\n  \"severity\": \"moderate\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/chief-complaints/{{patient_id}}/{{encounter_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "chief-complaints", "{{patient_id}}", "{{encounter_id}}"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Chief Complaint",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"complaint\": \"Severe Headache\",\n  \"severity\": \"severe\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/chief-complaints/{{patient_id}}/{{encounter_id}}/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "chief-complaints", "{{patient_id}}", "{{encounter_id}}", "1"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Chief Complaint",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/chief-complaints/{{patient_id}}/{{encounter_id}}/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "chief-complaints", "{{patient_id}}", "{{encounter_id}}", "1"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Vitals",
+					"item": [
+						{
+							"name": "Get Vitals by Patient",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/vitals/patient/{{patient_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "vitals", "patient", "{{patient_id}}"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Vitals",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"patientId\": {{patient_id}},\n  \"encounterId\": {{encounter_id}},\n  \"temperature\": 98.6,\n  \"bloodPressureSystolic\": 120,\n  \"bloodPressureDiastolic\": 80,\n  \"heartRate\": 72,\n  \"respiratoryRate\": 16,\n  \"oxygenSaturation\": 98\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/vitals",
+									"host": ["{{base_url}}"],
+									"path": ["api", "vitals"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Vitals",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"temperature\": 99.0,\n  \"heartRate\": 75\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/vitals/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "vitals", "1"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Allergies",
+					"item": [
+						{
+							"name": "Get Allergy Intolerances by Patient",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/allergy-intolerances/{{patient_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "allergy-intolerances", "{{patient_id}}"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Allergy Intolerance",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"patientId\": {{patient_id}},\n  \"allergen\": \"Penicillin\",\n  \"severity\": \"severe\",\n  \"reaction\": \"Anaphylaxis\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/allergy-intolerances",
+									"host": ["{{base_url}}"],
+									"path": ["api", "allergy-intolerances"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Allergy Intolerance",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"severity\": \"moderate\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/allergy-intolerances/{{patient_id}}/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "allergy-intolerances", "{{patient_id}}", "1"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Allergy Intolerance",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/allergy-intolerances/{{patient_id}}/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "allergy-intolerances", "{{patient_id}}", "1"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Medical Problems",
+					"item": [
+						{
+							"name": "Get All Medical Problems",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/medical-problems/{{patient_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "medical-problems", "{{patient_id}}"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Medical Problem",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"patientId\": {{patient_id}},\n  \"problemName\": \"Hypertension\",\n  \"icdCode\": \"I10\",\n  \"status\": \"active\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/medical-problems/{{patient_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "medical-problems", "{{patient_id}}"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Medical Problem",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"status\": \"resolved\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/medical-problems/{{patient_id}}/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "medical-problems", "{{patient_id}}", "1"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Medications",
+					"item": [
+						{
+							"name": "Get Medications by Patient",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/medications/patient/{{patient_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "medications", "patient", "{{patient_id}}"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Medication",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"patientId\": {{patient_id}},\n  \"medicationName\": \"Lisinopril\",\n  \"dosage\": \"10mg\",\n  \"frequency\": \"once daily\",\n  \"route\": \"oral\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/medications",
+									"host": ["{{base_url}}"],
+									"path": ["api", "medications"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Medication",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"dosage\": \"20mg\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/medications/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "medications", "1"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Immunizations",
+					"item": [
+						{
+							"name": "Get All Immunizations",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/immunizations",
+									"host": ["{{base_url}}"],
+									"path": ["api", "immunizations"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Immunization",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"patientId\": {{patient_id}},\n  \"vaccineName\": \"COVID-19\",\n  \"administrationDate\": \"2024-01-01\",\n  \"lotNumber\": \"ABC123\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/immunizations",
+									"host": ["{{base_url}}"],
+									"path": ["api", "immunizations"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Procedures",
+					"item": [
+						{
+							"name": "Get Procedures by Patient",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/procedures/{{patient_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "procedures", "{{patient_id}}"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Procedures by Encounter",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/procedures/{{patient_id}}/{{encounter_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "procedures", "{{patient_id}}", "{{encounter_id}}"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Procedure",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"procedureName\": \"Blood Draw\",\n  \"procedureCode\": \"36415\",\n  \"performedDate\": \"2024-01-01\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/procedures/{{patient_id}}/{{encounter_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "procedures", "{{patient_id}}", "{{encounter_id}}"]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Documents",
+			"item": [
+				{
+					"name": "Get Patient Documents",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/patients/{{patient_id}}/documents",
+							"host": ["{{base_url}}"],
+							"path": ["api", "patients", "{{patient_id}}", "documents"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Document",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "documentType",
+									"value": "lab_result",
+									"type": "text"
+								},
+								{
+									"key": "description",
+									"value": "Lab Results",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/patients/{{patient_id}}/documents",
+							"host": ["{{base_url}}"],
+							"path": ["api", "patients", "{{patient_id}}", "documents"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Download Document",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/patients/{{patient_id}}/documents/1/download",
+							"host": ["{{base_url}}"],
+							"path": ["api", "patients", "{{patient_id}}", "documents", "1", "download"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Document",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/patients/{{patient_id}}/documents/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "patients", "{{patient_id}}", "documents", "1"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Billing",
+			"item": [
+				{
+					"name": "Patient Billing",
+					"item": [
+						{
+							"name": "Get Patient Billing",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/patient-billing/{{patient_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "patient-billing", "{{patient_id}}"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Invoices",
+					"item": [
+						{
+							"name": "Get All Invoices",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/billing/invoices",
+									"host": ["{{base_url}}"],
+									"path": ["api", "billing", "invoices"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Invoice by ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/billing/invoices/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "billing", "invoices", "1"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Invoice",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"patientId\": {{patient_id}},\n  \"encounterId\": {{encounter_id}},\n  \"amount\": 150.00,\n  \"status\": \"pending\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/billing/invoices",
+									"host": ["{{base_url}}"],
+									"path": ["api", "billing", "invoices"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Insurance",
+					"item": [
+						{
+							"name": "Get Insurance Companies",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/insurance-companies",
+									"host": ["{{base_url}}"],
+									"path": ["api", "insurance-companies"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Patient Coverage",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/coverages/patient/{{patient_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "coverages", "patient", "{{patient_id}}"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Coverage",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"patientId\": {{patient_id}},\n  \"insuranceCompanyId\": 1,\n  \"policyNumber\": \"POL123456\",\n  \"groupNumber\": \"GRP789\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/coverages",
+									"host": ["{{base_url}}"],
+									"path": ["api", "coverages"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Services",
+					"item": [
+						{
+							"name": "Get All Services",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/services",
+									"host": ["{{base_url}}"],
+									"path": ["api", "services"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Service",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"serviceName\": \"Office Visit\",\n  \"cptCode\": \"99213\",\n  \"price\": 150.00\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/services",
+									"host": ["{{base_url}}"],
+									"path": ["api", "services"]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Inventory",
+			"item": [
+				{
+					"name": "Get All Inventory",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/inventory",
+							"host": ["{{base_url}}"],
+							"path": ["api", "inventory"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Inventory by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/inventory/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "inventory", "1"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Inventory Item",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"itemName\": \"Medical Gloves\",\n  \"quantity\": 1000,\n  \"unitPrice\": 0.15\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/inventory",
+							"host": ["{{base_url}}"],
+							"path": ["api", "inventory"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Inventory",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"quantity\": 800\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/inventory/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "inventory", "1"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Inventory Item",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/inventory/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "inventory", "1"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Orders",
+					"item": [
+						{
+							"name": "Get All Orders",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/orders",
+									"host": ["{{base_url}}"],
+									"path": ["api", "orders"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Order",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"supplierId\": 1,\n  \"items\": [\n    {\n      \"inventoryItemId\": 1,\n      \"quantity\": 100\n    }\n  ]\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/orders",
+									"host": ["{{base_url}}"],
+									"path": ["api", "orders"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Receive Order",
+							"request": {
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/orders/1/receive",
+									"host": ["{{base_url}}"],
+									"path": ["api", "orders", "1", "receive"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Suppliers",
+					"item": [
+						{
+							"name": "Get All Suppliers",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/suppliers",
+									"host": ["{{base_url}}"],
+									"path": ["api", "suppliers"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Supplier",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Medical Supply Co\",\n  \"contactPerson\": \"John Smith\",\n  \"phone\": \"555-0200\",\n  \"email\": \"contact@medicalsupply.com\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/suppliers",
+									"host": ["{{base_url}}"],
+									"path": ["api", "suppliers"]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Providers & Staff",
+			"item": [
+				{
+					"name": "Providers",
+					"item": [
+						{
+							"name": "Get All Providers",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/providers",
+									"host": ["{{base_url}}"],
+									"path": ["api", "providers"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Provider by ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/providers/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "providers", "1"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Provider",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Smith\",\n  \"npi\": \"1234567890\",\n  \"specialty\": \"Internal Medicine\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/providers",
+									"host": ["{{base_url}}"],
+									"path": ["api", "providers"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Provider",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"specialty\": \"Family Medicine\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/providers/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "providers", "1"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Users",
+					"item": [
+						{
+							"name": "Get All Users",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/users",
+									"host": ["{{base_url}}"],
+									"path": ["api", "users"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create User",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"username\": \"newuser@example.com\",\n  \"email\": \"newuser@example.com\",\n  \"firstName\": \"New\",\n  \"lastName\": \"User\",\n  \"role\": \"STAFF\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/users",
+									"host": ["{{base_url}}"],
+									"path": ["api", "users"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Locations",
+					"item": [
+						{
+							"name": "Get All Locations",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/locations",
+									"host": ["{{base_url}}"],
+									"path": ["api", "locations"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Location",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Main Office\",\n  \"address\": \"123 Main St\",\n  \"city\": \"Anytown\",\n  \"state\": \"CA\",\n  \"zip\": \"12345\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/locations",
+									"host": ["{{base_url}}"],
+									"path": ["api", "locations"]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Scheduling",
+			"item": [
+				{
+					"name": "Schedules",
+					"item": [
+						{
+							"name": "Get All Schedules",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/schedules",
+									"host": ["{{base_url}}"],
+									"path": ["api", "schedules"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Schedule",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"providerId\": 1,\n  \"dayOfWeek\": \"MONDAY\",\n  \"startTime\": \"09:00:00\",\n  \"endTime\": \"17:00:00\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/schedules",
+									"host": ["{{base_url}}"],
+									"path": ["api", "schedules"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Slots",
+					"item": [
+						{
+							"name": "Get Available Slots",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/slots?providerId=1&date=2024-01-15",
+									"host": ["{{base_url}}"],
+									"path": ["api", "slots"],
+									"query": [
+										{
+											"key": "providerId",
+											"value": "1"
+										},
+										{
+											"key": "date",
+											"value": "2024-01-15"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Recalls",
+					"item": [
+						{
+							"name": "Get All Recalls",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/recalls",
+									"host": ["{{base_url}}"],
+									"path": ["api", "recalls"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Recall",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"patientId\": {{patient_id}},\n  \"recallDate\": \"2024-06-01\",\n  \"reason\": \"Annual Checkup\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/recalls",
+									"host": ["{{base_url}}"],
+									"path": ["api", "recalls"]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Communications",
+			"item": [
+				{
+					"name": "Get All Communications",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/communications",
+							"host": ["{{base_url}}"],
+							"path": ["api", "communications"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Communication by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/communications/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "communications", "1"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Communication",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"patientId\": {{patient_id}},\n  \"subject\": \"Test Results\",\n  \"message\": \"Your test results are ready\",\n  \"status\": \"sent\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/communications",
+							"host": ["{{base_url}}"],
+							"path": ["api", "communications"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Archive Communication",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/communications/archive/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "communications", "archive", "1"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Notifications",
+					"item": [
+						{
+							"name": "Get Notifications",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/notifications",
+									"host": ["{{base_url}}"],
+									"path": ["api", "notifications"]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Telehealth",
+			"item": [
+				{
+					"name": "Create Session",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"appointmentId\": 1,\n  \"patientId\": {{patient_id}},\n  \"providerId\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/telehealth/session",
+							"host": ["{{base_url}}"],
+							"path": ["api", "telehealth", "session"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Session",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/telehealth/session/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "telehealth", "session", "1"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Codes & References",
+			"item": [
+				{
+					"name": "Global Codes",
+					"item": [
+						{
+							"name": "Get All Codes",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/codes",
+									"host": ["{{base_url}}"],
+									"path": ["api", "codes"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Codes by Type",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/codes/type/ICD10",
+									"host": ["{{base_url}}"],
+									"path": ["api", "codes", "type", "ICD10"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Code",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"codeType\": \"ICD10\",\n  \"code\": \"I10\",\n  \"description\": \"Essential hypertension\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/codes",
+									"host": ["{{base_url}}"],
+									"path": ["api", "codes"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Code Types",
+					"item": [
+						{
+							"name": "Get All Code Types",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/codetypes",
+									"host": ["{{base_url}}"],
+									"path": ["api", "codetypes"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Templates",
+					"item": [
+						{
+							"name": "Get All Templates",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/templates",
+									"host": ["{{base_url}}"],
+									"path": ["api", "templates"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Template",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Physical Exam Template\",\n  \"category\": \"EXAM\",\n  \"content\": \"Template content here\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/templates",
+									"host": ["{{base_url}}"],
+									"path": ["api", "templates"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "List Options",
+					"item": [
+						{
+							"name": "Get List Options",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/list-options",
+									"host": ["{{base_url}}"],
+									"path": ["api", "list-options"]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Admin & Settings",
+			"item": [
+				{
+					"name": "Healthcare Services",
+					"item": [
+						{
+							"name": "Create Healthcare Service",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Primary Care\",\n  \"serviceType\": \"Outpatient\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/healthcare-services",
+									"host": ["{{base_url}}"],
+									"path": ["api", "healthcare-services"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Healthcare Service",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Primary Care - Updated\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/healthcare-services/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "healthcare-services", "1"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Document Settings",
+					"item": [
+						{
+							"name": "Get Document Settings",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/document-settings",
+									"host": ["{{base_url}}"],
+									"path": ["api", "document-settings"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Inventory Settings",
+					"item": [
+						{
+							"name": "Get Inventory Settings",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/inventory-settings",
+									"host": ["{{base_url}}"],
+									"path": ["api", "inventory-settings"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Fee Schedules",
+					"item": [
+						{
+							"name": "Get Fee Schedules",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/fee-schedules",
+									"host": ["{{base_url}}"],
+									"path": ["api", "fee-schedules"]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Testing & Utilities",
+			"item": [
+				{
+					"name": "Test Schemas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/test/schemas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "test", "schemas"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Test Entities",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/test/entities",
+							"host": ["{{base_url}}"],
+							"path": ["api", "test", "entities"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Schema Verification",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/schema-verification",
+							"host": ["{{base_url}}"],
+							"path": ["api", "schema-verification"]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
