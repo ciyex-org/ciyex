@@ -17,7 +17,7 @@ spec:
       http:
         paths:
           - pathType: Prefix
-            path: /
+            path: /api
             backend:
               service:
                 name: ciyex-app-stage
