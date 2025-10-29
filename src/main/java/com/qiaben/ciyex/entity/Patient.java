@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.EqualsAndHashCode;
 
 @Entity
-@Table(name = "patients",schema = "practice_1")
+@Table(name = "patients")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

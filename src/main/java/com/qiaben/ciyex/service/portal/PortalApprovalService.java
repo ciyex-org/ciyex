@@ -10,7 +10,6 @@ import com.qiaben.ciyex.enums.PortalStatus;
 import com.qiaben.ciyex.repository.PatientRepository;
 import com.qiaben.ciyex.repository.portal.PortalUserRepository;
 import com.qiaben.ciyex.repository.portal.PortalPatientRepository;
-import com.qiaben.ciyex.service.TenantProvisionService;
 import com.qiaben.ciyex.service.KeycloakUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +34,6 @@ public class PortalApprovalService {
     private final PortalUserRepository portalUserRepository;
     private final PortalPatientRepository portalPatientRepository;
     private final PatientRepository patientRepository;
-    private final TenantProvisionService tenantProvisionService;
     private final KeycloakUserService keycloakUserService;
 
     /**
