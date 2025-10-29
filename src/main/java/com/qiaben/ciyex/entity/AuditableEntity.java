@@ -18,10 +18,11 @@ import java.time.LocalDateTime;
  * - Last modification timestamp
  * - User who created the entity
  * - User who last modified the entity
- * - Tenant name (auto-populated from RequestContext)
+ *
+ * Tenant name field removed — not using multi-tenancy.
  */
 @MappedSuperclass
-@EntityListeners({AuditingEntityListener.class, TenantAuditListener.class})
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 public abstract class AuditableEntity {
@@ -41,13 +42,6 @@ public abstract class AuditableEntity {
     @LastModifiedBy
     @Column(name = "last_modified_by", length = 100)
     private String lastModifiedBy;
-
-    /**
-     * Tenant name - automatically populated from RequestContext
-     * This field is set by TenantAuditListener before persist and update operations
-     */
-    @Column(name = "tenant_name", nullable = false, length = 100, updatable = false)
-    private String tenantName;
 
     @PrePersist
     protected void prePersist() {
