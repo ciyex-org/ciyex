@@ -19,10 +19,7 @@ spec:
           image: IMAGE_URL:IMAGE_TAG
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8080  # Spring Boot
-            - containerPort: 3000  # EHR UI (Next.js)
-            - containerPort: 3001  # Portal UI (Next.js)
-            - containerPort: 3002  # Admin UI (Next.js)
+            - containerPort: 8080  # Spring Boot Backend API
           livenessProbe:
             httpGet:
               path: /actuator/health
@@ -49,8 +46,6 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: POSTGRES_PASSWORD
-            - name: NEXT_PUBLIC_API_URL
-              value: "https://stg.ciyex.com/api"
             - name: CIYEX_TENANT_AUTO_INIT
               value: "false"
 

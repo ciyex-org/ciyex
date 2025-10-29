@@ -11,44 +11,15 @@ spec:
   tls:
     - hosts:
         - stg.ciyex.com
-        - portal-stg.ciyex.com
-        - admin-stg.ciyex.com
       secretName: ciyex-ingress-stage-tls
   rules:
     - host: stg.ciyex.com
       http:
         paths:
           - pathType: Prefix
-            path: /api
+            path: /
             backend:
               service:
                 name: ciyex-app-stage
                 port:
                   number: 8080
-          - pathType: Prefix
-            path: /
-            backend:
-              service:
-                name: ciyex-app-stage
-                port:
-                  number: 3000
-    - host: portal-stg.ciyex.com
-      http:
-        paths:
-          - pathType: Prefix
-            path: /
-            backend:
-              service:
-                name: ciyex-app-stage
-                port:
-                  number: 3001
-    - host: admin-stg.ciyex.com
-      http:
-        paths:
-          - pathType: Prefix
-            path: /
-            backend:
-              service:
-                name: ciyex-app-stage
-                port:
-                  number: 3002
