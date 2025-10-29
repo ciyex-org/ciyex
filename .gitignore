@@ -87,3 +87,8 @@ node_modules
 .vscode/launch.json
 
 /.vscode/
+
+# UI projects moved to separate repositories
+ciyex-ehr-ui/
+ciyex-portal-ui/
+ciyex-admin-ui/
