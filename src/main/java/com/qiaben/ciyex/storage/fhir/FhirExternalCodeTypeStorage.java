@@ -19,8 +19,15 @@ public class FhirExternalCodeTypeStorage implements ExternalStorage<CodeTypeDto>
 
     @Override
     public String create(CodeTypeDto dto) {
+        String tenantName = null;
+        if (RequestContext.get() != null) {
+            tenantName = RequestContext.get().getTenantName();
+        } else {
+            log.warn("RequestContext is null in FhirExternalCodeTypeStorage.create; tenantName will be set to 'unknown'.");
+            tenantName = "unknown";
+        }
         log.info("FHIR CodeType create: org={}, patient={}, encounter={}, key={}, id={}, label={}",
-                RequestContext.get().getTenantName(), dto.getPatientId(), dto.getEncounterId(),
+                tenantName, dto.getPatientId(), dto.getEncounterId(),
                 dto.getCodeTypeKey(), dto.getCodeTypeId(), dto.getLabel());
         // TODO: Map dto -> FHIR CodeSystem or ValueSet
         return null; // return generated externalId
@@ -28,8 +35,15 @@ public class FhirExternalCodeTypeStorage implements ExternalStorage<CodeTypeDto>
 
     @Override
     public void update(CodeTypeDto dto, String externalId) {
+        String tenantName = null;
+        if (RequestContext.get() != null) {
+            tenantName = RequestContext.get().getTenantName();
+        } else {
+            log.warn("RequestContext is null in FhirExternalCodeTypeStorage.update; tenantName will be set to 'unknown'.");
+            tenantName = "unknown";
+        }
         log.info("FHIR CodeType update: externalId={}, org={}, patient={}, encounter={}, key={}, id={}, label={}",
-                externalId, RequestContext.get().getTenantName(), dto.getPatientId(), dto.getEncounterId(),
+                externalId, tenantName, dto.getPatientId(), dto.getEncounterId(),
                 dto.getCodeTypeKey(), dto.getCodeTypeId(), dto.getLabel());
         // TODO: implement update
     }

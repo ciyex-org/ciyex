@@ -9,12 +9,16 @@ import com.qiaben.ciyex.provider.FhirClientProvider;
 import com.qiaben.ciyex.storage.ExternalStorage;
 import com.qiaben.ciyex.storage.StorageType;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.instance.model.api.IBaseBundle;
 import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @StorageType("fhir")
@@ -23,8 +27,8 @@ import java.util.stream.Collectors;
 public class FhirExternalLabOrderStorage implements ExternalStorage<LabOrderDto> {
 
     private final FhirClientProvider fhirClientProvider;
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
-    private static final SimpleDateFormat DATETIME_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+    private static final String TENANT_TAG_SYSTEM = "http://ciyex.com/tenant";
+    private static final Pattern TITLE_PATIENT_PATTERN = Pattern.compile("patientId\\s+(\\d+)", Pattern.CASE_INSENSITIVE);
 
     @Autowired
     public FhirExternalLabOrderStorage(FhirClientProvider fhirClientProvider) {
@@ -33,51 +37,91 @@ public class FhirExternalLabOrderStorage implements ExternalStorage<LabOrderDto>
 
     @Override
     public String create(LabOrderDto dto) {
+        String tenantName = tenantName();
+        log.info("FHIR create LabOrder List for tenantName={} patientId={}", tenantName, dto.getPatientId());
         return executeWithRetry(() -> {
             IGenericClient client = fhirClientProvider.getForCurrentTenant();
-            ServiceRequest sr = mapToServiceRequest(dto);
-
-            var outcome = client.create()
-                    .resource(sr)
-                    .withAdditionalHeader("Prefer", "return=representation")
-                    .execute();
-
-            String id = (outcome != null && outcome.getId() != null) ? outcome.getId().getIdPart() : null;
-            log.debug("FHIR create outcome id={}", id);
-            return id; // service ignores this
+            ListResource list = mapToFhir(dto, tenantName);
+            String externalId = client.create().resource(list).execute().getId().getIdPart();
+            log.info("FHIR create success externalId={} tenantName={}", externalId, tenantName);
+            return externalId;
         });
     }
 
     @Override
-    public void update(LabOrderDto dto, String unused) {
-        // No-op (no externalId in local model)
-        executeWithRetry(() -> null);
+    public void update(LabOrderDto dto, String externalId) {
+        String tenantName = tenantName();
+        log.info("FHIR update LabOrder List externalId={} tenantName={}", externalId, tenantName);
+        executeWithRetry(() -> {
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            ListResource list = mapToFhir(dto, tenantName);
+            list.setId(externalId);
+            client.update().resource(list).execute();
+            log.info("FHIR update success externalId={} tenantName={}", externalId, tenantName);
+            return null;
+        });
     }
 
     @Override
-    public LabOrderDto get(String unused) {
-        // No-op
-        return null;
+    public LabOrderDto get(String externalId) {
+        String tenantName = tenantName();
+        log.info("FHIR get LabOrder List externalId={} tenantName={}", externalId, tenantName);
+        return executeWithRetry(() -> {
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            ListResource list = client.read().resource(ListResource.class).withId(externalId).execute();
+            LabOrderDto dto = mapFromFhir(list, tenantName);
+            dto.setExternalId(externalId);
+            Long pid = parsePatientIdFromTitle(list.getTitle());
+            if (pid != null) dto.setPatientId(pid);
+            log.debug("FHIR get mapped dto externalId={} tenantName={} patientId={}", externalId, tenantName, dto.getPatientId());
+            return dto;
+        });
     }
 
     @Override
-    public void delete(String unused) {
-        // No-op
+    public void delete(String externalId) {
+        String tenantName = tenantName();
+        log.info("FHIR delete LabOrder List externalId={} tenantName={}", externalId, tenantName);
+        executeWithRetry(() -> {
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            client.delete().resourceById("List", externalId).execute();
+            log.info("FHIR delete success externalId={} tenantName={}", externalId, tenantName);
+            return null;
+        });
     }
 
     @Override
     public List<LabOrderDto> searchAll() {
-        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
-        Bundle bundle = fhirClientProvider.getForCurrentTenant().search()
-                .forResource(ServiceRequest.class)
-                .where(new TokenClientParam("_tag").exactly()
-                        .systemAndCode("http://ciyex.com/tenant", tenantName != null ? tenantName : ""))
-                .returnBundle(Bundle.class)
-                .execute();
+        String tenantName = tenantName();
+        log.info("FHIR searchAll LabOrder Lists tenantName={}", tenantName);
+        return executeWithRetry(() -> {
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            Bundle bundle = client.search()
+                    .forResource(ListResource.class)
+                    .where(new TokenClientParam("_tag").exactly().systemAndCode(TENANT_TAG_SYSTEM, tenantName != null ? tenantName : ""))
+                    .returnBundle(Bundle.class)
+                    .execute();
 
-        return bundle.getEntry().stream()
-                .map(entry -> mapFromServiceRequest((ServiceRequest) entry.getResource()))
-                .collect(Collectors.toList());
+            final List<Bundle.BundleEntryComponent> entries = new ArrayList<>(bundle.getEntry());
+            while (bundle.getLink(IBaseBundle.LINK_NEXT) != null) {
+                bundle = client.loadPage().next(bundle).execute();
+                entries.addAll(bundle.getEntry());
+            }
+
+            List<LabOrderDto> out = entries.stream()
+                    .map(e -> (ListResource) e.getResource())
+                    .map(list -> {
+                        LabOrderDto dto = mapFromFhir(list, tenantName);
+                        dto.setExternalId(list.getIdElement().getIdPart());
+                        Long pid = parsePatientIdFromTitle(list.getTitle());
+                        if (pid != null) dto.setPatientId(pid);
+                        return dto;
+                    })
+                    .collect(Collectors.toList());
+
+            log.info("FHIR searchAll found {} LabOrder Lists for tenantName={}", out.size(), tenantName);
+            return out;
+        });
     }
 
     @Override
@@ -87,169 +131,89 @@ public class FhirExternalLabOrderStorage implements ExternalStorage<LabOrderDto>
 
     // --- helpers ---
 
-    private <T> T executeWithRetry(FhirOperation<T> op) {
+    private <T> T executeWithRetry(Callable<T> op) {
         try {
-            return op.execute();
+            return op.call();
         } catch (FhirClientConnectionException e) {
+            log.error("FHIR LabOrder connection error status={} msg={}", e.getStatusCode(), e.getMessage());
             if (e.getStatusCode() == 401) {
-                return op.execute(); // refresh via provider
+                log.warn("LabOrder 401 unauthorized; retrying once");
+                try { return op.call(); } catch (Exception ex) { throw new RuntimeException(ex); }
             }
             throw e;
+        } catch (Exception e) {
+            log.error("Unexpected FHIR LabOrder error msg={}", e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
-    @FunctionalInterface
-    private interface FhirOperation<T> { T execute(); }
-
-    private ServiceRequest mapToServiceRequest(LabOrderDto d) {
-        ServiceRequest sr = new ServiceRequest();
-
-        // tenant tag (from RequestContext)
-        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
-        if (tenantName != null) {
-            sr.getMeta().addTag().setSystem("http://ciyex.com/tenant").setCode(tenantName);
-        }
-
-        if (d.getPatientExternalId() != null) {
-            sr.setSubject(new Reference("Patient/" + d.getPatientExternalId()));
-        }
-        if (d.getEncounterId() != null) {
-            sr.setEncounter(new Reference("Encounter/" + d.getEncounterId()));
-        }
-
-        if (d.getTestCode() != null || d.getOrderName() != null || d.getTestDisplay() != null) {
-            CodeableConcept cc = new CodeableConcept();
-            String display = d.getOrderName() != null ? d.getOrderName() : d.getTestDisplay();
-            if (d.getTestCode() != null) {
-                cc.addCoding(new Coding().setCode(d.getTestCode()).setDisplay(display));
-            }
-            if (display != null && cc.getCoding().isEmpty()) {
-                cc.setText(display);
-            }
-            sr.setCode(cc);
-        }
-
-        if (d.getStatus() != null) {
-            try { sr.setStatus(ServiceRequest.ServiceRequestStatus.fromCode(d.getStatus())); }
-            catch (Exception ignored) { sr.setStatus(ServiceRequest.ServiceRequestStatus.DRAFT); }
-        }
-        if (d.getPriority() != null) {
-            try { sr.setPriority(ServiceRequest.ServiceRequestPriority.fromCode(d.getPriority())); }
-            catch (Exception ignored) { /* noop */ }
-        }
-
-        if (d.getOrderDateTime() != null) {
-            try { sr.setAuthoredOn(DATETIME_FORMAT.parse(d.getOrderDateTime())); } catch (Exception ignored) {}
-        } else if (d.getOrderDate() != null) {
-            try { sr.setAuthoredOn(DATE_FORMAT.parse(d.getOrderDate())); } catch (Exception ignored) {}
-        }
-
-        if (d.getMrn() != null) sr.addIdentifier().setType(new CodeableConcept().setText("MRN")).setValue(d.getMrn());
-        if (d.getOrderNumber() != null) sr.addIdentifier().setType(new CodeableConcept().setText("OrderNumber")).setValue(d.getOrderNumber());
-
-        String requesterDisplay = d.getPhysicianName() != null ? d.getPhysicianName() : d.getOrderingProvider();
-        if (requesterDisplay != null) sr.setRequester(new Reference().setDisplay(requesterDisplay));
-
-        if (d.getLabName() != null) sr.addPerformer(new Reference().setDisplay(d.getLabName()));
-
-        if (d.getNotes() != null) sr.addNote(new Annotation().setText(d.getNotes()));
-
-        if (d.getSpecimenId() != null) sr.addSpecimen(new Reference("Specimen/" + d.getSpecimenId()));
-
-        // --- NEW: icdId -> reasonCode (ICD-10-CM) ---
-        if (d.getIcdId() != null && !d.getIcdId().isBlank()) {
-            CodeableConcept reason = new CodeableConcept();
-            reason.addCoding(
-                    new Coding()
-                            .setSystem("http://hl7.org/fhir/sid/icd-10-cm")
-                            .setCode(d.getIcdId())
-                            .setDisplay(d.getIcdId())
-            );
-            sr.addReasonCode(reason);
-        }
-
-        // 'result' is intentionally NOT mapped to ServiceRequest. Prefer Observation/DiagnosticReport.
-        // If you still want to surface it here, you could append as a note:
-        // if (d.getResult() != null) sr.addNote(new Annotation().setText("Result: " + d.getResult()));
-
-        return sr;
+    private static String safe(String s) { return s == null ? "" : s; }
+    private static String partOrNull(String[] arr, int idx) { if (arr == null || idx < 0 || idx >= arr.length) return null; String v = arr[idx]; return (v == null || v.isEmpty()) ? null : v; }
+    private static Long parsePatientIdFromTitle(String title) {
+        if (title == null) return null;
+        Matcher m = TITLE_PATIENT_PATTERN.matcher(title);
+        if (m.find()) { try { return Long.parseLong(m.group(1)); } catch (NumberFormatException ignored) { } }
+        return null;
     }
 
-    private LabOrderDto mapFromServiceRequest(ServiceRequest sr) {
+    /** Encode LabOrderDto into ListResource with single contained Basic using pipe-separated fields. */
+    private ListResource mapToFhir(LabOrderDto d, String tenantName) {
+    ListResource list = new ListResource();
+    list.setStatus(ListResource.ListStatus.CURRENT);
+    list.setMode(ListResource.ListMode.WORKING);
+    list.setTitle("Lab Order – patientId " + d.getPatientId());
+
+    list.getMeta()
+        .addTag()
+        .setSystem(TENANT_TAG_SYSTEM)
+        .setCode(tenantName() != null ? tenantName() : "");
+
+    String text = safe(d.getOrderNumber()) + "|" + safe(d.getOrderName()) + "|" + safe(d.getTestCode()) + "|" +
+        safe(d.getTestDisplay()) + "|" + safe(d.getStatus()) + "|" + safe(d.getPriority()) + "|" +
+        safe(d.getOrderDate()) + "|" + safe(d.getOrderDateTime()) + "|" + safe(d.getPhysicianName()) + "|" +
+        safe(d.getLabName()) + "|" + safe(d.getOrderingProvider()) + "|" + safe(d.getNotes()) + "|" +
+        safe(d.getDiagnosisCode()) + "|" + safe(d.getProcedureCode()) + "|" + safe(d.getSpecimenId()) + "|" +
+        safe(d.getResult());
+
+    Basic basic = new Basic();
+    basic.setCode(new CodeableConcept().setText(text));
+    if (!basic.hasId()) basic.setId(IdType.newRandomUuid());
+    list.addContained(basic);
+    list.addEntry().setItem(new Reference("#" + basic.getIdElement().getIdPart()));
+    return list;
+    }
+
+    private LabOrderDto mapFromFhir(ListResource list, String tenantName) {
         LabOrderDto d = new LabOrderDto();
-
-        if (sr.hasSubject() && sr.getSubject().hasReference()) {
-            String ref = sr.getSubject().getReference(); // "Patient/{id}"
-            if (ref != null && ref.startsWith("Patient/")) {
-                d.setPatientExternalId(ref.substring("Patient/".length()));
-            }
-        }
-
-        if (sr.hasEncounter() && sr.getEncounter().hasReference()) {
-            String ref = sr.getEncounter().getReference(); // "Encounter/{id}"
-            if (ref != null && ref.startsWith("Encounter/")) {
-                d.setEncounterId(ref.substring("Encounter/".length()));
-            }
-        }
-
-        if (sr.hasCode()) {
-            CodeableConcept cc = sr.getCode();
-            if (cc.hasCoding()) {
-                Coding c = cc.getCodingFirstRep();
-                d.setTestCode(c.getCode());
-                d.setOrderName(c.getDisplay());
-                d.setTestDisplay(c.getDisplay());
-            } else if (cc.hasText()) {
-                d.setOrderName(cc.getText());
-                d.setTestDisplay(cc.getText());
-            }
-        }
-
-        if (sr.hasStatus())   d.setStatus(sr.getStatus().toCode());
-        if (sr.hasPriority()) d.setPriority(sr.getPriority().toCode());
-        if (sr.hasAuthoredOn()) {
-            d.setOrderDate(DATE_FORMAT.format(sr.getAuthoredOn()));
-            d.setOrderDateTime(DATETIME_FORMAT.format(sr.getAuthoredOn()));
-        }
-
-        if (sr.hasIdentifier()) {
-            for (Identifier id : sr.getIdentifier()) {
-                if (id.hasType() && "MRN".equalsIgnoreCase(id.getType().getText())) d.setMrn(id.getValue());
-                if (id.hasType() && "OrderNumber".equalsIgnoreCase(id.getType().getText())) d.setOrderNumber(id.getValue());
-            }
-        }
-
-        if (sr.hasRequester() && sr.getRequester().hasDisplay()) {
-            d.setPhysicianName(sr.getRequester().getDisplay());
-            d.setOrderingProvider(sr.getRequester().getDisplay());
-        }
-
-        if (sr.hasPerformer() && !sr.getPerformer().isEmpty() && sr.getPerformerFirstRep().hasDisplay()) {
-            d.setLabName(sr.getPerformerFirstRep().getDisplay());
-        }
-
-        if (sr.hasNote()) d.setNotes(sr.getNoteFirstRep().getText());
-
-        // --- NEW: read back icdId from reasonCode ---
-        if (sr.hasReasonCode()) {
-            for (CodeableConcept rc : sr.getReasonCode()) {
-                if (rc.hasCoding()) {
-                    Coding c = rc.getCodingFirstRep();
-                    if (c.getCode() != null) {
-                        d.setIcdId(c.getCode());
-                        break;
-                    }
-                } else if (rc.hasText() && d.getIcdId() == null) {
-                    d.setIcdId(rc.getText());
-                }
-            }
-        }
-
-        // d.setResult(...) is intentionally not populated from ServiceRequest.
-
-        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
-        d.setTenantName(tenantName);
-
+        final List<Resource> contained = list.getContained();
+        contained.stream()
+                .filter(r -> r instanceof Basic)
+                .map(r -> (Basic) r)
+                .findFirst()
+                .ifPresent(b -> {
+                    String text = b.getCode() != null ? b.getCode().getText() : null;
+                    String[] parts = text != null ? text.split("\\|", -1) : new String[0];
+                    d.setOrderNumber(partOrNull(parts, 0));
+                    d.setOrderName(partOrNull(parts, 1));
+                    d.setTestCode(partOrNull(parts, 2));
+                    d.setTestDisplay(partOrNull(parts, 3));
+                    d.setStatus(partOrNull(parts, 4));
+                    d.setPriority(partOrNull(parts, 5));
+                    d.setOrderDate(partOrNull(parts, 6));
+                    d.setOrderDateTime(partOrNull(parts, 7));
+                    d.setPhysicianName(partOrNull(parts, 8));
+                    d.setLabName(partOrNull(parts, 9));
+                    d.setOrderingProvider(partOrNull(parts, 10));
+                    d.setNotes(partOrNull(parts, 11));
+                    d.setDiagnosisCode(partOrNull(parts, 12));
+                    d.setProcedureCode(partOrNull(parts, 13));
+                    d.setSpecimenId(partOrNull(parts, 14));
+                    d.setResult(partOrNull(parts, 15));
+                });
         return d;
+    }
+
+    private String tenantName() {
+        return RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
     }
 }
