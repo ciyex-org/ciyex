@@ -3,35 +3,34 @@ package com.qiaben.ciyex.controller;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.LocationDto;
 import com.qiaben.ciyex.service.LocationService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/locations")
+@RequiredArgsConstructor
 @Slf4j
 public class LocationController {
 
-    private final LocationService service;
-
-    public LocationController(LocationService service) {
-        this.service = service;
-    }
+    private final LocationService locationService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<LocationDto>> create(@RequestBody LocationDto dto) {
         try {
-            LocationDto createdLocation = service.create(dto);
+            log.info("Creating new location: {}", dto.getName());
+            LocationDto created = locationService.create(dto);
             return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
                     .success(true)
                     .message("Location created successfully")
-                    .data(createdLocation)
+                    .data(created)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to create location: {}", e.getMessage());
-            return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
+            log.error("Error creating location: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(ApiResponse.<LocationDto>builder()
                     .success(false)
                     .message("Failed to create location: " + e.getMessage())
                     .build());
@@ -39,23 +38,18 @@ public class LocationController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<LocationDto>> get(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<LocationDto>> getById(@PathVariable Long id) {
         try {
-            LocationDto location = service.getById(id);
-            if (location == null) {
-                return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
-                        .success(false)
-                        .message("Location not found with id: " + id)
-                        .build());
-            }
+            log.info("Fetching location with id: {}", id);
+            LocationDto dto = locationService.getById(id);
             return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
                     .success(true)
                     .message("Location retrieved successfully")
-                    .data(location)
+                    .data(dto)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to retrieve location with id {}: {}", id, e.getMessage());
-            return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
+            log.error("Error fetching location by id {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.badRequest().body(ApiResponse.<LocationDto>builder()
                     .success(false)
                     .message("Failed to retrieve location: " + e.getMessage())
                     .build());
@@ -65,21 +59,16 @@ public class LocationController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<LocationDto>> update(@PathVariable Long id, @RequestBody LocationDto dto) {
         try {
-            LocationDto updatedLocation = service.update(id, dto);
-            if (updatedLocation == null) {
-                return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
-                        .success(false)
-                        .message("Location not found with id: " + id)
-                        .build());
-            }
+            log.info("Updating location with id: {}", id);
+            LocationDto updated = locationService.update(id, dto);
             return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
                     .success(true)
                     .message("Location updated successfully")
-                    .data(updatedLocation)
+                    .data(updated)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to update location with id {}: {}", id, e.getMessage());
-            return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
+            log.error("Error updating location {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.badRequest().body(ApiResponse.<LocationDto>builder()
                     .success(false)
                     .message("Failed to update location: " + e.getMessage())
                     .build());
@@ -89,14 +78,15 @@ public class LocationController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         try {
-            service.delete(id);
+            log.info("Deleting location with id: {}", id);
+            locationService.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)
                     .message("Location deleted successfully")
                     .build());
         } catch (Exception e) {
-            log.error("Failed to delete location with id {}: {}", id, e.getMessage());
-            return ResponseEntity.ok(ApiResponse.<Void>builder()
+            log.error("Error deleting location {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.badRequest().body(ApiResponse.<Void>builder()
                     .success(false)
                     .message("Failed to delete location: " + e.getMessage())
                     .build());
@@ -104,16 +94,41 @@ public class LocationController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<LocationDto>>> getAllLocations() {
+    public ResponseEntity<ApiResponse<Page<LocationDto>>> getAll(Pageable pageable) {
         try {
-            ApiResponse<List<LocationDto>> response = service.getAllLocations();
-            return ResponseEntity.ok(response);
+            log.info("Fetching all locations with pagination: {}", pageable);
+            Page<LocationDto> page = locationService.getAll(pageable);
+            return ResponseEntity.ok(ApiResponse.<Page<LocationDto>>builder()
+                    .success(true)
+                    .message("Locations retrieved successfully")
+                    .data(page)
+                    .build());
         } catch (Exception e) {
-            log.error("Failed to retrieve all locations: {}", e.getMessage());
-            return ResponseEntity.ok(ApiResponse.<List<LocationDto>>builder()
+            log.error("Error fetching all locations: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(ApiResponse.<Page<LocationDto>>builder()
                     .success(false)
                     .message("Failed to retrieve locations: " + e.getMessage())
                     .build());
         }
     }
+
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<Page<LocationDto>>> search(@RequestParam String keyword, Pageable pageable) {
+        try {
+            log.info("Searching locations with keyword: {}", keyword);
+            Page<LocationDto> results = locationService.search(keyword, pageable);
+            return ResponseEntity.ok(ApiResponse.<Page<LocationDto>>builder()
+                    .success(true)
+                    .message("Search results retrieved successfully")
+                    .data(results)
+                    .build());
+        } catch (Exception e) {
+            log.error("Error searching locations with keyword '{}': {}", keyword, e.getMessage(), e);
+            return ResponseEntity.badRequest().body(ApiResponse.<Page<LocationDto>>builder()
+                    .success(false)
+                    .message("Failed to search locations: " + e.getMessage())
+                    .build());
+        }
+    }
 }
+ 
