@@ -21,6 +21,11 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class VitalsController {
+        @GetMapping("/{patientId}")
+        public ResponseEntity<ApiResponse<List<VitalsDto>>> getAllByPatient(@PathVariable Long patientId) {
+                var items = service.getAllByPatient(patientId);
+                return ResponseEntity.ok(ApiResponse.<List<VitalsDto>>builder().success(true).message("Fetched").data(items).build());
+        }
     private final VitalsService service;
 
     @PostMapping("/{patientId}/{encounterId}")

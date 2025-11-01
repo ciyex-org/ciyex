@@ -106,6 +106,11 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class AssignedProviderController {
+    @GetMapping("/{patientId}")
+    public ResponseEntity<ApiResponse<List<AssignedProviderDto>>> getAllByPatient(@PathVariable Long patientId) {
+        var items = service.getAllByPatient(patientId);
+        return ResponseEntity.ok(ApiResponse.<List<AssignedProviderDto>>builder().success(true).message("Fetched").data(items).build());
+    }
 
     private final AssignedProviderService service;
 

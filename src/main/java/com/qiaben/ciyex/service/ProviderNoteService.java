@@ -177,6 +177,10 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class ProviderNoteService {
+    public List<ProviderNoteDto> getAllByPatient(Long patientId) {
+        return repo.findByPatientId(patientId)
+            .stream().map(this::toDto).toList();
+    }
 
     private final ProviderNoteRepository repo;
 

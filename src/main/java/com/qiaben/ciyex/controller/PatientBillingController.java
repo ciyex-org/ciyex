@@ -47,7 +47,7 @@ public class PatientBillingController {
 
     private final PatientBillingService service;
     
-        
+
     /* ===================== Invoices ===================== */
 
       
@@ -567,16 +567,15 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
         return ResponseEntity.ok(resp);
     }
 
-    /** Patient Deposit: Add deposit and update account credit */
+    /** Add patient deposit */
     @PostMapping("/deposit")
     public ResponseEntity<ApiResponse<PatientAccountCreditDto>> addPatientDeposit(
-            
             @PathVariable Long patientId,
-            @RequestBody PatientDepositRequest request
-    ) {
-        var data = service.addPatientDeposit(patientId, request);
-        return ResponseEntity.ok(ApiResponse.ok("Deposit added and account credit updated", data));
+            @RequestBody PatientDepositRequest request) {
+        PatientAccountCreditDto result = service.addPatientDeposit(patientId, request);
+        return ResponseEntity.ok(ApiResponse.ok("Deposit added successfully", result));
     }
+
 
     /** Insurance Deposit: Add insurance deposit and update account credit */
     @PostMapping("/insurance-deposit")

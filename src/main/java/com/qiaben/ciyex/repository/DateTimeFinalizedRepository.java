@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface DateTimeFinalizedRepository extends JpaRepository<DateTimeFinalized, Long> {
+    List<DateTimeFinalized> findByPatientId(Long patientId);
 
     List<DateTimeFinalized> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 

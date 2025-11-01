@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AssignedProviderRepository extends JpaRepository<AssignedProvider, Long> {
+    List<AssignedProvider> findByPatientId(Long patientId);
 
     List<AssignedProvider> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 

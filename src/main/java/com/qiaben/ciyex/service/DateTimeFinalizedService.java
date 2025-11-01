@@ -168,6 +168,10 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class DateTimeFinalizedService {
+    public List<DateTimeFinalizedDto> getAllByPatient(Long patientId) {
+        return repo.findByPatientId(patientId)
+            .stream().map(this::toDto).toList();
+    }
 
     private final DateTimeFinalizedRepository repo;
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");

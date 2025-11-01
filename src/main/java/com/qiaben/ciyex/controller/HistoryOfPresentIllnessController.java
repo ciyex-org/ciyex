@@ -114,6 +114,11 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class HistoryOfPresentIllnessController {
+    @GetMapping("/{patientId}")
+    public ResponseEntity<ApiResponse<List<HistoryOfPresentIllnessDto>>> getAllByPatient(@PathVariable Long patientId) {
+        var items = service.getAllByPatient(patientId);
+        return ResponseEntity.ok(ApiResponse.<List<HistoryOfPresentIllnessDto>>builder().success(true).message("Fetched").data(items).build());
+    }
 
     private final HistoryOfPresentIllnessService service;
 

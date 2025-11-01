@@ -140,6 +140,7 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.CodeDto;
+import com.qiaben.ciyex.dto.CodeTypeDto;
 import com.qiaben.ciyex.entity.Code;
 import com.qiaben.ciyex.repository.CodeRepository;
 import lombok.RequiredArgsConstructor;
@@ -178,6 +179,12 @@ public class CodeService {
         e = repo.save(e);
         return toDto(e);
     }
+    // GET ALL by patient
+    public List<CodeDto> getAllByPatient(Long patientId) {
+        return repo.findByPatientId(patientId)
+                .stream().map(this::toDto).toList();
+    }
+
 
     // LIST
     public List<CodeDto> list(Long patientId, Long encounterId) {

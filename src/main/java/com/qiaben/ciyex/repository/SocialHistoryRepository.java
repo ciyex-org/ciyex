@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SocialHistoryRepository extends JpaRepository<SocialHistory, Long> {
+    List<SocialHistory> findByPatientId(Long patientId);
     List<SocialHistory> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
     Optional<SocialHistory> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 }

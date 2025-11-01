@@ -20,15 +20,21 @@ import java.util.List;
 @Slf4j
 public class ProcedureController {
 
+
     private final ProcedureService service;
 
-    @GetMapping("/{patientId}")
-    public ResponseEntity<ApiResponse<List<ProcedureDto>>> getAllByPatient(
-            @PathVariable Long patientId) {
-        var list = service.getAllByPatient(patientId);
-        return ResponseEntity.ok(ApiResponse.<List<ProcedureDto>>builder()
-                .success(true).message("Procedures fetched").data(list).build());
-    }
+//    @GetMapping("/{patientId}")
+//    public ResponseEntity<ApiResponse<List<ProcedureDto>>> getAllByPatient(
+//            @PathVariable Long patientId) {
+//        var list = service.getAllByPatient(patientId);
+//        return ResponseEntity.ok(ApiResponse.<List<ProcedureDto>>builder()
+//                .success(true).message("Procedures fetched").data(list).build());
+//    }
+@GetMapping("/{patientId}")
+public ResponseEntity<ApiResponse<List<ProcedureDto>>> getAllByPatient(@PathVariable Long patientId) {
+    var items = service.getAllByPatient(patientId);
+    return ResponseEntity.ok(ApiResponse.<List<ProcedureDto>>builder().success(true).message("Fetched").data(items).build());
+}
 
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<ProcedureDto>>> getAllByEncounter(

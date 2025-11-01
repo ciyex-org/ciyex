@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ChiefComplaintRepository extends JpaRepository<ChiefComplaint, Long> {
+    List<ChiefComplaint> findByPatientId(Long patientId);
     List<ChiefComplaint> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
     Optional<ChiefComplaint> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 }

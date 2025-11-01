@@ -238,6 +238,10 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class ChiefComplaintService {
+    public List<ChiefComplaintDto> getAllByPatient(Long patientId) {
+        return repo.findByPatientId(patientId)
+            .stream().map(this::toDto).toList();
+    }
 
     private final ChiefComplaintRepository repo;
 

@@ -108,6 +108,7 @@ package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.CodeDto;
+
 import com.qiaben.ciyex.service.CodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -126,6 +127,14 @@ import java.util.List;
 public class CodeController {
 
     private final CodeService service;
+
+   
+    @GetMapping("/{patientId}")
+    public ResponseEntity<ApiResponse<List<CodeDto>>> getAllByPatient(@PathVariable Long patientId) {
+        var list = service.getAllByPatient(patientId);
+        return ResponseEntity.ok(ApiResponse.<List<CodeDto>>builder()
+                .success(true).message("Codes fetched").data(list).build());
+    }
 
     
     // LIST

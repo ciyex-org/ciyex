@@ -12,6 +12,7 @@ import java.util.Optional;
 
 public interface ProcedureRepository extends JpaRepository<Procedure, Long> {
     List<Procedure> findByPatientId(Long patientId);
+   // List<Procedure> findByPatientId(Long patientId);
     List<Procedure> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
     Optional<Procedure> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 }

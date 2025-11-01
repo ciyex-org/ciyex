@@ -125,6 +125,13 @@ public class PlanController {
         return ResponseEntity.ok(ApiResponse.<List<PlanDto>>builder().success(true).message("Plans fetched").data(items).build());
     }
 
+        // GET ALL BY PATIENT
+        @GetMapping("/{patientId}")
+        public ResponseEntity<ApiResponse<List<PlanDto>>> getAllByPatient(@PathVariable Long patientId) {
+            var items = service.getAllByPatient(patientId);
+            return ResponseEntity.ok(ApiResponse.<List<PlanDto>>builder().success(true).message("Plans fetched").data(items).build());
+        }
+
     // GET ONE
     @GetMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<ApiResponse<PlanDto>> getOne(

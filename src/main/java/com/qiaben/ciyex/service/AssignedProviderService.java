@@ -146,6 +146,10 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class AssignedProviderService {
+    public List<AssignedProviderDto> getAllByPatient(Long patientId) {
+        return repo.findByPatientId(patientId)
+            .stream().map(this::toDto).toList();
+    }
 
     private final AssignedProviderRepository repo;
 

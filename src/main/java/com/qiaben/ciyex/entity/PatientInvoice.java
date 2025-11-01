@@ -17,7 +17,7 @@ public class PatientInvoice {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false) private Long orgId;
+    // @Column(nullable = true) private Long orgId;
     @Column(nullable = false) private Long patientId;
 
     @Enumerated(EnumType.STRING) @Column(nullable = false)
@@ -72,13 +72,13 @@ private LocalDate backdate;
         this.id = id;
     }
 
-    public Long getOrgId() {
-        return orgId;
-    }
+    // public Long getOrgId() {
+    //     return orgId;
+    // }
 
-    public void setOrgId(Long orgId) {
-        this.orgId = orgId;
-    }
+    // public void setOrgId(Long orgId) {
+    //     this.orgId = orgId;
+    // }
 
     public Long getPatientId() {
         return patientId;

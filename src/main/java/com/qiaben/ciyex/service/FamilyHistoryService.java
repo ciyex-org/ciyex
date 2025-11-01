@@ -194,6 +194,10 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class FamilyHistoryService {
+    public List<FamilyHistoryDto> getAllByPatient(Long patientId) {
+        return repo.findByPatientId(patientId)
+            .stream().map(this::toDto).toList();
+    }
 
     private final FamilyHistoryRepository repo;
 

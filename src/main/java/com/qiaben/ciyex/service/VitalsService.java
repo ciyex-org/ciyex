@@ -24,6 +24,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class VitalsService {
+    public List<VitalsDto> getAllByPatient(Long patientId) {
+        return repository.findByPatientId(patientId)
+            .stream().map(this::toDto).toList();
+    }
     private final VitalsRepository repository;
     private final ExternalVitalsStorage externalStorage;
 
