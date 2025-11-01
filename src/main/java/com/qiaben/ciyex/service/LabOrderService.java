@@ -64,6 +64,7 @@ public class LabOrderService {
     return mapToDto(order);
     }
 
+    
     // ---- READ ALL (org-scoped) ----
     @Transactional(readOnly = true)
     public List<LabOrderDto> getAll() {

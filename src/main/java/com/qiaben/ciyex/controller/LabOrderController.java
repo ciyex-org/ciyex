@@ -201,6 +201,7 @@ public class LabOrderController {
                                         .message("Failed to update lab order: " + e.getMessage())
                                         .build());
                 } finally {
+                        
                         RequestContext.clear();
                 }
     }

@@ -217,3 +217,4 @@ public class FhirExternalLabOrderStorage implements ExternalStorage<LabOrderDto>
         return RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
     }
 }
+

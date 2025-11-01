@@ -27,6 +27,7 @@ public class LabOrderDto {
     private String notes;
 
     // UPDATED
+    
     private String diagnosisCode;   // replaces icdId
     private String procedureCode;   // new
 

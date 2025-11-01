@@ -19,6 +19,7 @@ public class LabOrder {
     @Column(name = "patient_id")
     private Long patientId;
 
+    
     // Removed patientExternalId & mrn (no longer stored in lab_orders table)
     @Column(name = "physician_name")
     private String physicianName;
