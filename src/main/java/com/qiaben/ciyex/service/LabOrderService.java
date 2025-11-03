@@ -1,21 +1,20 @@
 package com.qiaben.ciyex.service;
 
-import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.LabOrderDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.entity.LabOrder;
 import com.qiaben.ciyex.repository.LabOrderRepository;
 import com.qiaben.ciyex.storage.ExternalStorage;
 import com.qiaben.ciyex.storage.ExternalStorageResolver;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
+import com.qiaben.ciyex.dto.ApiResponse;
 
 @Service
 @Slf4j
@@ -25,116 +24,103 @@ public class LabOrderService {
     private final ExternalStorageResolver storageResolver;
     private final OrgIntegrationConfigProvider configProvider;
 
-    @Autowired
-    public LabOrderService(
-            LabOrderRepository repository,
-            ExternalStorageResolver storageResolver,
-            OrgIntegrationConfigProvider configProvider) {
+    public LabOrderService(LabOrderRepository repository,
+                           ExternalStorageResolver storageResolver,
+                           OrgIntegrationConfigProvider configProvider) {
         this.repository = repository;
         this.storageResolver = storageResolver;
         this.configProvider = configProvider;
     }
 
+    // ---- CREATE ----
     @Transactional
     public LabOrderDto create(LabOrderDto dto) {
-        // Tenant isolation is now handled at schema level
-        // Long chosenOrgId = resolveOrgIdForCreate(dto, allowedOrgIds);
-        
-        // ensureRequestContextOrg(chosenOrgId);
-        //
-
-        if (dto.getTestCode() == null) {
-            throw new IllegalArgumentException("testCode is required");
-        }
-
+        if (dto.getTestCode() == null) throw new IllegalArgumentException("testCode is required");
         LabOrder order = mapToEntity(dto);
+        order.setCreatedDate(nowString());
+        order.setLastModifiedDate(nowString());
 
-        String storageType = safeStorageType();
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null) {
             try {
                 ExternalStorage<LabOrderDto> es = storageResolver.resolve(LabOrderDto.class);
-                es.create(dto); // Create in external system (no externalId stored)
-                log.info("External create OK (no externalId stored).");
+                String externalId = es.create(dto);
+                order.setExternalId(externalId);
             } catch (Exception e) {
-                log.warn("External create skipped (DB-only). reason={}", rootMessage(e));
+                log.warn("External create skipped. reason={}", rootMessage(e));
             }
         }
-
-        order = repository.save(order);
-        return mapToDto(order);
+        LabOrder saved = repository.save(order);
+        LabOrderDto out = mapToDto(saved);
+        out.setExternalId(saved.getExternalId());
+        return out;
     }
 
+    // ---- READ ONE ----
     @Transactional(readOnly = true)
-    public LabOrderDto getById(Long id) {
-        LabOrder order = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id));
-        return mapToDto(order);
+    public LabOrderDto getOne(Long id) {
+    LabOrder order = repository.findById(id)
+        .orElseThrow(() -> new RuntimeException("LabOrder not found id=" + id));
+    return mapToDto(order);
     }
 
+    
+    // ---- READ ALL (org-scoped) ----
+    @Transactional(readOnly = true)
+    public List<LabOrderDto> getAll() {
+    List<LabOrder> orders = repository.findAll();
+    return orders.stream().map(this::mapToDto).collect(Collectors.toList());
+    }
+
+    // Org-scoped search returning ApiResponse (similar to AllergyIntoleranceService.searchAll)
+    @Transactional(readOnly = true)
+    public ApiResponse<List<LabOrderDto>> searchAll() {
+    List<LabOrderDto> data = repository.findAll().stream().map(this::mapToDto).collect(Collectors.toList());
+    return ApiResponse.<List<LabOrderDto>>builder()
+        .success(true)
+        .message("Lab orders retrieved successfully")
+        .data(data)
+        .build();
+    }
+
+
+    // ---- UPDATE ----
     @Transactional
     public LabOrderDto update(Long id, LabOrderDto dto) {
         LabOrder order = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id));
+            .orElseThrow(() -> new RuntimeException("LabOrder not found id=" + id));
         updateEntityFromDto(order, dto);
-        order = repository.save(order);
-        return mapToDto(order);
+        order.setLastModifiedDate(nowString());
+        LabOrder saved = repository.save(order);
+        // External sync
+        if (order.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            if (storageType != null) {
+                ExternalStorage<LabOrderDto> ext = storageResolver.resolve(LabOrderDto.class);
+                ext.update(mapToDto(saved), order.getExternalId());
+            }
+        }
+        return mapToDto(saved);
     }
 
+    // ---- DELETE ----
     @Transactional
     public void delete(Long id) {
         LabOrder order = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id));
+            .orElseThrow(() -> new RuntimeException("LabOrder not found id=" + id));
+        String externalId = order.getExternalId();
         repository.delete(order);
-    }
-
-    @Transactional(readOnly = true)
-    public ApiResponse<List<LabOrderDto>> getAll() {
-        List<LabOrder> orders = repository.findAll();
-        List<LabOrderDto> dtos = orders.stream().map(this::mapToDto).collect(Collectors.toList());
-        return ApiResponse.<List<LabOrderDto>>builder()
-                .success(true)
-                .message("Lab orders retrieved successfully")
-                .data(dtos)
-                .build();
-    }
-
-    @Transactional(readOnly = true)
-    public ApiResponse<List<LabOrderDto>> getAllByPatient(Long patientId) {
-        
-        List<LabOrder> orders = repository.findAllByPatientId(patientId);
-        List<LabOrderDto> dtos = orders.stream().map(this::mapToDto).collect(Collectors.toList());
-        return ApiResponse.<List<LabOrderDto>>builder()
-                .success(true)
-                .message("Lab orders retrieved successfully")
-                .data(dtos)
-                .build();
-    }
-
-    @Transactional(readOnly = true)
-    public LabOrderDto getByIdForPatient(Long id, Long patientId) {
-        LabOrder order = repository.findByIdAndPatientId(id, patientId)
-                .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id + " for patient: " + patientId));
-        return mapToDto(order);
-    }
-
-    @Transactional
-    public void deleteForPatient(Long id, Long patientId) {
-        LabOrder order = repository.findByIdAndPatientId(id, patientId)
-                .orElseThrow(() -> new RuntimeException("LabOrder not found with id: " + id + " for patient: " + patientId));
-        repository.delete(order);
-    }
-
-    // ---- internals ----
-
-
-    private String safeStorageType() {
-        try {
-            return configProvider.getStorageTypeForCurrentOrg();
-        } catch (Exception e) {
-            log.warn("No org integration config; DB-only. reason={}", rootMessage(e));
-            return null;
+        // External sync
+        if (externalId != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            if (storageType != null) {
+                ExternalStorage<LabOrderDto> ext = storageResolver.resolve(LabOrderDto.class);
+                ext.delete(externalId);
+            }
         }
     }
+
+    // ---- helpers ----
 
     private String rootMessage(Throwable t) {
         String last = null;
@@ -145,16 +131,13 @@ public class LabOrderService {
         return last;
     }
 
+    private String nowString() { return LocalDateTime.now().toString(); }
+
     private LabOrder mapToEntity(LabOrderDto dto) {
         LabOrder e = new LabOrder();
         e.setPatientId(dto.getPatientId());
-        e.setPatientExternalId(dto.getPatientExternalId());
-        e.setMrn(dto.getMrn());
-        e.setEncounterId(dto.getEncounterId());
+        e.setExternalId(dto.getExternalId());
         e.setPhysicianName(dto.getPhysicianName());
-        e.setPatientFirstName(dto.getPatientFirstName());
-        e.setPatientLastName(dto.getPatientLastName());
-        e.setPatientHomePhone(dto.getPatientHomePhone());
         e.setOrderDateTime(dto.getOrderDateTime());
         e.setOrderName(dto.getOrderName());
         e.setLabName(dto.getLabName());
@@ -167,7 +150,8 @@ public class LabOrderService {
         e.setSpecimenId(dto.getSpecimenId());
         e.setNotes(dto.getNotes());
         e.setOrderingProvider(dto.getOrderingProvider());
-        e.setIcdId(dto.getIcdId());
+        e.setDiagnosisCode(dto.getDiagnosisCode());
+        e.setProcedureCode(dto.getProcedureCode());
         e.setResult(dto.getResult());
         return e;
     }
@@ -175,15 +159,9 @@ public class LabOrderService {
     private LabOrderDto mapToDto(LabOrder e) {
         LabOrderDto d = new LabOrderDto();
         d.setId(e.getId());
-        // d.setOrgId(e.getOrgId()); // Removed - using tenantName now
         d.setPatientId(e.getPatientId());
-        d.setPatientExternalId(e.getPatientExternalId());
-        d.setMrn(e.getMrn());
-        d.setEncounterId(e.getEncounterId());
+        d.setExternalId(e.getExternalId());
         d.setPhysicianName(e.getPhysicianName());
-        d.setPatientFirstName(e.getPatientFirstName());
-        d.setPatientLastName(e.getPatientLastName());
-        d.setPatientHomePhone(e.getPatientHomePhone());
         d.setOrderDateTime(e.getOrderDateTime());
         d.setOrderName(e.getOrderName());
         d.setLabName(e.getLabName());
@@ -196,26 +174,21 @@ public class LabOrderService {
         d.setSpecimenId(e.getSpecimenId());
         d.setNotes(e.getNotes());
         d.setOrderingProvider(e.getOrderingProvider());
-        d.setIcdId(e.getIcdId());
+        d.setDiagnosisCode(e.getDiagnosisCode());
+        d.setProcedureCode(e.getProcedureCode());
         d.setResult(e.getResult());
-
         if (e.getCreatedDate() != null || e.getLastModifiedDate() != null) {
             LabOrderDto.Audit a = new LabOrderDto.Audit();
+            a.setCreatedDate(e.getCreatedDate());
+            a.setLastModifiedDate(e.getLastModifiedDate());
             d.setAudit(a);
         }
         return d;
     }
 
     private void updateEntityFromDto(LabOrder e, LabOrderDto d) {
-        // if (d.getOrgId() != null) e.setOrgId(d.getOrgId()); // Removed - using tenantName now
         if (d.getPatientId() != null) e.setPatientId(d.getPatientId());
-        if (d.getPatientExternalId() != null) e.setPatientExternalId(d.getPatientExternalId());
-        if (d.getMrn() != null) e.setMrn(d.getMrn());
-        if (d.getEncounterId() != null) e.setEncounterId(d.getEncounterId());
         if (d.getPhysicianName() != null) e.setPhysicianName(d.getPhysicianName());
-        if (d.getPatientFirstName() != null) e.setPatientFirstName(d.getPatientFirstName());
-        if (d.getPatientLastName() != null) e.setPatientLastName(d.getPatientLastName());
-        if (d.getPatientHomePhone() != null) e.setPatientHomePhone(d.getPatientHomePhone());
         if (d.getOrderDateTime() != null) e.setOrderDateTime(d.getOrderDateTime());
         if (d.getOrderName() != null) e.setOrderName(d.getOrderName());
         if (d.getLabName() != null) e.setLabName(d.getLabName());
@@ -228,7 +201,8 @@ public class LabOrderService {
         if (d.getSpecimenId() != null) e.setSpecimenId(d.getSpecimenId());
         if (d.getNotes() != null) e.setNotes(d.getNotes());
         if (d.getOrderingProvider() != null) e.setOrderingProvider(d.getOrderingProvider());
-        if (d.getIcdId() != null) e.setIcdId(d.getIcdId());
+        if (d.getDiagnosisCode() != null) e.setDiagnosisCode(d.getDiagnosisCode());
+        if (d.getProcedureCode() != null) e.setProcedureCode(d.getProcedureCode());
         if (d.getResult() != null) e.setResult(d.getResult());
     }
 }

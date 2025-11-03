@@ -2,48 +2,29 @@ package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import lombok.EqualsAndHashCode;
 
 @Entity
 @Table(name = "lab_orders")
-@Getter
-@Setter
-@EqualsAndHashCode(callSuper = true)
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class LabOrder extends AuditableEntity {
+public class LabOrder {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    
 
     // Patient linkage
     @Column(name = "patient_id")
     private Long patientId;
 
-    @Column(name = "patient_external_id")
-    private String patientExternalId;
-
-    // EMR/UI fields
-    @Column(name = "mrn")
-    private String mrn;
-
-    @Column(name = "encounter_id")
-    private String encounterId;
-
+    
+    // Removed patientExternalId & mrn (no longer stored in lab_orders table)
     @Column(name = "physician_name")
     private String physicianName;
 
-    @Column(name = "patient_first_name")
-    private String patientFirstName;
-
-    @Column(name = "patient_last_name")
-    private String patientLastName;
-
-    @Column(name = "patient_home_phone")
-    private String patientHomePhone;
+    // Removed patientFirstName, patientLastName, patientHomePhone from schema
 
     @Column(name = "order_datetime")
     private String orderDateTime;
@@ -79,13 +60,24 @@ public class LabOrder extends AuditableEntity {
     @Column(name = "ordering_provider")
     private String orderingProvider;
 
-    // NEW
-    @Column(name = "icd_id", length = 64)
-    private String icdId;
+    // UPDATED
+    @Column(name = "diagnosis_code", length = 64)
+    private String diagnosisCode;   // replaces icdId
 
-    // Keep generous size; adjust to your DB’s text type if you expect large payloads/JSON.
+    @Column(name = "procedure_code", length = 64)
+    private String procedureCode;   // new
+
     @Column(name = "result", length = 4096)
     private String result;
 
-    // audit fields provided by AuditableEntity
+    @Column(name = "created_date")
+    private String createdDate;
+
+    @Column(name = "last_modified_date")
+    private String lastModifiedDate;
+
+
+    @Column(name = "fhir_external_id")
+    private String externalId; // stores ServiceRequest id
 }
+

@@ -5,24 +5,17 @@ import lombok.Data;
 @Data
 public class LabOrderDto {
     private Long id;
-    private String tenantName;
+    private String externalId; // FHIR resource id
 
     // Patient linkage
     private Long patientId;
-    private String patientExternalId;
-
-    // EMR/UI fields
-    private String mrn;
-    private String encounterId;
+    // Removed patientExternalId, mrn, patientFirstName, patientLastName, patientHomePhone
     private String physicianName;
-    private String patientFirstName;
-    private String patientLastName;
-    private String patientHomePhone;
     private String orderDateTime;
     private String orderName;
     private String labName;
 
-    // Technical fields for FHIR/code mapping
+    // Technical fields
     private String orderNumber;
     private String testCode;
     private String testDisplay;
@@ -33,9 +26,12 @@ public class LabOrderDto {
     private String orderingProvider;
     private String notes;
 
-    // NEW
-    private String icdId;   // e.g., ICD-10-CM code like "E11.9"
-    private String result;  // free-text or structured JSON as a String for now
+    // UPDATED
+    
+    private String diagnosisCode;   // replaces icdId
+    private String procedureCode;   // new
+
+    private String result;
 
     private Audit audit;
 
@@ -45,3 +41,4 @@ public class LabOrderDto {
         private String lastModifiedDate;
     }
 }
+
