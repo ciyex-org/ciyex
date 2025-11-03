@@ -146,6 +146,10 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class HistoryOfPresentIllnessService {
+    public List<HistoryOfPresentIllnessDto> getAllByPatient(Long patientId) {
+        return repo.findByPatientId(patientId)
+            .stream().map(this::toDto).toList();
+    }
 
     private final HistoryOfPresentIllnessRepository repo;
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");

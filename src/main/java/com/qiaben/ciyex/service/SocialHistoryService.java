@@ -177,6 +177,10 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class SocialHistoryService {
+    public List<SocialHistoryDto> getAllByPatient(Long patientId) {
+        return repo.findByPatientId(patientId)
+            .stream().map(this::toDto).toList();
+    }
 
     private final SocialHistoryRepository repo;
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");

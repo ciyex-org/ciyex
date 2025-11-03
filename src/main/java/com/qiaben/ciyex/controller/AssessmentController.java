@@ -112,6 +112,11 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class AssessmentController {
+    @GetMapping("/{patientId}")
+    public ResponseEntity<ApiResponse<List<AssessmentDto>>> getAllByPatient(@PathVariable Long patientId) {
+        var items = service.getAllByPatient(patientId);
+        return ResponseEntity.ok(ApiResponse.<List<AssessmentDto>>builder().success(true).message("Fetched").data(items).build());
+    }
 
     private final AssessmentService service;
 

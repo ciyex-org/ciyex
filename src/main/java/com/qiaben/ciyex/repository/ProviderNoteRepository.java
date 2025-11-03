@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ProviderNoteRepository extends JpaRepository<ProviderNote, Long> {
+    List<ProviderNote> findByPatientId(Long patientId);
     List<ProviderNote> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
     Optional<ProviderNote> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 }

@@ -22,6 +22,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Slf4j
 public class ProcedureService {
+    // Removed duplicate getAllByPatient(Long) method
 
     private final ProcedureRepository repo;
     private final Optional<ExternalProcedureStorage> external;
@@ -29,20 +30,25 @@ public class ProcedureService {
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     public ProcedureDto create(Long patientId, Long encounterId, ProcedureDto in) {
-        Procedure p = Procedure.builder()
-                .cpt4(in.getCpt4()).description(in.getDescription())
-                .units(in.getUnits()).rate(in.getRate())
-                .relatedIcds(in.getRelatedIcds())
-                .hospitalBillingStart(in.getHospitalBillingStart())
-                .hospitalBillingEnd(in.getHospitalBillingEnd())
-                .modifier1(in.getModifier1()).modifier2(in.getModifier2())
-                .modifier3(in.getModifier3()).modifier4(in.getModifier4())
-                .note(in.getNote())
-                .priceLevelTitle(in.getPriceLevelTitle())
-                .priceLevelId(in.getPriceLevelId())
-                .providername(in.getProvidername())
-
-                .build();
+    Procedure p = Procedure.builder()
+        .patientId(patientId)
+        .encounterId(encounterId)
+        .cpt4(in.getCpt4())
+        .description(in.getDescription())
+        .units(in.getUnits())
+        .rate(in.getRate())
+        .relatedIcds(in.getRelatedIcds())
+        .hospitalBillingStart(in.getHospitalBillingStart())
+        .hospitalBillingEnd(in.getHospitalBillingEnd())
+        .modifier1(in.getModifier1())
+        .modifier2(in.getModifier2())
+        .modifier3(in.getModifier3())
+        .modifier4(in.getModifier4())
+        .note(in.getNote())
+        .priceLevelTitle(in.getPriceLevelTitle())
+        .priceLevelId(in.getPriceLevelId())
+        .providername(in.getProvidername())
+        .build();
 
         final Procedure saved = repo.save(p);
 

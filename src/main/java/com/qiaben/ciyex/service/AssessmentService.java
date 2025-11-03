@@ -165,6 +165,10 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class AssessmentService {
+    public List<AssessmentDto> getAllByPatient(Long patientId) {
+        return repo.findByPatientId(patientId)
+            .stream().map(this::toDto).toList();
+    }
 
     private final AssessmentRepository repo;
 

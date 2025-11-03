@@ -98,12 +98,18 @@ import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/social-history")
 @RequiredArgsConstructor
 @Slf4j
 public class SocialHistoryController {
+    @GetMapping("/{patientId}")
+    public ResponseEntity<ApiResponse<List<SocialHistoryDto>>> getAllByPatient(@PathVariable Long patientId) {
+        var items = service.getAllByPatient(patientId);
+        return ResponseEntity.ok(ApiResponse.<List<SocialHistoryDto>>builder().success(true).message("Fetched").data(items).build());
+    }
 
     private final SocialHistoryService service;
 

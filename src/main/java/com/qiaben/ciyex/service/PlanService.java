@@ -168,6 +168,12 @@ public class PlanService {
                 .stream().map(this::toDto).toList();
     }
 
+        // GET ALL BY PATIENT
+        public List<PlanDto> getAllByPatient(Long patientId) {
+            return repo.findByPatientId(patientId)
+                    .stream().map(this::toDto).toList();
+        }
+
     public PlanDto getOne(Long patientId, Long encounterId, Long id) {
         Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found"));

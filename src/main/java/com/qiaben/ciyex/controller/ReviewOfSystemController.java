@@ -92,6 +92,11 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class ReviewOfSystemController {
+    @GetMapping("/{patientId}")
+    public ResponseEntity<ApiResponse<List<ReviewOfSystemDto>>> getAllByPatient(@PathVariable Long patientId) {
+        var items = service.getAllByPatient(patientId);
+        return ResponseEntity.ok(ApiResponse.<List<ReviewOfSystemDto>>builder().success(true).message("Fetched").data(items).build());
+    }
 
     private final ReviewOfSystemService service;
 

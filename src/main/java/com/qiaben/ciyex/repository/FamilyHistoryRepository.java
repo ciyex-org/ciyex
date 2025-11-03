@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FamilyHistoryRepository extends JpaRepository<FamilyHistory, Long> {
+    List<FamilyHistory> findByPatientId(Long patientId);
 
     List<FamilyHistory> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 

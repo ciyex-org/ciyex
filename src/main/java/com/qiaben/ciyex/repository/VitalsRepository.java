@@ -9,6 +9,7 @@ import java.util.List;
 
 @Repository
 public interface VitalsRepository extends JpaRepository<Vitals, Long> {
+    List<Vitals> findByPatientId(Long patientId);
     List<Vitals> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
 
     // For portal patients to see their vitals across all encounters

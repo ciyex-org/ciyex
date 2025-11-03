@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SignoffRepository extends JpaRepository<Signoff, Long> {
+    List<Signoff> findByPatientId(Long patientId);
     List<Signoff> findByPatientIdAndEncounterId(Long patientId, Long encounterId);
     Optional<Signoff> findByPatientIdAndEncounterIdAndId(Long patientId, Long encounterId, Long id);
 }

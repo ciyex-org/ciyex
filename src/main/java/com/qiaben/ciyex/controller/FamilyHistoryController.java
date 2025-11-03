@@ -114,6 +114,11 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 public class FamilyHistoryController {
+    @GetMapping("/{patientId}")
+    public ResponseEntity<ApiResponse<List<FamilyHistoryDto>>> getAllByPatient(@PathVariable Long patientId) {
+        var items = service.getAllByPatient(patientId);
+        return ResponseEntity.ok(ApiResponse.<List<FamilyHistoryDto>>builder().success(true).message("Fetched").data(items).build());
+    }
 
     private final FamilyHistoryService service;
 

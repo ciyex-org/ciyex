@@ -157,6 +157,10 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class ProviderSignatureService {
+    public List<ProviderSignatureDto> getAllByPatient(Long patientId) {
+        return repo.findByPatientId(patientId)
+            .stream().map(this::toDto).toList();
+    }
 
     private final ProviderSignatureRepository repo;
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");

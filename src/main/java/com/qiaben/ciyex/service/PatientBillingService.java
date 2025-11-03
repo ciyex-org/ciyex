@@ -219,6 +219,8 @@ public class PatientBillingService {
         PatientInvoice invoice = new PatientInvoice();
         invoice.setPatientId(patientId);
         invoice.setStatus(PatientInvoice.Status.OPEN);
+       
+
 
         PatientInvoiceLine line = new PatientInvoiceLine();
         line.setInvoice(invoice);
