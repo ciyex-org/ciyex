@@ -16,7 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/{orgId}/messages/{messageId}/attachments")
+@RequestMapping("/api/messages/{messageId}/attachments")
 @Slf4j
 public class MessageAttachmentController {
 

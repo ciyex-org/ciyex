@@ -56,117 +56,40 @@ public class CommunicationService {
     /* ------------------- CREATE ------------------- */
     @Transactional
     public CommunicationDto create(CommunicationDto dto) {
-        /*String now = LocalDateTime.now().toString();
-
-        Long providerId = communicationDto.getProviderId();
-        if (providerId == null && communicationDto.getSender() != null && communicationDto.getSender().startsWith("Provider/")) {
-            try {
-                providerId = Long.valueOf(communicationDto.getSender().split("/")[1]);
-            } catch (Exception e) {
-                log.warn("Invalid provider sender: {}", communicationDto.getSender());
-            }
-        }
-
-        Long patientId = communicationDto.getPatientId();
-        if (patientId == null && communicationDto.getRecipients() != null) {
-            for (String rec : communicationDto.getRecipients()) {
-                if (rec.startsWith("Patient/")) {
-                    try {
-                        patientId = Long.valueOf(rec.split("/")[1]);
-                    } catch (Exception e) {
-                        log.warn("Invalid patient recipient: {}", rec);
-                    }
-                }
-            }
-        }
+        String now = LocalDateTime.now().toString();
 
         Communication entity = Communication.builder()
-                .orgId(orgId)
-                .status(communicationDto.getStatus() != null ? communicationDto.getStatus() : CommunicationStatus.SENT)
-                .category(communicationDto.getCategory())
-                .sentDate(communicationDto.getSentDate() != null ? communicationDto.getSentDate() : now)
-                .createdDate(now)
-                .lastModifiedDate(now)
-                .payload(communicationDto.getPayload())
-                .sender(communicationDto.getSender())
-                .recipients(communicationDto.getRecipients() != null ? String.join(",", communicationDto.getRecipients()) : null)
-                .subject(communicationDto.getSubject())
-                .inResponseTo(communicationDto.getInResponseTo())
-                .patientId(patientId)
-                .providerId(providerId)
-                .attachmentIds(communicationDto.getAttachmentIds())
+                .status(dto.getStatus() != null ? dto.getStatus() : CommunicationStatus.SENT)
+                .category(dto.getCategory())
+                .sentDate(dto.getSentDate() != null ? dto.getSentDate() : now)
+                .payload(dto.getPayload())
+                .subject(dto.getSubject())
+                .inResponseTo(dto.getInResponseTo())
+                .patientId(dto.getPatientId())
+                .providerId(dto.getProviderId())
+                .attachmentIds(dto.getAttachmentIds())
                 .build();
 
-        // Use tenant-aware context for saving
-        Communication saved = tenantAwareService.executeInTenantContext(() -> repo.save(entity));
+        Communication saved = repo.save(entity);
 
-        // Skip external storage for communications in development/local environment
-        // Communications are stored locally in the database and don't need FHIR external storage
-        *//*
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            ExternalStorage<CommunicationDto> ext = storageResolver.resolve(CommunicationDto.class);
-            CommunicationDto snap = toDto(saved);
-            String externalId = ext.create(snap);
-            saved.setExternalId(externalId);
-            // Update external ID in tenant context
-            tenantAwareService.executeInTenantContext(() -> repo.save(saved));
-        }
-        *//*
+        log.info("Created communication with id: {} for patient: {} and provider: {}",
+                saved.getId(), dto.getPatientId(), dto.getProviderId());
+        log.info("Saved entity: id={}, payload={}, patientId={}, providerId={}",
+                saved.getId(), saved.getPayload(), saved.getPatientId(), saved.getProviderId());
 
-        // send SMS & Email notifications - only for provider-to-patient messages
-        if (saved.getPatientId() != null && saved.getProviderId() != null &&
-            !(saved.getSender() != null && saved.getSender().startsWith("Patient/"))) {
-            // Get patient in tenant context
-            tenantAwareService.executeInTenantContext(() -> {
-                patientRepo.findById(saved.getPatientId()).ifPresent(patient -> {
-                    boolean smsOk = false;
-                    boolean emailOk = false;
-                    try {
-                        if (patient.getPhoneNumber() != null && !patient.getPhoneNumber().isBlank()) {
-                            smsService.sendSms(patient.getPhoneNumber(), saved.getPayload());
-                            smsOk = true;
-                        }
-                        if (patient.getEmail() != null && !patient.getEmail().isBlank()) {
-                            emailService.sendEmail(
-                                    patient.getEmail(),
-                                    saved.getSubject() != null ? saved.getSubject() : "New Message",
-                                    saved.getPayload()
-                            );
-                            emailOk = true;
-                        }
-                    } catch (Exception e) {
-                        log.error("Notification failed for patient {}: {}", patient.getId(), e.getMessage(), e);
-                    }
-                    log.info("Notification sent for patient {} (SMS={}, Email={})",
-                            patient.getId(), smsOk, emailOk);
-                });
-                return null;
-            });
-        }
+        CommunicationDto result = toDto(saved);
+        log.info("Converted to DTO: {}", result != null ? "success" : "null");
 
-        // Send real-time WebSocket notification for new message
-        try {
-            if (webSocketController.isPresent()) {
-                CommunicationDto dto = toDto(saved);
-                webSocketController.get().notifyNewMessage(dto, orgId);
-            }
-        } catch (Exception e) {
-            log.error("Failed to send WebSocket notification for new message: {}", e.getMessage());
-        }
-
-        return toDto(saved);*/
-        return null;
+        return result;
     }
 
     /* ------------------- GET ------------------- */
     @Transactional(readOnly = true)
     public List<CommunicationDto> getByPatientId(Long patientId) {
-        /*return repo.findAllByPatientIdText(String.valueOf(patientId), String.valueOf(orgId))
+        return repo.findAllByPatientId(patientId)
                 .stream()
                 .map(this::toDto)
-                .collect(Collectors.toList());*/
-        return null;
+                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
@@ -353,15 +276,14 @@ public class CommunicationService {
     /* ------------------- SEARCH ------------------- */
     @Transactional(readOnly = true)
     public List<CommunicationDto> searchAll() {
-/*        Long orgId = requireOrg("searchAll");
-        return repo.findText(String.valueOf(orgId))
-                .stream()
+        List<Communication> entities = repo.findAll();
+        log.info("Found {} communication entities in database", entities.size());
+        List<CommunicationDto> dtos = entities.stream()
                 .map(this::toDto)
-                .collect(Collectors.toList());*/
-        return null;
-    }
-
-    /**
+                .collect(Collectors.toList());
+        log.info("Converted to {} communication DTOs", dtos.size());
+        return dtos;
+    }    /**
      * Extract user email and org IDs from JWT token
      */
     public Map<String, Object> extractUserInfoFromToken(String token) {
@@ -459,125 +381,84 @@ public class CommunicationService {
 
     /* ------------------- MAPPER ------------------- */
     private CommunicationDto toDto(Communication r) {
-        /*CommunicationDto dto = new CommunicationDto();
-        dto.setId(r.getId());
-        dto.setExternalId(r.getExternalId());
-        dto.setStatus(r.getStatus());
-        dto.setCategory(r.getCategory());
-        dto.setSentDate(r.getSentDate());
-        dto.setPayload(r.getPayload());
-        dto.setSender(r.getSender());
-        dto.setRecipients(r.getRecipients() != null ? Arrays.asList(r.getRecipients().split(",")) : Collections.emptyList());
-        dto.setSubject(r.getSubject());
-        dto.setInResponseTo(r.getInResponseTo());
-        dto.setPatientId(r.getPatientId());
-        dto.setProviderId(r.getProviderId());
-
-        // Add read tracking fields
-        dto.setReadAt(r.getReadAt());
-        dto.setReadBy(r.getReadBy());
-
-        // Determine message type based on sender and provider_id
-        String messageType = "unknown";
-        if (r.getSender() != null && r.getSender().startsWith("Patient/")) {
-            // If sender starts with "Patient/", it's a patient-to-provider message
-            messageType = "patient_to_provider";
-        } else if (r.getSender() != null && r.getSender().startsWith("Provider/")) {
-            // If sender starts with "Provider/", it's a provider-to-patient message
-            messageType = "provider_to_patient";
-        } else if (r.getProviderId() != null) {
-            // If provider_id is set and sender is not specified as Patient/, assume provider-to-patient
-            messageType = "provider_to_patient";
-        }
-        dto.setMessageType(messageType);
-
-        // From (provider name)
-        if (r.getProviderId() != null) {
-            // Query provider in current tenant schema
-
-                String providerName;
-                    try {
-                        Object[] result = (Object[]) entityManager.createNativeQuery(
-                            "SELECT first_name, last_name FROM .provider WHERE id = :providerId")
-                            .setParameter("providerId", r.getProviderId())
-                            .getSingleResult();
-                        if (result != null && result.length >= 2) {
-                            providerName = result[0] + " " + result[1];
-                        }
-                    } catch (Exception e) {
-                        log.warn("Could not find provider name for provider ID {} in schema {}: {}", r.getProviderId(), e.getMessage());
-                    }
-                if (providerName != null) {
-                    dto.setFromName(providerName);
-                }
-
-        } else if (r.getSender() != null && r.getSender().startsWith("Provider/")) {
-            try {
-                Long pid = Long.valueOf(r.getSender().split("/")[1]);
-                // Query provider in current tenant schema
-                Long orgId = r.getOrgId();
-                if (orgId != null) {
-                    String schemaName = "practice_" + orgId;
-                    String providerName =
-                        try {
-                            Object[] result = (Object[]) entityManager.createNativeQuery(
-                                "SELECT first_name, last_name FROM " + schemaName + ".provider WHERE id = :providerId")
-                                .setParameter("providerId", pid)
-                                .getSingleResult();
-                            if (result != null && result.length >= 2) {
-                                return result[0] + " " + result[1];
-                            }
-                        } catch (Exception e) {
-                            log.warn("Could not find provider name for provider ID {} in schema {}: {}", pid, schemaName, e.getMessage());
-                        }
-                        return null;
-
-                    if (providerName != null) {
-                        dto.setFromName(providerName);
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Could not parse provider from sender={}", r.getSender());
-            }
-        }
-        if (dto.getFromName() == null) dto.setFromName("Unknown Provider");
-
-        // To (patient names)
-        List<String> toNames = new ArrayList<>();
-        if (r.getPatientId() != null) {
-            patientRepo.findById(r.getPatientId())
-                    .ifPresent(pt -> toNames.add(pt.getFirstName() + " " + pt.getLastName()));
-        } else if (r.getRecipients() != null) {
-            for (String rec : r.getRecipients().split(",")) {
-                if (rec.startsWith("Patient/")) {
-                    try {
-                        Long pid = Long.valueOf(rec.split("/")[1]);
-                        patientRepo.findById(pid)
-                                .ifPresent(pt -> toNames.add(pt.getFirstName() + " " + pt.getLastName()));
-                    } catch (Exception e) {
-                        log.warn("Could not parse patient from recipient={}", rec);
-                    }
-                }
-            }
-        }
-        dto.setToNames(toNames);
-
-        // Add attachment support
-        dto.setAttachmentIds(r.getAttachmentIds());
-
-        // Load message attachments from the dedicated table
         try {
-            List<MessageAttachmentDto> messageAttachments = tenantAwareService.executeInTenantContext(r.getOrgId(), () -> {
-                ApiResponse<List<MessageAttachmentDto>> response = messageAttachmentService.getAllForMessage(r.getOrgId(), r.getId());
-                return response.getData() != null ? response.getData() : Collections.emptyList();
-            });
-            dto.setAttachments(messageAttachments);
-        } catch (Exception e) {
-            log.warn("Failed to load message attachments for communication {}: {}", r.getId(), e.getMessage());
-            dto.setAttachments(Collections.emptyList());
-        }
+            CommunicationDto dto = new CommunicationDto();
+            dto.setId(r.getId());
+            dto.setExternalId(r.getExternalId());
+            dto.setStatus(r.getStatus());
+            dto.setCategory(r.getCategory());
+            dto.setSentDate(r.getSentDate());
+            dto.setCreatedDate(r.getCreatedDate() != null ? r.getCreatedDate().toString() : null);
+            dto.setLastModifiedDate(r.getLastModifiedDate() != null ? r.getLastModifiedDate().toString() : null);
+            dto.setPayload(r.getPayload());
+            dto.setSubject(r.getSubject());
+            dto.setInResponseTo(r.getInResponseTo());
+            dto.setPatientId(r.getPatientId());
+            dto.setProviderId(r.getProviderId());
 
-        return dto;*/
-        return null;
+            // Add read tracking fields
+            dto.setReadAt(r.getReadAt());
+            dto.setReadBy(r.getReadBy());
+
+            // Determine message type based on provider_id
+            String messageType = "unknown";
+            if (r.getProviderId() != null) {
+                // If provider_id is set, assume provider-to-patient
+                messageType = "provider_to_patient";
+            } else {
+                // Otherwise, assume patient-to-provider
+                messageType = "patient_to_provider";
+            }
+            dto.setMessageType(messageType);
+
+            // From (provider name)
+            if (r.getProviderId() != null) {
+                try {
+                    providerRepo.findById(r.getProviderId()).ifPresent(provider -> {
+                        String providerName = provider.getFirstName() + " " + provider.getLastName();
+                        dto.setFromId(r.getProviderId());
+                        dto.setFromName(providerName);
+                    });
+                } catch (Exception e) {
+                    log.warn("Could not find provider name for provider ID {}: {}", r.getProviderId(), e.getMessage());
+                    dto.setFromName("Unknown Provider");
+                }
+            }
+
+            // To (patient names)
+            List<String> toNames = new ArrayList<>();
+            List<Long> toIds = new ArrayList<>();
+            if (r.getPatientId() != null) {
+                try {
+                    patientRepo.findById(r.getPatientId()).ifPresent(patient -> {
+                        String patientName = patient.getFirstName() + " " + patient.getLastName();
+                        toNames.add(patientName);
+                        toIds.add(r.getPatientId());
+                    });
+                } catch (Exception e) {
+                    log.warn("Could not find patient name for patient ID {}: {}", r.getPatientId(), e.getMessage());
+                }
+            }
+            dto.setToNames(toNames);
+            dto.setToIds(toIds);
+
+            // Add attachment support
+            dto.setAttachmentIds(r.getAttachmentIds());
+
+            // Load message attachments from the dedicated table
+            try {
+                List<MessageAttachmentDto> messageAttachments = messageAttachmentService.getAllForMessage(r.getId()).getData();
+                dto.setAttachments(messageAttachments != null ? messageAttachments : Collections.emptyList());
+            } catch (Exception e) {
+                log.warn("Failed to load message attachments for communication {}: {}", r.getId(), e.getMessage());
+                dto.setAttachments(Collections.emptyList());
+            }
+
+            log.info("Successfully converted Communication entity {} to DTO", r.getId());
+            return dto;
+        } catch (Exception e) {
+            log.error("Failed to convert Communication entity {} to DTO: {}", r.getId(), e.getMessage(), e);
+            return null;
+        }
     }
 }

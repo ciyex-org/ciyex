@@ -12,9 +12,6 @@ public class MessageAttachment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
-
     @Column(name = "message_id", nullable = false)
     private Long messageId;  // Reference to Communication entity
     @Column(name = "category")

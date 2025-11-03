@@ -6,7 +6,6 @@ import lombok.Data;
 public class MessageAttachmentDto {
     private Long id;
     private Long messageId;  // Reference to Communication entity
-    private Long orgId;
     private String category;
     private String type;
     private String fileName;

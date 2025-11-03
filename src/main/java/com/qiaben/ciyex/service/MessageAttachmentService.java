@@ -91,10 +91,10 @@ public class MessageAttachmentService {
             // For testing/development, create a mock S3 config
             log.warn("S3 config not found for Tenant={}, using local storage for testing");
             s3Config = new S3Config();
-/*            s3Config.setBucket("test-bucket");
+            s3Config.setBucketName("test-bucket");
             s3Config.setRegion("us-east-1");
-            s3Config.setAccessKey("test-key");
-            s3Config.setSecretKey("test-secret");*/
+            s3Config.setAccessKeyId("test-key");
+            s3Config.setSecretAccessKey("test-secret");
         }
 
         String key = "message-attachments/" + "/" + messageId + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
@@ -152,10 +152,10 @@ public class MessageAttachmentService {
             // For testing/development, create a mock S3 config
             log.warn("S3 config not found for Tenant={}, using local storage for testing");
             s3Config = new S3Config();
-    /*        s3Config.setBucket("test-bucket");
+            s3Config.setBucketName("test-bucket");
             s3Config.setRegion("us-east-1");
-            s3Config.setAccessKey("test-key");
-            s3Config.setSecretKey("test-secret");*/
+            s3Config.setAccessKeyId("test-key");
+            s3Config.setSecretAccessKey("test-secret");
         }
 
         // For testing, we'll skip actual S3 delete
@@ -189,10 +189,10 @@ public class MessageAttachmentService {
             // For testing/development, create a mock S3 config
             log.warn("S3 config not found for Tenant={}, using local storage for testing");
             s3Config = new S3Config();
-/*            s3Config.setBucket("test-bucket");
+            s3Config.setBucketName("test-bucket");
             s3Config.setRegion("us-east-1");
-            s3Config.setAccessKey("test-key");
-            s3Config.setSecretKey("test-secret");*/
+            s3Config.setAccessKeyId("test-key");
+            s3Config.setSecretAccessKey("test-secret");
         }
 
         // For testing, we'll return a dummy file since we didn't actually upload to S3
@@ -286,7 +286,6 @@ public class MessageAttachmentService {
         MessageAttachmentDto dto = new MessageAttachmentDto();
         dto.setId(entity.getId());
         dto.setMessageId(entity.getMessageId());
-        dto.setOrgId(entity.getOrgId());
         dto.setCategory(entity.getCategory());
         dto.setType(entity.getType());
         dto.setFileName(entity.getFileName());

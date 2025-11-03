@@ -30,9 +30,6 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
     // ✅ Fallback: findAll for a specific organization (paginated)
     Page<Patient> findAll(Pageable pageable);
 
-    // ✅ Non-paginated helper
-    List<Patient> findAll();
-
     // ✅ Lookup patient by externalId + orgId
     @Query("SELECT p FROM Patient p WHERE p.externalId = :externalId")
     Optional<Patient> findByExternalId(String externalId);
