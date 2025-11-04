@@ -20,7 +20,8 @@ public class FhirExternalGlobalCodeStorage implements ExternalGlobalCodeStorage 
 
     
     @Override
-    public String create(GlobalCodeDto dto) {
+    public String create(GlobalCodeDto dto)
+    {
         String tenantName;
         if (RequestContext.get() == null) {
             tenantName = "unknown";
