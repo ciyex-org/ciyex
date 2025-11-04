@@ -9,7 +9,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(
-        name = "codes",
+        
+        name = "codess",
         indexes = {
                 @Index(name = "idx_codes_type_code", columnList = "code_type, code")
         }
@@ -21,8 +22,12 @@ public class GlobalCode extends AuditableEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+
     @Column(name = "external_id")
     private String externalId;
+
+
+
 
     
 

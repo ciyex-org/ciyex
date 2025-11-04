@@ -12,19 +12,24 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/codes")
+@RequestMapping("/api/codess")
 @RequiredArgsConstructor
 @Slf4j
+
 public class GlobalCodeController {
 
+        
     private final GlobalCodeService service;
 
     @GetMapping
+
     public ResponseEntity<ApiResponse<List<GlobalCodeDto>>> getAll() {
         var list = service.getAll();
         return ResponseEntity.ok(ApiResponse.<List<GlobalCodeDto>>builder()
                 .success(true).message("Codes fetched").data(list).build());
     }
+
+
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<GlobalCodeDto>> getOne(
