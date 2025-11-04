@@ -22,6 +22,7 @@ public class GlobalCode extends AuditableEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+
     @Column(name = "external_id")
     private String externalId;
 

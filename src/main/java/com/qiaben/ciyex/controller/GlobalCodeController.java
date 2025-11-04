@@ -21,6 +21,7 @@ public class GlobalCodeController {
     private final GlobalCodeService service;
 
     @GetMapping
+
     public ResponseEntity<ApiResponse<List<GlobalCodeDto>>> getAll() {
         var list = service.getAll();
         return ResponseEntity.ok(ApiResponse.<List<GlobalCodeDto>>builder()
