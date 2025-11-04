@@ -17,6 +17,7 @@ import java.util.List;
 @Slf4j
 public class GlobalCodeController {
 
+        
     private final GlobalCodeService service;
 
     @GetMapping
