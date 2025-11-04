@@ -16,9 +16,6 @@ public class ListOption extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    
-    
-
     @Column(name = "list_id", nullable = false)
     private String listId;
 
