@@ -28,6 +28,7 @@ public class GlobalCode extends AuditableEntity {
 
 
 
+
     
 
     @Column(name = "code_type", length = 16, nullable = false)

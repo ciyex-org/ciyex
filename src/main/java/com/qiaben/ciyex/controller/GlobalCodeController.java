@@ -30,6 +30,7 @@ public class GlobalCodeController {
     }
 
 
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<GlobalCodeDto>> getOne(
             @PathVariable Long id){
