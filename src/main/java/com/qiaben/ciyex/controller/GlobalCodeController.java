@@ -29,6 +29,7 @@ public class GlobalCodeController {
                 .success(true).message("Codes fetched").data(list).build());
     }
 
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<GlobalCodeDto>> getOne(
             @PathVariable Long id){
