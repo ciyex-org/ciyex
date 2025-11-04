@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/home/gradle/.gradle \
   ./gradlew --no-daemon bootJar -x test
 
 # ---- Final Runtime ----
-FROM openjdk:21-jdk-slim
+FROM eclipse-temurin:21-jdk
 WORKDIR /app
 
 # Copy Spring Boot jar

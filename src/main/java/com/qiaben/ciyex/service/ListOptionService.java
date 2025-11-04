@@ -48,6 +48,8 @@ public class ListOptionService {
     public ListOptionDto update(Long id, ListOptionDto dto) {
         ListOption existing = repository.findById(id).orElseThrow(() -> new RuntimeException("Option not found"));
 
+        existing.setListId(dto.getListId());
+        existing.setOptionId(dto.getOptionId());
         existing.setTitle(dto.getTitle());
         existing.setSeq(dto.getSeq());
         existing.setIsDefault(dto.getIsDefault());
@@ -98,13 +100,6 @@ public class ListOptionService {
 
     // Service method to fetch list options based on list_id
     public List<ListOptionDto> getListOptionsByListId(String listId) {
-        
-        RequestContext ctx = RequestContext.get();
-        String tenantName = ctx != null ? ctx.getTenantName() : null;
-        if (tenantName == null || tenantName.isBlank()) {
-            throw new IllegalStateException("No tenantName found in request context");
-        }
-        
         List<ListOption> listOptions = repository.findByListId(listId);
         return listOptions.stream().map(this::convertToDto).collect(Collectors.toList());
     }
