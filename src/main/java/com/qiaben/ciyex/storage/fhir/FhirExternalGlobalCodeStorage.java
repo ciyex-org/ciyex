@@ -19,15 +19,29 @@ public class FhirExternalGlobalCodeStorage implements ExternalGlobalCodeStorage 
 
     @Override
     public String create(GlobalCodeDto dto) {
+        String tenantName;
+        if (RequestContext.get() == null) {
+            tenantName = "unknown";
+            log.warn("RequestContext is null in FhirExternalGlobalCodeStorage.create; using tenantName='unknown'.");
+        } else {
+            tenantName = RequestContext.get().getTenantName();
+        }
         log.info("FHIR GlobalCode create: org={}, type={}, code={}",
-                RequestContext.get().getTenantName(), dto.getCodeType(), dto.getCode());
+                tenantName, dto.getCodeType(), dto.getCode());
         return null;
     }
 
     @Override
     public void update(String externalId, GlobalCodeDto dto) {
+        String tenantName;
+        if (RequestContext.get() == null) {
+            tenantName = "unknown";
+            log.warn("RequestContext is null in FhirExternalGlobalCodeStorage.update; using tenantName='unknown'.");
+        } else {
+            tenantName = RequestContext.get().getTenantName();
+        }
         log.info("FHIR GlobalCode update: id={}, org={}, type={}, code={}",
-                externalId, RequestContext.get().getTenantName(), dto.getCodeType(), dto.getCode());
+                externalId, tenantName, dto.getCodeType(), dto.getCode());
     }
 
     @Override
@@ -44,8 +58,15 @@ public class FhirExternalGlobalCodeStorage implements ExternalGlobalCodeStorage 
     @Override
     public List<GlobalCodeDto> searchAll(Long patientId, Long encounterId,
                                    String codeType, Boolean active, String q) {
+        String tenantName;
+        if (RequestContext.get() == null) {
+            tenantName = "unknown";
+            log.warn("RequestContext is null in FhirExternalGlobalCodeStorage.searchAll; using tenantName='unknown'.");
+        } else {
+            tenantName = RequestContext.get().getTenantName();
+        }
         log.info("FHIR GlobalCode search: org={}, patient={}, encounter={}, type={}, active={}, q={}",
-                RequestContext.get().getTenantName(), patientId, encounterId, codeType, active, q);
+                tenantName, patientId, encounterId, codeType, active, q);
         return Collections.emptyList();
     }
 }
