@@ -45,7 +45,11 @@ private LocalDate backdate;
     public void setBackdate(LocalDate backdate) {
         this.backdate = backdate;
     }
-// getters/setters
+
+    private String description;
+    private String providerName;
+
+    // getters/setters
 
     public void recalcTotals() {
         BigDecimal sum = lines.stream()
@@ -150,6 +154,22 @@ private LocalDate backdate;
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getProviderName() {
+        return providerName;
+    }
+
+    public void setProviderName(String providerName) {
+        this.providerName = providerName;
     }
 // ... standard getters/setters omitted for brevity
 }

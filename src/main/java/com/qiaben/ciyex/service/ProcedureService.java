@@ -1,8 +1,3 @@
-
-
-
-
-
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.ProcedureDto;
@@ -26,29 +21,30 @@ public class ProcedureService {
 
     private final ProcedureRepository repo;
     private final Optional<ExternalProcedureStorage> external;
+    private final PatientBillingService billingService;
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     public ProcedureDto create(Long patientId, Long encounterId, ProcedureDto in) {
-    Procedure p = Procedure.builder()
-        .patientId(patientId)
-        .encounterId(encounterId)
-        .cpt4(in.getCpt4())
-        .description(in.getDescription())
-        .units(in.getUnits())
-        .rate(in.getRate())
-        .relatedIcds(in.getRelatedIcds())
-        .hospitalBillingStart(in.getHospitalBillingStart())
-        .hospitalBillingEnd(in.getHospitalBillingEnd())
-        .modifier1(in.getModifier1())
-        .modifier2(in.getModifier2())
-        .modifier3(in.getModifier3())
-        .modifier4(in.getModifier4())
-        .note(in.getNote())
-        .priceLevelTitle(in.getPriceLevelTitle())
-        .priceLevelId(in.getPriceLevelId())
-        .providername(in.getProvidername())
-        .build();
+        Procedure p = Procedure.builder()
+            .patientId(patientId)
+            .encounterId(encounterId)
+            .cpt4(in.getCpt4())
+            .description(in.getDescription())
+            .units(in.getUnits())
+            .rate(in.getRate())
+            .relatedIcds(in.getRelatedIcds())
+            .hospitalBillingStart(in.getHospitalBillingStart())
+            .hospitalBillingEnd(in.getHospitalBillingEnd())
+            .modifier1(in.getModifier1())
+            .modifier2(in.getModifier2())
+            .modifier3(in.getModifier3())
+            .modifier4(in.getModifier4())
+            .note(in.getNote())
+            .priceLevelTitle(in.getPriceLevelTitle())
+            .priceLevelId(in.getPriceLevelId())
+            .providername(in.getProvidername())
+            .build();
 
         final Procedure saved = repo.save(p);
 
@@ -58,8 +54,28 @@ public class ProcedureService {
             ref.setExternalId(externalId);
             repo.save(ref);
         });
-
-
+        // Automatically create invoice for the new procedure
+        try {
+            java.math.BigDecimal rateValue;
+            try {
+                rateValue = new java.math.BigDecimal(saved.getRate());
+            } catch (Exception ex) {
+                rateValue = java.math.BigDecimal.ZERO;
+                log.warn("Invalid rate format for procedure ID: {}. Defaulting to 0.", saved.getId());
+            }
+            PatientBillingService.CreateInvoiceRequest invoiceRequest = new PatientBillingService.CreateInvoiceRequest(
+                    saved.getCpt4(),
+                    saved.getDescription(),
+                    saved.getProvidername(),
+                    saved.getHospitalBillingStart(),
+                    rateValue
+            );
+            billingService.createInvoiceFromProcedure(patientId, invoiceRequest);
+            log.info("Invoice automatically created for procedure ID: {}", saved.getId());
+        } catch (Exception e) {
+            log.error("Failed to create invoice for procedure ID: {}", saved.getId(), e);
+            // Optionally, throw or handle failure (e.g., rollback if critical)
+        }
 
         return mapToDto(saved);
     }
