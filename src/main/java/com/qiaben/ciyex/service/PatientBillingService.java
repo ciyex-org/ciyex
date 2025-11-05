@@ -23,6 +23,66 @@ import java.util.stream.Collectors;
 @Transactional
 public class PatientBillingService {
 
+    /**
+     * Generate a printable patient statement for the print/statement API.
+     */
+    public PatientStatementDto getPatientStatement(Long patientId) {
+        PatientStatementDto dto = new PatientStatementDto();
+        // Patient info (replace with actual lookup if PatientRepository is available)
+        dto.patientId = patientId;
+        dto.patientName = "[Patient Name]";
+        dto.statementDate = java.time.LocalDate.now().toString();
+        dto.address = "[Address]";
+        dto.phone = "[Phone]";
+        dto.email = "[Email]";
+
+        // Statement lines (invoices, claims, payments, adjustments)
+        List<PatientStatementDto.StatementLine> lines = new ArrayList<>();
+        List<PatientInvoice> invoices = invoiceRepo.findByPatientIdOrderByIdDesc(patientId);
+        for (PatientInvoice inv : invoices) {
+            PatientStatementDto.StatementLine line = new PatientStatementDto.StatementLine();
+            line.date = inv.getCreatedAt() != null ? inv.getCreatedAt().toString() : "";
+            line.description = "Invoice #" + inv.getId() + (inv.getDescription() != null ? (": " + inv.getDescription()) : "");
+            line.provider = inv.getProviderName();
+            line.amount = inv.getTotalCharge();
+            line.credit = null;
+            line.balance = inv.getPtBalance();
+            lines.add(line);
+            // TODO: Add claims, payments, adjustments, insurance lines as needed
+        }
+        dto.lines = lines;
+
+        // Summary
+        PatientStatementDto.Summary summary = new PatientStatementDto.Summary();
+        summary.totalCharges = invoices.stream().map(PatientInvoice::getTotalCharge).filter(java.util.Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+        summary.totalPatientPayments = BigDecimal.ZERO; // TODO: sum patient payments
+        summary.totalInsurancePayments = BigDecimal.ZERO; // TODO: sum insurance payments
+        summary.totalAdjustment = BigDecimal.ZERO; // TODO: sum adjustments
+        summary.outstandingBalance = invoices.stream().map(PatientInvoice::getPtBalance).filter(java.util.Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+        dto.summary = summary;
+
+        // Your Portion
+        PatientStatementDto.YourPortion portion = new PatientStatementDto.YourPortion();
+        portion.balance0_30 = summary.outstandingBalance; // TODO: split by aging
+        portion.balance30_60 = BigDecimal.ZERO;
+        portion.balance60_90 = BigDecimal.ZERO;
+        portion.balance90plus = BigDecimal.ZERO;
+        portion.accountCredit = BigDecimal.ZERO; // TODO: get from account credit repo
+        dto.yourPortion = portion;
+
+        // Appointments
+        PatientStatementDto.AppointmentSummary appt = new PatientStatementDto.AppointmentSummary();
+        appt.nextTreatment = "[Next Treatment]";
+        appt.nextHygiene = "[Next Hygiene]";
+        dto.appointments = appt;
+
+        // Notes
+        List<PatientBillingNote> notes = noteRepo.findByPatientId(patientId);
+        dto.notes = notes.stream().map(PatientBillingNote::getText).toList();
+
+        return dto;
+    }
+
     /** Transfer INS balance to PT balance */
     public PatientInvoiceDto transferOutstandingToPatient(Long patientId, Long invoiceId, Double amount) {
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
@@ -919,120 +979,7 @@ public class PatientBillingService {
         // TODO: Optionally, persist courtesy credit as a separate entity for audit/history
         return new PatientAccountCreditDto(patientId, credit.getBalance());
     }
-    // Unified statement detail for invoice
-    public StatementDetailDto getInvoiceStatementDetail(Long patientId, Long invoiceId) {
-        PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
-        StatementDetailDto dto = new StatementDetailDto();
-        dto.setPatientId(patientId);
-        dto.setPatientName(getPatientName(patientId));
-        dto.setStatementType("invoice");
-        dto.setInvoiceId(invoiceId);
-        dto.setStatementDate(invoice.getCreatedAt().toLocalDate());
-        dto.setTotalAmount(invoice.getTotalCharge());
-        BigDecimal paid = invoice.getTotalCharge().subtract(invoice.getPtBalance().add(invoice.getInsBalance()));
-        dto.setTotalPaid(paid);
-        dto.setBalanceDue(invoice.getPtBalance().add(invoice.getInsBalance()));
 
-        // Example office info (replace with actual config/service if available)
-        dto.setOfficeName("Bright Smiles Family Dental");
-        dto.setOfficeAddress("171 West Main Street, Rockaway, NJ 07866");
-        dto.setOfficePhone("+1 (973) 627-2186");
-        dto.setOfficeEmail("info@brightsmilesfamilydental.com");
-
-        // Summary fields (dummy logic, replace with actual calculations)
-        dto.setTotalInsurancePayments(BigDecimal.ZERO); // TODO: Calculate from remit/payments
-        dto.setTotalPatientPayments(BigDecimal.ZERO); // TODO: Calculate from patient payments
-        dto.setTotalAdjustments(invoice.getInsWO());
-        dto.setOutstandingBalance(invoice.getPtBalance().add(invoice.getInsBalance()));
-        dto.setEstimatedRemainingInsurance(BigDecimal.ZERO); // TODO: Calculate if available
-        dto.setEstimatedRemainingInsuranceAdjustment(BigDecimal.ZERO); // TODO: Calculate if available
-        dto.setAccountCredit(BigDecimal.ZERO); // TODO: Fetch from account credit repo
-        dto.setNextScheduledAppointment(""); // TODO: Fetch from appointment service
-
-        List<StatementLineDto> lines = new ArrayList<>();
-        for (PatientInvoiceLine line : invoice.getLines()) {
-            StatementLineDto l = new StatementLineDto();
-            l.setDate(line.getDos());
-            l.setDescription(line.getTreatment());
-            l.setAmount(line.getCharge());
-            BigDecimal linePaid = line.getCharge().subtract(nz(line.getPatientPortion()).add(nz(line.getInsPortion())));
-            l.setPaid(linePaid);
-            l.setBalance(nz(line.getPatientPortion()).add(nz(line.getInsPortion())));
-            l.setType("charge");
-            l.setProviderName(line.getProvider());
-            l.setProcedureCode(line.getCode());
-            l.setInsurancePayment(line.getInsPortion());
-            l.setPatientPayment(line.getPatientPortion());
-            l.setAdjustment(line.getInsWriteOff());
-            lines.add(l);
-        }
-        dto.setLines(lines);
-        return dto;
-    }
-
-    // Unified statement detail for patient-wide statement
-    public StatementDetailDto getPatientStatementDetail(Long patientId) {
-        List<PatientInvoice> invoices = invoiceRepo.findByPatientIdOrderByIdDesc(patientId);
-        StatementDetailDto dto = new StatementDetailDto();
-        dto.setPatientId(patientId);
-        dto.setPatientName(getPatientName(patientId));
-        dto.setStatementType("statement");
-        dto.setStatementDate(LocalDate.now());
-
-        // Example office info (replace with actual config/service if available)
-        dto.setOfficeName("Bright Smiles Family Dental");
-        dto.setOfficeAddress("171 West Main Street, Rockaway, NJ 07866");
-        dto.setOfficePhone("+1 (973) 627-2186");
-        dto.setOfficeEmail("info@brightsmilesfamilydental.com");
-
-        BigDecimal totalAmount = BigDecimal.ZERO, totalPaid = BigDecimal.ZERO, balanceDue = BigDecimal.ZERO;
-        BigDecimal totalInsurancePayments = BigDecimal.ZERO, totalPatientPayments = BigDecimal.ZERO, totalAdjustments = BigDecimal.ZERO, accountCredit = BigDecimal.ZERO;
-        List<StatementLineDto> lines = new ArrayList<>();
-        for (PatientInvoice invoice : invoices) {
-            totalAmount = totalAmount.add(invoice.getTotalCharge());
-            BigDecimal paid = invoice.getTotalCharge().subtract(invoice.getPtBalance().add(invoice.getInsBalance()));
-            totalPaid = totalPaid.add(paid);
-            balanceDue = balanceDue.add(invoice.getPtBalance().add(invoice.getInsBalance()));
-            totalAdjustments = totalAdjustments.add(invoice.getInsWO());
-            for (PatientInvoiceLine line : invoice.getLines()) {
-                StatementLineDto l = new StatementLineDto();
-                l.setDate(line.getDos());
-                l.setDescription(line.getTreatment());
-                l.setAmount(line.getCharge());
-                BigDecimal linePaid = line.getCharge().subtract(nz(line.getPatientPortion()).add(nz(line.getInsPortion())));
-                l.setPaid(linePaid);
-                l.setBalance(nz(line.getPatientPortion()).add(nz(line.getInsPortion())));
-                l.setType("charge");
-                l.setProviderName(line.getProvider());
-                l.setProcedureCode(line.getCode());
-                l.setInsurancePayment(line.getInsPortion());
-                l.setPatientPayment(line.getPatientPortion());
-                l.setAdjustment(line.getInsWriteOff());
-                totalInsurancePayments = totalInsurancePayments.add(nz(line.getInsPortion()));
-                totalPatientPayments = totalPatientPayments.add(nz(line.getPatientPortion()));
-                lines.add(l);
-            }
-        }
-        dto.setTotalAmount(totalAmount);
-        dto.setTotalPaid(totalPaid);
-        dto.setBalanceDue(balanceDue);
-        dto.setTotalInsurancePayments(totalInsurancePayments);
-        dto.setTotalPatientPayments(totalPatientPayments);
-        dto.setTotalAdjustments(totalAdjustments);
-        dto.setOutstandingBalance(balanceDue);
-        dto.setEstimatedRemainingInsurance(BigDecimal.ZERO); // TODO: Calculate if available
-        dto.setEstimatedRemainingInsuranceAdjustment(BigDecimal.ZERO); // TODO: Calculate if available
-        dto.setAccountCredit(accountCredit); // TODO: Fetch from account credit repo
-        dto.setNextScheduledAppointment(""); // TODO: Fetch from appointment service
-        dto.setLines(lines);
-        return dto;
-    }
-    // Helper to get patient name from patientId
-    private String getPatientName(Long patientId) {
-        // You may want to inject PatientRepository and fetch patient by ID
-        // For now, return "Patient" as placeholder
-        return "Patient";
-    }
 
 
     /** Lock claim (after lock, claim cannot be edited) */

@@ -18,6 +18,18 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/patient-billing/{patientId}")
 public class PatientBillingController {
 
+    /**
+     * Generate a printable patient statement (for print/statement button)
+     */
+    @GetMapping("/statement")
+    public ResponseEntity<ApiResponse<PatientStatementDto>> getPatientStatement(
+            @PathVariable Long patientId) {
+        PatientStatementDto dto = service.getPatientStatement(patientId);
+        return ResponseEntity.ok(ApiResponse.ok("Statement loaded", dto));
+    }
+
+
+
     /** Transfer INS balance to PT balance */
     @PostMapping("/invoices/{invoiceId}/transfer-outstanding-to-patient")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> transferOutstandingToPatient(
@@ -26,13 +38,13 @@ public class PatientBillingController {
             @PathVariable Long invoiceId,
             @RequestBody TransferRequest body) {
         PatientInvoiceDto updated = service.transferOutstandingToPatient(patientId, invoiceId, body.amount);
-       return ResponseEntity.ok(ApiResponse.ok("Transfer successful", updated));
+        return ResponseEntity.ok(ApiResponse.ok("Transfer successful", updated));
     }
 
     /** Transfer PT balance to INS balance */
     @PostMapping("/invoices/{invoiceId}/transfer-outstanding-to-insurance")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> transferOutstandingToInsurance(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody TransferRequest body) {
@@ -46,16 +58,16 @@ public class PatientBillingController {
 
 
     private final PatientBillingService service;
-    
+
 
     /* ===================== Invoices ===================== */
 
-      
+
 
 
     @PostMapping("/invoices/{invoiceId}/backdate")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> backdateInvoice(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody BackdateRequest body) {
@@ -65,26 +77,26 @@ public class PatientBillingController {
     }
 
     @PostMapping("/account-adjustment")
-public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
-        
-        @PathVariable Long patientId,
-        @RequestBody AccountAdjustmentRequest body) {
-    var req = new PatientBillingService.AccountAdjustmentRequest(
-        body.adjustmentType(),
-        body.flatRate(),
-        body.specificAmount(),
-        body.description(),
-        body.includeCourtesyCredit()
-    );
-    var data = service.accountAdjustment(patientId, req);
-    return ResponseEntity.ok(ApiResponse.ok("Account adjusted", data));
+    public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
-}
+            @PathVariable Long patientId,
+            @RequestBody AccountAdjustmentRequest body) {
+        var req = new PatientBillingService.AccountAdjustmentRequest(
+                body.adjustmentType(),
+                body.flatRate(),
+                body.specificAmount(),
+                body.description(),
+                body.includeCourtesyCredit()
+        );
+        var data = service.accountAdjustment(patientId, req);
+        return ResponseEntity.ok(ApiResponse.ok("Account adjusted", data));
+
+    }
 
     /** Adjust specific invoice with percentage discount and adjustment type */
     @PostMapping("/invoices/{invoiceId}/adjust")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> adjustInvoice(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody InvoiceAdjustmentRequest body) {
@@ -94,7 +106,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
     @GetMapping("/invoices")
     public ResponseEntity<ApiResponse<List<PatientInvoiceDto>>> listInvoices(
-            
+
             @PathVariable Long patientId) {
 
         var data = service.listInvoices(patientId);
@@ -104,7 +116,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** +Add Procedure → create invoice (JSON body) */
     @PostMapping("/invoices")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> createInvoiceFromProcedure(
-            
+
             @PathVariable Long patientId,
             @RequestBody PatientBillingService.CreateInvoiceRequest body) {
 
@@ -115,7 +127,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** Edit line amount (re-estimate) — JSON body { newCharge } */
     @PutMapping("/invoices/{invoiceId}/lines/{lineId}")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> updateInvoiceLineAmount(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @PathVariable Long lineId,
@@ -128,7 +140,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** Percentage adjustment — JSON body { percent } */
     @PostMapping("/invoices/{invoiceId}/adjustment")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> applyInvoicePercentageAdjustment(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody PatientBillingService.PercentageAdjustmentRequest body) {
@@ -139,7 +151,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** Delete invoice */
     @DeleteMapping("/invoices/{invoiceId}/delete")
     public ResponseEntity<Void> deleteInvoice(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
 
@@ -150,20 +162,12 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
 
     /* ===================== Claims ===================== */
-   
 
 
-    /** Fetch all claims for all patients in the org (for All Claims view) */
-    @GetMapping("/all-claims")
-    public ResponseEntity<ApiResponse<List<PatientClaimDto>>> listAllClaims(
-            ) {
-        var data = service.listAllClaims();
-        return ResponseEntity.ok(ApiResponse.ok("All claims loaded", data));
-    }
 
     @GetMapping("/claims")
     public ResponseEntity<ApiResponse<List<PatientClaimDto>>> listAllClaimsForPatient(
-            
+
             @PathVariable Long patientId) {
         var data = service.listAllClaimsForPatient(patientId);
         return ResponseEntity.ok(ApiResponse.ok("Claims loaded", data));
@@ -171,7 +175,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
     @GetMapping("/invoices/{invoiceId}/claim")
     public ResponseEntity<ApiResponse<PatientClaimDto>> getActiveClaimForInvoice(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
 
@@ -181,7 +185,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
     @GetMapping("/invoices/{invoiceId}/claims")
     public ResponseEntity<ApiResponse<List<PatientClaimDto>>> listClaimsForInvoice(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
 
@@ -191,7 +195,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
     @PostMapping("/invoices/{invoiceId}/claim/promote")
     public ResponseEntity<ApiResponse<PatientClaimDto>> promoteClaim(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
 
@@ -201,7 +205,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
     @PostMapping("/invoices/{invoiceId}/claim/send-to-batch")
     public ResponseEntity<ApiResponse<PatientClaimDto>> sendClaimToBatch(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
 
@@ -211,7 +215,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
     @PostMapping("/invoices/{invoiceId}/claim/submit")
     public ResponseEntity<ApiResponse<PatientClaimDto>> submitClaim(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
 
@@ -221,7 +225,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
     @PostMapping("/invoices/{invoiceId}/claim/close")
     public ResponseEntity<ApiResponse<PatientClaimDto>> closeClaim(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
 
@@ -231,7 +235,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
     @PostMapping("/invoices/{invoiceId}/claim/void-recreate")
     public ResponseEntity<ApiResponse<PatientClaimDto>> voidAndRecreateClaim(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
 
@@ -242,7 +246,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** Compose/Edit core claim fields */
     @PutMapping("/invoices/{invoiceId}/claim")
     public ResponseEntity<ApiResponse<PatientClaimDto>> updateClaim(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody PatientBillingService.PatientClaimCoreUpdate body) {
@@ -250,10 +254,10 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
         var data = service.updateClaim(patientId, invoiceId, body);
         return ResponseEntity.ok(ApiResponse.ok("Claim updated", data));
     }
-// --- Attachment & EOB endpoints ---
+    // --- Attachment & EOB endpoints ---
     @PostMapping(value = "/claims/{claimId}/attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Void>> uploadClaimAttachment(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long claimId,
             @RequestParam("file") MultipartFile file) throws Exception {
@@ -263,7 +267,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
     @GetMapping("/claims/{claimId}/attachment")
     public ResponseEntity<byte[]> getClaimAttachment(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long claimId) {
         byte[] data = service.getClaimAttachment(patientId, claimId);
@@ -274,7 +278,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
     @PostMapping(value = "/claims/{claimId}/eob", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Void>> uploadClaimEob(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long claimId,
             @RequestParam("file") MultipartFile file) throws Exception {
@@ -284,7 +288,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
     @GetMapping("/claims/{claimId}/eob")
     public ResponseEntity<byte[]> getClaimEob(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long claimId) {
         byte[] data = service.getClaimEob(patientId, claimId);
@@ -298,7 +302,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
     @GetMapping("/insurance-payments")
     public ResponseEntity<ApiResponse<List<PatientInsuranceRemitLineDto>>> listInsurancePayments(
-            
+
             @PathVariable Long patientId,
             @RequestParam(required = false) Long invoiceId,
             @RequestParam(required = false) Long claimId,
@@ -310,7 +314,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
     @GetMapping("/invoices/{invoiceId}/insurance-payments")
     public ResponseEntity<ApiResponse<List<PatientInsuranceRemitLineDto>>> listInsurancePaymentsForInvoice(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
 
@@ -321,7 +325,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** Apply insurance EOB grid */
     @PostMapping("/invoices/{invoiceId}/insurance-payments")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> applyInsurancePayment(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody PatientInsurancePaymentRequestDto body) {
@@ -333,7 +337,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** EDIT insurance remit line */
     @PutMapping("/invoices/{invoiceId}/insurance-payments/{remitId}")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> editInsuranceRemitLine(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @PathVariable Long remitId,
@@ -346,7 +350,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** VOID insurance payment = hard delete remit line */
     @PostMapping("/invoices/{invoiceId}/insurance-payments/{remitId}/void")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> voidInsurancePayment(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @PathVariable Long remitId,
@@ -359,7 +363,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** REFUND insurance → increase invoice insurance balance */
     @PostMapping("/invoices/{invoiceId}/insurance-payments/{remitId}/refund")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> refundInsurancePayment(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @PathVariable Long remitId,
@@ -372,7 +376,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** TRANSFER (insurance balance → patient account credit) */
     @PostMapping("/invoices/{invoiceId}/insurance-payments/{remitId}/transfer-credit-to-patient")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> transferInsuranceCreditToPatient(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @PathVariable Long remitId,
@@ -387,7 +391,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** Patient payment → Apply */
     @PostMapping("/invoices/{invoiceId}/patient-payments")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> applyPatientPayment(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody PatientPatientPaymentRequestDto body) {
@@ -399,7 +403,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** GET all patient payment allocations for a patient */
     @GetMapping("/patient-payments")
     public ResponseEntity<ApiResponse<List<PatientPatientPaymentAllocationDto>>> getAllPatientPayments(
-            
+
             @PathVariable Long patientId) {
 
         var data = service.getAllPatientPayments(patientId);
@@ -409,7 +413,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** GET allocations by invoice */
     @GetMapping("/invoices/{invoiceId}/patient-payments")
     public ResponseEntity<ApiResponse<List<PatientPatientPaymentAllocationDto>>> getPaymentsByInvoice(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
 
@@ -420,7 +424,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** EDIT patient payment */
     @PutMapping("/invoices/{invoiceId}/patient-payments/{paymentId}")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> editPatientPayment(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @PathVariable Long paymentId,
@@ -433,7 +437,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** VOID patient payment = delete payment + allocations */
     @PostMapping("/invoices/{invoiceId}/patient-payments/{paymentId}/void")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> voidPatientPayment(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @PathVariable Long paymentId,
@@ -446,7 +450,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** REFUND patient payment → move to account credit */
     @PostMapping("/invoices/{invoiceId}/patient-payments/{paymentId}/refund")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> refundPatientPayment(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @PathVariable Long paymentId,
@@ -459,7 +463,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** Transfer patient credit between patients */
     @PostMapping("/patients/{fromPatientId}/transfer-credit/{toPatientId}")
     public ResponseEntity<ApiResponse<PatientAccountCreditDto[]>> transferPatientCreditToPatient(
-            
+
             @PathVariable Long fromPatientId,
             @PathVariable Long toPatientId,
             @RequestBody PatientBillingService.TransferCreditRequest body) {
@@ -472,7 +476,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
     @GetMapping("/account-credit")
     public ResponseEntity<ApiResponse<PatientAccountCreditDto>> getAccountCredit(
-            
+
             @PathVariable Long patientId) {
 
         var data = service.getAccountCredit(patientId);
@@ -482,7 +486,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** Apply account credit — JSON body { amount } */
     @PostMapping("/account-credit/apply")
     public ResponseEntity<ApiResponse<PatientAccountCreditDto>> applyAccountCredit(
-            
+
             @PathVariable Long patientId,
             @RequestBody PatientBillingService.ApplyCreditRequest body) {
 
@@ -497,7 +501,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
      */
     @GetMapping("/invoices/{invoiceId}/notes")
     public ResponseEntity<ApiResponse<List<PatientBillingNoteDto>>> listInvoiceNotes(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
 
@@ -515,7 +519,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
      */
     @PostMapping("/invoices/{invoiceId}/notes")
     public ResponseEntity<ApiResponse<PatientBillingNoteDto>> createInvoiceNote(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody @Valid PatientBillingNoteDto body) { // Add @Valid if validation annotations are added to DTO
@@ -534,7 +538,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
      */
     @PutMapping("/invoices/{invoiceId}/notes/{noteId}")
     public ResponseEntity<ApiResponse<PatientBillingNoteDto>> updateInvoiceNote(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @PathVariable Long noteId,
@@ -554,7 +558,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
      */
     @DeleteMapping("/invoices/{invoiceId}/notes/{noteId}")
     public ResponseEntity<ApiResponse<Void>> deleteInvoiceNote(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @PathVariable Long noteId) {
@@ -580,7 +584,7 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** Insurance Deposit: Add insurance deposit and update account credit */
     @PostMapping("/insurance-deposit")
     public ResponseEntity<ApiResponse<PatientAccountCreditDto>> addInsuranceDeposit(
-            
+
             @PathVariable Long patientId,
             @RequestBody InsuranceDepositRequest request
     ) {
@@ -591,54 +595,33 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
     /** Courtesy Credit: Add courtesy credit and update account credit */
     @PostMapping("/courtesy-credit")
     public ResponseEntity<ApiResponse<PatientAccountCreditDto>> addCourtesyCredit(
-            
+
             @PathVariable Long patientId,
             @RequestBody CourtesyCreditRequest request
     ) {
         var data = service.addCourtesyCredit(patientId, request);
         return ResponseEntity.ok(ApiResponse.ok("Courtesy credit added and account credit updated", data));
     }
-    /** 
-     * Print unified statement detail for a single invoice
-     */
-    @PostMapping("/invoices/{invoiceId}/statement-detail")
-    public ResponseEntity<ApiResponse<StatementDetailDto>> printInvoiceStatementDetail(
-            
+
+
+    /** Lock claim (after lock, claim cannot be edited) */
+    @PostMapping("/claims/{claimId}/lock")
+    public ResponseEntity<ApiResponse<PatientClaimDto>> lockClaim(
+
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
-        StatementDetailDto dto = service.getInvoiceStatementDetail(patientId, invoiceId);
-        return ResponseEntity.ok(ApiResponse.ok("Invoice statement detail loaded", dto));
+            @PathVariable Long claimId) {
+        service.lockClaim(patientId, claimId);
+        PatientClaimDto dto = service.toClaimDto(service.getClaimOrThrow(patientId, claimId));
+        return ResponseEntity.ok(ApiResponse.ok("Claim locked", dto));
     }
 
-    /**
-     * Print unified statement detail for all invoices/payments for a patient
-     */
-    @PostMapping("/statement-detail")
-    public ResponseEntity<ApiResponse<StatementDetailDto>> printPatientStatementDetail(
-            
-            @PathVariable Long patientId) {
-        StatementDetailDto dto = service.getPatientStatementDetail(patientId);
-        return ResponseEntity.ok(ApiResponse.ok("Patient statement detail loaded", dto));
-    }
 
-        /** Lock claim (after lock, claim cannot be edited) */
-        @PostMapping("/claims/{claimId}/lock")
-        public ResponseEntity<ApiResponse<PatientClaimDto>> lockClaim(
-                
-                @PathVariable Long patientId,
-                @PathVariable Long claimId) {
-            service.lockClaim(patientId, claimId);
-            PatientClaimDto dto = service.toClaimDto(service.getClaimOrThrow(patientId, claimId));
-            return ResponseEntity.ok(ApiResponse.ok("Claim locked", dto));
-        }
-
-   
     /**
      * Change claim status (accepts JSON body, not request parameter)
      */
     @PostMapping("/claims/{claimId}/status")
     public ResponseEntity<ApiResponse<PatientClaimDto>> changeClaimStatus(
-            
+
             @PathVariable Long patientId,
             @PathVariable Long claimId,
             @RequestBody ClaimStatusUpdateDto dto
@@ -650,16 +633,17 @@ public ResponseEntity<ApiResponse<PatientAccountCreditDto>> accountAdjustment(
 
 
     /** Submit claim attachment */
-        @PostMapping(value = "/claims/{claimId}/submit-attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-        public ResponseEntity<ApiResponse<PatientClaimDto>> submitClaimAttachment(
-                
-                @PathVariable Long patientId,
-                @PathVariable Long claimId,
-                @RequestParam("file") MultipartFile file) throws Exception {
-            service.submitClaimAttachment(patientId, claimId, file);
-            PatientClaimDto dto = service.toClaimDto(service.getClaimOrThrow(patientId, claimId));
-            return ResponseEntity.ok(ApiResponse.ok("Claim attachment submitted", dto));
-        }
+    @PostMapping(value = "/claims/{claimId}/submit-attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<PatientClaimDto>> submitClaimAttachment(
 
-      
+            @PathVariable Long patientId,
+            @PathVariable Long claimId,
+            @RequestParam("file") MultipartFile file) throws Exception {
+        service.submitClaimAttachment(patientId, claimId, file);
+        PatientClaimDto dto = service.toClaimDto(service.getClaimOrThrow(patientId, claimId));
+        return ResponseEntity.ok(ApiResponse.ok("Claim attachment submitted", dto));
+    }
+
+
 }
+
