@@ -7,6 +7,8 @@ import com.qiaben.ciyex.entity.portal.PortalUser;
 import com.qiaben.ciyex.enums.PortalStatus;
 import com.qiaben.ciyex.repository.portal.PortalPatientRepository;
 import com.qiaben.ciyex.repository.portal.PortalUserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,11 +24,14 @@ public class PortalPatientService {
     private final PortalPatientRepository patientRepository;
     private final PortalUserRepository userRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     /**
      * Get patient's own information (for portal dashboard)
      * Creates a basic patient profile if one doesn't exist
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public ApiResponse<PortalPatientDto> getPatientInfo(String email) {
         try {
             PortalUser portalUser = userRepository.findByEmail(email)
@@ -54,6 +59,9 @@ public class PortalPatientService {
                 log.info("Creating basic patient profile for portal user: {}", portalUser.getEmail());
                 patient = createBasicPatientProfile(portalUser);
             }
+
+            // ✅ Auto-link portal patient to EHR if a matching record exists
+            linkToEhrPatientIfExists(patient);
 
             PortalPatientDto dto = PortalPatientDto.fromEntity(patient, portalUser);
 
@@ -149,6 +157,43 @@ public class PortalPatientService {
         } catch (Exception e) {
             log.error("Error creating basic patient profile for user: {}", portalUser.getId(), e);
             throw new RuntimeException("Failed to create patient profile", e);
+        }
+    }
+
+    /**
+     * Auto-link portal patient to EHR if matching record exists
+     */
+    @Transactional
+    public void linkToEhrPatientIfExists(PortalPatient portalPatient) {
+        try {
+            // Only attempt linking if not already linked
+            if (portalPatient.getEhrPatientId() != null) {
+                log.info("Portal patient {} already linked to EHR ID {}", portalPatient.getId(), portalPatient.getEhrPatientId());
+                return;
+            }
+
+            String email = portalPatient.getPortalUser().getEmail();
+
+            // Check if EHR patient exists with same email
+            Object ehrPatientIdObj = entityManager
+                    .createNativeQuery("SELECT id FROM patients WHERE LOWER(email) = LOWER(?) LIMIT 1")
+                    .setParameter(1, email)
+                    .getSingleResult();
+
+            if (ehrPatientIdObj != null) {
+                Long ehrPatientId = ((Number) ehrPatientIdObj).longValue();
+                portalPatient.setEhrPatientId(ehrPatientId);
+                patientRepository.save(portalPatient);
+
+                log.info("✅ Linked PortalPatient ID {} → EHR Patient ID {}", portalPatient.getId(), ehrPatientId);
+            } else {
+                log.warn("⚠️ No matching EHR patient found for email {}", email);
+            }
+
+        } catch (jakarta.persistence.NoResultException e) {
+            log.warn("⚠️ No matching EHR patient found for email {}", portalPatient.getPortalUser().getEmail());
+        } catch (Exception e) {
+            log.error("❌ Error linking portal patient to EHR patient", e);
         }
     }
 }

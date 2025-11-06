@@ -29,12 +29,15 @@ public class TelehealthResolver implements ApplicationContextAware {
     public TelehealthService resolve() {
         String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
         if (tenantName == null || tenantName.isBlank()) {
-            throw new IllegalStateException("No tenantName available in request context");
+            // No tenantName available; log and return null so callers can proceed without telehealth.
+            // This is intentionally non-fatal to avoid breaking controllers when tenant header is missing.
+            return null;
         }
 
         TelehealthConfig config = configProvider.getForCurrentTenant(IntegrationKey.TELEHEALTH);
         if (config == null || config.getVendor() == null) {
-            throw new IllegalArgumentException("No telehealth config or vendor found for tenantName: " + tenantName);
+            // No telehealth config for this tenant; return null to indicate no telehealth available.
+            return null;
         }
 
         String vendor = config.getVendor();
