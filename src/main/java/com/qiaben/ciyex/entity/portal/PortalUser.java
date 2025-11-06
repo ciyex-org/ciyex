@@ -3,24 +3,23 @@ package com.qiaben.ciyex.entity.portal;
 import com.qiaben.ciyex.enums.PortalStatus;
 import jakarta.persistence.*;
 import lombok.*;
-import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Entity representing portal users who register from the public portal
- * Stored in public schema before approval
+ * ✅ Entity representing users who register and log in through the patient portal.
+ * Automatically approved on registration and linked to a PortalPatient record.
  */
 @Entity
-@Table(name = "portal_users", schema = "public")
+@Table(name = "portal_users") // Removed schema="public" (not needed for single schema setups)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 public class PortalUser extends com.qiaben.ciyex.entity.AuditableEntity {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @EqualsAndHashCode.Include
@@ -41,18 +40,17 @@ public class PortalUser extends com.qiaben.ciyex.entity.AuditableEntity {
     @Column(name = "phone_number")
     private String phoneNumber;
 
+    /** ✅ User account status (auto-approved on registration) */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
-    private PortalStatus status = PortalStatus.PENDING;
+    private PortalStatus status = PortalStatus.APPROVED;
 
-    
+    /** ✅ Keycloak user ID (sub claim from Keycloak token) */
+    @Column(name = "keycloak_user_id", unique = true)
+    private String keycloakUserId;
 
-    @Column(length = 500)
-    private String reason; // Rejection reason or admin notes
-
-    // audit fields provided by AuditableEntity
-
+    /** ✅ Audit and approval tracking */
     @Column(name = "approved_date")
     private LocalDateTime approvedDate;
 
@@ -65,13 +63,14 @@ public class PortalUser extends com.qiaben.ciyex.entity.AuditableEntity {
     @Column(name = "rejected_by")
     private Long rejectedBy;
 
+    @Column(length = 500)
+    private String reason; // Admin notes or rejection reason
+
     @Column(nullable = false, unique = true, updatable = false)
     @Builder.Default
     private UUID uuid = UUID.randomUUID();
 
-    // One-to-one relationship with PortalPatient
+    /** ✅ One-to-one link to portal patient */
     @OneToOne(mappedBy = "portalUser", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private PortalPatient portalPatient;
-
-    // Last-modified handled by AuditableEntity (@LastModifiedDate)
 }

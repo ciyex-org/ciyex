@@ -12,8 +12,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Converts Keycloak JWT tokens to Spring Security Authentication
- * Maps Keycloak groups to Spring Security authorities (replacing tenant concept)
+ * ✅ Converts Keycloak JWT into Spring Security Authentication
+ * Supports realm roles, client roles, and groups.
  */
 @Component
 public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
@@ -25,85 +25,63 @@ public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, Abstra
     }
 
     /**
-     * Extract authorities from JWT token
-     * Includes groups (replacing tenant) and realm roles
+     * ✅ Extracts roles and groups from JWT and maps to Spring authorities.
      */
     private Collection<GrantedAuthority> extractAuthorities(Jwt jwt) {
-        Set<GrantedAuthority> authorities = new HashSet<>();
+        Set<String> roles = new HashSet<>();
 
-        // Extract groups (these replace the tenant concept)
+        // ✅ 1. Realm roles (e.g., PATIENT, ADMIN, PROVIDER)
+        Map<String, Object> realmAccess = jwt.getClaim("realm_access");
+        if (realmAccess != null && realmAccess.get("roles") instanceof Collection) {
+            roles.addAll((Collection<String>) realmAccess.get("roles"));
+        }
+
+        // ✅ 2. Client roles (e.g., from Keycloak client “ciyex-app”)
+        Map<String, Object> resourceAccess = jwt.getClaim("resource_access");
+        if (resourceAccess != null && resourceAccess.get("ciyex-app") instanceof Map) {
+            Map<String, Object> clientAccess = (Map<String, Object>) resourceAccess.get("ciyex-app");
+            if (clientAccess.get("roles") instanceof Collection) {
+                roles.addAll((Collection<String>) clientAccess.get("roles"));
+            }
+        }
+
+        // ✅ 3. Custom single role field (if local tokens use { "role": "PATIENT" })
+        if (jwt.hasClaim("role")) {
+            roles.add(jwt.getClaimAsString("role"));
+        }
+
+        // ✅ 4. Group mappings (optional: turn groups into authorities too)
         List<String> groups = jwt.getClaimAsStringList("groups");
         if (groups != null) {
-            authorities.addAll(groups.stream()
-                    .map(group -> new SimpleGrantedAuthority("GROUP_" + group.toUpperCase()))
-                    .collect(Collectors.toList()));
+            roles.addAll(groups);
         }
 
-        // Extract realm roles
-        Map<String, Object> realmAccess = jwt.getClaim("realm_access");
-        if (realmAccess != null && realmAccess.containsKey("roles")) {
-            @SuppressWarnings("unchecked")
-            List<String> roles = (List<String>) realmAccess.get("roles");
-            authorities.addAll(roles.stream()
-                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
-                    .collect(Collectors.toList()));
-        }
-
-        // Extract resource/client roles
-        Map<String, Object> resourceAccess = jwt.getClaim("resource_access");
-        if (resourceAccess != null) {
-            resourceAccess.values().forEach(resource -> {
-                if (resource instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> resourceMap = (Map<String, Object>) resource;
-                    if (resourceMap.containsKey("roles")) {
-                        @SuppressWarnings("unchecked")
-                        List<String> roles = (List<String>) resourceMap.get("roles");
-                        authorities.addAll(roles.stream()
-                                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
-                                .collect(Collectors.toList()));
-                    }
-                }
-            });
-        }
+        // ✅ Convert all roles/groups to Spring authorities format
+        Set<GrantedAuthority> authorities = roles.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(role -> !role.isEmpty())
+                .map(role -> role.toUpperCase().startsWith("ROLE_") ? role : "ROLE_" + role.toUpperCase())
+                .map(SimpleGrantedAuthority::new)
+                .collect(Collectors.toSet());
 
         return authorities;
     }
 
-    /**
-     * Extract groups from JWT (for use in application logic)
-     */
+    // ✅ Utility helper methods
+    public static String extractEmail(Jwt jwt) {
+        String email = jwt.getClaimAsString("email");
+        return (email != null) ? email : jwt.getClaimAsString("preferred_username");
+    }
+
+    public static String extractFullName(Jwt jwt) {
+        String given = jwt.getClaimAsString("given_name");
+        String family = jwt.getClaimAsString("family_name");
+        return (given != null ? given : "") + (family != null ? " " + family : "");
+    }
+
     public static List<String> extractGroups(Jwt jwt) {
         List<String> groups = jwt.getClaimAsStringList("groups");
         return groups != null ? groups : Collections.emptyList();
-    }
-
-    /**
-     * Extract user email from JWT
-     */
-    public static String extractEmail(Jwt jwt) {
-        String email = jwt.getClaimAsString("email");
-        if (email == null) {
-            email = jwt.getClaimAsString("preferred_username");
-        }
-        return email;
-    }
-
-    /**
-     * Extract user's full name from JWT
-     */
-    public static String extractFullName(Jwt jwt) {
-        String givenName = jwt.getClaimAsString("given_name");
-        String familyName = jwt.getClaimAsString("family_name");
-        
-        if (givenName != null && familyName != null) {
-            return givenName + " " + familyName;
-        } else if (givenName != null) {
-            return givenName;
-        } else if (familyName != null) {
-            return familyName;
-        }
-        
-        return jwt.getClaimAsString("preferred_username");
     }
 }

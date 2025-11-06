@@ -62,6 +62,12 @@ public class PortalAppointmentController {
     private final SlotRepository slotRepository;
     private final TelehealthResolver telehealthResolver;
 
+    @GetMapping("/my")
+    @PreAuthorize("hasRole('PATIENT')")
+    public ResponseEntity<ApiResponse<List<AppointmentDto>>> getMyAppointments(HttpServletRequest request) {
+        return getPatientAppointments(request);
+    }
+
     @GetMapping
     @PreAuthorize("hasRole('PATIENT')")
     public ResponseEntity<ApiResponse<List<AppointmentDto>>> getPatientAppointments(HttpServletRequest request) {

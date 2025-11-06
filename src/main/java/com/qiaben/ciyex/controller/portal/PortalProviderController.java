@@ -36,15 +36,22 @@ public class PortalProviderController {
     public ResponseEntity<ApiResponse<List<ProviderDto>>> getAllProviders(HttpServletRequest request) {
         try {
             log.info("Fetching all providers for portal");
-            
-            // Set tenant context from JWT token
+
+            // Set tenant context from JWT token (no-op here; interceptor populates RequestContext)
             setRequestContextOrg(request);
 
-            // Use TenantAwareService to ensure proper schema switching
-            List<Provider> providers = null;
+            List<Provider> providers = providerRepository.findAll();
+            if (providers == null || providers.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<List<ProviderDto>>builder()
+                    .success(true)
+                    .message("No providers available")
+                    .data(java.util.Collections.emptyList())
+                    .build());
+            }
+
             List<ProviderDto> providerDtos = providers.stream()
-                    .map(this::convertToDto)
-                    .collect(Collectors.toList());
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
 
             return ResponseEntity.ok(ApiResponse.<List<ProviderDto>>builder()
                     .success(true)
@@ -64,9 +71,7 @@ public class PortalProviderController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ProviderDto>> getProviderById(@PathVariable("id") Long id, HttpServletRequest request) {
         try {
-            // Set tenant context from JWT token
             setRequestContextOrg(request);
-            // Use TenantAwareService to ensure proper schema switching
             return providerRepository.findById(id)
                     .map(provider -> ResponseEntity.ok(ApiResponse.<ProviderDto>builder()
                             .success(true)
@@ -91,10 +96,7 @@ public class PortalProviderController {
     public ResponseEntity<ApiResponse<List<String>>> getProviderAvailability(@PathVariable("id") Long id, HttpServletRequest request) {
         try {
             log.info("Fetching general availability for provider id: {}", id);
-
-            // Use TenantAwareService to ensure proper schema switching
             List<AppointmentDTO> slots = appointmentService.getFirstAvailableSlotsForProvider(id, 6);
-            
             List<String> timeSlots = slots.stream()
                     .map(slot -> slot.getFormattedTime() != null ? slot.getFormattedTime() : slot.getAppointmentStartTime().toString())
                     .collect(Collectors.toList());
@@ -122,17 +124,13 @@ public class PortalProviderController {
         HttpServletRequest request) {
         try {
             log.info("Fetching availability for provider id: {} on date: {} with limit: {}", id, date, limit);
-            // Parse the date string to LocalDate
             java.time.LocalDate localDate;
             try {
                 localDate = java.time.LocalDate.parse(date);
             } catch (Exception e) {
                 throw new IllegalArgumentException("Invalid date format. Expected: yyyy-MM-dd, got: " + date);
             }
-            
-            // Use TenantAwareService to ensure proper schema switching
             List<AppointmentDTO> slots =  appointmentService.getAvailableSlotsForDate(id, localDate, limit);
-            
             log.info("Found {} available slots for provider {} on {}", slots.size(), id, date);
 
             return ResponseEntity.ok(ApiResponse.<List<AppointmentDTO>>builder()
@@ -153,29 +151,22 @@ public class PortalProviderController {
     private ProviderDto convertToDto(Provider provider) {
         ProviderDto dto = new ProviderDto();
         dto.setId(provider.getId());
-        dto.setPhone(provider.getPhoneNumber()); // Use phoneNumber field
+        dto.setPhone(provider.getPhoneNumber());
         dto.setEmail(provider.getEmail());
-        dto.setTitle(provider.getProviderType()); // Use providerType as title
-        
-        // Set identification details
+        dto.setTitle(provider.getProviderType());
         ProviderDto.Identification identification = new ProviderDto.Identification();
         identification.setFirstName(provider.getFirstName());
         identification.setLastName(provider.getLastName());
         dto.setIdentification(identification);
-        
-     // Set professional details with additional information
+
         ProviderDto.ProfessionalDetails professionalDetails = new ProviderDto.ProfessionalDetails();
         professionalDetails.setSpecialty(provider.getSpecialty());
-        
-        // Add additional professional details from EHR database
-        professionalDetails.setLocation(provider.getAddress()); // Use address as location
-        professionalDetails.setWorkingHours("9:00 AM - 6:00 PM"); // Default working hours
-        professionalDetails.setExperience("5+ years"); // Default experience - could be calculated from created_date
-        professionalDetails.setLanguages(java.util.Arrays.asList("English", "Spanish")); // Default languages
-        
+        professionalDetails.setLocation(provider.getAddress());
+        professionalDetails.setWorkingHours("9:00 AM - 6:00 PM");
+        professionalDetails.setExperience("5+ years");
+        professionalDetails.setLanguages(java.util.Arrays.asList("English", "Spanish"));
         dto.setProfessionalDetails(professionalDetails);
-        
-        // Generate full name
+
         String fullName = "";
         if (provider.getProviderType() != null && !provider.getProviderType().isEmpty()) {
             fullName += provider.getProviderType() + " ";
@@ -187,11 +178,9 @@ public class PortalProviderController {
             fullName += provider.getLastName();
         }
         dto.setFullName(fullName.trim());
-        
         return dto;
     }
 
-    // DTO class for provider data - matches frontend expected structure
     public static class ProviderDto {
         private Long id;
         private String fullName;
@@ -201,66 +190,49 @@ public class PortalProviderController {
         private Identification identification;
         private ProfessionalDetails professionalDetails;
 
-        // Nested class for identification details
         public static class Identification {
             private String firstName;
             private String lastName;
-
             public String getFirstName() { return firstName; }
             public void setFirstName(String firstName) { this.firstName = firstName; }
-
             public String getLastName() { return lastName; }
             public void setLastName(String lastName) { this.lastName = lastName; }
         }
 
-        // Nested class for professional details
         public static class ProfessionalDetails {
             private String specialty;
             private String location;
             private String workingHours;
             private String experience;
             private java.util.List<String> languages;
-
             public String getSpecialty() { return specialty; }
             public void setSpecialty(String specialty) { this.specialty = specialty; }
-
             public String getLocation() { return location; }
             public void setLocation(String location) { this.location = location; }
-
             public String getWorkingHours() { return workingHours; }
             public void setWorkingHours(String workingHours) { this.workingHours = workingHours; }
-
             public String getExperience() { return experience; }
             public void setExperience(String experience) { this.experience = experience; }
-
             public java.util.List<String> getLanguages() { return languages; }
             public void setLanguages(java.util.List<String> languages) { this.languages = languages; }
         }
 
-        // Main DTO Getters and Setters
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
-
         public String getFullName() { return fullName; }
         public void setFullName(String fullName) { this.fullName = fullName; }
-
         public String getTitle() { return title; }
         public void setTitle(String title) { this.title = title; }
-
         public String getPhone() { return phone; }
         public void setPhone(String phone) { this.phone = phone; }
-
         public String getEmail() { return email; }
         public void setEmail(String email) { this.email = email; }
-
         public Identification getIdentification() { return identification; }
         public void setIdentification(Identification identification) { this.identification = identification; }
-
         public ProfessionalDetails getProfessionalDetails() { return professionalDetails; }
         public void setProfessionalDetails(ProfessionalDetails professionalDetails) { this.professionalDetails = professionalDetails; }
     }
 
-    // Helper methods for tenant context
     private Long toLong(Object value) {
         if (value == null) return null;
         if (value instanceof Number) return ((Number) value).longValue();
@@ -269,6 +241,5 @@ public class PortalProviderController {
 
     private void setRequestContextOrg(HttpServletRequest request) {
         // RequestContext is now set by TenantContextInterceptor
-        // This method is kept for backward compatibility but does nothing
     }
 }

@@ -17,7 +17,7 @@ import java.util.List;
  * Controller for portal patients to view their own reports
  */
 @RestController
-@RequestMapping("/api/portal/reports")
+@RequestMapping("/api/fhir/portal/reports")
 @RequiredArgsConstructor
 @CrossOrigin(
     origins = { "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001" },
