@@ -56,6 +56,20 @@ public class CommunicationService {
     /* ------------------- CREATE ------------------- */
     @Transactional
     public CommunicationDto create(CommunicationDto dto) {
+        // Validate that both patientId and providerId are provided
+        if (dto.getPatientId() == null) {
+            throw new IllegalArgumentException("Patient ID is required");
+        }
+        
+        if (dto.getProviderId() == null) {
+            throw new IllegalArgumentException("Provider ID is required");
+        }
+
+        // Validate that payload is not empty
+        if (dto.getPayload() == null || dto.getPayload().trim().isEmpty()) {
+            throw new IllegalArgumentException("Message payload cannot be empty");
+        }
+
         String now = LocalDateTime.now().toString();
 
         Communication entity = Communication.builder()
