@@ -40,15 +40,26 @@ public class PortalAuthService {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getId());
         claims.put("email", user.getEmail());
-        claims.put("role", "PATIENT");
+        claims.put("role", "PATIENT"); // This will be picked up by KeycloakJwtAuthenticationConverter
         claims.put("status", user.getStatus().toString());
+        
+        // ✅ Add preferred_username for compatibility
+        claims.put("preferred_username", user.getEmail());
+        
+        // ✅ Add realm_access structure that Spring Security expects
+        Map<String, Object> realmAccess = new HashMap<>();
+        realmAccess.put("roles", Collections.singletonList("PATIENT"));
+        claims.put("realm_access", realmAccess);
 
+        // ✅ Use the secret directly (it's already Base64-encoded in application.yml)
+        byte[] keyBytes = Base64.getDecoder().decode(jwtSecret);
+        
         return Jwts.builder()
                 .claims(claims)
                 .subject(user.getEmail())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + JWT_EXPIRATION_TIME))
-                .signWith(Keys.hmacShaKeyFor(Base64.getEncoder().encodeToString(jwtSecret.getBytes()).getBytes()))
+                .signWith(Keys.hmacShaKeyFor(keyBytes))
                 .compact();
     }
 
