@@ -20,7 +20,13 @@ public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, Abstra
 
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
+        System.out.println("🔍 JWT Converter: Processing JWT token");
+        System.out.println("🔍 JWT Subject: " + jwt.getSubject());
+        System.out.println("🔍 JWT Claims: " + jwt.getClaims());
+
         Collection<GrantedAuthority> authorities = extractAuthorities(jwt);
+        System.out.println("🔍 Extracted Authorities: " + authorities);
+
         return new JwtAuthenticationToken(jwt, authorities);
     }
 
@@ -30,31 +36,48 @@ public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, Abstra
     private Collection<GrantedAuthority> extractAuthorities(Jwt jwt) {
         Set<String> roles = new HashSet<>();
 
+        System.out.println("🔍 Extracting authorities from JWT...");
+
         // ✅ 1. Realm roles (e.g., PATIENT, ADMIN, PROVIDER)
         Map<String, Object> realmAccess = jwt.getClaim("realm_access");
         if (realmAccess != null && realmAccess.get("roles") instanceof Collection) {
             roles.addAll((Collection<String>) realmAccess.get("roles"));
+            System.out.println("🔍 Realm roles found: " + realmAccess.get("roles"));
+        } else {
+            System.out.println("🔍 No realm_access roles found");
         }
 
-        // ✅ 2. Client roles (e.g., from Keycloak client “ciyex-app”)
+        // ✅ 2. Client roles (e.g., from Keycloak client "ciyex-app")
         Map<String, Object> resourceAccess = jwt.getClaim("resource_access");
         if (resourceAccess != null && resourceAccess.get("ciyex-app") instanceof Map) {
             Map<String, Object> clientAccess = (Map<String, Object>) resourceAccess.get("ciyex-app");
             if (clientAccess.get("roles") instanceof Collection) {
                 roles.addAll((Collection<String>) clientAccess.get("roles"));
+                System.out.println("🔍 Client roles found: " + clientAccess.get("roles"));
             }
+        } else {
+            System.out.println("🔍 No resource_access or ciyex-app client roles found");
         }
 
         // ✅ 3. Custom single role field (if local tokens use { "role": "PATIENT" })
         if (jwt.hasClaim("role")) {
-            roles.add(jwt.getClaimAsString("role"));
+            String role = jwt.getClaimAsString("role");
+            roles.add(role);
+            System.out.println("🔍 Custom role claim found: " + role);
+        } else {
+            System.out.println("🔍 No custom role claim found");
         }
 
         // ✅ 4. Group mappings (optional: turn groups into authorities too)
         List<String> groups = jwt.getClaimAsStringList("groups");
         if (groups != null) {
             roles.addAll(groups);
+            System.out.println("🔍 Groups found: " + groups);
+        } else {
+            System.out.println("🔍 No groups found");
         }
+
+        System.out.println("🔍 Raw roles before processing: " + roles);
 
         // ✅ Convert all roles/groups to Spring authorities format
         Set<GrantedAuthority> authorities = roles.stream()
@@ -64,6 +87,8 @@ public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, Abstra
                 .map(role -> role.toUpperCase().startsWith("ROLE_") ? role : "ROLE_" + role.toUpperCase())
                 .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toSet());
+
+        System.out.println("🔍 Final authorities: " + authorities);
 
         return authorities;
     }

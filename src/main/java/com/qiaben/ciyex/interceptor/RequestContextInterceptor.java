@@ -3,21 +3,20 @@ package com.qiaben.ciyex.interceptor;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-@Slf4j
 @Component
 public class RequestContextInterceptor implements HandlerInterceptor {
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        // Log incoming header info to help debug tenant routing
         String authHeader = request.getHeader("Authorization");
 
         RequestContext ctx = new RequestContext();
         ctx.setAuthToken(authHeader);
         RequestContext.set(ctx);
+
         return true;
     }
 
