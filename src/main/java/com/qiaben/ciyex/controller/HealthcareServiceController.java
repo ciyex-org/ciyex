@@ -32,10 +32,10 @@ public class HealthcareServiceController {
     }
 
 
-/*
+
     @GetMapping
     public ResponseEntity<ApiResponse<List<HealthcareServiceDto>>> get() {
-        List<HealthcareServiceDto> services = service.getByOrgId();
+        List<HealthcareServiceDto> services = service.getAll();
         ApiResponse<List<HealthcareServiceDto>> response = new ApiResponse.Builder<List<HealthcareServiceDto>>()
                 .success(true)
                 .message("Healthcare Services fetched successfully")
@@ -43,7 +43,8 @@ public class HealthcareServiceController {
                 .build();
         return ResponseEntity.ok(response);
     }
-*/
+
+
 
 
     @PutMapping("/{id}")
