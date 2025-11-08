@@ -12,7 +12,7 @@ import java.time.LocalDate;
 @EqualsAndHashCode(callSuper = true)
 public class PatientClaim extends AuditableEntity {
     public enum Status {
-        DRAFT, READY_FOR_SUBMISSION, SUBMITTED, IN_PROCESS, ACCEPTED, REJECTED, CLOSED, VOID
+        DRAFT, READY_FOR_SUBMISSION, SUBMITTED, IN_PROCESS, ACCEPTED, REJECTED, CLOSED, VOID,DENIED
     }
 
 
@@ -307,6 +307,15 @@ public class PatientClaim extends AuditableEntity {
     private String attachmentType;
     private String attachmentTransmissionCode;
     private String claimSubmissionReasonCode;
+    private String patientName;
+
+    public String getPatientName() {
+        return patientName;
+    }
+
+    public void setPatientName(String patientName) {
+        this.patientName = patientName;
+    }
 
     // --- Attachment and EOB file storage (for demo: store as byte[]; in prod, use external storage and path/URL) ---
     @Lob
@@ -318,6 +327,21 @@ public class PatientClaim extends AuditableEntity {
     public void setAttachmentFile(byte[] attachmentFile) { this.attachmentFile = attachmentFile; }
     public byte[] getEobFile() { return eobFile; }
     public void setEobFile(byte[] eobFile) { this.eobFile = eobFile; }
+
+    private String insuranceProviderName;
+    private String insurancePolicyNumber;
+
+    public String getInsuranceProviderName() {
+        return insuranceProviderName;
+    }
+    public void setInsuranceProviderName(String insuranceProviderName) {
+        this.insuranceProviderName = insuranceProviderName;
+    }
+    public String getInsurancePolicyNumber() {
+        return insurancePolicyNumber;
+    }
+    public void setInsurancePolicyNumber(String insurancePolicyNumber) {
+        this.insurancePolicyNumber = insurancePolicyNumber;
+    }
     // getters/setters
 }
-

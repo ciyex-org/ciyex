@@ -121,6 +121,7 @@ public class PatientBillingService {
     private final PatientPaymentRepository paymentRepo;
     private final PatientInvoiceLineRepository invoiceLineRepo;
     private final PatientBillingNoteRepository noteRepo;
+    private final PatientRepository patientRepo;
 
 
     /* ====== Request DTOs ====== */
@@ -279,7 +280,7 @@ public class PatientBillingService {
         PatientInvoice invoice = new PatientInvoice();
         invoice.setPatientId(patientId);
         invoice.setStatus(PatientInvoice.Status.OPEN);
-       
+
 
 
         PatientInvoiceLine line = new PatientInvoiceLine();
@@ -304,6 +305,12 @@ public class PatientBillingService {
         claim.setInvoiceId(invoice.getId());
         claim.setStatus(PatientClaim.Status.DRAFT);
         claim.setCreatedOn(LocalDate.parse(b.dos()));
+        claim.setType("Electronic"); // Always set type to Electronic
+        // Set patient name
+        patientRepo.findById(patientId).ifPresent(patient -> {
+            String fullName = patient.getFirstName() + (patient.getMiddleName() != null ? " " + patient.getMiddleName() : "") + " " + patient.getLastName();
+            claim.setPatientName(fullName.trim());
+        });
         claimRepo.save(claim);
 
         return toInvoiceDto(invoice);
@@ -431,6 +438,35 @@ public class PatientBillingService {
         return toClaimDto(fresh);
     }
 
+    /**
+     * Void and recreate claim by claim ID (for All Claims view)
+     * The existing claim is DELETED from the database (void = delete)
+     * A new claim is created with DRAFT status for the same invoice
+     */
+    public PatientClaimDto voidAndRecreateClaimById(Long claimId) {
+        PatientClaim existing = claimRepo.findById(claimId)
+                .orElseThrow(() -> new RuntimeException("Claim not found with ID: " + claimId));
+
+        // Store patient and invoice IDs before deleting
+        Long patientId = existing.getPatientId();
+        Long invoiceId = existing.getInvoiceId();
+
+        // Delete the existing claim from database (void = delete)
+        claimRepo.delete(existing);
+
+        // Create new claim with same patient and invoice
+        PatientClaim fresh = new PatientClaim();
+        fresh.setPatientId(patientId);
+        fresh.setInvoiceId(invoiceId);
+        fresh.setStatus(PatientClaim.Status.DRAFT);
+        fresh.setCreatedOn(LocalDate.now());
+        claimRepo.save(fresh);
+
+        return toClaimDto(fresh);
+    }
+
+
+
     public PatientClaimDto updateClaim(Long patientId, Long invoiceId, PatientClaimCoreUpdate p) {
         PatientClaim c = getClaimOrThrow(patientId, invoiceId);
         if (p != null) {
@@ -446,7 +482,18 @@ public class PatientBillingService {
         return toClaimDto(c);
     }
 
-
+    /**
+     * Convert claim type (manual/electronic)
+     */
+    public PatientClaimDto convertClaimType(Long claimId, String targetType) {
+        // Fetch claim entity
+        PatientClaim claim = claimRepo.findById(claimId).orElseThrow(() -> new IllegalArgumentException("Claim not found: " + claimId));
+        // Update claim type
+        claim.setType(targetType); // Assumes claim has a setType(String) method
+        claimRepo.save(claim);
+        // Return updated DTO
+        return getClaimDtoById(claimId);
+    }
 
 
 
@@ -861,7 +908,7 @@ public class PatientBillingService {
     public List<PatientBillingNoteDto> listInvoiceNotes(Long patientId, Long invoiceId) {
         // Verify invoice exists and belongs to patient
         getInvoiceOrThrow(patientId, invoiceId);
-        
+
         return noteRepo.findByPatientIdAndTargetTypeAndTargetIdOrderByCreatedDateAsc(patientId, NoteTargetType.INVOICE, invoiceId)
                 .stream()
                 .map(PatientBillingNoteDto::from)
@@ -1004,6 +1051,14 @@ public class PatientBillingService {
         claimRepo.save(claim);
     }
 
+    /**
+     * Get claim by ID and convert to DTO
+     */
+    public PatientClaimDto getClaimDtoById(Long claimId) {
+        PatientClaim claim = claimRepo.findById(claimId).orElseThrow();
+        return toClaimDto(claim);
+    }
+
 
 
     /** Submit claim attachment */
@@ -1063,7 +1118,8 @@ public class PatientBillingService {
                 c.getId(), c.getInvoiceId(), c.getPatientId(), c.getPayerName(),
                 c.getTreatingProviderId(), c.getBillingEntity(), c.getType(), c.getNotes(),
                 c.getStatus(), c.getAttachments(), c.isEobAttached(), c.getCreatedOn(),
-                c.getAttachmentFile() != null, c.getEobFile() != null
+                c.getAttachmentFile() != null, c.getEobFile() != null, c.getPatientName(),
+                c.getInsuranceProviderName(), c.getInsurancePolicyNumber()
         );
     }
 
@@ -1114,4 +1170,20 @@ public class PatientBillingService {
     }
 
 
+    public List<PatientInvoiceLineDto> getInvoiceLines(Long invoiceId) {
+        List<PatientInvoiceLine> lines = invoiceLineRepo.findByInvoiceId(invoiceId);
+        return lines.stream().map(line -> new PatientInvoiceLineDto(
+                line.getId(),
+                line.getDos(),
+                line.getCode(),
+                line.getTreatment(),
+                line.getProvider(),
+                line.getCharge(),
+                line.getAllowed(),
+                line.getInsWriteOff(),
+                line.getInsPortion(),
+                line.getPatientPortion()
+        )).toList();
+    }
 }
+
