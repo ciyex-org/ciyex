@@ -7,8 +7,9 @@ public class RequestContext {
     private static final ThreadLocal<RequestContext> context = new ThreadLocal<>();
 
     private String authToken;
-    private String tenantName;  // (Old field - now unused, safe to ignore)
-    private String schemaName;  // (Old field - now unused, safe to ignore)
+    private String tenantName;
+    private String schemaName;
+    private Long orgId;
 
     public static void set(RequestContext ctx) {
         context.set(ctx);
@@ -18,6 +19,7 @@ public class RequestContext {
         RequestContext ctx = context.get();
         if (ctx == null) {
             ctx = new RequestContext();
+            ctx.setOrgId(1L); // Default orgId for development
             context.set(ctx);
         }
         return ctx;
@@ -27,4 +29,3 @@ public class RequestContext {
         context.remove();
     }
 }
-
