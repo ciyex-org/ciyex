@@ -28,7 +28,9 @@ public class CoverageService {
 
     @Transactional
     public CoverageDto create(CoverageDto dto) {
-        
+        // Validate mandatory fields
+        validateMandatoryFields(dto);
+
         Coverage coverage = mapToEntity(dto);
 
         // Attach insurance company only if the client provided it
@@ -59,7 +61,10 @@ public class CoverageService {
                 .findById(id)
                 .orElseThrow(() -> new RuntimeException("Coverage not found with id: " + id));
 
-        updateEntityFromDto(coverage, dto);
+    updateEntityFromDto(coverage, dto);
+
+    // Validate mandatory fields after update
+    validateMandatoryFields(coverage);
 
         // If payload mentions insurance company, reflect that; if null object provided, detach
         if (dto.getInsuranceCompany() != null) {
@@ -178,7 +183,10 @@ public class CoverageService {
                 .findById(id)
                 .orElseThrow(() -> new RuntimeException("Coverage not found for id=" + id + ", patientId=" + patientId));
 
-        updateEntityFromDto(coverage, dto);
+    updateEntityFromDto(coverage, dto);
+
+    // Validate mandatory fields after update
+    validateMandatoryFields(coverage);
 
         if (dto.getInsuranceCompany() != null) {
             if (dto.getInsuranceCompany().getId() != null) {
@@ -320,5 +328,24 @@ public class CoverageService {
         if (dto.getByholderCountry() != null) coverage.setByholderCountry(dto.getByholderCountry());
         if (dto.getByholderPhone() != null) coverage.setByholderPhone(dto.getByholderPhone());
         if (dto.getCopayAmount() != null) coverage.setCopayAmount(dto.getCopayAmount());
+    }
+
+    // ---- Validation helpers ----
+    private void validateMandatoryFields(CoverageDto dto) {
+        if (dto == null) throw new IllegalArgumentException("coverage payload is required");
+        if (isBlank(dto.getCoverageType())) throw new IllegalArgumentException("coverageType is required");
+        if (isBlank(dto.getPlanName())) throw new IllegalArgumentException("planName is required");
+        if (isBlank(dto.getPolicyNumber())) throw new IllegalArgumentException("policyNumber is required");
+    }
+
+    private void validateMandatoryFields(Coverage coverage) {
+        if (coverage == null) throw new IllegalArgumentException("coverage is required");
+        if (isBlank(coverage.getCoverageType())) throw new IllegalArgumentException("coverageType is required");
+        if (isBlank(coverage.getPlanName())) throw new IllegalArgumentException("planName is required");
+        if (isBlank(coverage.getPolicyNumber())) throw new IllegalArgumentException("policyNumber is required");
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
     }
 }
