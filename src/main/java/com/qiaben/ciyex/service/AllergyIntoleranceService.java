@@ -1,5 +1,5 @@
 package com.qiaben.ciyex.service;
-
+    
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.AllergyIntoleranceDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
@@ -44,6 +44,8 @@ public class AllergyIntoleranceService {
 
         if (dto.getAllergiesList() != null) {
             for (var it : dto.getAllergiesList()) {
+                // Validate mandatory fields
+                validateMandatoryFields(it);
                 validateDates(it.getStartDate(), it.getEndDate());
 
                 AllergyIntolerance row = AllergyIntolerance.builder()
@@ -144,15 +146,16 @@ public class AllergyIntoleranceService {
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Allergy not found id=" + intoleranceId));
 
-        if (patch.getAllergyName() != null) row.setAllergyName(patch.getAllergyName());
-        if (patch.getReaction() != null)    row.setReaction(patch.getReaction());
+    if (patch.getAllergyName() != null) row.setAllergyName(patch.getAllergyName());
+    if (patch.getReaction() != null)    row.setReaction(patch.getReaction());
         if (patch.getSeverity() != null)    row.setSeverity(patch.getSeverity());
         if (patch.getStatus() != null)      row.setStatus(patch.getStatus());
         if (patch.getStartDate() != null)   row.setStartDate(patch.getStartDate());
         if (patch.getEndDate() != null)     row.setEndDate(patch.getEndDate());
         if (patch.getComments() != null)    row.setComments(patch.getComments()); // NEW
-
-        validateDates(row.getStartDate(), row.getEndDate());
+    // Ensure mandatory fields are present after applying the patch
+    validateMandatoryFields(row);
+    validateDates(row.getStartDate(), row.getEndDate());
         repo.save(row);
 
         if (row.getExternalId() != null) {
@@ -247,5 +250,23 @@ public class AllergyIntoleranceService {
         } catch (Exception ignore) {
             // tolerate non-ISO inputs since we store strings
         }
+    }
+
+    /** Ensure mandatory fields allergyName and reaction are present on incoming items. */
+    private void validateMandatoryFields(AllergyIntoleranceDto.AllergyItem it) {
+        if (it == null) throw new IllegalArgumentException("allergy item is required");
+        if (isBlank(it.getAllergyName())) throw new IllegalArgumentException("allergyName is required");
+        if (isBlank(it.getReaction()))    throw new IllegalArgumentException("reaction is required");
+    }
+
+    /** Ensure mandatory fields on entity after applying patches. */
+    private void validateMandatoryFields(AllergyIntolerance r) {
+        if (r == null) throw new IllegalArgumentException("allergy item is required");
+        if (isBlank(r.getAllergyName())) throw new IllegalArgumentException("allergyName is required");
+        if (isBlank(r.getReaction()))    throw new IllegalArgumentException("reaction is required");
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
     }
 }

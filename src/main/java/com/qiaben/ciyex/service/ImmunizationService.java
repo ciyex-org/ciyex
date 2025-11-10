@@ -26,7 +26,13 @@ public class ImmunizationService {
     @Transactional
     public ImmunizationDto create(ImmunizationDto dto) {
 
+        if (dto == null || dto.getImmunizations() == null || dto.getImmunizations().isEmpty()) {
+            throw new IllegalArgumentException("No immunization data provided");
+        }
+
         ImmunizationDto.ImmunizationItem item = dto.getImmunizations().get(0);
+        // Validate mandatory fields
+        validateMandatoryFields(item);
         Immunization entity = mapToEntity(dto.getPatientId(), item);
 
         entity = repository.save(entity);
@@ -57,6 +63,8 @@ public class ImmunizationService {
         Immunization entity = repository.findOneByIdAndPatientId(patch.getId(), patientId);
 
         applyPatch(entity, patch);
+        // Ensure mandatory fields remain present after patch
+        validateMandatoryFields(entity);
         repository.save(entity);
         return buildDtoFromEntity(entity);
     }
@@ -82,6 +90,8 @@ public class ImmunizationService {
         Immunization entity = repository.findOneByIdAndPatientId(immunizationId, patientId);
 
         applyPatch(entity, patch);
+        // Validate mandatory fields after applying patch
+        validateMandatoryFields(entity);
         repository.save(entity);
         return mapToItem(entity);
     }
@@ -186,6 +196,27 @@ public class ImmunizationService {
         if (patch.getSubstanceRefusalReason() != null) entity.setSubstanceRefusalReason(patch.getSubstanceRefusalReason());
         if (patch.getReasonCode() != null) entity.setReasonCode(patch.getReasonCode());
         if (patch.getOrderingProvider() != null) entity.setOrderingProvider(patch.getOrderingProvider());
+    }
+
+    // ---- Validation helpers ----
+    private void validateMandatoryFields(ImmunizationDto.ImmunizationItem item) {
+        if (item == null) throw new IllegalArgumentException("immunization item is required");
+        if (isBlank(item.getCvxCode())) throw new IllegalArgumentException("cvxCode is required");
+        if (isBlank(item.getAmountAdministered())) throw new IllegalArgumentException("amountAdministered is required");
+        if (isBlank(item.getManufacturer())) throw new IllegalArgumentException("manufacturer is required");
+        if (isBlank(item.getAdministratorName())) throw new IllegalArgumentException("administratorName is required");
+    }
+
+    private void validateMandatoryFields(Immunization entity) {
+        if (entity == null) throw new IllegalArgumentException("immunization is required");
+        if (isBlank(entity.getCvxCode())) throw new IllegalArgumentException("cvxCode is required");
+        if (isBlank(entity.getAmountAdministered())) throw new IllegalArgumentException("amountAdministered is required");
+        if (isBlank(entity.getManufacturer())) throw new IllegalArgumentException("manufacturer is required");
+        if (isBlank(entity.getAdministratorName())) throw new IllegalArgumentException("administratorName is required");
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
     }
 
     private ImmunizationDto buildDtoFromEntity(Immunization entity) {
