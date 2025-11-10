@@ -19,7 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/portal/providers")
+@RequestMapping({"/api/portal/providers", "/api/fhir/portal/providers"})
 @RequiredArgsConstructor
 @CrossOrigin(
     origins = { "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001" },

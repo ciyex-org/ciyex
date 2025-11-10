@@ -1,5 +1,3 @@
-
-
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
@@ -10,8 +8,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/patients")
@@ -21,9 +25,22 @@ public class PatientController {
 
     private final PatientService service;
 
-    // ✅ Create a new Patient
+    // ✅ Create a new Patient with validation
     @PostMapping
-    public ResponseEntity<ApiResponse<PatientDto>> create(@RequestBody PatientDto dto) {
+    public ResponseEntity<ApiResponse<?>> create(@Valid @RequestBody PatientDto dto, BindingResult result) {
+        // 🔹 Validation check before proceeding
+        if (result.hasErrors()) {
+            Map<String, String> errors = new HashMap<>();
+            result.getFieldErrors().forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<Map<String, String>>builder()
+                            .success(false)
+                            .message("Validation failed")
+                            .data(errors)
+                            .build());
+        }
+
         try {
             PatientDto createdPatient = service.create(dto);
             return ResponseEntity.ok(ApiResponse.<PatientDto>builder()
@@ -33,7 +50,7 @@ public class PatientController {
                     .build());
         } catch (Exception e) {
             log.error("Failed to create patient", e);
-            return ResponseEntity.ok(ApiResponse.<PatientDto>builder()
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<PatientDto>builder()
                     .success(false)
                     .message("Failed to create patient: " + e.getMessage())
                     .build());
@@ -65,9 +82,21 @@ public class PatientController {
         }
     }
 
-    // ✅ Update an existing patient
+    // ✅ Update an existing patient (with validation)
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<PatientDto>> update(@PathVariable Long id, @RequestBody PatientDto dto) {
+    public ResponseEntity<ApiResponse<?>> update(@PathVariable Long id, @Valid @RequestBody PatientDto dto, BindingResult result) {
+        if (result.hasErrors()) {
+            Map<String, String> errors = new HashMap<>();
+            result.getFieldErrors().forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<Map<String, String>>builder()
+                            .success(false)
+                            .message("Validation failed")
+                            .data(errors)
+                            .build());
+        }
+
         try {
             PatientDto updatedPatient = service.update(id, dto);
             if (updatedPatient == null) {
@@ -108,7 +137,7 @@ public class PatientController {
         }
     }
 
-    // ✅ Count all patients in the current org
+    // ✅ Count all patients
     @GetMapping("/count")
     public ResponseEntity<ApiResponse<Long>> getPatientCount() {
         try {
@@ -145,28 +174,6 @@ public class PatientController {
             return ResponseEntity.ok(ApiResponse.<Page<PatientDto>>builder()
                     .success(false)
                     .message("Failed to retrieve patients: " + e.getMessage())
-                    .build());
-        }
-    }
-
-    // ✅ Dedicated search endpoint (MRN, name, email, gender, etc.)
-    @GetMapping("/search")
-    public ResponseEntity<ApiResponse<Page<PatientDto>>> searchPatients(
-            @RequestParam String query,
-            @PageableDefault(sort = "id") Pageable pageable
-    ) {
-        try {
-            Page<PatientDto> patients = service.searchPatients(query, pageable);
-            return ResponseEntity.ok(ApiResponse.<Page<PatientDto>>builder()
-                    .success(true)
-                    .message("Patients search successful")
-                    .data(patients)
-                    .build());
-        } catch (Exception e) {
-            log.error("Failed to search patients with query {}", query, e);
-            return ResponseEntity.ok(ApiResponse.<Page<PatientDto>>builder()
-                    .success(false)
-                    .message("Failed to search patients: " + e.getMessage())
                     .build());
         }
     }

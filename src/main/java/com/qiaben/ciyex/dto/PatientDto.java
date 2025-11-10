@@ -1,34 +1,57 @@
 package com.qiaben.ciyex.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
 public class PatientDto {
+
     private Long id; // Database ID
     private String externalId; // ID from external storage (e.g., FHIR Patient ID)
     private String tenantName; // Tenant identifier
+
+    // 🔹 Mandatory fields with validation annotations
+    @NotBlank(message = "First name is required")
     private String firstName;
+
+    @NotBlank(message = "Last name is required")
     private String lastName;
+
     private String middleName;
+
+    @NotBlank(message = "Gender is required")
     private String gender;
+
+    @NotNull(message = "Date of birth is required")
     private String dateOfBirth;
+
     private String phoneNumber;
     private String email;
     private String address;
+
+    @NotBlank(message = "Medical record number is required")
     private String medicalRecordNumber;
+
     private Audit audit;
 
-    // 🔹 Missing field — add this
+    // 🔹 Optional field - kept for internal record but not mandatory
     private String status;
 
     // Extended Demographics Information (FHIR Extensions)
     private String preferredName;
     private String title;
     private String birthName;
+
+    @NotBlank(message = "License ID is required")
     private String licenseId;
+
     private String sexualOrientation;
     private String maritalStatus;
+
+    @NotBlank(message = "Emergency contact is required")
     private String emergencyContact;
+
     private String race;
     private String ethnicity;
     private String nationality;
@@ -57,6 +80,8 @@ public class PatientDto {
 
     // Optional - For Record-Keeping
     private String previousNames;
+
+    // 🔹 Nested Classes
 
     @Data
     public static class Identification {

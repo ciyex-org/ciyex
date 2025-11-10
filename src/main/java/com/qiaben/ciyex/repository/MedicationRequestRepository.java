@@ -11,8 +11,6 @@ public interface MedicationRequestRepository extends JpaRepository<MedicationReq
     List<MedicationRequest> findByEncounterId(Long encounterId);
     List<MedicationRequest> findByPatientIdOrEncounterId(Long patientId, Long encounterId);
     
-    @Query(value = "SELECT pp.ehr_patient_id FROM public.portal_patients pp " +
-                   "JOIN public.portal_users pu ON pp.portal_user_id = pu.id " +
-                   "WHERE pu.keycloak_user_id = :keycloakUserId LIMIT 1", nativeQuery = true)
-    Long findEhrPatientIdByKeycloakUserId(@Param("keycloakUserId") String keycloakUserId);
+    @Query("SELECT pp.ehrPatientId FROM PortalPatient pp WHERE pp.portalUser.uuid = :uuid")
+    Long findEhrPatientIdByKeycloakUserId(@Param("uuid") java.util.UUID uuid);
 }
