@@ -3,6 +3,8 @@ package com.qiaben.ciyex.controller.portal;
 import com.qiaben.ciyex.dto.MessageAttachmentDto;
 import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalMessageAttachmentDto;
+import com.qiaben.ciyex.repository.ProviderRepository;
+import com.qiaben.ciyex.repository.portal.PortalUserRepository;
 import com.qiaben.ciyex.service.MessageAttachmentService;
 import com.qiaben.ciyex.service.portal.PortalMessageAttachmentService;
 import lombok.RequiredArgsConstructor;
@@ -12,35 +14,65 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/portal/messages/{messageId}/attachments")
+@RequestMapping({"/api/portal/messages/{messageId}/attachments", "/api/fhir/portal/messages/{messageId}/attachments"})
 @Slf4j
 @RequiredArgsConstructor
 public class PortalMessageAttachmentController {
 
     private final PortalMessageAttachmentService portalMessageAttachmentService;
+    private final PortalUserRepository portalUserRepository;
+    private final ProviderRepository providerRepository;
 
     /**
      * Get all attachments for a specific message
      */
     @GetMapping
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT') or hasAuthority('PROVIDER') or hasRole('PROVIDER')")
     public ResponseEntity<?> getMessageAttachments(
             @PathVariable("messageId") Long messageId,
-            HttpServletRequest request) {
+            Authentication authentication) {
 
         try {
-            // Extract portal user ID from token (you'll need to implement this utility)
-            Long portalUserId = extractPortalUserIdFromToken(request);
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Not authenticated"
+                ));
+            }
+
+            String userEmail = authentication.getName();
+            boolean isPatient = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> auth.getAuthority().equals("PATIENT") || auth.getAuthority().equals("ROLE_PATIENT"));
+            boolean isProvider = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> auth.getAuthority().equals("PROVIDER") || auth.getAuthority().equals("ROLE_PROVIDER"));
+
+            Long userId;
+            if (isPatient) {
+                // For patients, get portal user ID
+                userId = portalUserRepository.findByEmail(userEmail)
+                        .map(portalUser -> portalUser.getId())
+                        .orElse(1L); // Fallback
+            } else if (isProvider) {
+                // For providers, get provider ID
+                userId = providerRepository.findAll().stream()
+                        .filter(provider -> userEmail.equals(provider.getEmail()))
+                        .map(provider -> provider.getId())
+                        .findFirst()
+                        .orElse(1L); // Fallback
+            } else {
+                userId = 1L; // Fallback
+            }
 
             ApiResponse<List<PortalMessageAttachmentDto>> response =
-                portalMessageAttachmentService.getMessageAttachments(portalUserId, messageId);
+                portalMessageAttachmentService.getMessageAttachments(userId, messageId);
 
             if (!response.isSuccess()) {
                 return ResponseEntity.badRequest().body(Map.of(
@@ -69,16 +101,43 @@ public class PortalMessageAttachmentController {
      * Upload attachment to a message
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT') or hasAuthority('PROVIDER') or hasRole('PROVIDER')")
     public ResponseEntity<?> uploadAttachment(
             @PathVariable("messageId") Long messageId,
             @RequestPart("dto") String dtoJson,
             @RequestPart("file") MultipartFile file,
-            HttpServletRequest request) {
+            Authentication authentication) {
 
         try {
-            // Extract portal user ID from token
-            Long portalUserId = extractPortalUserIdFromToken(request);
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Not authenticated"
+                ));
+            }
 
+            String userEmail = authentication.getName();
+            boolean isPatient = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> auth.getAuthority().equals("PATIENT") || auth.getAuthority().equals("ROLE_PATIENT"));
+            boolean isProvider = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> auth.getAuthority().equals("PROVIDER") || auth.getAuthority().equals("ROLE_PROVIDER"));
+
+            Long userId;
+            if (isPatient) {
+                // For patients, get portal user ID
+                userId = portalUserRepository.findByEmail(userEmail)
+                        .map(portalUser -> portalUser.getId())
+                        .orElse(1L); // Fallback
+            } else if (isProvider) {
+                // For providers, get provider ID
+                userId = providerRepository.findAll().stream()
+                        .filter(provider -> userEmail.equals(provider.getEmail()))
+                        .map(provider -> provider.getId())
+                        .findFirst()
+                        .orElse(1L); // Fallback
+            } else {
+                userId = 1L; // Fallback
+            }
 
             // Set org ID in request context
             com.qiaben.ciyex.dto.integration.RequestContext ctx = new com.qiaben.ciyex.dto.integration.RequestContext();
@@ -99,7 +158,7 @@ public class PortalMessageAttachmentController {
             dto.setEncrypted(portalDto.isEncrypted());
 
             ApiResponse<PortalMessageAttachmentDto> response =
-                portalMessageAttachmentService.uploadMessageAttachment(portalUserId, messageId, dto, file);
+                portalMessageAttachmentService.uploadMessageAttachment(userId, messageId, dto, file);
 
             if (!response.isSuccess()) {
                 return ResponseEntity.badRequest().body(Map.of(
@@ -128,17 +187,42 @@ public class PortalMessageAttachmentController {
      * Download attachment
      */
     @GetMapping("/{attachmentId}/download")
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT') or hasAuthority('PROVIDER') or hasRole('PROVIDER')")
     public ResponseEntity<InputStreamResource> downloadAttachment(
             @PathVariable("messageId") Long messageId,
             @PathVariable("attachmentId") Long attachmentId,
-            HttpServletRequest request) {
+            Authentication authentication) {
 
         try {
-            // Extract portal user ID from token
-            Long portalUserId = extractPortalUserIdFromToken(request);
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.status(401).build();
+            }
+
+            String userEmail = authentication.getName();
+            boolean isPatient = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> auth.getAuthority().equals("PATIENT") || auth.getAuthority().equals("ROLE_PATIENT"));
+            boolean isProvider = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> auth.getAuthority().equals("PROVIDER") || auth.getAuthority().equals("ROLE_PROVIDER"));
+
+            Long userId;
+            if (isPatient) {
+                // For patients, get portal user ID
+                userId = portalUserRepository.findByEmail(userEmail)
+                        .map(portalUser -> portalUser.getId())
+                        .orElse(1L); // Fallback
+            } else if (isProvider) {
+                // For providers, get provider ID
+                userId = providerRepository.findAll().stream()
+                        .filter(provider -> userEmail.equals(provider.getEmail()))
+                        .map(provider -> provider.getId())
+                        .findFirst()
+                        .orElse(1L); // Fallback
+            } else {
+                userId = 1L; // Fallback
+            }
 
             MessageAttachmentService.DownloadResult result =
-                portalMessageAttachmentService.getAttachmentDownload(portalUserId, messageId, attachmentId);
+                portalMessageAttachmentService.getAttachmentDownload(userId, messageId, attachmentId);
 
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(result.getContentType()))
@@ -161,17 +245,45 @@ public class PortalMessageAttachmentController {
      * Delete attachment
      */
     @DeleteMapping("/{attachmentId}")
+    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT') or hasAuthority('PROVIDER') or hasRole('PROVIDER')")
     public ResponseEntity<?> deleteAttachment(
             @PathVariable("messageId") Long messageId,
             @PathVariable("attachmentId") Long attachmentId,
-            HttpServletRequest request) {
+            Authentication authentication) {
 
         try {
-            // Extract portal user ID from token
-            Long portalUserId = extractPortalUserIdFromToken(request);
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Not authenticated"
+                ));
+            }
+
+            String userEmail = authentication.getName();
+            boolean isPatient = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> auth.getAuthority().equals("PATIENT") || auth.getAuthority().equals("ROLE_PATIENT"));
+            boolean isProvider = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> auth.getAuthority().equals("PROVIDER") || auth.getAuthority().equals("ROLE_PROVIDER"));
+
+            Long userId;
+            if (isPatient) {
+                // For patients, get portal user ID
+                userId = portalUserRepository.findByEmail(userEmail)
+                        .map(portalUser -> portalUser.getId())
+                        .orElse(1L); // Fallback
+            } else if (isProvider) {
+                // For providers, get provider ID
+                userId = providerRepository.findAll().stream()
+                        .filter(provider -> userEmail.equals(provider.getEmail()))
+                        .map(provider -> provider.getId())
+                        .findFirst()
+                        .orElse(1L); // Fallback
+            } else {
+                userId = 1L; // Fallback
+            }
 
             ApiResponse<Void> response =
-                portalMessageAttachmentService.deleteMessageAttachment(portalUserId, messageId, attachmentId);
+                portalMessageAttachmentService.deleteMessageAttachment(userId, messageId, attachmentId);
 
             if (!response.isSuccess()) {
                 return ResponseEntity.badRequest().body(Map.of(
@@ -193,29 +305,6 @@ public class PortalMessageAttachmentController {
                 "error", e.getMessage()
             ));
         }
-    }
-
-    /**
-     * Extract portal user ID from JWT token
-     */
-    private Long extractPortalUserIdFromToken(HttpServletRequest request) {
-        String token = resolveToken(request);
-        if (token == null) {
-            throw new RuntimeException("Authorization token missing");
-        }
-        // TODO: Implement JWT token parsing to extract user ID
-        throw new UnsupportedOperationException("JWT token parsing not implemented");
-    }
-
-    /**
-     * Extract Bearer token from Authorization header
-     */
-    private String resolveToken(HttpServletRequest request) {
-        String bearerToken = request.getHeader("Authorization");
-        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
-        }
-        return null;
     }
 
     private Long toLong(Object value) {

@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -46,9 +47,9 @@ public class PortalReportsController {
         }
 
         try {
-            // Get Keycloak user UUID from authentication
-            String keycloakUserId = authentication.getName();
-            return reportsService.getRecentReports(keycloakUserId);
+            // Extract email from JWT token
+            String userEmail = extractEmailFromAuthentication(authentication);
+            return reportsService.getRecentReports(userEmail);
         } catch (Exception e) {
             return ApiResponse.<List<DocumentDto>>builder()
                     .success(false)
@@ -72,9 +73,9 @@ public class PortalReportsController {
         }
 
         try {
-            // Get Keycloak user UUID from authentication
-            String keycloakUserId = authentication.getName();
-            return reportsService.getAllReports(keycloakUserId);
+            // Extract email from JWT token
+            String userEmail = extractEmailFromAuthentication(authentication);
+            return reportsService.getAllReports(userEmail);
         } catch (Exception e) {
             return ApiResponse.<List<DocumentDto>>builder()
                     .success(false)
@@ -103,9 +104,9 @@ public class PortalReportsController {
     public ApiResponse<List<DocumentDto>> getMyReports(
             Authentication authentication) {
 
-        // Get Keycloak user UUID from authentication
-        String keycloakUserId = authentication.getName();
-        Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(keycloakUserId);
+        // Extract email from JWT token
+        String userEmail = extractEmailFromAuthentication(authentication);
+        Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(userEmail);
 
         if (ehrPatientId == null) {
             return ApiResponse.<List<DocumentDto>>builder()
@@ -149,5 +150,23 @@ public class PortalReportsController {
                lowerCategory.contains("lab") ||
                lowerCategory.contains("imaging") ||
                lowerCategory.equals("clinical");
+    }
+
+    /**
+     * Extract email from JWT token authentication
+     */
+    private String extractEmailFromAuthentication(Authentication authentication) {
+        if (authentication.getPrincipal() instanceof Jwt) {
+            Jwt jwt = (Jwt) authentication.getPrincipal();
+            String email = jwt.getClaimAsString("email");
+            if (email != null && !email.isBlank()) {
+                return email;
+            }
+            String preferredUsername = jwt.getClaimAsString("preferred_username");
+            if (preferredUsername != null && !preferredUsername.isBlank()) {
+                return preferredUsername;
+            }
+        }
+        return authentication.getName(); // fallback
     }
 }

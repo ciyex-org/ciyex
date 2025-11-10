@@ -12,6 +12,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -129,29 +131,43 @@ public class VitalsController {
     // 👩‍⚕️ Patient Portal Endpoint - Only logged-in patient can see their vitals
     @GetMapping("/my")
     @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
-    public ApiResponse<List<VitalsDto>> getMyVitals(HttpServletRequest request) {
+    public ApiResponse<List<VitalsDto>> getMyVitals(Authentication authentication) {
         try {
-            // Extract JWT token from Authorization header
-            String authHeader = request.getHeader("Authorization");
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            if (authentication == null || !authentication.isAuthenticated()) {
                 return ApiResponse.<List<VitalsDto>>builder()
                         .success(false)
-                        .message("Authorization token missing")
+                        .message("Unauthorized - not authenticated")
                         .data(null)
                         .build();
             }
-            
-            String token = authHeader.substring(7);
-            
-            // Use the new tenant-aware method to get vitals
-            List<VitalsDto> vitals = service.getVitalsForPortalUser(token);
-            
+
+            // Prefer the JWT email claim (or preferred_username) when available; authentication.getName()
+            // can return the subject (UUID) which doesn't match portal user email records.
+            String tempEmail = null;
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof Jwt) {
+                Jwt jwt = (Jwt) principal;
+                tempEmail = jwt.getClaimAsString("email");
+                if (tempEmail == null || tempEmail.isBlank()) {
+                    tempEmail = jwt.getClaimAsString("preferred_username");
+                }
+            }
+            if (tempEmail == null || tempEmail.isBlank()) {
+                tempEmail = authentication.getName();
+            }
+            final String userEmail = tempEmail;
+
+            log.info("Getting vitals for authenticated user: {}", userEmail);
+
+            // Get vitals using the service method
+            List<VitalsDto> vitals = service.getVitalsForPortalUser(userEmail);
+
             return ApiResponse.<List<VitalsDto>>builder()
                     .success(true)
                     .message("Patient vitals retrieved")
                     .data(vitals)
                     .build();
-            
+
         } catch (Exception e) {
             log.error("Error getting vitals for portal user: {}", e.getMessage(), e);
             return ApiResponse.<List<VitalsDto>>builder()
@@ -161,6 +177,8 @@ public class VitalsController {
                     .build();
         }
     }
+
+
 
     // 🏥 EHR Endpoint - Staff can add vitals for any patient
     @PostMapping("/by-patient/{patientId}")

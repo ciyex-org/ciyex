@@ -7,7 +7,6 @@ import com.qiaben.ciyex.repository.PatientRepository;
 import com.qiaben.ciyex.storage.ExternalStorage;
 import com.qiaben.ciyex.storage.ExternalStorageResolver;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.dto.integration.RequestContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -15,7 +14,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -36,23 +34,43 @@ public class PatientService {
         this.configProvider = configProvider;
     }
 
+    // ✅ Manual validation for mandatory fields
+    private void validatePatientFields(PatientDto dto) {
+        StringBuilder errors = new StringBuilder();
+
+        if (dto.getFirstName() == null || dto.getFirstName().isBlank())
+            errors.append("First name is required. ");
+        if (dto.getLastName() == null || dto.getLastName().isBlank())
+            errors.append("Last name is required. ");
+        if (dto.getGender() == null || dto.getGender().isBlank())
+            errors.append("Gender is required. ");
+        if (dto.getDateOfBirth() == null || dto.getDateOfBirth().isBlank())
+            errors.append("Date of birth is required. ");
+        if (dto.getMedicalRecordNumber() == null || dto.getMedicalRecordNumber().isBlank())
+            errors.append("Medical record number is required. ");
+        if (dto.getLicenseId() == null || dto.getLicenseId().isBlank())
+            errors.append("License ID is required. ");
+        if (dto.getEmergencyContact() == null || dto.getEmergencyContact().isBlank())
+            errors.append("Emergency contact is required. ");
+
+        if (errors.length() > 0)
+            throw new IllegalArgumentException(errors.toString().trim());
+    }
+
+    // ✅ Count all patients
     @Transactional(readOnly = true)
     public long countPatientsForCurrentOrg() {
-        // Single-tenant: count all patients in the instance
         log.info("Counting all patients for single-tenant instance");
         return repository.count();
     }
 
-    // Create a new patient
+    // ✅ Create a new patient with manual validation
     @Transactional
     public PatientDto create(PatientDto dto) {
-        
+        // Validate all required fields
+        validatePatientFields(dto);
 
-        if (dto.getFirstName() == null || dto.getLastName() == null) {
-            throw new IllegalArgumentException("First name and last name are required");
-        }
-
-        // ✅ Auto-generate MRN if missing
+        // Auto-generate MRN if missing
         if (dto.getMedicalRecordNumber() == null || dto.getMedicalRecordNumber().isBlank()) {
             dto.setMedicalRecordNumber(generateMrn());
         }
@@ -73,26 +91,23 @@ public class PatientService {
         }
 
         patient.setExternalId(externalId);
-
-        // Save within tenant schema
         patient = repository.save(patient);
-        
+
         if (patient.getId() == null) {
             log.error("Database save failed to generate id for patient with externalId: {}", externalId);
             throw new RuntimeException("Failed to generate id for new patient");
         }
 
-    dto.setId(patient.getId());
-    dto.setExternalId(externalId);
-        log.info("Created patient with id: {} and externalId: {} in DB", patient.getId(), externalId);
+        dto.setId(patient.getId());
+        dto.setExternalId(externalId);
+        log.info("Created patient with id: {} and externalId: {}", patient.getId(), externalId);
 
         return dto;
     }
 
-    // Fetch patient by ID
+    // ✅ Retrieve patient by ID
     @Transactional(readOnly = true)
     public PatientDto getById(Long id) {
-        
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
 
@@ -114,17 +129,19 @@ public class PatientService {
         return patientDto;
     }
 
-    // Fetch extended FHIR data for a patient
+    // ✅ Fetch patient from external storage (FHIR)
     public PatientDto getPatientFromFhir(String externalId) {
         if (externalId == null) return null;
         ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
         return externalStorage.get(externalId);
     }
 
-    // Update an existing patient
+    // ✅ Update patient with validation
     @Transactional
     public PatientDto update(Long id, PatientDto dto) {
-        
+        // Validate before update
+        validatePatientFields(dto);
+
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
 
@@ -133,9 +150,9 @@ public class PatientService {
             try {
                 ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
                 externalStorage.update(dto, patient.getExternalId());
-                log.info("Successfully updated patient with id: {} and externalId: {} in external storage", id, patient.getExternalId());
+                log.info("Updated patient with id: {} and externalId: {} in external storage", id, patient.getExternalId());
             } catch (Exception e) {
-                log.error("Failed to update patient in external storage, error: {}", e.getMessage());
+                log.error("Failed to update patient in external storage: {}", e.getMessage());
                 throw new RuntimeException("Failed to sync with external storage", e);
             }
         }
@@ -143,17 +160,16 @@ public class PatientService {
         updateEntityFromDto(patient, dto);
         patient = repository.save(patient);
 
-    dto.setId(patient.getId());
-    dto.setExternalId(patient.getExternalId());
-        log.info("Updated patient with id: {} and externalId: {} in DB", id, patient.getExternalId());
+        dto.setId(patient.getId());
+        dto.setExternalId(patient.getExternalId());
+        log.info("Updated patient with id: {} and externalId: {}", id, patient.getExternalId());
 
         return dto;
     }
 
-    // Delete a patient
+    // ✅ Delete patient
     @Transactional
     public void delete(Long id) {
-        
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
 
@@ -163,44 +179,39 @@ public class PatientService {
                 ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
                 externalStorage.delete(patient.getExternalId());
             } catch (Exception e) {
-                log.error("Failed to delete patient from external storage, error: {}", e.getMessage());
+                log.error("Failed to delete patient from external storage: {}", e.getMessage());
                 throw new RuntimeException("Failed to sync with external storage", e);
             }
         }
 
         repository.delete(patient);
-        log.info("Deleted patient with id: {} from DB", id);
+        log.info("Deleted patient with id: {}", id);
     }
 
+    // ✅ Get all patients
     @Transactional(readOnly = true)
     public ApiResponse<List<PatientDto>> getAllPatients() {
-        
         List<Patient> patients = repository.findAll();
-    List<PatientDto> patientDtos = patients.stream().map(this::mapToDto).collect(Collectors.toList());
+        List<PatientDto> dtos = patients.stream().map(this::mapToDto).collect(Collectors.toList());
 
         return ApiResponse.<List<PatientDto>>builder()
                 .success(true)
                 .message("Patients retrieved successfully")
-                .data(patientDtos)
+                .data(dtos)
                 .build();
     }
 
+    // ✅ Search and pagination
     @Transactional(readOnly = true)
     public Page<PatientDto> searchPatients(String query, Pageable pageable) {
-        
         if (query == null || query.isBlank()) {
-            log.info("Empty search query provided, returning all patients");
             return repository.findAll(pageable).map(this::mapToDto);
         }
-
-        log.info("Searching patients with query: {}", query);
-        return repository.searchBy(query.toLowerCase(), pageable)
-                .map(this::mapToDto);
+        return repository.searchBy(query.toLowerCase(), pageable).map(this::mapToDto);
     }
 
     @Transactional(readOnly = true)
     public Page<PatientDto> getAllPatients(Pageable pageable, String search) {
-        
         Page<Patient> page;
         if (search != null && !search.isBlank()) {
             page = repository.searchBy(search.toLowerCase(), pageable);
@@ -210,8 +221,7 @@ public class PatientService {
         return page.map(this::mapToDto);
     }
 
-    // --- Helper methods ---
-
+    // --- Mapping helpers ---
     private Patient mapToEntity(PatientDto dto) {
         Patient patient = new Patient();
         patient.setFirstName(dto.getFirstName());
@@ -223,13 +233,7 @@ public class PatientService {
         patient.setEmail(dto.getEmail());
         patient.setAddress(dto.getAddress());
         patient.setStatus(dto.getStatus() != null ? dto.getStatus() : "Active");
-
-        // ✅ Ensure MRN is always set
-        patient.setMedicalRecordNumber(
-                dto.getMedicalRecordNumber() != null && !dto.getMedicalRecordNumber().isBlank()
-                        ? dto.getMedicalRecordNumber()
-                        : generateMrn()
-        );
+        patient.setMedicalRecordNumber(dto.getMedicalRecordNumber());
         return patient;
     }
 
@@ -247,10 +251,6 @@ public class PatientService {
         dto.setAddress(patient.getAddress());
         dto.setStatus(patient.getStatus());
         dto.setMedicalRecordNumber(patient.getMedicalRecordNumber());
-        if (patient.getCreatedDate() != null || patient.getLastModifiedDate() != null) {
-            PatientDto.Audit audit = new PatientDto.Audit();
-            dto.setAudit(audit);
-        }
         return dto;
     }
 
@@ -264,8 +264,6 @@ public class PatientService {
         if (dto.getEmail() != null) patient.setEmail(dto.getEmail());
         if (dto.getAddress() != null) patient.setAddress(dto.getAddress());
         if (dto.getStatus() != null) patient.setStatus(dto.getStatus());
-
-        // ❌ Do NOT allow MRN updates once created
     }
 
     private String generateMrn() {

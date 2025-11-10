@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -45,11 +46,11 @@ public class PortalDocumentsController {
         }
 
         try {
-            // Get Keycloak user UUID from authentication
-            String keycloakUserId = authentication.getName();
+            // Extract email from JWT token
+            String userEmail = extractEmailFromAuthentication(authentication);
 
             // Get EHR patient ID from portal user mapping
-            Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(keycloakUserId);
+            Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(userEmail);
 
             if (ehrPatientId == null) {
                 return ApiResponse.<List<DocumentDto>>builder()
@@ -83,5 +84,23 @@ public class PortalDocumentsController {
                     .message("Failed to retrieve documents: " + e.getMessage())
                     .build();
         }
+    }
+
+    /**
+     * Extract email from JWT token authentication
+     */
+    private String extractEmailFromAuthentication(Authentication authentication) {
+        if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.jwt.Jwt) {
+            org.springframework.security.oauth2.jwt.Jwt jwt = (org.springframework.security.oauth2.jwt.Jwt) authentication.getPrincipal();
+            String email = jwt.getClaimAsString("email");
+            if (email != null && !email.isBlank()) {
+                return email;
+            }
+            String preferredUsername = jwt.getClaimAsString("preferred_username");
+            if (preferredUsername != null && !preferredUsername.isBlank()) {
+                return preferredUsername;
+            }
+        }
+        return authentication.getName(); // fallback
     }
 }

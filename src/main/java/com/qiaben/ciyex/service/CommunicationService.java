@@ -108,52 +108,31 @@ public class CommunicationService {
 
     @Transactional(readOnly = true)
     public CommunicationDto getItem(Long patientId, Long id) {
-        /*Long orgId = requireOrg("getItem");
-        return repo.findAllByPatientIdText(String.valueOf(patientId), String.valueOf(orgId))
-                .stream()
-                .filter(c -> c.getId().equals(id))
-                .findFirst()
+        return repo.findById(id)
+                .filter(c -> Objects.equals(c.getPatientId(), patientId))
                 .map(this::toDto)
-                .orElseThrow(() -> new RuntimeException("Communication not found: " + id));*/
-        return null;
+                .orElseThrow(() -> new RuntimeException("Communication not found: " + id));
     }
 
     /* ------------------- UPDATE ------------------- */
     @Transactional
     public CommunicationDto updateItem(Long patientId, Long id, CommunicationDto patch) {
-        /*Long orgId = requireOrg("updateItem");
-        List<Communication> rows = repo.findAllByPatientIdText(
-                String.valueOf(patientId), String.valueOf(orgId));
-        Communication row = rows.stream()
-                .filter(r -> r.getId().equals(id))
-                .findFirst()
+        Communication row = repo.findById(id)
+                .filter(c -> Objects.equals(c.getPatientId(), patientId))
                 .orElseThrow(() -> new RuntimeException("Communication not found id=" + id));
 
         if (patch.getPayload() != null) row.setPayload(patch.getPayload());
         if (patch.getStatus() != null) row.setStatus(patch.getStatus());
-        row.setLastModifiedDate(LocalDateTime.now().toString());
+        row.setLastModifiedDate(LocalDateTime.now());
         repo.save(row);
 
-        if (row.getExternalId() != null) {
-            // Skip external storage updates for communications
-            *//*
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
-                ExternalStorage<CommunicationDto> ext = storageResolver.resolve(CommunicationDto.class);
-                ext.update(toDto(row), row.getExternalId());
-            }
-            *//*
-        }
-        return toDto(row);*/
-        return null;
+        return toDto(row);
     }
 
     /* ------------------- MARK AS READ ------------------- */
     @Transactional
     public CommunicationDto markAsRead(Long id, String readBy) {
-       /* Long orgId = requireOrg("markAsRead");
         Communication comm = repo.findById(id)
-                .filter(c -> Objects.equals(c.getOrgId(), orgId))
                 .orElseThrow(() -> new RuntimeException("Communication not found id=" + id));
 
         // Only allow marking as read if not already read
@@ -161,7 +140,7 @@ public class CommunicationService {
             String now = LocalDateTime.now().toString();
             comm.setReadAt(now);
             comm.setReadBy(readBy);
-            comm.setLastModifiedDate(now);
+            comm.setLastModifiedDate(LocalDateTime.now());
             Communication saved = repo.save(comm);
 
             // Send read receipt notification to patient if provider read the message
@@ -169,53 +148,39 @@ public class CommunicationService {
                 sendReadReceiptNotification(saved);
             }
 
-            // Send real-time WebSocket notification for message read
-            try {
-                if (webSocketController.isPresent()) {
-                    CommunicationDto dto = toDto(saved);
-                    webSocketController.get().notifyMessageRead(dto, orgId);
-                }
-            } catch (Exception e) {
-                log.error("Failed to send WebSocket notification for message read: {}", e.getMessage());
-            }
-
             return toDto(saved);
         }
 
-        return toDto(comm);*/
-        return null;
+        return toDto(comm);
     }
 
     /**
      * Send read receipt notification to patient when provider reads their message
      */
     private void sendReadReceiptNotification(Communication communication) {
-       /* try {
-            tenantAwareService.executeInTenantContext(communication.getOrgId(), () -> {
-                patientRepo.findById(communication.getPatientId()).ifPresent(patient -> {
-                    try {
-                        if (patient.getPhoneNumber() != null && !patient.getPhoneNumber().isBlank()) {
-                            smsService.sendSms(patient.getPhoneNumber(),
-                                "Your message has been read by your healthcare provider.");
-                        }
-                        if (patient.getEmail() != null && !patient.getEmail().isBlank()) {
-                            emailService.sendEmail(
-                                patient.getEmail(),
-                                "Message Read Receipt",
-                                "Your message has been read by your healthcare provider."
-                            );
-                        }
-                        log.info("Read receipt notification sent to patient {}", patient.getId());
-                    } catch (Exception e) {
-                        log.error("Failed to send read receipt notification to patient {}: {}",
-                            patient.getId(), e.getMessage());
+        try {
+            patientRepo.findById(communication.getPatientId()).ifPresent(patient -> {
+                try {
+                    if (patient.getPhoneNumber() != null && !patient.getPhoneNumber().isBlank()) {
+                        smsService.sendSms(patient.getPhoneNumber(),
+                            "Your message has been read by your healthcare provider.");
                     }
-                });
-                return null;
+                    if (patient.getEmail() != null && !patient.getEmail().isBlank()) {
+                        emailService.sendEmail(
+                            patient.getEmail(),
+                            "Message Read Receipt",
+                            "Your message has been read by your healthcare provider."
+                        );
+                    }
+                    log.info("Read receipt notification sent to patient {}", patient.getId());
+                } catch (Exception e) {
+                    log.error("Failed to send read receipt notification to patient {}: {}",
+                        patient.getId(), e.getMessage());
+                }
             });
         } catch (Exception e) {
             log.error("Failed to send read receipt notification: {}", e.getMessage());
-        }*/
+        }
     }
 
     /* ------------------- SET STATUS ------------------- */
@@ -227,44 +192,16 @@ public class CommunicationService {
         comm.setStatus(status);
         Communication saved = repo.save(comm);
 
-        if (saved.getExternalId() != null) {
-            // Skip external storage updates for communications
-            /*
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
-                ExternalStorage<CommunicationDto> ext = storageResolver.resolve(CommunicationDto.class);
-                ext.update(toDto(saved), saved.getExternalId());
-            }
-            */
-        }
         return toDto(saved);
     }
 
     /* ------------------- DELETE ------------------- */
     @Transactional
     public void deleteItem(Long patientId, Long id) {
-/*        Long orgId = requireOrg("deleteItem");
-        List<Communication> rows = repo.findAllByPatientIdText(
-                String.valueOf(patientId), String.valueOf(orgId));
-        String externalId = rows.stream().findFirst().map(Communication::getExternalId).orElse(null);
-
-        int n = repo.deleteOneByIdAndPatientIdText(
-                String.valueOf(id), String.valueOf(patientId), String.valueOf(orgId));
-        if (n == 0) throw new RuntimeException("Delete failed: not found");*/
-
-       // if (externalId != null) {
-            // Skip external storage deletion for communications
-            /*
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
-                ExternalStorage<CommunicationDto> ext = storageResolver.resolve(CommunicationDto.class);
-                List<Communication> fresh = repo.findAllByPatientIdText(
-                        String.valueOf(patientId), String.valueOf(orgId));
-                if (fresh.isEmpty()) ext.delete(externalId);
-                else ext.update(toDto(fresh.get(0)), externalId);
-            }
-            */
-        //}
+        Communication comm = repo.findById(id)
+                .filter(c -> Objects.equals(c.getPatientId(), patientId))
+                .orElseThrow(() -> new RuntimeException("Communication not found or access denied"));
+        repo.delete(comm);
     }
 
     @Transactional
@@ -272,19 +209,7 @@ public class CommunicationService {
         Communication row = repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Delete failed: not found"));
 
-        String externalId = row.getExternalId();
         repo.delete(row);
-
-        if (externalId != null) {
-            // Skip external storage deletion for communications
-            /*
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
-                ExternalStorage<CommunicationDto> ext = storageResolver.resolve(CommunicationDto.class);
-                ext.delete(externalId);
-            }
-            */
-        }
     }
 
     /* ------------------- SEARCH ------------------- */
@@ -297,45 +222,24 @@ public class CommunicationService {
                 .collect(Collectors.toList());
         log.info("Converted to {} communication DTOs", dtos.size());
         return dtos;
-    }    /**
-     * Extract user email and org IDs from JWT token
-     */
-    public Map<String, Object> extractUserInfoFromToken(String token) {
-/*        String userEmail = jwtTokenUtil.getEmailFromToken(token);
-        List<Long> orgIds = jwtTokenUtil.getOrgIdsFromToken(token);
-        Map<String, Object> userInfo = new HashMap<>();
-        userInfo.put("email", userEmail);
-        userInfo.put("orgIds", orgIds);
-        return userInfo;*/
-        return null;
     }
 
     /**
-     * Get communications for current portal user based on JWT token
+     * Get communications for current portal user based on email
      */
     @Transactional(readOnly = true)
-    public List<CommunicationDto> getCommunicationsForPortalUser(String token) {
-       /* try {
-            String userEmail = jwtTokenUtil.getEmailFromToken(token);
-            List<Long> orgIds = jwtTokenUtil.getOrgIdsFromToken(token);
-
-            if (orgIds == null || orgIds.isEmpty()) {
-                log.error("No orgIds found in token for user {}", userEmail);
-                throw new IllegalArgumentException("No organization found in token");
-            }
-
-            // Use the first orgId (primary organization)
-            Long orgId = ((Number) orgIds.get(0)).longValue();
-            log.info("Getting communications for portal user {} in org {}", userEmail, orgId);
+    public List<CommunicationDto> getCommunicationsForPortalUser(String email) {
+        try {
+            log.info("Getting communications for portal user {}", email);
 
             // Get the EHR patient ID for this portal user
-            Long patientId = getEhrPatientIdFromPortalUserEmail(userEmail, orgId);
+            Long patientId = getEhrPatientIdFromPortalUserEmail(email);
             if (patientId == null) {
-                log.warn("No patient ID found for portal user {} in org {}", userEmail, orgId);
+                log.warn("No patient ID found for portal user {}", email);
                 return List.of(); // Return empty list instead of null
             }
 
-            // Get communications using tenant-aware query
+            // Get communications for the patient
             return getCommunicationsByPatient(patientId);
 
         } catch (Exception e) {
@@ -346,51 +250,46 @@ public class CommunicationService {
 
     // 👩‍⚕️ Portal Method - Map portal user email to EHR patient ID
     @Transactional(readOnly = true)
-    public Long getEhrPatientIdFromPortalUserEmail(String email, Long orgId) {
-        log.info("Looking up EHR patient ID for portal user {} in org {}", email, orgId);
+    public Long getEhrPatientIdFromPortalUserEmail(String email) {
+        log.info("Looking up EHR patient ID for portal user {}", email);
 
         if (email == null || email.trim().isEmpty()) {
             return null;
         }
 
-        return tenantAwareService.executeQueryInMasterContext(em -> {
-            try {
-                // Query the portal_patients table in public schema to find the EHR patient ID
-                Object result = em.createNativeQuery(
-                    "SELECT pp.ehr_patient_id FROM public.portal_patients pp " +
-                    "JOIN public.portal_users pu ON pp.portal_user_id = pu.id " +
-                    "WHERE pu.email = :email LIMIT 1")
-                    .setParameter("email", email)
-                    .getSingleResult();
+        try {
+            // Query the portal_patients table to find the EHR patient ID
+            Object result = entityManager.createNativeQuery(
+                "SELECT pp.ehr_patient_id FROM portal_patients pp " +
+                "JOIN portal_users pu ON pp.portal_user_id = pu.id " +
+                "WHERE pu.email = :email LIMIT 1")
+                .setParameter("email", email)
+                .getSingleResult();
 
-                if (result != null) {
-                    Long patientId = ((Number) result).longValue();
-                    log.info("Found EHR patient ID {} for portal user {} in org {}", patientId, email, orgId);
-                    return patientId;
-                }
-            } catch (Exception e) {
-                log.warn("Failed to find EHR patient ID for user {}: {}", email, e.getMessage());
+            if (result != null) {
+                Long patientId = ((Number) result).longValue();
+                log.info("Found EHR patient ID {} for portal user {}", patientId, email);
+                return patientId;
             }
+        } catch (Exception e) {
+            log.warn("Failed to find EHR patient ID for user {}: {}", email, e.getMessage());
+        }
 
-            // Fallback: return patient ID 1 for testing
-            log.info("Using fallback patient ID 1 for user {} in org {}", email, orgId);
-            return 1L;
-        });
+        // Fallback: return patient ID 1 for testing
+        log.info("Using fallback patient ID 1 for user {}", email);
+        return 1L;
     }
 
     // 🏥 EHR Method - Get all communications for a patient (across all encounters)
     @Transactional(readOnly = true)
     public List<CommunicationDto> getCommunicationsByPatient(Long patientId) {
-        log.info("Getting communications for patient {} in org {}", patientId, orgId);
+        log.info("Getting communications for patient {}", patientId);
 
-        return tenantAwareService.executeInTenantContext(() -> {
-            List<Communication> communications = repo.findAllByPatientIdText(String.valueOf(patientId), String.valueOf(orgId));
-            log.info("Found {} communication records for patient {} in org {}", communications.size(), patientId, orgId);
-            return communications.stream()
-                    .map(this::toDto)
-                    .collect(Collectors.toList());
-        });*/
-        return null;
+        List<Communication> communications = repo.findAllByPatientId(patientId);
+        log.info("Found {} communication records for patient {}", communications.size(), patientId);
+        return communications.stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
     }
 
     /* ------------------- MAPPER ------------------- */
@@ -414,30 +313,46 @@ public class CommunicationService {
             dto.setReadAt(r.getReadAt());
             dto.setReadBy(r.getReadBy());
 
-            // Determine message type based on provider_id
+            // Determine message type and sender based on the 'sender' field
             String messageType = "unknown";
-            if (r.getProviderId() != null) {
-                // If provider_id is set, assume provider-to-patient
-                messageType = "provider_to_patient";
-            } else {
-                // Otherwise, assume patient-to-provider
-                messageType = "patient_to_provider";
-            }
-            dto.setMessageType(messageType);
+            Long fromId = null;
+            final String[] fromName = {null};
 
-            // From (provider name)
-            if (r.getProviderId() != null) {
-                try {
-                    providerRepo.findById(r.getProviderId()).ifPresent(provider -> {
-                        String providerName = provider.getFirstName() + " " + provider.getLastName();
-                        dto.setFromId(r.getProviderId());
-                        dto.setFromName(providerName);
-                    });
-                } catch (Exception e) {
-                    log.warn("Could not find provider name for provider ID {}: {}", r.getProviderId(), e.getMessage());
-                    dto.setFromName("Unknown Provider");
+            if (r.getSender() != null) {
+                if (r.getSender().startsWith("Patient/")) {
+                    messageType = "patient_to_provider";
+                    fromId = r.getPatientId();
+                    // Get patient name
+                    if (r.getPatientId() != null) {
+                        try {
+                            patientRepo.findById(r.getPatientId()).ifPresent(patient -> {
+                                fromName[0] = patient.getFirstName() + " " + patient.getLastName();
+                            });
+                        } catch (Exception e) {
+                            log.warn("Could not find patient name for patient ID {}: {}", r.getPatientId(), e.getMessage());
+                            fromName[0] = "Unknown Patient";
+                        }
+                    }
+                } else if (r.getSender().startsWith("Provider/")) {
+                    messageType = "provider_to_patient";
+                    fromId = r.getProviderId();
+                    // Get provider name
+                    if (r.getProviderId() != null) {
+                        try {
+                            providerRepo.findById(r.getProviderId()).ifPresent(provider -> {
+                                fromName[0] = provider.getFirstName() + " " + provider.getLastName();
+                            });
+                        } catch (Exception e) {
+                            log.warn("Could not find provider name for provider ID {}: {}", r.getProviderId(), e.getMessage());
+                            fromName[0] = "Unknown Provider";
+                        }
+                    }
                 }
             }
+
+            dto.setMessageType(messageType);
+            dto.setFromId(fromId);
+            dto.setFromName(fromName[0]);
 
             // To (patient names)
             List<String> toNames = new ArrayList<>();

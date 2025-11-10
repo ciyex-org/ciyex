@@ -27,9 +27,10 @@ public class PortalReportsService {
     /**
      * Get all reports for a portal patient (reports are documents categorized as reports)
      */
-    public ApiResponse<List<DocumentDto>> getAllReports(String email) {
+    public ApiResponse<List<DocumentDto>> getAllReports(String keycloakUserId) {
         try {
-            PortalUser portalUser = userRepository.findByEmail(email)
+            // Find portal user by UUID instead of email
+            PortalUser portalUser = userRepository.findByUuid(java.util.UUID.fromString(keycloakUserId))
                     .orElse(null);
 
             if (portalUser == null) {
@@ -78,7 +79,7 @@ public class PortalReportsService {
             }
 
         } catch (Exception e) {
-            log.error("Error retrieving reports for user: {}", email, e);
+            log.error("Error retrieving reports for user: {}", keycloakUserId, e);
             return ApiResponse.<List<DocumentDto>>builder()
                     .success(false)
                     .message("Failed to retrieve reports")
@@ -89,9 +90,9 @@ public class PortalReportsService {
     /**
      * Get recent reports for a portal patient (last 10 records)
      */
-    public ApiResponse<List<DocumentDto>> getRecentReports(String email) {
+    public ApiResponse<List<DocumentDto>> getRecentReports(String keycloakUserId) {
         try {
-            ApiResponse<List<DocumentDto>> response = getAllReports(email);
+            ApiResponse<List<DocumentDto>> response = getAllReports(keycloakUserId);
             if (response.isSuccess() && response.getData() != null) {
                 List<DocumentDto> recentReports = response.getData()
                         .stream()
@@ -112,7 +113,7 @@ public class PortalReportsService {
             }
 
         } catch (Exception e) {
-            log.error("Error retrieving recent reports for user: {}", email, e);
+            log.error("Error retrieving recent reports for user: {}", keycloakUserId, e);
             return ApiResponse.<List<DocumentDto>>builder()
                     .success(false)
                     .message("Failed to retrieve recent reports")

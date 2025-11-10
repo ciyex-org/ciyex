@@ -9,6 +9,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,7 +35,8 @@ public class MedicationsService {
         log.info("Processing medication request for Keycloak user: {}", keycloakUserId);
 
         // Get EHR patient ID from portal mapping using repository
-        Long ehrPatientId = medicationRequestRepository.findEhrPatientIdByKeycloakUserId(keycloakUserId);
+        java.util.UUID uuid = java.util.UUID.fromString(keycloakUserId);
+        Long ehrPatientId = medicationRequestRepository.findEhrPatientIdByKeycloakUserId(uuid);
         if (ehrPatientId == null) {
             log.error("No patient mapping found for Keycloak user: {}", keycloakUserId);
             throw new RuntimeException("Patient mapping not found for user: " + keycloakUserId);

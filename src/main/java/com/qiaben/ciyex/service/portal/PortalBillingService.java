@@ -7,6 +7,7 @@ import com.qiaben.ciyex.enums.PortalStatus;
 import com.qiaben.ciyex.repository.InvoiceRepository;
 import com.qiaben.ciyex.repository.portal.PortalUserRepository;
 import com.qiaben.ciyex.service.InvoiceService;
+import com.qiaben.ciyex.service.VitalsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,38 +23,22 @@ public class PortalBillingService {
     private final InvoiceRepository invoiceRepository;
     private final PortalUserRepository userRepository;
     private final InvoiceService invoiceService;
+    private final VitalsService vitalsService;
 
     /**
-     * Get all invoices for a portal patient
+     * Get all invoices for a portal patient by email
      */
-    public ApiResponse<List<InvoiceDto>> getAllInvoices(String email) {
+    public ApiResponse<List<InvoiceDto>> getAllInvoices(String userEmail) {
         try {
-            PortalUser portalUser = userRepository.findByEmail(email)
-                    .orElse(null);
+            // Get EHR patient ID from portal user email
+            Long ehrPatientId = vitalsService.getEhrPatientIdFromPortalUserEmail(userEmail);
 
-            if (portalUser == null) {
-                return ApiResponse.<List<InvoiceDto>>builder()
-                        .success(false)
-                        .message("Portal user not found")
-                        .build();
-            }
-
-            if (portalUser.getStatus() != PortalStatus.APPROVED) {
-                return ApiResponse.<List<InvoiceDto>>builder()
-                        .success(false)
-                        .message("User not approved")
-                        .build();
-            }
-
-            // Get the EHR patient ID from portal patient
-            if (portalUser.getPortalPatient() == null || portalUser.getPortalPatient().getEhrPatientId() == null) {
+            if (ehrPatientId == null) {
                 return ApiResponse.<List<InvoiceDto>>builder()
                         .success(false)
                         .message("Patient record not linked to EHR")
                         .build();
             }
-
-            Long ehrPatientId = portalUser.getPortalPatient().getEhrPatientId();
 
             // Get all invoices for this patient
             List<InvoiceDto> invoices = invoiceService.getAllByPatient(ehrPatientId);
@@ -65,7 +50,7 @@ public class PortalBillingService {
                     .build();
 
         } catch (Exception e) {
-            log.error("Error retrieving invoices for user: {}", email, e);
+            log.error("Error retrieving invoices for user: {}", userEmail, e);
             return ApiResponse.<List<InvoiceDto>>builder()
                     .success(false)
                     .message("Failed to retrieve invoices")
@@ -74,58 +59,35 @@ public class PortalBillingService {
     }
 
     /**
-     * Get recent invoices for a portal patient (last 10 records)
+     * Get recent invoices for a portal patient by email (last 10 records)
      */
-    public ApiResponse<List<InvoiceDto>> getRecentInvoices(String email) {
+    public ApiResponse<List<InvoiceDto>> getRecentInvoices(String userEmail) {
         try {
-            PortalUser portalUser = userRepository.findByEmail(email)
-                    .orElse(null);
+            ApiResponse<List<InvoiceDto>> response = getAllInvoices(userEmail);
+            if (response.isSuccess() && response.getData() != null) {
+                List<InvoiceDto> recentInvoices = response.getData()
+                        .stream()
+                        .sorted((a, b) -> {
+                            // Sort by issue date descending (most recent first)
+                            if (a.getIssueDate() != null && b.getIssueDate() != null) {
+                                return b.getIssueDate().compareTo(a.getIssueDate());
+                            }
+                            return 0;
+                        })
+                        .limit(10)
+                        .collect(Collectors.toList());
 
-            if (portalUser == null) {
                 return ApiResponse.<List<InvoiceDto>>builder()
-                        .success(false)
-                        .message("Portal user not found")
+                        .success(true)
+                        .message("Recent invoices retrieved successfully")
+                        .data(recentInvoices)
                         .build();
+            } else {
+                return response;
             }
-
-            if (portalUser.getStatus() != PortalStatus.APPROVED) {
-                return ApiResponse.<List<InvoiceDto>>builder()
-                        .success(false)
-                        .message("User not approved")
-                        .build();
-            }
-
-            // Get the EHR patient ID from portal patient
-            if (portalUser.getPortalPatient() == null || portalUser.getPortalPatient().getEhrPatientId() == null) {
-                return ApiResponse.<List<InvoiceDto>>builder()
-                        .success(false)
-                        .message("Patient record not linked to EHR")
-                        .build();
-            }
-
-            Long ehrPatientId = portalUser.getPortalPatient().getEhrPatientId();
-
-            // Get all invoices for this patient and take the most recent 10
-            List<InvoiceDto> invoices = invoiceService.getAllByPatient(ehrPatientId)
-                    .stream()
-                    .sorted((a, b) -> {
-                        // Sort by issue date descending (most recent first)
-                        if (a.getIssueDate() != null && b.getIssueDate() != null) {
-                            return b.getIssueDate().compareTo(a.getIssueDate());
-                        }
-                        return 0;
-                    })
-                    .limit(10)
-                    .collect(Collectors.toList());
-
-            return ApiResponse.<List<InvoiceDto>>builder()
-                    .success(true)
-                    .message("Recent invoices retrieved successfully")
-                    .data(invoices)
-                    .build();
 
         } catch (Exception e) {
-            log.error("Error retrieving recent invoices for user: {}", email, e);
+            log.error("Error retrieving recent invoices for user: {}", userEmail, e);
             return ApiResponse.<List<InvoiceDto>>builder()
                     .success(false)
                     .message("Failed to retrieve recent invoices")

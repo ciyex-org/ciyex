@@ -66,32 +66,31 @@ public class JitsiTelehealthService implements TelehealthService {
 
         TelehealthConfig.Jitsi jitsiConfig = config != null ? config.getJitsi() : null;
 
-        // If Jitsi config is missing, fall back to using room name as token
-        if (jitsiConfig == null) {
-            log.warn("Jitsi configuration section is missing, falling back to room name as token");
-            return roomName;
-        }
-
         // Use provided TTL or default from config or fallback to 1 hour
         int tokenTtl = ttlSecs != null ? ttlSecs :
-                      (jitsiConfig.getDefaultTokenTtl() != null ? jitsiConfig.getDefaultTokenTtl() : 3600);
+                      (jitsiConfig != null && jitsiConfig.getDefaultTokenTtl() != null ? jitsiConfig.getDefaultTokenTtl() : 3600);
 
         return generateJitsiJWT(jitsiConfig, roomName, identity, tokenTtl);
     }    /**
      * Generate a JWT token for Jitsi authentication
      */
     private String generateJitsiJWT(TelehealthConfig.Jitsi config, String roomName, String identity, int ttlSecs) {
-        if (isBlank(config.getAppId()) || isBlank(config.getAppSecret())) {
-            log.warn("Jitsi app ID or secret not configured, returning room name as token");
-            return roomName; // Fallback for development/testing
+        // Use config values or defaults
+        String appId = (config != null && !isBlank(config.getAppId())) ? config.getAppId() : "ciyex";
+        String appSecret = (config != null && !isBlank(config.getAppSecret())) ? config.getAppSecret() : "ciyex-default-secret-key-for-development-only-change-in-production";
+        String serverUrl = (config != null && !isBlank(config.getServerUrl())) ? config.getServerUrl() : "https://meet-stg.ciyex.com";
+        
+        if (appSecret.length() < 32) {
+            // Pad the secret to meet minimum 256-bit requirement
+            appSecret = String.format("%-32s", appSecret).replace(' ', '0');
         }
 
         Instant now = Instant.now();
         Instant expiration = now.plus(ttlSecs, ChronoUnit.SECONDS);
 
         Map<String, Object> claims = new HashMap<>();
-        claims.put("iss", config.getAppId());
-        claims.put("sub", config.getServerUrl());
+        claims.put("iss", appId);
+        claims.put("sub", serverUrl);
         claims.put("aud", "jitsi");
         claims.put("room", roomName);
         claims.put("exp", expiration.getEpochSecond());
@@ -106,7 +105,7 @@ public class JitsiTelehealthService implements TelehealthService {
         claims.put("context", context);
 
         try {
-            SecretKey key = Keys.hmacShaKeyFor(config.getAppSecret().getBytes());
+            SecretKey key = Keys.hmacShaKeyFor(appSecret.getBytes());
 
             String token = Jwts.builder()
                     .claims(claims)
