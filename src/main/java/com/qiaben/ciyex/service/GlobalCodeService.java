@@ -7,6 +7,7 @@ import com.qiaben.ciyex.storage.ExternalGlobalCodeStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -24,6 +25,8 @@ public class GlobalCodeService {
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     public GlobalCodeDto create(GlobalCodeDto in) {
+        // Mandatory field validation (defensive in service layer in addition to @Valid in controller)
+        validateMandatory(in);
         GlobalCode e = GlobalCode.builder()
                 .codeType(in.getCodeType()).code(in.getCode()).modifier(in.getModifier())
                 .active(in.getActive())
@@ -49,6 +52,9 @@ public class GlobalCodeService {
     public GlobalCodeDto update(Long id, GlobalCodeDto in) {
         GlobalCode e = repo.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
+
+        // Mandatory field validation
+        validateMandatory(in);
 
         e.setCodeType(in.getCodeType());
         e.setCode(in.getCode());
@@ -118,5 +124,21 @@ public class GlobalCodeService {
         if (e.getUpdatedAt() != null) a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
         dto.setAudit(a);
         return dto;
+    }
+
+    /**
+     * Ensures mandatory fields are present. Controller layer already has @NotBlank but
+     * service layer adds an extra guard for programmatic calls or future reuse.
+     */
+    private void validateMandatory(GlobalCodeDto in) {
+        if (in == null) {
+            throw new IllegalArgumentException("GlobalCode payload is required");
+        }
+        if (!StringUtils.hasText(in.getCodeType())) {
+            throw new IllegalArgumentException("codeType is mandatory");
+        }
+        if (!StringUtils.hasText(in.getCode())) {
+            throw new IllegalArgumentException("code is mandatory");
+        }
     }
 }

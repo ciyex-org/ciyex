@@ -35,6 +35,7 @@ public class LabOrderService {
     // ---- CREATE ----
     @Transactional
     public LabOrderDto create(LabOrderDto dto) {
+        validateMandatory(dto);
         if (dto.getTestCode() == null) throw new IllegalArgumentException("testCode is required");
         LabOrder order = mapToEntity(dto);
         order.setCreatedDate(nowString());
@@ -89,6 +90,13 @@ public class LabOrderService {
     public LabOrderDto update(Long id, LabOrderDto dto) {
         LabOrder order = repository.findById(id)
             .orElseThrow(() -> new RuntimeException("LabOrder not found id=" + id));
+        if (dto.getOrderNumber() != null) {
+            // if patch supplies orderNumber ensure it's not blank
+            if (isBlank(dto.getOrderNumber())) throw new IllegalArgumentException("orderNumber cannot be blank");
+        } else if (isBlank(order.getOrderNumber())) {
+            // existing entity must already have a value
+            throw new IllegalStateException("Existing lab order missing required orderNumber");
+        }
         updateEntityFromDto(order, dto);
         order.setLastModifiedDate(nowString());
         LabOrder saved = repository.save(order);
@@ -192,7 +200,7 @@ public class LabOrderService {
         if (d.getOrderDateTime() != null) e.setOrderDateTime(d.getOrderDateTime());
         if (d.getOrderName() != null) e.setOrderName(d.getOrderName());
         if (d.getLabName() != null) e.setLabName(d.getLabName());
-        if (d.getOrderNumber() != null) e.setOrderNumber(d.getOrderNumber());
+        if (d.getOrderNumber() != null) e.setOrderNumber(d.getOrderNumber()); // mandatory validated earlier
         if (d.getTestCode() != null) e.setTestCode(d.getTestCode());
         if (d.getTestDisplay() != null) e.setTestDisplay(d.getTestDisplay());
         if (d.getStatus() != null) e.setStatus(d.getStatus());
@@ -205,4 +213,11 @@ public class LabOrderService {
         if (d.getProcedureCode() != null) e.setProcedureCode(d.getProcedureCode());
         if (d.getResult() != null) e.setResult(d.getResult());
     }
+
+    // ---- validation helpers ----
+    private void validateMandatory(LabOrderDto dto) {
+        if (dto == null) throw new IllegalArgumentException("lab order payload is required");
+        if (isBlank(dto.getOrderNumber())) throw new IllegalArgumentException("orderNumber is required");
+    }
+    private boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
 }

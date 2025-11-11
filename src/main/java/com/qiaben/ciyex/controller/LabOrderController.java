@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Objects;
@@ -148,6 +149,12 @@ public class LabOrderController {
                                 RequestContext ctx = new RequestContext();
                                 // orgId deprecated; tenantName populated by interceptor.
                                 RequestContext.set(ctx);
+                        if (dto.getOrderNumber() == null || !StringUtils.hasText(dto.getOrderNumber())) {
+                                return ResponseEntity.ok(ApiResponse.<LabOrderDto>builder()
+                                                .success(false)
+                                                .message("orderNumber is required")
+                                                .build());
+                        }
                         if (dto.getPatientId() == null) {
                                 dto.setPatientId(patientId);
                         } else if (!patientId.equals(dto.getPatientId())) {
@@ -180,6 +187,12 @@ public class LabOrderController {
                                 RequestContext ctx = new RequestContext();
                                 // orgId deprecated; tenantName populated by interceptor.
                                 RequestContext.set(ctx);
+                        if (dto.getOrderNumber() == null || !StringUtils.hasText(dto.getOrderNumber())) {
+                                return ResponseEntity.ok(ApiResponse.<LabOrderDto>builder()
+                                                .success(false)
+                                                .message("orderNumber is required")
+                                                .build());
+                        }
                         var existing = service.getOne(id);
                         if (existing == null || existing.getPatientId() == null || !Objects.equals(existing.getPatientId(), patientId)) {
                                 return ResponseEntity.ok(ApiResponse.<LabOrderDto>builder()

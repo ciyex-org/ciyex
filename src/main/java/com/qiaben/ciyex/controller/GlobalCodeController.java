@@ -4,6 +4,7 @@ import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.GlobalCodeDto;
 import com.qiaben.ciyex.service.GlobalCodeService;
 import jakarta.validation.Valid;
+import org.springframework.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -39,22 +40,60 @@ public class GlobalCodeController {
                 .success(true).message("Code fetched").data(dto).build());
     }
 
-    @PostMapping
-    public ResponseEntity<ApiResponse<GlobalCodeDto>> create(
-            @Valid @RequestBody GlobalCodeDto dto) {
-        var created = service.create(dto);
-        return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
-                .success(true).message("Code created").data(created).build());
-    }
+        @PostMapping
+        public ResponseEntity<ApiResponse<GlobalCodeDto>> create(
+                        @RequestBody GlobalCodeDto dto) {
+                try {
+                        if (dto == null) {
+                                return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
+                                                .success(false).message("Payload is required").build());
+                        }
+                        if (!StringUtils.hasText(dto.getCodeType())) {
+                                return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
+                                                .success(false).message("codeType is required").build());
+                        }
+                        if (!StringUtils.hasText(dto.getCode())) {
+                                return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
+                                                .success(false).message("code is required").build());
+                        }
+                        var created = service.create(dto);
+                        return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
+                                        .success(true).message("Code created successfully")
+                                        .data(created).build());
+                } catch (Exception e) {
+                        log.error("Failed to create code: {}", e.getMessage(), e);
+                        return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
+                                        .success(false).message("Failed to create code: " + e.getMessage()).build());
+                }
+        }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<GlobalCodeDto>> update(
-            @PathVariable Long id,
-            @Valid @RequestBody GlobalCodeDto dto) {
-        var updated = service.update( id, dto);
-        return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
-                .success(true).message("Code updated").data(updated).build());
-    }
+        @PutMapping("/{id}")
+        public ResponseEntity<ApiResponse<GlobalCodeDto>> update(
+                        @PathVariable Long id,
+                        @RequestBody GlobalCodeDto dto) {
+                try {
+                        if (dto == null) {
+                                return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
+                                                .success(false).message("Payload is required").build());
+                        }
+                        if (!StringUtils.hasText(dto.getCodeType())) {
+                                return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
+                                                .success(false).message("codeType is required").build());
+                        }
+                        if (!StringUtils.hasText(dto.getCode())) {
+                                return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
+                                                .success(false).message("code is required").build());
+                        }
+                        var updated = service.update(id, dto);
+                        return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
+                                        .success(true).message("Code updated successfully")
+                                        .data(updated).build());
+                } catch (Exception e) {
+                        log.error("Failed to update code id {}: {}", id, e.getMessage(), e);
+                        return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
+                                        .success(false).message("Failed to update code: " + e.getMessage()).build());
+                }
+        }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
