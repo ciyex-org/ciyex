@@ -48,8 +48,6 @@ public class ListOptionService {
     public ListOptionDto update(Long id, ListOptionDto dto) {
         ListOption existing = repository.findById(id).orElseThrow(() -> new RuntimeException("Option not found"));
 
-        existing.setListId(dto.getListId());
-        existing.setOptionId(dto.getOptionId());
         existing.setTitle(dto.getTitle());
         existing.setSeq(dto.getSeq());
         existing.setIsDefault(dto.getIsDefault());

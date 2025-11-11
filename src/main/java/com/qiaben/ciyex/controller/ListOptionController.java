@@ -7,6 +7,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/list-options")
@@ -20,13 +22,37 @@ public class ListOptionController {
     }
 
     @PostMapping
-    public ResponseEntity<ListOptionDto> create(@RequestBody ListOptionDto dto) {
+    public ResponseEntity<?> create(@RequestBody ListOptionDto dto) {
+        List<String> missing = new ArrayList<>();
+        if (dto.getListId() == null || dto.getListId().trim().isEmpty()) missing.add("listId");
+        if (dto.getTitle() == null || dto.getTitle().trim().isEmpty()) missing.add("title");
+        if (dto.getSeq() == null) missing.add("seq");
+        if (dto.getActivity() == null) missing.add("activity");
+
+        if (!missing.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Missing required fields",
+                    "missing", missing
+            ));
+        }
+
         ListOptionDto created = service.create(dto);
         return ResponseEntity.ok(created);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ListOptionDto> update(@PathVariable Long id, @RequestBody ListOptionDto dto) {
+    public ResponseEntity<?> update(@PathVariable Long id, @RequestBody ListOptionDto dto) {
+        List<String> missing = new ArrayList<>();
+        if (dto.getListId() == null || dto.getListId().trim().isEmpty()) missing.add("listId");
+        if (dto.getTitle() == null || dto.getTitle().trim().isEmpty()) missing.add("title");
+        if (dto.getSeq() == null) missing.add("seq");
+        if (dto.getActivity() == null) missing.add("activity");
+        if (!missing.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Missing required fields",
+                    "missing", missing
+            ));
+        }
         ListOptionDto updated = service.update(id, dto);
         return ResponseEntity.ok(updated);
     }
