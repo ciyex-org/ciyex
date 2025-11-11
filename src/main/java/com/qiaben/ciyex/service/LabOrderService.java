@@ -32,6 +32,7 @@ public class LabOrderService {
         this.configProvider = configProvider;
     }
 
+
     // ---- CREATE ----
     @Transactional
     public LabOrderDto create(LabOrderDto dto) {

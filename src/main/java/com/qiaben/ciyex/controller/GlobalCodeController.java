@@ -58,6 +58,7 @@ public class GlobalCodeController {
                         }
                         var created = service.create(dto);
                         return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
+
                                         .success(true).message("Code created successfully")
                                         .data(created).build());
                 } catch (Exception e) {

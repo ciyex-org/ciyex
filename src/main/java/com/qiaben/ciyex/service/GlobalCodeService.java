@@ -40,6 +40,7 @@ public class GlobalCodeService {
 
         final GlobalCode saved = repo.save(e);
 
+
         external.ifPresent(ext -> {
             String extId = ext.create(mapToDto(saved));
             saved.setExternalId(extId);

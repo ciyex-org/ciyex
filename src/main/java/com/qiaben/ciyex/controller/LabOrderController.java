@@ -33,6 +33,7 @@ public class LabOrderController {
                                 RequestContext.set(ctx);
 
                         String qq = (q == null ? "" : q).trim().toLowerCase();
+
                         var all = service.getAll(); // org-scoped
                         var filtered = (all == null ? List.<LabOrderDto>of() : all).stream()
                                         .filter(d -> {
