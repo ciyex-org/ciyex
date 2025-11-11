@@ -214,6 +214,7 @@ public class LabOrderService {
         if (d.getResult() != null) e.setResult(d.getResult());
     }
 
+    
     // ---- validation helpers ----
     private void validateMandatory(LabOrderDto dto) {
         if (dto == null) throw new IllegalArgumentException("lab order payload is required");

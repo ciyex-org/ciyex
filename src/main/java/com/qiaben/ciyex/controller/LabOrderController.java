@@ -185,6 +185,7 @@ public class LabOrderController {
                         @RequestBody LabOrderDto dto) {
                 try {
                                 RequestContext ctx = new RequestContext();
+                                
                                 // orgId deprecated; tenantName populated by interceptor.
                                 RequestContext.set(ctx);
                         if (dto.getOrderNumber() == null || !StringUtils.hasText(dto.getOrderNumber())) {

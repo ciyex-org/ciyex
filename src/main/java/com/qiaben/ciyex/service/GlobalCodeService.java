@@ -137,6 +137,7 @@ public class GlobalCodeService {
         if (!StringUtils.hasText(in.getCodeType())) {
             throw new IllegalArgumentException("codeType is mandatory");
         }
+        
         if (!StringUtils.hasText(in.getCode())) {
             throw new IllegalArgumentException("code is mandatory");
         }

@@ -98,6 +98,7 @@ public class GlobalCodeController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long id) {
+                
         service.delete(id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .success(true).message("Code deleted").build());
