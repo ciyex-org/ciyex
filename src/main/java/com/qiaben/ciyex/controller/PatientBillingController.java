@@ -644,6 +644,17 @@ public class PatientBillingController {
         return ResponseEntity.ok(ApiResponse.ok("Claim attachment submitted", dto));
     }
 
+    /**
+     * Get invoice lines for a specific invoice
+     */
+    @GetMapping("/invoices/{invoiceId}/lines")
+    public ResponseEntity<ApiResponse<List<PatientInvoiceLineDto>>> getInvoiceLines(
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId) {
+        List<PatientInvoiceLineDto> lines = service.getInvoiceLines(invoiceId);
+        return ResponseEntity.ok(ApiResponse.ok("Invoice lines loaded", lines));
+    }
+
 
 }
 

@@ -8,6 +8,7 @@ import com.qiaben.ciyex.service.VitalsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -45,9 +46,9 @@ public class PortalBillingController {
         }
 
         try {
-            // Get Keycloak user UUID from authentication
-            String keycloakUserId = authentication.getName();
-            return billingService.getRecentInvoices(keycloakUserId);
+            // Extract email from JWT token
+            String userEmail = extractEmailFromAuthentication(authentication);
+            return billingService.getRecentInvoices(userEmail);
         } catch (Exception e) {
             return ApiResponse.<List<InvoiceDto>>builder()
                     .success(false)
@@ -71,9 +72,9 @@ public class PortalBillingController {
         }
 
         try {
-            // Get Keycloak user UUID from authentication
-            String keycloakUserId = authentication.getName();
-            return billingService.getAllInvoices(keycloakUserId);
+            // Extract email from JWT token
+            String userEmail = extractEmailFromAuthentication(authentication);
+            return billingService.getAllInvoices(userEmail);
         } catch (Exception e) {
             return ApiResponse.<List<InvoiceDto>>builder()
                     .success(false)
@@ -92,9 +93,9 @@ public class PortalBillingController {
     public ApiResponse<List<InvoiceDto>> getMyInvoices(
             Authentication authentication) {
 
-        // Get Keycloak user UUID from authentication
-        String keycloakUserId = authentication.getName();
-        Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(keycloakUserId);
+        // Extract email from JWT token
+        String userEmail = extractEmailFromAuthentication(authentication);
+        Long ehrPatientId = sharedVitalsService.getEhrPatientIdFromPortalUserEmail(userEmail);
 
         if (ehrPatientId == null) {
             return ApiResponse.<List<InvoiceDto>>builder()
@@ -112,5 +113,23 @@ public class PortalBillingController {
                 .message("Patient invoices retrieved")
                 .data(invoices)
                 .build();
+    }
+
+    /**
+     * Extract email from JWT token authentication
+     */
+    private String extractEmailFromAuthentication(Authentication authentication) {
+        if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.jwt.Jwt) {
+            org.springframework.security.oauth2.jwt.Jwt jwt = (org.springframework.security.oauth2.jwt.Jwt) authentication.getPrincipal();
+            String email = jwt.getClaimAsString("email");
+            if (email != null && !email.isBlank()) {
+                return email;
+            }
+            String preferredUsername = jwt.getClaimAsString("preferred_username");
+            if (preferredUsername != null && !preferredUsername.isBlank()) {
+                return preferredUsername;
+            }
+        }
+        return authentication.getName(); // fallback
     }
 }

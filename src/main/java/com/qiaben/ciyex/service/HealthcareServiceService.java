@@ -25,33 +25,32 @@ public class HealthcareServiceService {
         return mapToDto(savedEntity);
     }
 
+    public List<HealthcareServiceDto> getAll() {
+        return repository.findAll()
+                .stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
+    }
 
     public HealthcareServiceDto update(Long id, HealthcareServiceDto dto) {
-        // Fetch the healthcare service by ID
         HealthcareService entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Healthcare Service not found"));
 
-        // Update entity with DTO data
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
         entity.setLocation(dto.getLocation());
         entity.setType(dto.getType());
         entity.setHoursOfOperation(dto.getHoursOfOperation());
 
-        // Save the updated entity
         HealthcareService updatedEntity = repository.save(entity);
         return mapToDto(updatedEntity);
     }
 
     public void delete(Long id) {
-        
         HealthcareService entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Healthcare Service not found"));
-
-        // Delete the entity
         repository.delete(entity);
     }
-
 
     private HealthcareServiceDto mapToDto(HealthcareService entity) {
         HealthcareServiceDto dto = new HealthcareServiceDto();

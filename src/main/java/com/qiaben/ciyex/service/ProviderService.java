@@ -49,25 +49,28 @@ public class ProviderService {
 
         String externalId = null;
 
+        String tenantName = getTenantNameSafely();
+
         // Attempt external storage creation first (FHIR)
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null) {
             try {
                 ExternalStorage<ProviderDto> externalStorage = storageResolver.resolve(ProviderDto.class);
                 externalId = externalStorage.create(dto);  // Create in external storage
-                log.info("Successfully created provider in external storage with externalId: {} for orgId: {}", externalId, RequestContext.get().getTenantName());
+                log.info("Successfully created provider in external storage with externalId: {} for orgId: {}", externalId, tenantName);
             } catch (Exception e) {
-                log.error("Failed to create provider in external storage for orgId: {}, error: {}", RequestContext.get().getTenantName() , e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e);  // Rollback transaction
+                log.error("Failed to create provider in external storage for orgId: {}, error: {}", tenantName, e.getMessage());
+                // Don't throw exception - continue with database save even if external storage fails
+                log.warn("Continuing with database save despite external storage failure for tenant: {}", tenantName);
             }
         }
 
         // Ensure externalId is set
         provider.setExternalId(externalId);
 
-        // Save to database **only after external storage is successful**
+        // Save to database
         provider = repository.save(provider);
-        log.info("Created provider with id: {} and externalId: {} in DB for orgId: {}", provider.getId(), externalId, RequestContext.get().getTenantName());
+        log.info("Created provider with id: {} and externalId: {} in DB for orgId: {}", provider.getId(), externalId, tenantName);
 
         // Return the DTO of the provider (with externalId)
         return mapToDto(provider);
@@ -78,7 +81,8 @@ public class ProviderService {
         // Fetch provider from the database
         Provider provider = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
-        log.debug("Fetched provider from DB: id={}, externalId={}, Tenant={}", provider.getId(), provider.getExternalId(), RequestContext.get().getTenantName());
+        String tenantName = getTenantNameSafely();
+        log.debug("Fetched provider from DB: id={}, externalId={}, Tenant={}", provider.getId(), provider.getExternalId(), tenantName);
 
         // Default mapping from DB data
         ProviderDto resultDto = mapToDto(provider);
@@ -86,15 +90,15 @@ public class ProviderService {
         // If external storage is available, attempt to fetch extended provider details
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && provider.getExternalId() != null) {
-            log.debug("Attempting to fetch extended details for provider id: {} with externalId: {} for orgId: {}", id, provider.getExternalId(), RequestContext.get().getTenantName());
+            log.debug("Attempting to fetch extended details for provider id: {} with externalId: {} for orgId: {}", id, provider.getExternalId(), tenantName);
             ExternalStorage<ProviderDto> externalStorage = storageResolver.resolve(ProviderDto.class);
 
             try {
                 ProviderDto extendedProviderDto = externalStorage.get(provider.getExternalId());
 
                 if (extendedProviderDto != null) {
-                    log.info("Successfully loaded extended details for provider id: {} from external storage for orgId: {}", id, RequestContext.get().getTenantName());
-                    log.debug("Extended ProviderDto: id={}, fhirId={}={}", extendedProviderDto.getId(), extendedProviderDto.getFhirId(), RequestContext.get().getTenantName());
+                    log.info("Successfully loaded extended details for provider id: {} from external storage for orgId: {}", id, tenantName);
+                    log.debug("Extended ProviderDto: id={}, fhirId={}={}", extendedProviderDto.getId(), extendedProviderDto.getFhirId(), tenantName);
 
                     extendedProviderDto.setId(provider.getId()); // Preserve DB ID
                     // Manually map fields from Provider to extendedProviderDto
@@ -108,15 +112,15 @@ public class ProviderService {
 
                     resultDto = extendedProviderDto;
                 } else {
-                    log.warn("No extended details found in external storage for provider id: {} with externalId: {} for orgId: {}", id, provider.getExternalId(), RequestContext.get().getTenantName());
+                    log.warn("No extended details found in external storage for provider id: {} with externalId: {} for orgId: {}", id, provider.getExternalId(), tenantName);
                 }
             } catch (Exception e) {
                 log.error("Failed to fetch extended details from external storage for provider id: {} with externalId: {}, error: {}", id, provider.getExternalId(), e.getMessage());
             }
         }
 
-        log.info("Returning provider dto for id: {} and orgId: {}", id, RequestContext.get().getTenantName());
-        log.debug("Returning ProviderDto: id={}, fhirId={}={}", resultDto.getId(), resultDto.getFhirId(), RequestContext.get().getTenantName());
+        log.info("Returning provider dto for id: {} and orgId: {}", id, tenantName);
+        log.debug("Returning ProviderDto: id={}, fhirId={}={}", resultDto.getId(), resultDto.getFhirId(), tenantName);
 
         return resultDto;
     }
@@ -178,15 +182,17 @@ public class ProviderService {
             provider.setLicenseExpiry(dto.getProfessionalDetails().getLicenseExpiry());
         }
 
+        String tenantName = getTenantNameSafely();
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && provider.getExternalId() != null) {
             try {
                 ExternalStorage<ProviderDto> externalStorage = storageResolver.resolve(ProviderDto.class);
                 externalStorage.update(dto, provider.getExternalId());
-                log.info("Successfully updated provider with id: {} and externalId: {} in external storage for orgId: {}", provider.getId(), provider.getExternalId(), RequestContext.get().getTenantName());
+                log.info("Successfully updated provider with id: {} and externalId: {} in external storage for orgId: {}", provider.getId(), provider.getExternalId(), tenantName);
             } catch (Exception e) {
-                log.error("Failed to update provider in external storage for orgId: {}, error: {}", RequestContext.get().getTenantName() , e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e); // Rollback transaction
+                log.error("Failed to update provider in external storage for orgId: {}, error: {}", tenantName, e.getMessage());
+                // Don't throw exception - continue with database save even if external storage fails
+                log.warn("Continuing with database update despite external storage failure for tenant: {}", tenantName);
             }
         }
 
@@ -199,28 +205,31 @@ public class ProviderService {
         Provider provider = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
 
+        String tenantName = getTenantNameSafely();
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && provider.getExternalId() != null) {
             try {
                 ExternalStorage<ProviderDto> externalStorage = storageResolver.resolve(ProviderDto.class);
                 externalStorage.delete(provider.getExternalId());
-                log.info("Successfully deleted provider with id: {} and externalId: {} from external storage for orgId: {}", provider.getId(), provider.getExternalId(), RequestContext.get().getTenantName());
+                log.info("Successfully deleted provider with id: {} and externalId: {} from external storage for orgId: {}", provider.getId(), provider.getExternalId(), tenantName);
             } catch (Exception e) {
-                log.error("Failed to delete provider from external storage for orgId: {}, error: {}", RequestContext.get().getTenantName(), e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e); // Rollback transaction
+                log.error("Failed to delete provider from external storage for orgId: {}, error: {}", tenantName, e.getMessage());
+                // Don't throw exception - continue with database deletion even if external storage fails
+                log.warn("Continuing with database deletion despite external storage failure for tenant: {}", tenantName);
             }
         }
 
-        // Delete from database only if external storage succeeded
+        // Delete from database
         repository.delete(provider);
-        log.info("Deleted provider with id: {} from DB for orgId: {}", id, RequestContext.get().getTenantName());
+        log.info("Deleted provider with id: {} from DB for orgId: {}", id, tenantName);
     }
 
     @Transactional(readOnly = true)
     public ApiResponse<List<ProviderDto>> getAllProviders() {
         // Fetch all providers directly from the database
         List<Provider> providers = repository.findAll();
-        log.info("Retrieved {} providers from DB for orgId: {}", providers.size(), RequestContext.get().getTenantName());
+        String tenantName = getTenantNameSafely();
+        log.info("Retrieved {} providers from DB for orgId: {}", providers.size(), tenantName);
         List<ProviderDto> providerDtos = providers.stream().map(this::mapToDto).collect(Collectors.toList());
 
         return ApiResponse.<List<ProviderDto>>builder()
@@ -261,65 +270,67 @@ public class ProviderService {
     }
 
     private ProviderDto mapToDto(Provider provider) {
-    ProviderDto dto = new ProviderDto();
-    dto.setId(provider.getId());
-    dto.setNpi(provider.getNpi());
+        ProviderDto dto = new ProviderDto();
+        dto.setId(provider.getId());
+        dto.setNpi(provider.getNpi());
 
-    // ✅ Always populate Identification (avoid nulls)
-    ProviderDto.Identification identification = new ProviderDto.Identification();
-    identification.setFirstName(provider.getFirstName() != null ? provider.getFirstName() : "");
-    identification.setLastName(provider.getLastName() != null ? provider.getLastName() : "");
-    identification.setMiddleName(provider.getMiddleName());
-    identification.setPrefix(provider.getPrefix());
-    identification.setSuffix(provider.getSuffix());
-    identification.setGender(provider.getGender());
-    identification.setDateOfBirth(provider.getDateOfBirth());
-    identification.setPhoto(provider.getPhoto());
-    dto.setIdentification(identification);
+        // ✅ Always populate Identification (avoid nulls)
+        ProviderDto.Identification identification = new ProviderDto.Identification();
+        identification.setFirstName(provider.getFirstName() != null ? provider.getFirstName() : "");
+        identification.setLastName(provider.getLastName() != null ? provider.getLastName() : "");
+        identification.setMiddleName(provider.getMiddleName());
+        identification.setPrefix(provider.getPrefix());
+        identification.setSuffix(provider.getSuffix());
+        identification.setGender(provider.getGender());
+        identification.setDateOfBirth(provider.getDateOfBirth());
+        identification.setPhoto(provider.getPhoto());
+        dto.setIdentification(identification);
 
-    // ✅ Contact
-    if (provider.getEmail() != null || provider.getPhoneNumber() != null) {
-        ProviderDto.Contact contact = new ProviderDto.Contact();
-        contact.setEmail(provider.getEmail());
-        contact.setPhoneNumber(provider.getPhoneNumber());
-        contact.setMobileNumber(provider.getMobileNumber());
-        contact.setFaxNumber(provider.getFaxNumber());
+        // ✅ Contact
+        if (provider.getEmail() != null || provider.getPhoneNumber() != null) {
+            ProviderDto.Contact contact = new ProviderDto.Contact();
+            contact.setEmail(provider.getEmail());
+            contact.setPhoneNumber(provider.getPhoneNumber());
+            contact.setMobileNumber(provider.getMobileNumber());
+            contact.setFaxNumber(provider.getFaxNumber());
 
-        if (provider.getAddress() != null) {
-            ProviderDto.Contact.Address address = new ProviderDto.Contact.Address();
-            // map address fields if available
-            contact.setAddress(address);
+            if (provider.getAddress() != null) {
+                ProviderDto.Contact.Address address = new ProviderDto.Contact.Address();
+                // map address fields if available
+                contact.setAddress(address);
+            }
+            dto.setContact(contact);
         }
-        dto.setContact(contact);
+
+        // ✅ Professional Details
+        if (provider.getSpecialty() != null || provider.getLicenseNumber() != null) {
+            ProviderDto.ProfessionalDetails professionalDetails = new ProviderDto.ProfessionalDetails();
+            professionalDetails.setSpecialty(provider.getSpecialty());
+            professionalDetails.setProviderType(provider.getProviderType());
+            professionalDetails.setLicenseNumber(provider.getLicenseNumber());
+            professionalDetails.setLicenseState(provider.getLicenseState());
+            professionalDetails.setLicenseExpiry(provider.getLicenseExpiry());
+            dto.setProfessionalDetails(professionalDetails);
+        }
+
+        // ✅ FHIR/External ID
+        dto.setFhirId(provider.getExternalId());
+
+        // ✅ Audit
+        if (provider.getCreatedDate() != null || provider.getLastModifiedDate() != null) {
+            ProviderDto.Audit audit = new ProviderDto.Audit();
+            audit.setCreatedDate(provider.getCreatedDate() != null ? provider.getCreatedDate().toString() : null);
+            audit.setLastModifiedDate(provider.getLastModifiedDate() != null ? provider.getLastModifiedDate().toString() : null);
+            dto.setAudit(audit);
+        }
+
+        // ✅ System Access
+        ProviderDto.SystemAccess systemAccess = new ProviderDto.SystemAccess();
+        systemAccess.setStatus(provider.getStatus());
+        dto.setSystemAccess(systemAccess);
+
+        return dto;
     }
-
-    // ✅ Professional Details
-    if (provider.getSpecialty() != null || provider.getLicenseNumber() != null) {
-        ProviderDto.ProfessionalDetails professionalDetails = new ProviderDto.ProfessionalDetails();
-        professionalDetails.setSpecialty(provider.getSpecialty());
-        professionalDetails.setProviderType(provider.getProviderType());
-        professionalDetails.setLicenseNumber(provider.getLicenseNumber());
-        professionalDetails.setLicenseState(provider.getLicenseState());
-        professionalDetails.setLicenseExpiry(provider.getLicenseExpiry());
-        dto.setProfessionalDetails(professionalDetails);
-    }
-
-    // ✅ FHIR/External ID
-    dto.setFhirId(provider.getExternalId());
-
-    // ✅ Audit
-    if (provider.getCreatedDate() != null || provider.getLastModifiedDate() != null) {
-        ProviderDto.Audit audit = new ProviderDto.Audit();
-        dto.setAudit(audit);
-    }
-
-    // ✅ System Access
-    ProviderDto.SystemAccess systemAccess = new ProviderDto.SystemAccess();
-    systemAccess.setStatus(provider.getStatus());
-    dto.setSystemAccess(systemAccess);
-
-    return dto;
-}
 
 
 
@@ -340,14 +351,27 @@ public class ProviderService {
 
     @Transactional
     public boolean resetProviderPassword(Long providerId, String newPassword) {
-        
+
         Provider provider = repository.findById(providerId)
                 .orElseThrow(() -> new RuntimeException("Provider not found with id: " + providerId));
         // Implementation depends on your password storage strategy
         // This is a placeholder - you should implement proper password hashing
-        log.info("Password reset requested for provider id: {} in org: {}", providerId, RequestContext.get().getTenantName());
-        
+        log.info("Password reset requested for provider id: {} in org: {}", providerId, getTenantNameSafely());
+
         return true; // Return success status
+    }
+
+    /**
+     * Safely get tenant name from RequestContext, returning a default value if context is null
+     */
+    private String getTenantNameSafely() {
+        try {
+            RequestContext context = RequestContext.get();
+            return (context != null && context.getTenantName() != null) ? context.getTenantName() : "default";
+        } catch (Exception e) {
+            log.warn("Failed to get tenant name from RequestContext: {}", e.getMessage());
+            return "default";
+        }
     }
 
 }

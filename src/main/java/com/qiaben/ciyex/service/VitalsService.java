@@ -8,6 +8,7 @@ import com.qiaben.ciyex.dto.VitalsDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.entity.Vitals;
 import com.qiaben.ciyex.repository.VitalsRepository;
+import com.qiaben.ciyex.repository.portal.PortalPatientRepository;
 import com.qiaben.ciyex.storage.ExternalVitalsStorage;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -29,6 +30,7 @@ public class VitalsService {
             .stream().map(this::toDto).toList();
     }
     private final VitalsRepository repository;
+    private final PortalPatientRepository portalPatientRepository;
     private final ExternalVitalsStorage externalStorage;
 
     
@@ -117,33 +119,63 @@ public class VitalsService {
     // 👩‍⚕️ Portal Method - Map portal user email to EHR patient ID
     @Transactional(readOnly = true)
     public Long getEhrPatientIdFromPortalUserEmail(String email) {
-        log.info("Looking up EHR patient ID for portal user {}", email);
-        
+        log.info("Looking up EHR patient ID for portal user email {}", email);
+
         if (email == null || email.trim().isEmpty()) {
             return null;
         }
 
-           
-        return null;
+        try {
+            // Find portal user by email, then get their linked patient
+            return portalPatientRepository.findAll().stream()
+                    .filter(pp -> pp.getPortalUser() != null && email.equals(pp.getPortalUser().getEmail()))
+                    .findFirst()
+                    .map(portalPatient -> portalPatient.getEhrPatientId())
+                    .orElse(null);
+        } catch (Exception e) {
+            log.error("Error looking up EHR patient ID for email {}: {}", email, e.getMessage());
+            return null;
+        }
     }
 
     /**
-     * Get vitals for current portal user based on JWT token
+     * Get vitals for current portal user based on email
      */
-    @Transactional(readOnly = true) 
-    public List<VitalsDto> getVitalsForPortalUser(String token) {
+    @Transactional
+    public List<VitalsDto> getVitalsForPortalUser(String email) {
         try {
+            log.info("Getting vitals for portal user with email: {}", email);
 
-         
-            return null;
+            if (email == null || email.trim().isEmpty()) {
+                log.error("Email is null or empty");
+                return null;
+            }
+
+            // Get EHR patient ID from portal user email
+            Long patientId = getEhrPatientIdFromPortalUserEmail(email);
+            log.info("Found EHR patientId {} for portal user email {}", patientId, email);
+
+            if (patientId == null) {
+                log.error("No EHR patient ID found for portal user email: {}", email);
+                return null;
+            }
+
             // Get vitals using tenant-aware query
-           // return getVitalsByPatient(patientId);
-            
+            List<VitalsDto> vitals = getVitalsByPatient(patientId);
+            log.info("Retrieved {} vitals records for patient {}", vitals != null ? vitals.size() : 0, patientId);
+
+            return vitals;
+
         } catch (Exception e) {
             log.error("Error getting vitals for portal user: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to get vitals for user", e);
         }
     }
+
+
+
+
+
 
     private Vitals toEntity(VitalsDto dto) {
         return Vitals.builder()
@@ -151,12 +183,17 @@ public class VitalsService {
                 .patientId(dto.getPatientId())
                 .encounterId(dto.getEncounterId())
                 .weightKg(dto.getWeightKg())
+                .weightLbs(dto.getWeightLbs())
+                .heightCm(dto.getHeightCm())
+                .heightIn(dto.getHeightIn())
                 .bpSystolic(dto.getBpSystolic())
                 .bpDiastolic(dto.getBpDiastolic())
                 .pulse(dto.getPulse())
                 .respiration(dto.getRespiration())
                 .temperatureC(dto.getTemperatureC())
+                .temperatureF(dto.getTemperatureF())
                 .oxygenSaturation(dto.getOxygenSaturation())
+                .bmi(dto.getBmi())
                 .notes(dto.getNotes())
                 .signed(dto.getSigned())
                 .recordedAt(dto.getRecordedAt())
@@ -169,12 +206,17 @@ public class VitalsService {
                 .patientId(entity.getPatientId())
                 .encounterId(entity.getEncounterId())
                 .weightKg(entity.getWeightKg())
+                .weightLbs(entity.getWeightLbs())
+                .heightCm(entity.getHeightCm())
+                .heightIn(entity.getHeightIn())
                 .bpSystolic(entity.getBpSystolic())
                 .bpDiastolic(entity.getBpDiastolic())
                 .pulse(entity.getPulse())
                 .respiration(entity.getRespiration())
                 .temperatureC(entity.getTemperatureC())
+                .temperatureF(entity.getTemperatureF())
                 .oxygenSaturation(entity.getOxygenSaturation())
+                .bmi(entity.getBmi())
                 .notes(entity.getNotes())
                 .signed(entity.getSigned())
                 .recordedAt(entity.getRecordedAt())

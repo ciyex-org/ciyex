@@ -17,5 +17,8 @@ public record PatientClaimDto(
         boolean eobAttached,
         LocalDate createdOn,
         boolean hasAttachment,
-        boolean hasEob
+        boolean hasEob,
+        String patientName,
+        String insuranceProviderName,
+        String insurancePolicyNumber
 ) {}
