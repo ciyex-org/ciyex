@@ -110,6 +110,34 @@ public class PhysicalExamController {
 
     private final PhysicalExamService service;
 
+    /**
+     * Validates that all sections have mandatory fields: sectionKey, allNormal, and normalText.
+     * Throws IllegalArgumentException if any field is missing.
+     */
+    private void validateMandatoryFields(PhysicalExamDto dto) {
+        if (dto.getSections() == null || dto.getSections().isEmpty()) {
+            return; // Allow empty sections for container creation
+        }
+
+        List<String> missingFields = new java.util.ArrayList<>();
+        for (int i = 0; i < dto.getSections().size(); i++) {
+            var section = dto.getSections().get(i);
+            if (section.getSectionKey() == null || section.getSectionKey().trim().isEmpty()) {
+                missingFields.add("Section " + (i + 1) + ": sectionKey");
+            }
+            if (section.getAllNormal() == null) {
+                missingFields.add("Section " + (i + 1) + ": allNormal");
+            }
+            if (section.getNormalText() == null || section.getNormalText().trim().isEmpty()) {
+                missingFields.add("Section " + (i + 1) + ": normalText");
+            }
+        }
+
+        if (!missingFields.isEmpty()) {
+            throw new IllegalArgumentException("Missing mandatory fields: " + String.join(", ", missingFields));
+        }
+    }
+
     // LIST
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<PhysicalExamDto>>> list(
@@ -142,9 +170,15 @@ public class PhysicalExamController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody PhysicalExamDto dto) {
-        var saved = service.create(patientId, encounterId, dto);
-        return ResponseEntity.ok(ApiResponse.<PhysicalExamDto>builder()
-                .success(true).message("Physical exam created").data(saved).build());
+        try {
+            validateMandatoryFields(dto);
+            var saved = service.create(patientId, encounterId, dto);
+            return ResponseEntity.ok(ApiResponse.<PhysicalExamDto>builder()
+                    .success(true).message("Physical exam created").data(saved).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<PhysicalExamDto>builder().success(false).message(ex.getMessage()).build());
+        }
     }
 
     // UPDATE (423 if signed)
@@ -155,6 +189,7 @@ public class PhysicalExamController {
             @PathVariable Long id,
             @RequestBody PhysicalExamDto dto) {
         try {
+            validateMandatoryFields(dto);
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<PhysicalExamDto>builder()
                     .success(true).message("Physical exam updated").data(saved).build());
@@ -162,7 +197,7 @@ public class PhysicalExamController {
             return ResponseEntity.status(423)
                     .body(ApiResponse.<PhysicalExamDto>builder().success(false).message(ex.getMessage()).build());
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<PhysicalExamDto>builder().success(false).message(ex.getMessage()).build());
         }
     }

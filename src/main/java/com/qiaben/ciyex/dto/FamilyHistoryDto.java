@@ -33,6 +33,7 @@
 
 package com.qiaben.ciyex.dto;
 
+
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -54,6 +55,7 @@ public class FamilyHistoryDto {
     private Long signedEntryId;
 
     // entries (simple strings)
+
     private List<EntryDto> entries;
 
     // audit

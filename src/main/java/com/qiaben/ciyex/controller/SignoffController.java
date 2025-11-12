@@ -101,6 +101,34 @@ public class SignoffController {
 
     private final SignoffService service;
 
+    /**
+     * Validates that all mandatory fields are present: signedBy, signerRole, signedAt, attestationText, and comments.
+     * Throws IllegalArgumentException if any field is missing.
+     */
+    private void validateMandatoryFields(SignoffDto dto) {
+        List<String> missingFields = new java.util.ArrayList<>();
+
+        if (dto.getSignedBy() == null || dto.getSignedBy().trim().isEmpty()) {
+            missingFields.add("signedBy");
+        }
+        if (dto.getSignerRole() == null || dto.getSignerRole().trim().isEmpty()) {
+            missingFields.add("signerRole");
+        }
+        if (dto.getSignedAt() == null || dto.getSignedAt().trim().isEmpty()) {
+            missingFields.add("signedAt");
+        }
+        if (dto.getAttestationText() == null || dto.getAttestationText().trim().isEmpty()) {
+            missingFields.add("attestationText");
+        }
+        if (dto.getComments() == null || dto.getComments().trim().isEmpty()) {
+            missingFields.add("comments");
+        }
+
+        if (!missingFields.isEmpty()) {
+            throw new IllegalArgumentException("Missing mandatory fields: " + String.join(", ", missingFields));
+        }
+    }
+
     // LIST (SignoffCard loads here first)
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<SignoffDto>>> list(
@@ -133,9 +161,16 @@ public class SignoffController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody(required = false) SignoffDto dto) {
-        var saved = service.create(patientId, encounterId, dto != null ? dto : new SignoffDto());
-        return ResponseEntity.ok(ApiResponse.<SignoffDto>builder()
-                .success(true).message("Sign-off created").data(saved).build());
+        try {
+            SignoffDto signoffDto = (dto != null ? dto : new SignoffDto());
+            validateMandatoryFields(signoffDto);
+            var saved = service.create(patientId, encounterId, signoffDto);
+            return ResponseEntity.ok(ApiResponse.<SignoffDto>builder()
+                    .success(true).message("Sign-off created").data(saved).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<SignoffDto>builder().success(false).message(ex.getMessage()).build());
+        }
     }
 
     // UPDATE (423 if signed/locked)
@@ -146,6 +181,7 @@ public class SignoffController {
             @PathVariable Long id,
             @RequestBody SignoffDto dto) {
         try {
+            validateMandatoryFields(dto);
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<SignoffDto>builder()
                     .success(true).message("Sign-off updated").data(saved).build());
@@ -153,7 +189,7 @@ public class SignoffController {
             return ResponseEntity.status(423)
                     .body(ApiResponse.<SignoffDto>builder().success(false).message(ex.getMessage()).build());
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<SignoffDto>builder().success(false).message(ex.getMessage()).build());
         }
     }

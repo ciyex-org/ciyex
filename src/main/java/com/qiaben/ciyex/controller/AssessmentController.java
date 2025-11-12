@@ -152,6 +152,13 @@ public class AssessmentController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody AssessmentDto dto) {
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<AssessmentDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         var saved = service.create(patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<AssessmentDto>builder()
                 .success(true).message("Assessment created").data(saved).build());
@@ -164,6 +171,13 @@ public class AssessmentController {
             @PathVariable Long encounterId,
             @PathVariable Long id,
             @RequestBody AssessmentDto dto) {
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<AssessmentDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         try {
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<AssessmentDto>builder()
@@ -230,5 +244,38 @@ public class AssessmentController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
+    }
+
+    /**
+     * Validates mandatory fields for Assessment creation and update
+     * @param dto AssessmentDto to validate
+     * @return error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(AssessmentDto dto) {
+        StringBuilder missingFields = new StringBuilder();
+
+        if (dto.getDiagnosisCode() == null || dto.getDiagnosisCode().trim().isEmpty()) {
+            missingFields.append("diagnosisCode, ");
+        }
+
+        if (dto.getDiagnosisName() == null || dto.getDiagnosisName().trim().isEmpty()) {
+            missingFields.append("diagnosisName, ");
+        }
+
+        if (dto.getAssessmentText() == null || dto.getAssessmentText().trim().isEmpty()) {
+            missingFields.append("assessmentText, ");
+        }
+
+        if (dto.getNotes() == null || dto.getNotes().trim().isEmpty()) {
+            missingFields.append("notes, ");
+        }
+
+        if (!missingFields.isEmpty()) {
+            // Remove the trailing comma and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
+        }
+
+        return null;
     }
 }

@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -44,6 +43,15 @@ public class EncounterController {
             @PathVariable Long patientId,
             @RequestBody EncounterDto encounterDto) {
         try {
+            // Validate mandatory fields
+            String validationError = validateMandatoryFields(encounterDto);
+            if (validationError != null) {
+                return ResponseEntity.badRequest().body(ApiResponse.<EncounterDto>builder()
+                        .success(false)
+                        .message(validationError)
+                        .build());
+            }
+
             // enforce patient scope from path
             encounterDto.setPatientId(patientId);
             EncounterDto created = encounterService.createEncounter(patientId, encounterDto);
@@ -106,6 +114,15 @@ public class EncounterController {
             @PathVariable Long id,
             @RequestBody EncounterDto encounterDto) {
         try {
+            // Validate mandatory fields
+            String validationError = validateMandatoryFields(encounterDto);
+            if (validationError != null) {
+                return ResponseEntity.badRequest().body(ApiResponse.<EncounterDto>builder()
+                        .success(false)
+                        .message(validationError)
+                        .build());
+            }
+
             encounterDto.setPatientId(patientId);
             EncounterDto updated = encounterService.updateEncounter(id, patientId, encounterDto);
             return ResponseEntity.ok(ApiResponse.<EncounterDto>builder()
@@ -195,8 +212,37 @@ public class EncounterController {
                     .build());
         }
     }
-    
-    
+
+    /**
+     * Validates mandatory fields for Encounter creation and update
+     * @param dto EncounterDto to validate
+     * @return error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(EncounterDto dto) {
+        StringBuilder missingFields = new StringBuilder();
+
+        if (dto.getVisitCategory() == null || dto.getVisitCategory().trim().isEmpty()) {
+            missingFields.append("visitCategory, ");
+        }
+
+        if (dto.getEncounterDate() == null) {
+            missingFields.append("encounterDate, ");
+        }
+
+        if (dto.getEncounterProvider() == null || dto.getEncounterProvider().trim().isEmpty()) {
+            missingFields.append("encounterProvider, ");
+        }
+
+        if (!missingFields.isEmpty()) {
+            // Remove the trailing comma and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
+        }
+
+        return null;
+    }
+
+
 
 }
 

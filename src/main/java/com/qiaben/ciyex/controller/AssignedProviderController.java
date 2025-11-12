@@ -146,6 +146,13 @@ public class AssignedProviderController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody AssignedProviderDto dto) {
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<AssignedProviderDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         var saved = service.create(patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<AssignedProviderDto>builder()
                 .success(true).message("Assigned provider created").data(saved).build());
@@ -158,6 +165,13 @@ public class AssignedProviderController {
             @PathVariable Long encounterId,
             @PathVariable Long id,
             @RequestBody AssignedProviderDto dto) {
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<AssignedProviderDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         try {
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<AssignedProviderDto>builder()
@@ -224,5 +238,30 @@ public class AssignedProviderController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
+    }
+
+    /**
+     * Validates mandatory fields for AssignedProvider creation and update
+     * @param dto AssignedProviderDto to validate
+     * @return error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(AssignedProviderDto dto) {
+        StringBuilder missingFields = new StringBuilder();
+
+        if (dto.getProviderId() == null) {
+            missingFields.append("providerId, ");
+        }
+
+        if (dto.getRole() == null || dto.getRole().trim().isEmpty()) {
+            missingFields.append("role, ");
+        }
+
+        if (!missingFields.isEmpty()) {
+            // Remove the trailing comma and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
+        }
+
+        return null;
     }
 }

@@ -1119,7 +1119,7 @@ public class PatientBillingService {
                 c.getTreatingProviderId(), c.getBillingEntity(), c.getType(), c.getNotes(),
                 c.getStatus(), c.getAttachments(), c.isEobAttached(), c.getCreatedOn(),
                 c.getAttachmentFile() != null, c.getEobFile() != null, c.getPatientName(),
-                c.getInsuranceProviderName(), c.getInsurancePolicyNumber()
+                c.getPlanName(), c.getProvider(), c.getPolicyNumber()
         );
     }
 

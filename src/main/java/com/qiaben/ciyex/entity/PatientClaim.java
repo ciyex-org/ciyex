@@ -328,20 +328,20 @@ public class PatientClaim extends AuditableEntity {
     public byte[] getEobFile() { return eobFile; }
     public void setEobFile(byte[] eobFile) { this.eobFile = eobFile; }
 
-    private String insuranceProviderName;
-    private String insurancePolicyNumber;
 
-    public String getInsuranceProviderName() {
-        return insuranceProviderName;
-    }
-    public void setInsuranceProviderName(String insuranceProviderName) {
-        this.insuranceProviderName = insuranceProviderName;
-    }
-    public String getInsurancePolicyNumber() {
-        return insurancePolicyNumber;
-    }
-    public void setInsurancePolicyNumber(String insurancePolicyNumber) {
-        this.insurancePolicyNumber = insurancePolicyNumber;
-    }
+    private String planName;
+
+    private String provider;
+
+    private String policyNumber;
+
+    public String getPlanName() { return planName; }
+    public void setPlanName(String planName) { this.planName = planName; }
+    public String getProvider() { return provider; }
+    public void setProvider(String provider) { this.provider = provider; }
+    public String getPolicyNumber() { return policyNumber; }
+    public void setPolicyNumber(String policyNumber) { this.policyNumber = policyNumber; }
+
+
     // getters/setters
 }

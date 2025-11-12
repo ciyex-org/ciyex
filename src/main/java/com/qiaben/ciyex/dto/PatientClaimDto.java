@@ -19,6 +19,8 @@ public record PatientClaimDto(
         boolean hasAttachment,
         boolean hasEob,
         String patientName,
-        String insuranceProviderName,
-        String insurancePolicyNumber
+        String planName,
+        String provider,
+        String policyNumber
+
 ) {}

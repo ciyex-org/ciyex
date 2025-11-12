@@ -122,6 +122,34 @@ public class FamilyHistoryController {
 
     private final FamilyHistoryService service;
 
+    /**
+     * Validates that all entries have mandatory fields: relation, diagnosisCode, and diagnosisText.
+     * Throws IllegalArgumentException if any field is missing.
+     */
+    private void validateMandatoryFields(FamilyHistoryDto dto) {
+        if (dto.getEntries() == null || dto.getEntries().isEmpty()) {
+            return; // Allow empty entries for container creation
+        }
+
+        List<String> missingFields = new java.util.ArrayList<>();
+        for (int i = 0; i < dto.getEntries().size(); i++) {
+            var entry = dto.getEntries().get(i);
+            if (entry.getRelation() == null || entry.getRelation().trim().isEmpty()) {
+                missingFields.add("Entry " + (i + 1) + ": relation");
+            }
+            if (entry.getDiagnosisCode() == null || entry.getDiagnosisCode().trim().isEmpty()) {
+                missingFields.add("Entry " + (i + 1) + ": diagnosisCode");
+            }
+            if (entry.getDiagnosisText() == null || entry.getDiagnosisText().trim().isEmpty()) {
+                missingFields.add("Entry " + (i + 1) + ": diagnosisText");
+            }
+        }
+
+        if (!missingFields.isEmpty()) {
+            throw new IllegalArgumentException("Missing mandatory fields: " + String.join(", ", missingFields));
+        }
+    }
+
     // LIST (usually one container)
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<FamilyHistoryDto>>> list(
@@ -154,9 +182,15 @@ public class FamilyHistoryController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody FamilyHistoryDto dto) {
-        var saved = service.create(patientId, encounterId, dto);
-        return ResponseEntity.ok(ApiResponse.<FamilyHistoryDto>builder()
-                .success(true).message("Family history created").data(saved).build());
+        try {
+            validateMandatoryFields(dto);
+            var saved = service.create(patientId, encounterId, dto);
+            return ResponseEntity.ok(ApiResponse.<FamilyHistoryDto>builder()
+                    .success(true).message("Family history created").data(saved).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<FamilyHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        }
     }
 
     // REPLACE entries (423 if signed)
@@ -167,6 +201,7 @@ public class FamilyHistoryController {
             @PathVariable Long id,
             @RequestBody FamilyHistoryDto dto) {
         try {
+            validateMandatoryFields(dto);
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<FamilyHistoryDto>builder()
                     .success(true).message("Family history updated").data(saved).build());
@@ -174,7 +209,7 @@ public class FamilyHistoryController {
             return ResponseEntity.status(423)
                     .body(ApiResponse.<FamilyHistoryDto>builder().success(false).message(ex.getMessage()).build());
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<FamilyHistoryDto>builder().success(false).message(ex.getMessage()).build());
         }
     }

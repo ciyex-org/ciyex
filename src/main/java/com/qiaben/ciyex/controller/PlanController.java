@@ -117,6 +117,31 @@ public class PlanController {
 
     private final PlanService service;
 
+    /**
+     * Validates that all mandatory fields are present: diagnosticPlan, plan, sectionsJson, and notes.
+     * Throws IllegalArgumentException if any field is missing.
+     */
+    private void validateMandatoryFields(PlanDto dto) {
+        List<String> missingFields = new java.util.ArrayList<>();
+
+        if (dto.diagnosticPlan == null || dto.diagnosticPlan.trim().isEmpty()) {
+            missingFields.add("diagnosticPlan");
+        }
+        if (dto.plan == null || dto.plan.trim().isEmpty()) {
+            missingFields.add("plan");
+        }
+        if (dto.sectionsJson == null || dto.sectionsJson.trim().isEmpty()) {
+            missingFields.add("sectionsJson");
+        }
+        if (dto.notes == null || dto.notes.trim().isEmpty()) {
+            missingFields.add("notes");
+        }
+
+        if (!missingFields.isEmpty()) {
+            throw new IllegalArgumentException("Missing mandatory fields: " + String.join(", ", missingFields));
+        }
+    }
+
     // LIST (used by PlanList)  :contentReference[oaicite:1]{index=1}
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<PlanDto>>> list(
@@ -148,8 +173,14 @@ public class PlanController {
     @PostMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<PlanDto>> create(
             @PathVariable Long patientId, @PathVariable Long encounterId, @RequestBody PlanDto dto) {
-        var saved = service.create(patientId, encounterId, dto);
-        return ResponseEntity.ok(ApiResponse.<PlanDto>builder().success(true).message("Plan created").data(saved).build());
+        try {
+            validateMandatoryFields(dto);
+            var saved = service.create(patientId, encounterId, dto);
+            return ResponseEntity.ok(ApiResponse.<PlanDto>builder().success(true).message("Plan created").data(saved).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<PlanDto>builder().success(false).message(ex.getMessage()).build());
+        }
     }
 
     // UPDATE (423 if signed)
@@ -157,12 +188,14 @@ public class PlanController {
     public ResponseEntity<ApiResponse<PlanDto>> update(
             @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id, @RequestBody PlanDto dto) {
         try {
+            validateMandatoryFields(dto);
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<PlanDto>builder().success(true).message("Plan updated").data(saved).build());
         } catch (IllegalStateException ex) {
             return ResponseEntity.status(423).body(ApiResponse.<PlanDto>builder().success(false).message(ex.getMessage()).build());
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.<PlanDto>builder().success(false).message(ex.getMessage()).build());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<PlanDto>builder().success(false).message(ex.getMessage()).build());
         }
     }
 

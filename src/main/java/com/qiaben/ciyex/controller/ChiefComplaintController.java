@@ -238,6 +238,13 @@ public class ChiefComplaintController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody ChiefComplaintDto dto) {
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<ChiefComplaintDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         var saved = service.create(patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<ChiefComplaintDto>builder()
                 .success(true).message("Chief complaint created").data(saved).build());
@@ -250,6 +257,13 @@ public class ChiefComplaintController {
             @PathVariable Long encounterId,
             @PathVariable Long id,
             @RequestBody ChiefComplaintDto dto) {
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<ChiefComplaintDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         try {
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<ChiefComplaintDto>builder()
@@ -316,5 +330,30 @@ public class ChiefComplaintController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
+    }
+
+    /**
+     * Validates mandatory fields for ChiefComplaint creation and update
+     * @param dto ChiefComplaintDto to validate
+     * @return error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(ChiefComplaintDto dto) {
+        StringBuilder missingFields = new StringBuilder();
+
+        if (dto.getComplaint() == null || dto.getComplaint().trim().isEmpty()) {
+            missingFields.append("complaint, ");
+        }
+
+        if (dto.getDetails() == null || dto.getDetails().trim().isEmpty()) {
+            missingFields.append("details, ");
+        }
+
+        if (!missingFields.isEmpty()) {
+            // Remove the trailing comma and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
+        }
+
+        return null;
     }
 }

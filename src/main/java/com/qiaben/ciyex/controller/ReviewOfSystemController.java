@@ -100,6 +100,28 @@ public class ReviewOfSystemController {
 
     private final ReviewOfSystemService service;
 
+    /**
+     * Validates that all mandatory fields are present: systemName, notes, and systemDetails.
+     * Throws IllegalArgumentException if any field is missing.
+     */
+    private void validateMandatoryFields(ReviewOfSystemDto dto) {
+        List<String> missingFields = new java.util.ArrayList<>();
+
+        if (dto.getSystemName() == null || dto.getSystemName().trim().isEmpty()) {
+            missingFields.add("systemName");
+        }
+        if (dto.getNotes() == null || dto.getNotes().trim().isEmpty()) {
+            missingFields.add("notes");
+        }
+        if (dto.getSystemDetails() == null || dto.getSystemDetails().isEmpty()) {
+            missingFields.add("systemDetails");
+        }
+
+        if (!missingFields.isEmpty()) {
+            throw new IllegalArgumentException("Missing mandatory fields: " + String.join(", ", missingFields));
+        }
+    }
+
     // LIST
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<ReviewOfSystemDto>>> list(
@@ -132,9 +154,15 @@ public class ReviewOfSystemController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody ReviewOfSystemDto dto) {
-        var saved = service.create(patientId, encounterId, dto);
-        return ResponseEntity.ok(ApiResponse.<ReviewOfSystemDto>builder()
-                .success(true).message("ROS created").data(saved).build());
+        try {
+            validateMandatoryFields(dto);
+            var saved = service.create(patientId, encounterId, dto);
+            return ResponseEntity.ok(ApiResponse.<ReviewOfSystemDto>builder()
+                    .success(true).message("ROS created").data(saved).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<ReviewOfSystemDto>builder().success(false).message(ex.getMessage()).build());
+        }
     }
 
     // UPDATE (423 if signed)
@@ -145,6 +173,7 @@ public class ReviewOfSystemController {
             @PathVariable Long id,
             @RequestBody ReviewOfSystemDto dto) {
         try {
+            validateMandatoryFields(dto);
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<ReviewOfSystemDto>builder()
                     .success(true).message("ROS updated").data(saved).build());
@@ -152,7 +181,7 @@ public class ReviewOfSystemController {
             return ResponseEntity.status(423)
                     .body(ApiResponse.<ReviewOfSystemDto>builder().success(false).message(ex.getMessage()).build());
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<ReviewOfSystemDto>builder().success(false).message(ex.getMessage()).build());
         }
     }

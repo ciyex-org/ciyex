@@ -169,6 +169,13 @@ public class CodeController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody CodeDto dto) {
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<CodeDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         var saved = service.create(patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<CodeDto>builder()
                 .success(true).message("Code created").data(saved).build());
@@ -181,6 +188,13 @@ public class CodeController {
             @PathVariable Long encounterId,
             @PathVariable Long id,
             @RequestBody CodeDto dto) {
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<CodeDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         try {
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<CodeDto>builder()
@@ -247,5 +261,42 @@ public class CodeController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
+    }
+
+    /**
+     * Validates mandatory fields for Code creation and update
+     * @param dto CodeDto to validate
+     * @return error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(CodeDto dto) {
+        StringBuilder missingFields = new StringBuilder();
+
+        if (dto.getCodeType() == null || dto.getCodeType().trim().isEmpty()) {
+            missingFields.append("codeType, ");
+        }
+
+        if (dto.getCode() == null || dto.getCode().trim().isEmpty()) {
+            missingFields.append("code, ");
+        }
+
+        if (dto.getShortDescription() == null || dto.getShortDescription().trim().isEmpty()) {
+            missingFields.append("shortDescription, ");
+        }
+
+        if (dto.getCategory() == null || dto.getCategory().trim().isEmpty()) {
+            missingFields.append("category, ");
+        }
+
+        if (dto.getFeeStandard() == null) {
+            missingFields.append("feeStandard, ");
+        }
+
+        if (!missingFields.isEmpty()) {
+            // Remove the trailing ", "
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields.toString();
+        }
+
+        return null;
     }
 }
