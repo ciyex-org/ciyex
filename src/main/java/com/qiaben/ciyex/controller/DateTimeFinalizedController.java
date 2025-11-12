@@ -153,6 +153,13 @@ public class DateTimeFinalizedController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody DateTimeFinalizedDto dto) {
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<DateTimeFinalizedDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         var saved = service.create(patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<DateTimeFinalizedDto>builder()
                 .success(true).message("Finalization created").data(saved).build());
@@ -165,6 +172,13 @@ public class DateTimeFinalizedController {
             @PathVariable Long encounterId,
             @PathVariable Long id,
             @RequestBody DateTimeFinalizedDto dto) {
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<DateTimeFinalizedDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         try {
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<DateTimeFinalizedDto>builder()
@@ -231,5 +245,42 @@ public class DateTimeFinalizedController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
+    }
+
+    /**
+     * Validates mandatory fields for DateTimeFinalized creation and update
+     * @param dto DateTimeFinalizedDto to validate
+     * @return error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(DateTimeFinalizedDto dto) {
+        StringBuilder missingFields = new StringBuilder();
+
+        if (dto.getTargetType() == null || dto.getTargetType().trim().isEmpty()) {
+            missingFields.append("targetType, ");
+        }
+
+        if (dto.getTargetId() == null) {
+            missingFields.append("targetId, ");
+        }
+
+        if (dto.getFinalizedBy() == null || dto.getFinalizedBy().trim().isEmpty()) {
+            missingFields.append("finalizedBy, ");
+        }
+
+        if (dto.getFinalizerRole() == null || dto.getFinalizerRole().trim().isEmpty()) {
+            missingFields.append("finalizerRole, ");
+        }
+
+        if (dto.getReason() == null || dto.getReason().trim().isEmpty()) {
+            missingFields.append("reason, ");
+        }
+
+        if (!missingFields.isEmpty()) {
+            // Remove the trailing comma and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
+        }
+
+        return null;
     }
 }

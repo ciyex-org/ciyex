@@ -114,6 +114,31 @@ public class ProviderSignatureController {
 
     private final ProviderSignatureService service;
 
+    /**
+     * Validates that all mandatory fields are present: signedBy, signerRole, signatureFormat, and comments.
+     * Throws IllegalArgumentException if any field is missing.
+     */
+    private void validateMandatoryFields(ProviderSignatureDto dto) {
+        List<String> missingFields = new java.util.ArrayList<>();
+
+        if (dto.getSignedBy() == null || dto.getSignedBy().trim().isEmpty()) {
+            missingFields.add("signedBy");
+        }
+        if (dto.getSignerRole() == null || dto.getSignerRole().trim().isEmpty()) {
+            missingFields.add("signerRole");
+        }
+        if (dto.getSignatureFormat() == null || dto.getSignatureFormat().trim().isEmpty()) {
+            missingFields.add("signatureFormat");
+        }
+        if (dto.getComments() == null || dto.getComments().trim().isEmpty()) {
+            missingFields.add("comments");
+        }
+
+        if (!missingFields.isEmpty()) {
+            throw new IllegalArgumentException("Missing mandatory fields: " + String.join(", ", missingFields));
+        }
+    }
+
     // LIST (card loads latest from this list)
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<ProviderSignatureDto>>> list(
@@ -147,9 +172,15 @@ public class ProviderSignatureController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody ProviderSignatureDto dto) {
-        var saved = service.create(patientId, encounterId, dto);
-        return ResponseEntity.ok(ApiResponse.<ProviderSignatureDto>builder()
-                .success(true).message("Provider signature saved").data(saved).build());
+        try {
+            validateMandatoryFields(dto);
+            var saved = service.create(patientId, encounterId, dto);
+            return ResponseEntity.ok(ApiResponse.<ProviderSignatureDto>builder()
+                    .success(true).message("Provider signature saved").data(saved).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<ProviderSignatureDto>builder().success(false).message(ex.getMessage()).build());
+        }
     }
 
     // eSign alias endpoint (same as create)
@@ -158,9 +189,15 @@ public class ProviderSignatureController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody ProviderSignatureDto dto) {
-        var saved = service.eSign(patientId, encounterId, dto);
-        return ResponseEntity.ok(ApiResponse.<ProviderSignatureDto>builder()
-                .success(true).message("Provider signature e-signed").data(saved).build());
+        try {
+            validateMandatoryFields(dto);
+            var saved = service.eSign(patientId, encounterId, dto);
+            return ResponseEntity.ok(ApiResponse.<ProviderSignatureDto>builder()
+                    .success(true).message("Provider signature e-signed").data(saved).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<ProviderSignatureDto>builder().success(false).message(ex.getMessage()).build());
+        }
     }
 
     // UPDATE
@@ -171,11 +208,12 @@ public class ProviderSignatureController {
             @PathVariable Long id,
             @RequestBody ProviderSignatureDto dto) {
         try {
+            validateMandatoryFields(dto);
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<ProviderSignatureDto>builder()
                     .success(true).message("Provider signature updated").data(saved).build());
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<ProviderSignatureDto>builder().success(false).message(ex.getMessage()).build());
         }
     }

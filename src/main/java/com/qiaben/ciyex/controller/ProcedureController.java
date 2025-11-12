@@ -55,8 +55,14 @@ public ResponseEntity<ApiResponse<List<ProcedureDto>>> getAllByPatient(@PathVari
     @PostMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<ProcedureDto>> create(
             @PathVariable Long patientId, @PathVariable Long encounterId, @RequestBody ProcedureDto dto) {
-        var created = service.create(patientId, encounterId, dto);
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<ProcedureDto>builder()
+                    .success(false).message(validationError).build());
+        }
 
+        var created = service.create(patientId, encounterId, dto);
 
         return ResponseEntity.ok(ApiResponse.<ProcedureDto>builder()
                 .success(true).message("Procedure created").data(created).build());
@@ -66,6 +72,13 @@ public ResponseEntity<ApiResponse<List<ProcedureDto>>> getAllByPatient(@PathVari
     public ResponseEntity<ApiResponse<ProcedureDto>> update(
             @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
             @RequestBody ProcedureDto dto) {
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<ProcedureDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         var updated = service.update(patientId, encounterId, id, dto);
         return ResponseEntity.ok(ApiResponse.<ProcedureDto>builder()
                 .success(true).message("Procedure updated").data(updated).build());
@@ -77,5 +90,34 @@ public ResponseEntity<ApiResponse<List<ProcedureDto>>> getAllByPatient(@PathVari
         service.delete(patientId, encounterId, id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .success(true).message("Procedure deleted").build());
+    }
+
+    /**
+     * Validates mandatory fields: cpt4, rate, and units
+     * @param dto ProcedureDto to validate
+     * @return error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(ProcedureDto dto) {
+        StringBuilder missingFields = new StringBuilder();
+
+        if (dto.getCpt4() == null || dto.getCpt4().trim().isEmpty()) {
+            missingFields.append("cpt4, ");
+        }
+
+        if (dto.getRate() == null || dto.getRate().trim().isEmpty()) {
+            missingFields.append("rate, ");
+        }
+
+        if (dto.getUnits() == null) {
+            missingFields.append("units, ");
+        }
+
+        if (!missingFields.isEmpty()) {
+            // Remove the trailing comma and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
+        }
+
+        return null;
     }
 }

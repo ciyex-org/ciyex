@@ -51,26 +51,41 @@ public class CodeDto {
     private String code;
     private String modifier;
     private Boolean active;
-
     private String description;
     private String shortDescription;
     private String category;
     private Boolean diagnosisReporting;
     private Boolean serviceReporting;
     private String relateTo;
-
     private Double feeStandard;     // UI expects number
 
-    // server-managed eSign/print state
     private Boolean eSigned;
     private String  signedAt;       // ISO-8601 string
     private String  signedBy;
     private String  printedAt;      // ISO-8601 string
 
     private Audit audit;
-    @Data
     public static class Audit {
         private String createdDate;      // yyyy-MM-dd
+
+        public String getCreatedDate() {
+            return createdDate;
+        }
+
+        public void setCreatedDate(String createdDate) {
+            this.createdDate = createdDate;
+        }
+
+        public String getLastModifiedDate() {
+            return lastModifiedDate;
+        }
+
+        public void setLastModifiedDate(String lastModifiedDate) {
+            this.lastModifiedDate = lastModifiedDate;
+        }
+
         private String lastModifiedDate; // yyyy-MM-dd
+
+
     }
 }

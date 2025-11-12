@@ -16,7 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/patients/{patientId}/documents")
+@RequestMapping("/api/documents/upload")
 @Slf4j
 public class DocumentController {
 
@@ -29,10 +29,23 @@ public class DocumentController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<DocumentDto>> upload(
-            @PathVariable Long patientId,
-            @RequestPart("dto") String dtoJson,
-            @RequestPart("file") MultipartFile file) {
+            @RequestPart(value = "patientId", required = false) Long patientId,
+            @RequestPart(value = "dto", required = false) String dtoJson,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
         try {
+            // Validate required fields
+            java.util.List<String> missing = new java.util.ArrayList<>();
+            if (patientId == null) missing.add("patientId");
+            if (dtoJson == null || dtoJson.isBlank()) missing.add("dto");
+            if (file == null || file.isEmpty()) missing.add("file");
+
+            if (!missing.isEmpty()) {
+                return ResponseEntity.badRequest().body(ApiResponse.<DocumentDto>builder()
+                        .success(false)
+                        .message("Missing required fields: " + String.join(", ", missing))
+                        .build());
+            }
+
             DocumentDto dto = objectMapper.readValue(dtoJson, DocumentDto.class);
             DocumentDto created = service.create(patientId, dto, file);
 
@@ -58,13 +71,12 @@ public class DocumentController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<DocumentDto>>> list(
-            @PathVariable Long patientId) {
+            @RequestParam Long patientId) {
         return ResponseEntity.ok(service.getAllForPatient(patientId));
     }
 
     @GetMapping("/{documentId}/download")
     public ResponseEntity<InputStreamResource> download(
-            @PathVariable Long patientId,
             @PathVariable Long documentId) {
         try {
             DownloadResult result = service.download(documentId);
@@ -86,7 +98,6 @@ public class DocumentController {
 
     @DeleteMapping("/{documentId}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long patientId,
             @PathVariable Long documentId) {
         try {
             service.delete(documentId);

@@ -106,6 +106,31 @@ public class ProviderNoteController {
 
     private final ProviderNoteService service;
 
+    /**
+     * Validates that all mandatory fields are present: subjective, objective, plan, and narrative.
+     * Throws IllegalArgumentException if any field is missing.
+     */
+    private void validateMandatoryFields(ProviderNoteDto dto) {
+        List<String> missingFields = new java.util.ArrayList<>();
+
+        if (dto.getSubjective() == null || dto.getSubjective().trim().isEmpty()) {
+            missingFields.add("subjective");
+        }
+        if (dto.getObjective() == null || dto.getObjective().trim().isEmpty()) {
+            missingFields.add("objective");
+        }
+        if (dto.getPlan() == null || dto.getPlan().trim().isEmpty()) {
+            missingFields.add("plan");
+        }
+        if (dto.getNarrative() == null || dto.getNarrative().trim().isEmpty()) {
+            missingFields.add("narrative");
+        }
+
+        if (!missingFields.isEmpty()) {
+            throw new IllegalArgumentException("Missing mandatory fields: " + String.join(", ", missingFields));
+        }
+    }
+
     // LIST
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<ProviderNoteDto>>> list(
@@ -138,9 +163,15 @@ public class ProviderNoteController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody ProviderNoteDto dto) {
-        var saved = service.create(patientId, encounterId, dto);
-        return ResponseEntity.ok(ApiResponse.<ProviderNoteDto>builder()
-                .success(true).message("Provider note created").data(saved).build());
+        try {
+            validateMandatoryFields(dto);
+            var saved = service.create(patientId, encounterId, dto);
+            return ResponseEntity.ok(ApiResponse.<ProviderNoteDto>builder()
+                    .success(true).message("Provider note created").data(saved).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<ProviderNoteDto>builder().success(false).message(ex.getMessage()).build());
+        }
     }
 
     // UPDATE (423 if signed)
@@ -151,6 +182,7 @@ public class ProviderNoteController {
             @PathVariable Long id,
             @RequestBody ProviderNoteDto dto) {
         try {
+            validateMandatoryFields(dto);
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<ProviderNoteDto>builder()
                     .success(true).message("Provider note updated").data(saved).build());
@@ -158,7 +190,7 @@ public class ProviderNoteController {
             return ResponseEntity.status(423)
                     .body(ApiResponse.<ProviderNoteDto>builder().success(false).message(ex.getMessage()).build());
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<ProviderNoteDto>builder().success(false).message(ex.getMessage()).build());
         }
     }
