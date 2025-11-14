@@ -4,11 +4,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.MessageAttachmentDto;
+import com.qiaben.ciyex.dto.integration.StorageConfig;
 import com.qiaben.ciyex.entity.MessageAttachment;
 import com.qiaben.ciyex.repository.MessageAttachmentRepository;
 import com.qiaben.ciyex.util.EncryptionUtil;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider.S3Config;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -84,17 +84,17 @@ public class MessageAttachmentService {
         }
 
         // 5. Upload to S3 (or store locally for testing)
-        S3Config s3Config;
+        StorageConfig.S3 s3Config;
         try {
             s3Config = configProvider.getS3DocumentStorage();
         } catch (Exception e) {
             // For testing/development, create a mock S3 config
             log.warn("S3 config not found for Tenant={}, using local storage for testing");
-            s3Config = new S3Config();
-            s3Config.setBucketName("test-bucket");
+            s3Config = new StorageConfig.S3();
+            s3Config.setBucket("test-bucket");
             s3Config.setRegion("us-east-1");
-            s3Config.setAccessKeyId("test-key");
-            s3Config.setSecretAccessKey("test-secret");
+            s3Config.setAccessKey("test-key");
+            s3Config.setSecretKey("test-secret");
         }
 
         String key = "message-attachments/" + "/" + messageId + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
@@ -145,17 +145,17 @@ public class MessageAttachmentService {
         MessageAttachment attachment = repository.findById(attachmentId)
                 .orElseThrow(() -> new RuntimeException("Message attachment not found"));
 
-        S3Config s3Config;
+        StorageConfig.S3 s3Config;
         try {
             s3Config = configProvider.getS3DocumentStorage();
         } catch (Exception e) {
             // For testing/development, create a mock S3 config
             log.warn("S3 config not found for Tenant={}, using local storage for testing");
-            s3Config = new S3Config();
-            s3Config.setBucketName("test-bucket");
+            s3Config = new StorageConfig.S3();
+            s3Config.setBucket("test-bucket");
             s3Config.setRegion("us-east-1");
-            s3Config.setAccessKeyId("test-key");
-            s3Config.setSecretAccessKey("test-secret");
+            s3Config.setAccessKey("test-key");
+            s3Config.setSecretKey("test-secret");
         }
 
         // For testing, we'll skip actual S3 delete
@@ -182,17 +182,17 @@ public class MessageAttachmentService {
         MessageAttachment attachment = repository.findById(attachmentId)
                 .orElseThrow(() -> new RuntimeException("Message attachment not found"));
 
-        S3Config s3Config;
+        StorageConfig.S3 s3Config;
         try {
             s3Config = configProvider.getS3DocumentStorage();
         } catch (Exception e) {
             // For testing/development, create a mock S3 config
             log.warn("S3 config not found for Tenant={}, using local storage for testing");
-            s3Config = new S3Config();
-            s3Config.setBucketName("test-bucket");
+            s3Config = new StorageConfig.S3();
+            s3Config.setBucket("test-bucket");
             s3Config.setRegion("us-east-1");
-            s3Config.setAccessKeyId("test-key");
-            s3Config.setSecretAccessKey("test-secret");
+            s3Config.setAccessKey("test-key");
+            s3Config.setSecretKey("test-secret");
         }
 
         // For testing, we'll return a dummy file since we didn't actually upload to S3
@@ -258,7 +258,7 @@ public class MessageAttachmentService {
         return mapToDto(attachment);
     }
 
-    private S3Client buildS3Client(S3Config cfg) {
+    private S3Client buildS3Client(StorageConfig.S3 cfg) {
         return S3Client.builder()
                 .region(software.amazon.awssdk.regions.Region.of(cfg.getRegion()))
                 .credentialsProvider(

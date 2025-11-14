@@ -5,13 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.DocumentDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.dto.integration.StorageConfig;
 import com.qiaben.ciyex.entity.Document;
 import com.qiaben.ciyex.entity.DocumentSettings;
 import com.qiaben.ciyex.repository.DocumentRepository;
 import com.qiaben.ciyex.repository.DocumentSettingsRepo;
 import com.qiaben.ciyex.util.EncryptionUtil;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider.S3Config;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +27,6 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import javax.crypto.SecretKey;
 import java.io.InputStream;
 import java.security.SecureRandom;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -49,7 +48,7 @@ public class DocumentService {
     }
 
     @Transactional
-    public DocumentDto create(Long patientId, DocumentDto dto, MultipartFile file) {
+    public DocumentDto create(String tenantName, Long patientId, DocumentDto dto, MultipartFile file) {
         // 1. Load document settings for org
         DocumentSettings settings = settingsRepo.findFirstByOrderByIdAsc()
                 .orElseThrow(() -> new RuntimeException("Document settings not configured"));
@@ -99,10 +98,13 @@ public class DocumentService {
         }
 
         // 6. Upload to S3
-        S3Config s3Config = configProvider.getS3DocumentStorage();
+        StorageConfig.S3 s3Config = configProvider.getS3DocumentStorage();
+        if (s3Config == null) {
+            throw new RuntimeException("S3 document storage is not configured");
+        }
         S3Client s3 = buildS3Client(s3Config);
 
-        String key = "documents/" + RequestContext.get().getTenantName() + "/" + patientId + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
+        String key = tenantName + "/documents/" + patientId + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
         try {
             s3.putObject(
                     PutObjectRequest.builder()
@@ -125,13 +127,14 @@ public class DocumentService {
         dto.setS3Key(key);
 
         Document entity = mapToEntity(dto);
+        entity.setTenantName(tenantName); // Save tenant name from header
         entity.setEncryptionKey(base64Key);
-        entity.setIv(base64Iv);
+        entity.setInitializationVector(base64Iv);
 
         repository.save(entity);
         dto.setId(entity.getId());
         dto.setContent(null);
-        dto.setEncrypted(entity.getEncryptionKey() != null && entity.getIv() != null);
+        dto.setEncrypted(entity.getEncryptionKey() != null && entity.getInitializationVector() != null);
         return dto;
     }
 
@@ -140,7 +143,10 @@ public class DocumentService {
         Document document = repository.findById(documentId)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        S3Config s3Config = configProvider.getS3DocumentStorage();
+        StorageConfig.S3 s3Config = configProvider.getS3DocumentStorage();
+        if (s3Config == null) {
+            throw new RuntimeException("S3 document storage is not configured");
+        }
         S3Client s3 = buildS3Client(s3Config);
 
         try {
@@ -161,7 +167,10 @@ public class DocumentService {
         Document document = repository.findById(documentId)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        S3Config s3Config = configProvider.getS3DocumentStorage();
+        StorageConfig.S3 s3Config = configProvider.getS3DocumentStorage();
+        if (s3Config == null) {
+            throw new RuntimeException("S3 document storage is not configured");
+        }
         S3Client s3 = buildS3Client(s3Config);
 
         try (InputStream is = s3.getObject(GetObjectRequest.builder()
@@ -172,11 +181,11 @@ public class DocumentService {
             byte[] fileBytes = is.readAllBytes();
 
             // 🔑 decrypt if metadata exists
-            if (document.getEncryptionKey() != null && document.getIv() != null) {
+            if (document.getEncryptionKey() != null && document.getInitializationVector() != null) {
                 try {
                     byte[] decodedKey = Base64.getDecoder().decode(document.getEncryptionKey());
                     SecretKey key = EncryptionUtil.fromBytes(decodedKey);
-                    byte[] iv = Base64.getDecoder().decode(document.getIv());
+                    byte[] iv = Base64.getDecoder().decode(document.getInitializationVector());
 
                     fileBytes = EncryptionUtil.decrypt(fileBytes, key, iv);
                     log.info("Decrypted file before sending: {}", document.getFileName());
@@ -198,7 +207,20 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public ApiResponse<List<DocumentDto>> getAllForPatient(Long patientId) {
+        return getAllForPatient(null, patientId);
+    }
+
+    @Transactional(readOnly = true)
+    public ApiResponse<List<DocumentDto>> getAllForPatient(String tenantName, Long patientId) {
         List<Document> documents = repository.findAllByPatientId(patientId);
+
+        // Filter by tenantName if provided
+        if (tenantName != null && !tenantName.isBlank()) {
+            documents = documents.stream()
+                    .filter(doc -> tenantName.equals(doc.getTenantName()))
+                    .collect(Collectors.toList());
+        }
+
         List<DocumentDto> dtos = documents.stream().map(this::mapToDto).collect(Collectors.toList());
         return ApiResponse.<List<DocumentDto>>builder()
                 .success(true)
@@ -207,7 +229,29 @@ public class DocumentService {
                 .build();
     }
 
-    private S3Client buildS3Client(S3Config cfg) {
+    @Transactional(readOnly = true)
+    public ApiResponse<List<DocumentDto>> getAllByTenantName(String tenantName) {
+        List<Document> documents;
+
+        if (tenantName != null && !tenantName.isBlank()) {
+            // Get all documents and filter by tenantName
+            documents = repository.findAll().stream()
+                    .filter(doc -> tenantName.equals(doc.getTenantName()))
+                    .collect(Collectors.toList());
+        } else {
+            // If no tenant name provided, return all documents
+            documents = repository.findAll();
+        }
+
+        List<DocumentDto> dtos = documents.stream().map(this::mapToDto).collect(Collectors.toList());
+        return ApiResponse.<List<DocumentDto>>builder()
+                .success(true)
+                .message("Documents retrieved successfully")
+                .data(dtos)
+                .build();
+    }
+
+    private S3Client buildS3Client(StorageConfig.S3 cfg) {
         return S3Client.builder()
                 .region(software.amazon.awssdk.regions.Region.of(cfg.getRegion()))
                 .credentialsProvider(
@@ -243,7 +287,7 @@ public class DocumentService {
         dto.setS3Bucket(entity.getS3Bucket());
         dto.setS3Key(entity.getS3Key());
         // infer encryption flag
-        dto.setEncrypted(entity.getEncryptionKey() != null && entity.getIv() != null);
+        dto.setEncrypted(entity.getEncryptionKey() != null && entity.getInitializationVector() != null);
         return dto;
     }
 

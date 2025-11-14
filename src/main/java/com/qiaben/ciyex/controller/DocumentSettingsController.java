@@ -73,4 +73,29 @@ public class DocumentSettingsController {
                     .success(false).message(e.getMessage()).build());
         }
     }
+
+    @DeleteMapping("/categories/{name}")
+    public ResponseEntity<ApiResponse<List<DocumentSettingsDto.Category>>> deleteCategory(
+            @PathVariable String name) {
+        try {
+            var data = service.deleteCategory(name, "admin");
+            return ResponseEntity.ok(ApiResponse.<List<DocumentSettingsDto.Category>>builder()
+                    .success(true).message("Category deleted: " + name).data(data).build());
+        } catch (Exception e) {
+            return ResponseEntity.ok(ApiResponse.<List<DocumentSettingsDto.Category>>builder()
+                    .success(false).message(e.getMessage()).build());
+        }
+    }
+
+    @DeleteMapping("/categories")
+    public ResponseEntity<ApiResponse<List<DocumentSettingsDto.Category>>> deleteAllCategories() {
+        try {
+            var data = service.deleteAllCategories("admin");
+            return ResponseEntity.ok(ApiResponse.<List<DocumentSettingsDto.Category>>builder()
+                    .success(true).message("All categories deleted").data(data).build());
+        } catch (Exception e) {
+            return ResponseEntity.ok(ApiResponse.<List<DocumentSettingsDto.Category>>builder()
+                    .success(false).message(e.getMessage()).build());
+        }
+    }
 }

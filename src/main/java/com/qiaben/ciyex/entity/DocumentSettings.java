@@ -8,7 +8,7 @@ import java.time.Instant;
 @Entity
 @Table(
         name = "document_settings",
-        uniqueConstraints = @UniqueConstraint(name = "uq_document_settings_org", columnNames = "org_id")
+        uniqueConstraints = @UniqueConstraint(name = "uq_document_settings_org", columnNames = "id")
 )
 @Getter
 @Setter
@@ -21,8 +21,6 @@ public class DocumentSettings extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
-
-    
 
     @Column(name = "max_upload_bytes", nullable = false)
     private long maxUploadBytes;
