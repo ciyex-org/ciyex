@@ -19,6 +19,7 @@ public class Document extends AuditableEntity {
     private String contentType;
     private String description;
     private String fhirExternalId;
+    private String tenantName; // Tenant name from X-Tenant-Name header, nullable
     // audit fields are provided by AuditableEntity
 
     // S3 details
@@ -28,5 +29,5 @@ public class Document extends AuditableEntity {
     // Encryption metadata (Base64 encoded)
     @Column(length = 512)
     private String encryptionKey;
-    private String iv;
+    private String initializationVector; // IV for AES encryption
 }

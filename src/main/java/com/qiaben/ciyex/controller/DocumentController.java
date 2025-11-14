@@ -29,12 +29,14 @@ public class DocumentController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<DocumentDto>> upload(
-            @RequestPart(value = "patientId", required = false) Long patientId,
-            @RequestPart(value = "dto", required = false) String dtoJson,
-            @RequestPart(value = "file", required = false) MultipartFile file) {
+            @RequestHeader(value = "X-Tenant-Name", required = false) String tenantName,
+            @RequestParam(value = "patientId", required = false) Long patientId,
+            @RequestParam(value = "dto", required = false) String dtoJson,
+            @RequestParam(value = "file", required = false) MultipartFile file) {
         try {
             // Validate required fields
             java.util.List<String> missing = new java.util.ArrayList<>();
+            if (tenantName == null || tenantName.isBlank()) missing.add("X-Tenant-Name header");
             if (patientId == null) missing.add("patientId");
             if (dtoJson == null || dtoJson.isBlank()) missing.add("dto");
             if (file == null || file.isEmpty()) missing.add("file");
@@ -47,7 +49,7 @@ public class DocumentController {
             }
 
             DocumentDto dto = objectMapper.readValue(dtoJson, DocumentDto.class);
-            DocumentDto created = service.create(patientId, dto, file);
+            DocumentDto created = service.create(tenantName, patientId, dto, file);
 
             return ResponseEntity.ok(ApiResponse.<DocumentDto>builder()
                     .success(true)
@@ -71,8 +73,15 @@ public class DocumentController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<DocumentDto>>> list(
-            @RequestParam Long patientId) {
-        return ResponseEntity.ok(service.getAllForPatient(patientId));
+            @RequestHeader(value = "X-Tenant-Name", required = false) String tenantName) {
+        return ResponseEntity.ok(service.getAllByTenantName(tenantName));
+    }
+
+    @GetMapping("/patient/{patientId}")
+    public ResponseEntity<ApiResponse<List<DocumentDto>>> getByPatientId(
+            @RequestHeader(value = "X-Tenant-Name", required = false) String tenantName,
+            @PathVariable Long patientId) {
+        return ResponseEntity.ok(service.getAllForPatient(tenantName, patientId));
     }
 
     @GetMapping("/{documentId}/download")
