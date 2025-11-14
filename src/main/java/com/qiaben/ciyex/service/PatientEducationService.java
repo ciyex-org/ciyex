@@ -33,6 +33,9 @@ public class PatientEducationService {
 
     @Transactional
     public PatientEducationDto create(PatientEducationDto dto) {
+        // Validate mandatory fields
+        validateMandatoryFields(dto);
+        
         PatientEducation entity = mapToEntity(dto);
 
 
@@ -45,6 +48,32 @@ public class PatientEducationService {
         entity.setExternalId(externalId);
 
         return mapToDto(repository.save(entity));
+    }
+    
+    private void validateMandatoryFields(PatientEducationDto dto) {
+        StringBuilder errors = new StringBuilder();
+        
+        if (dto.getTitle() == null || dto.getTitle().trim().isEmpty()) {
+            errors.append("title, ");
+        }
+        if (dto.getCategory() == null || dto.getCategory().trim().isEmpty()) {
+            errors.append("category, ");
+        }
+        if (dto.getLanguage() == null || dto.getLanguage().trim().isEmpty()) {
+            errors.append("language, ");
+        }
+        if (dto.getReadingLevel() == null || dto.getReadingLevel().trim().isEmpty()) {
+            errors.append("readingLevel, ");
+        }
+        if (dto.getContent() == null || dto.getContent().trim().isEmpty()) {
+            errors.append("content, ");
+        }
+        
+        if (errors.length() > 0) {
+            // Remove trailing comma and space
+            String missingFields = errors.substring(0, errors.length() - 2);
+            throw new IllegalArgumentException("Missing mandatory fields: " + missingFields);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -72,7 +101,9 @@ public class PatientEducationService {
 
     @Transactional
     public void delete(Long id) {
-        repository.deleteById(id);
+        PatientEducation entity = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Patient education not found with id: " + id));
+        repository.delete(entity);
     }
 
     @Transactional(readOnly = true)
