@@ -29,6 +29,12 @@ public class MedicationRequestController {
                     .message("Medication request created successfully")
                     .data(created)
                     .build());
+        } catch (IllegalArgumentException e) {
+            log.error("Validation failed for medication request", e);
+            return ResponseEntity.badRequest().body(ApiResponse.<MedicationRequestDto>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
         } catch (Exception e) {
             log.error("Failed to create medication request", e);
             return ResponseEntity.ok(ApiResponse.<MedicationRequestDto>builder()

@@ -21,12 +21,19 @@ public class PatientEducationController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<PatientEducationDto>> create(@RequestBody PatientEducationDto dto) {
-        PatientEducationDto created = service.create(dto);
-        return ResponseEntity.ok(ApiResponse.<PatientEducationDto>builder()
-                .success(true)
-                .message("Patient education created successfully")
-                .data(created)
-                .build());
+        try {
+            PatientEducationDto created = service.create(dto);
+            return ResponseEntity.ok(ApiResponse.<PatientEducationDto>builder()
+                    .success(true)
+                    .message("Patient education created successfully")
+                    .data(created)
+                    .build());
+        } catch (Exception e) {
+            return ResponseEntity.ok(ApiResponse.<PatientEducationDto>builder()
+                    .success(false)
+                    .message("Failed to create patient education: " + e.getMessage())
+                    .build());
+        }
     }
 
     @GetMapping("/{id}")
@@ -49,12 +56,20 @@ public class PatientEducationController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
-        service.delete(id);
-        return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .success(true)
-                .message("Patient education deleted successfully")
-                .data(null)
-                .build());
+        try {
+            service.delete(id);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(true)
+                    .message("Patient education deleted successfully")
+                    .data(null)
+                    .build());
+        } catch (Exception e) {
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(false)
+                    .message("Failed to delete patient education: " + e.getMessage())
+                    .data(null)
+                    .build());
+        }
     }
 
     @GetMapping

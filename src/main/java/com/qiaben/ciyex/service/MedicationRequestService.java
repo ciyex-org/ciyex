@@ -26,11 +26,34 @@ public class MedicationRequestService {
 
     @Transactional
     public MedicationRequestDto create(MedicationRequestDto dto) {
+        // Validate mandatory fields
+        validateMandatoryFields(dto);
+        
         MedicationRequest entity = mapToEntity(dto);
         String currentDate = LocalDateTime.now().format(DATE_FORMATTER);
 
         MedicationRequest savedEntity = repository.save(entity);
         return mapToDto(savedEntity);
+    }
+    
+    private void validateMandatoryFields(MedicationRequestDto dto) {
+        StringBuilder errors = new StringBuilder();
+        
+        if (dto.getPatientId() == null) {
+            errors.append("patientId, ");
+        }
+        if (dto.getEncounterId() == null) {
+            errors.append("encounterId, ");
+        }
+        if (dto.getMedicationName() == null || dto.getMedicationName().trim().isEmpty()) {
+            errors.append("medicationName, ");
+        }
+        
+        if (errors.length() > 0) {
+            // Remove trailing comma and space
+            String missingFields = errors.substring(0, errors.length() - 2);
+            throw new IllegalArgumentException("Missing mandatory fields: " + missingFields);
+        }
     }
 
     @Transactional(readOnly = true)
