@@ -23,11 +23,27 @@ public class SupplierController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<SupplierDto>> create(@RequestBody SupplierDto dto) {
-        return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
-                .success(true)
-                .message("Supplier created successfully")
-                .data(service.create(dto))
-                .build());
+        try {
+            // Validate mandatory fields
+            String validationError = validateMandatoryFields(dto);
+            if (validationError != null) {
+                return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
+                        .success(false)
+                        .message(validationError)
+                        .build());
+            }
+
+            return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
+                    .success(true)
+                    .message("Supplier created successfully")
+                    .data(service.create(dto))
+                    .build());
+        } catch (Exception e) {
+            return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
+                    .success(false)
+                    .message("Failed to create supplier: " + e.getMessage())
+                    .build());
+        }
     }
 
     @GetMapping("/{id}")
@@ -41,11 +57,27 @@ public class SupplierController {
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<SupplierDto>> update(@PathVariable Long id, @RequestBody SupplierDto dto) {
-        return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
-                .success(true)
-                .message("Supplier updated successfully")
-                .data(service.update(id, dto))
-                .build());
+        try {
+            // Validate mandatory fields
+            String validationError = validateMandatoryFields(dto);
+            if (validationError != null) {
+                return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
+                        .success(false)
+                        .message(validationError)
+                        .build());
+            }
+
+            return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
+                    .success(true)
+                    .message("Supplier updated successfully")
+                    .data(service.update(id, dto))
+                    .build());
+        } catch (Exception e) {
+            return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
+                    .success(false)
+                    .message("Failed to update supplier: " + e.getMessage())
+                    .build());
+        }
     }
 
     @DeleteMapping("/{id}")
@@ -73,6 +105,39 @@ public class SupplierController {
                 .message("Supplier count retrieved successfully")
                 .data(service.countByOrg())
                 .build());
+    }
+
+    /**
+     * Validates mandatory fields for Supplier creation and update
+     * @param dto SupplierDto to validate
+     * @return error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(SupplierDto dto) {
+        StringBuilder missingFields = new StringBuilder();
+
+        if (dto.getName() == null || dto.getName().trim().isEmpty()) {
+            missingFields.append("name, ");
+        }
+
+        if (dto.getContact() == null || dto.getContact().trim().isEmpty()) {
+            missingFields.append("contact, ");
+        }
+
+        if (dto.getPhone() == null || dto.getPhone().trim().isEmpty()) {
+            missingFields.append("phone, ");
+        }
+
+        if (dto.getEmail() == null || dto.getEmail().trim().isEmpty()) {
+            missingFields.append("email, ");
+        }
+
+        if (!missingFields.isEmpty()) {
+            // Remove the trailing comma and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
+        }
+
+        return null;
     }
 
 }

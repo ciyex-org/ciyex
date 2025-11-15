@@ -23,11 +23,27 @@ public class OrdersController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<OrderDto>> create(@RequestBody OrderDto dto) {
-        return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
-                .success(true)
-                .message("Order created successfully")
-                .data(service.create(dto))
-                .build());
+        try {
+            // Validate mandatory fields
+            String validationError = validateMandatoryFields(dto);
+            if (validationError != null) {
+                return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
+                        .success(false)
+                        .message(validationError)
+                        .build());
+            }
+
+            return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
+                    .success(true)
+                    .message("Order created successfully")
+                    .data(service.create(dto))
+                    .build());
+        } catch (Exception e) {
+            return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
+                    .success(false)
+                    .message("Failed to create order: " + e.getMessage())
+                    .build());
+        }
     }
 
     @GetMapping("/{id}")
@@ -41,11 +57,27 @@ public class OrdersController {
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<OrderDto>> update(@PathVariable Long id, @RequestBody OrderDto dto) {
-        return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
-                .success(true)
-                .message("Order updated successfully")
-                .data(service.update(id, dto))
-                .build());
+        try {
+            // Validate mandatory fields
+            String validationError = validateMandatoryFields(dto);
+            if (validationError != null) {
+                return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
+                        .success(false)
+                        .message(validationError)
+                        .build());
+            }
+
+            return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
+                    .success(true)
+                    .message("Order updated successfully")
+                    .data(service.update(id, dto))
+                    .build());
+        } catch (Exception e) {
+            return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
+                    .success(false)
+                    .message("Failed to update order: " + e.getMessage())
+                    .build());
+        }
     }
 
     @DeleteMapping("/{id}")
@@ -99,5 +131,41 @@ public class OrdersController {
                 .build());
     }
 
+    /**
+     * Validates mandatory fields for Order creation and update
+     * @param dto OrderDto to validate
+     * @return error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(OrderDto dto) {
+        StringBuilder missingFields = new StringBuilder();
+
+        if (dto.getOrderNumber() == null || dto.getOrderNumber().trim().isEmpty()) {
+            missingFields.append("orderNumber, ");
+        }
+
+        if (dto.getSupplier() == null || dto.getSupplier().trim().isEmpty()) {
+            missingFields.append("supplier, ");
+        }
+
+        if (dto.getStatus() == null || dto.getStatus().trim().isEmpty()) {
+            missingFields.append("status, ");
+        }
+
+        if (dto.getItemName() == null || dto.getItemName().trim().isEmpty()) {
+            missingFields.append("itemName, ");
+        }
+
+        if (dto.getCategory() == null || dto.getCategory().trim().isEmpty()) {
+            missingFields.append("category, ");
+        }
+
+        if (!missingFields.isEmpty()) {
+            // Remove the trailing comma and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
+        }
+
+        return null;
+    }
 
 }

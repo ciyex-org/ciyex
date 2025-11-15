@@ -74,6 +74,33 @@ public class CommunicationController {
         }
     }
 
+    /* ------------------- GET CONVERSATION ------------------- */
+    @GetMapping("/conversation")
+    public ResponseEntity<ApiResponse<List<CommunicationDto>>> getConversation(
+            @RequestParam Long patientId,
+            @RequestParam Long providerId) {
+        try {
+            RequestContext ctx = new RequestContext();
+            RequestContext.set(ctx);
+
+            List<CommunicationDto> conversation = service.getConversation(patientId, providerId);
+            return ResponseEntity.ok(ApiResponse.<List<CommunicationDto>>builder()
+                    .success(true)
+                    .message("Conversation retrieved successfully")
+                    .data(conversation)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve conversation for patient {} and provider {}: {}",
+                    patientId, providerId, e.getMessage(), e);
+            return ResponseEntity.ok(ApiResponse.<List<CommunicationDto>>builder()
+                    .success(false)
+                    .message("Failed to retrieve conversation: " + e.getMessage())
+                    .build());
+        } finally {
+            RequestContext.clear();
+        }
+    }
+
     /* ------------------- GET ONE ------------------- */
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<CommunicationDto>> getOne(
@@ -132,7 +159,7 @@ public class CommunicationController {
     }
 
     /* ------------------- ARCHIVE ------------------- */
-    @PutMapping("/archive/{id}")
+    @PutMapping("/{id}/archive")
     public ResponseEntity<ApiResponse<CommunicationDto>> archive(
             @PathVariable Long id) {
         try {
@@ -159,7 +186,7 @@ public class CommunicationController {
     }
 
     /* ------------------- RESTORE ------------------- */
-    @PutMapping("/restore/{id}")
+    @PutMapping("/{id}/restore")
     public ResponseEntity<ApiResponse<CommunicationDto>> restore(
             @PathVariable Long id) {
         try {
@@ -179,6 +206,32 @@ public class CommunicationController {
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
                     .success(false)
                     .message("Failed to restore Communication: " + e.getMessage())
+                    .build());
+        } finally {
+            RequestContext.clear();
+        }
+    }
+
+    /* ------------------- MARK AS READ ------------------- */
+    @PutMapping("/{id}/read")
+    public ResponseEntity<ApiResponse<CommunicationDto>> markAsRead(
+            @PathVariable Long id,
+            @RequestParam String readBy) {
+        try {
+            RequestContext ctx = new RequestContext();
+            RequestContext.set(ctx);
+
+            CommunicationDto dto = service.markAsRead(id, readBy);
+            return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
+                    .success(true)
+                    .message("Communication marked as read")
+                    .data(dto)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to mark communication {} as read: {}", id, e.getMessage(), e);
+            return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
+                    .success(false)
+                    .message("Failed to mark as read: " + e.getMessage())
                     .build());
         } finally {
             RequestContext.clear();

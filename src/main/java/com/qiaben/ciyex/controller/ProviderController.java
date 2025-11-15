@@ -30,6 +30,17 @@ public class ProviderController {
     @PostMapping
     public ResponseEntity<ApiResponse<ProviderDto>> create(@RequestBody ProviderDto dto) {
         try {
+            // Validate mandatory fields
+            String validationError = validateMandatoryFields(dto);
+            if (validationError != null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.<ProviderDto>builder()
+                                .success(false)
+                                .message(validationError)
+                                .data(null)
+                                .build());
+            }
+
             ProviderDto createdProvider = service.create(dto);
             return ResponseEntity.ok(
                     ApiResponse.<ProviderDto>builder()
@@ -87,6 +98,17 @@ public class ProviderController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<ProviderDto>> update(@PathVariable Long id, @RequestBody ProviderDto dto) {
         try {
+            // Validate mandatory fields
+            String validationError = validateMandatoryFields(dto);
+            if (validationError != null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.<ProviderDto>builder()
+                                .success(false)
+                                .message(validationError)
+                                .data(null)
+                                .build());
+            }
+
             ProviderDto updatedProvider = service.update(id, dto);
             if (updatedProvider == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -266,6 +288,71 @@ public class ProviderController {
     @Data
     public static class StatusUpdateRequest {
         private ProviderStatus status;
+    }
+
+    /**
+     * Validates mandatory fields for Provider creation and update
+     * @param dto ProviderDto to validate
+     * @return error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(ProviderDto dto) {
+        StringBuilder missingFields = new StringBuilder();
+
+        // Validate Identification fields
+        if (dto.getIdentification() == null) {
+            missingFields.append("identification object, ");
+        } else {
+            ProviderDto.Identification identification = dto.getIdentification();
+            if (identification.getFirstName() == null || identification.getFirstName().trim().isEmpty()) {
+                missingFields.append("firstName, ");
+            }
+            if (identification.getLastName() == null || identification.getLastName().trim().isEmpty()) {
+                missingFields.append("lastName, ");
+            }
+            if (identification.getGender() == null || identification.getGender().trim().isEmpty()) {
+                missingFields.append("gender, ");
+            }
+            if (identification.getDateOfBirth() == null || identification.getDateOfBirth().trim().isEmpty()) {
+                missingFields.append("dateOfBirth, ");
+            }
+        }
+
+        // Validate Contact fields
+        if (dto.getContact() == null) {
+            missingFields.append("contact object, ");
+        } else {
+            ProviderDto.Contact contact = dto.getContact();
+            if (contact.getEmail() == null || contact.getEmail().trim().isEmpty()) {
+                missingFields.append("email, ");
+            }
+            if (contact.getMobileNumber() == null || contact.getMobileNumber().trim().isEmpty()) {
+                missingFields.append("mobileNumber, ");
+            }
+            if (contact.getAddress() == null) {
+                missingFields.append("address, ");
+            }
+        }
+
+        // Validate Professional Details fields
+        if (dto.getProfessionalDetails() == null) {
+            missingFields.append("professionalDetails object, ");
+        } else {
+            ProviderDto.ProfessionalDetails professionalDetails = dto.getProfessionalDetails();
+            if (professionalDetails.getSpecialty() == null || professionalDetails.getSpecialty().trim().isEmpty()) {
+                missingFields.append("specialty, ");
+            }
+            if (professionalDetails.getProviderType() == null || professionalDetails.getProviderType().trim().isEmpty()) {
+                missingFields.append("providerType, ");
+            }
+        }
+
+        if (!missingFields.isEmpty()) {
+            // Remove the trailing comma and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
+        }
+
+        return null;
     }
 
 }

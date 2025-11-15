@@ -25,6 +25,15 @@ public class MedicalProblemController {
     public ResponseEntity<ApiResponse<MedicalProblemDto>> create(
             @RequestBody MedicalProblemDto dto) {
         try {
+            // ✅ Validate mandatory fields before processing
+            String validationError = validateMandatoryFields(dto);
+            if (validationError != null) {
+                return ResponseEntity.ok(ApiResponse.<MedicalProblemDto>builder()
+                        .success(false)
+                        .message(validationError)
+                        .build());
+            }
+
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
@@ -66,6 +75,15 @@ public class MedicalProblemController {
             @PathVariable Long patientId,
             @RequestBody MedicalProblemDto dto) {
         try {
+            // ✅ Validate mandatory fields before processing
+            String validationError = validateMandatoryFields(dto);
+            if (validationError != null) {
+                return ResponseEntity.ok(ApiResponse.<MedicalProblemDto>builder()
+                        .success(false)
+                        .message(validationError)
+                        .build());
+            }
+
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated upstream.
             RequestContext.set(ctx);
@@ -123,6 +141,15 @@ public class MedicalProblemController {
             @PathVariable Long patientId, @PathVariable Long problemId,
             @RequestBody MedicalProblemDto.MedicalProblemItem patch) {
         try {
+            // ✅ Validate mandatory fields for the individual item
+            String validationError = validateMandatoryFields(patch);
+            if (validationError != null) {
+                return ResponseEntity.ok(ApiResponse.<MedicalProblemDto.MedicalProblemItem>builder()
+                        .success(false)
+                        .message(validationError)
+                        .build());
+            }
+
             RequestContext ctx = new RequestContext(); /* orgId deprecated */ RequestContext.set(ctx);
             var updated = service.updateItem(patientId, problemId, patch);
             return ResponseEntity.ok(ApiResponse.<MedicalProblemDto.MedicalProblemItem>builder()
@@ -159,5 +186,90 @@ public class MedicalProblemController {
             return ResponseEntity.ok(ApiResponse.<List<MedicalProblemDto>>builder()
                     .success(false).message("Failed to retrieve Medical Problems: " + e.getMessage()).build());
         } finally { RequestContext.clear(); }
+    }
+
+    /**
+     * Validates mandatory fields for Medical Problem items.
+     * Required fields: title, outcome, verificationStatus, occurrence
+     *
+     * @param dto The MedicalProblemDto to validate
+     * @return Error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(MedicalProblemDto dto) {
+        if (dto.getProblemsList() == null || dto.getProblemsList().isEmpty()) {
+            return "At least one medical problem item is required";
+        }
+
+        StringBuilder missingFields = new StringBuilder();
+
+        for (int i = 0; i < dto.getProblemsList().size(); i++) {
+            MedicalProblemDto.MedicalProblemItem item = dto.getProblemsList().get(i);
+            StringBuilder itemErrors = new StringBuilder();
+
+            if (item.getTitle() == null || item.getTitle().trim().isEmpty()) {
+                itemErrors.append("title, ");
+            }
+
+            if (item.getOutcome() == null || item.getOutcome().trim().isEmpty()) {
+                itemErrors.append("outcome, ");
+            }
+
+            if (item.getVerificationStatus() == null || item.getVerificationStatus().trim().isEmpty()) {
+                itemErrors.append("verificationStatus, ");
+            }
+
+            if (item.getOccurrence() == null || item.getOccurrence().trim().isEmpty()) {
+                itemErrors.append("occurrence, ");
+            }
+
+            if (itemErrors.length() > 0) {
+                // Remove the trailing comma and space
+                itemErrors.setLength(itemErrors.length() - 2);
+                missingFields.append("Item ").append(i + 1).append(" missing: ").append(itemErrors).append("; ");
+            }
+        }
+
+        if (missingFields.length() > 0) {
+            // Remove the trailing semicolon and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
+        }
+
+        return null;
+    }
+
+    /**
+     * Validates mandatory fields for a single Medical Problem item.
+     * Required fields: title, outcome, verificationStatus, occurrence
+     *
+     * @param item The MedicalProblemItem to validate
+     * @return Error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(MedicalProblemDto.MedicalProblemItem item) {
+        StringBuilder missingFields = new StringBuilder();
+
+        if (item.getTitle() == null || item.getTitle().trim().isEmpty()) {
+            missingFields.append("title, ");
+        }
+
+        if (item.getOutcome() == null || item.getOutcome().trim().isEmpty()) {
+            missingFields.append("outcome, ");
+        }
+
+        if (item.getVerificationStatus() == null || item.getVerificationStatus().trim().isEmpty()) {
+            missingFields.append("verificationStatus, ");
+        }
+
+        if (item.getOccurrence() == null || item.getOccurrence().trim().isEmpty()) {
+            missingFields.append("occurrence, ");
+        }
+
+        if (missingFields.length() > 0) {
+            // Remove the trailing comma and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
+        }
+
+        return null;
     }
 }

@@ -41,6 +41,7 @@ public class CommunicationDto {
 
     // ✅ Message type differentiation
     private String messageType;    // "provider_to_patient" or "patient_to_provider"
+    private String fromType;       // "provider" or "patient" - matches frontend expectation
 
     // ✅ Read tracking fields
     private String readAt;         // When the message was read
