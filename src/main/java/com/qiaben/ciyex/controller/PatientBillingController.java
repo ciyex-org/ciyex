@@ -124,6 +124,27 @@ public class PatientBillingController {
         return ResponseEntity.ok(ApiResponse.ok("Invoice created", data));
     }
 
+    /** Update invoice from procedure (JSON body) */
+    @PutMapping("/invoices/{invoiceId}")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> updateInvoiceFromProcedure(
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @RequestBody PatientBillingService.UpdateInvoiceRequest body) {
+
+        var data = service.updateInvoiceFromProcedure(patientId, invoiceId, body);
+        return ResponseEntity.ok(ApiResponse.ok("Invoice updated", data));
+    }
+
+    /** Get invoice lines for a specific invoice */
+    @GetMapping("/invoices/{invoiceId}/lines")
+    public ResponseEntity<ApiResponse<List<PatientInvoiceLineDto>>> getInvoiceLines(
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId) {
+
+        var data = service.getInvoiceLines(patientId, invoiceId);
+        return ResponseEntity.ok(ApiResponse.ok("Invoice lines loaded", data));
+    }
+
     /** Edit line amount (re-estimate) — JSON body { newCharge } */
     @PutMapping("/invoices/{invoiceId}/lines/{lineId}")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> updateInvoiceLineAmount(
@@ -604,6 +625,54 @@ public class PatientBillingController {
     }
 
 
+
+
+    /** Apply courtesy credit to invoice (for uncollected patient balance) */
+    @PostMapping("/invoices/{invoiceId}/courtesy-credit")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> applyCourtesyCreditToInvoice(
+
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @RequestBody CourtesyCreditRequest request
+    ) {
+        var data = service.applyCourtesyCreditToInvoice(patientId, invoiceId, request);
+        return ResponseEntity.ok(ApiResponse.ok("Courtesy credit applied to invoice, patient balance reduced", data));
+    }
+
+    /** Get courtesy credit applied to specific invoice */
+    @GetMapping("/invoices/{invoiceId}/courtesy-credit")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> getInvoiceCourtesyCredit(
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId
+    ) {
+        var data = service.getInvoiceWithCourtesyCredit(patientId, invoiceId);
+        return ResponseEntity.ok(ApiResponse.ok("Invoice courtesy credit details retrieved", data));
+    }
+
+    /** Update courtesy credit applied to specific invoice */
+    @PutMapping("/invoices/{invoiceId}/courtesy-credit")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> updateInvoiceCourtesyCredit(
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @RequestBody CourtesyCreditRequest request
+    ) {
+        var data = service.updateInvoiceCourtesyCredit(patientId, invoiceId, request);
+        return ResponseEntity.ok(ApiResponse.ok("Invoice courtesy credit updated successfully", data));
+    }
+
+    /** Remove courtesy credit from specific invoice */
+    @DeleteMapping("/invoices/{invoiceId}/courtesy-credit")
+    public ResponseEntity<ApiResponse<PatientInvoiceDto>> removeInvoiceCourtesyCredit(
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @RequestBody CourtesyCreditRequest request
+    ) {
+        var data = service.removeInvoiceCourtesyCredit(patientId, invoiceId, request);
+        return ResponseEntity.ok(ApiResponse.ok("Courtesy credit removed from invoice successfully", data));
+    }
+
+
+
     /** Lock claim (after lock, claim cannot be edited) */
     @PostMapping("/claims/{claimId}/lock")
     public ResponseEntity<ApiResponse<PatientClaimDto>> lockClaim(
@@ -643,18 +712,5 @@ public class PatientBillingController {
         PatientClaimDto dto = service.toClaimDto(service.getClaimOrThrow(patientId, claimId));
         return ResponseEntity.ok(ApiResponse.ok("Claim attachment submitted", dto));
     }
-
-    /**
-     * Get invoice lines for a specific invoice
-     */
-    @GetMapping("/invoices/{invoiceId}/lines")
-    public ResponseEntity<ApiResponse<List<PatientInvoiceLineDto>>> getInvoiceLines(
-            @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
-        List<PatientInvoiceLineDto> lines = service.getInvoiceLines(invoiceId);
-        return ResponseEntity.ok(ApiResponse.ok("Invoice lines loaded", lines));
-    }
-
-
 }
 
