@@ -22,13 +22,31 @@ public class HealthcareServiceController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<HealthcareServiceDto>> create(@RequestBody HealthcareServiceDto dto) {
-        HealthcareServiceDto createdService = service.create(dto);
-        ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
-                .success(true)
-                .message("Healthcare Service created successfully")
-                .data(createdService)
-                .build();
-        return ResponseEntity.ok(response);
+        try {
+            // Validate mandatory fields
+            String validationError = validateMandatoryFields(dto);
+            if (validationError != null) {
+                ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
+                        .success(false)
+                        .message(validationError)
+                        .build();
+                return ResponseEntity.ok(response);
+            }
+
+            HealthcareServiceDto createdService = service.create(dto);
+            ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
+                    .success(true)
+                    .message("Healthcare Service created successfully")
+                    .data(createdService)
+                    .build();
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
+                    .success(false)
+                    .message("Failed to create healthcare service: " + e.getMessage())
+                    .build();
+            return ResponseEntity.ok(response);
+        }
     }
 
 
@@ -51,15 +69,32 @@ public class HealthcareServiceController {
     public ResponseEntity<ApiResponse<HealthcareServiceDto>> update(
             @PathVariable Long id,
             @RequestBody HealthcareServiceDto dto
-            ) {
+    ) {
+        try {
+            // Validate mandatory fields
+            String validationError = validateMandatoryFields(dto);
+            if (validationError != null) {
+                ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
+                        .success(false)
+                        .message(validationError)
+                        .build();
+                return ResponseEntity.ok(response);
+            }
 
-        HealthcareServiceDto updatedService = service.update(id, dto);
-        ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
-                .success(true)
-                .message("Healthcare Service updated successfully")
-                .data(updatedService)
-                .build();
-        return ResponseEntity.ok(response);
+            HealthcareServiceDto updatedService = service.update(id, dto);
+            ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
+                    .success(true)
+                    .message("Healthcare Service updated successfully")
+                    .data(updatedService)
+                    .build();
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
+                    .success(false)
+                    .message("Failed to update healthcare service: " + e.getMessage())
+                    .build();
+            return ResponseEntity.ok(response);
+        }
     }
 
     @DeleteMapping("/{id}")
@@ -72,5 +107,37 @@ public class HealthcareServiceController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Validates mandatory fields for HealthcareService creation and update
+     * @param dto HealthcareServiceDto to validate
+     * @return error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(HealthcareServiceDto dto) {
+        StringBuilder missingFields = new StringBuilder();
+
+        if (dto.getName() == null || dto.getName().trim().isEmpty()) {
+            missingFields.append("name, ");
+        }
+
+        if (dto.getLocation() == null || dto.getLocation().trim().isEmpty()) {
+            missingFields.append("location, ");
+        }
+
+        if (dto.getType() == null || dto.getType().trim().isEmpty()) {
+            missingFields.append("type, ");
+        }
+
+        if (dto.getHoursOfOperation() == null || dto.getHoursOfOperation().trim().isEmpty()) {
+            missingFields.append("hoursOfOperation, ");
+        }
+
+        if (!missingFields.isEmpty()) {
+            // Remove the trailing comma and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
+        }
+
+        return null;
+    }
 
 }

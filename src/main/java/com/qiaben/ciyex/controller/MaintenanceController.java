@@ -23,6 +23,15 @@ public class MaintenanceController {
     @PostMapping
     public ResponseEntity<ApiResponse<MaintenanceDto>> create(@RequestBody MaintenanceDto dto) {
         try {
+            // Validate mandatory fields
+            String validationError = validateMandatoryFields(dto);
+            if (validationError != null) {
+                return ResponseEntity.badRequest().body(ApiResponse.<MaintenanceDto>builder()
+                        .success(false)
+                        .message(validationError)
+                        .build());
+            }
+
             MaintenanceDto created = service.create(dto);
             return ResponseEntity.ok(ApiResponse.<MaintenanceDto>builder()
                     .success(true)
@@ -67,6 +76,15 @@ public class MaintenanceController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<MaintenanceDto>> update(@PathVariable Long id, @RequestBody MaintenanceDto dto) {
         try {
+            // Validate mandatory fields
+            String validationError = validateMandatoryFields(dto);
+            if (validationError != null) {
+                return ResponseEntity.badRequest().body(ApiResponse.<MaintenanceDto>builder()
+                        .success(false)
+                        .message(validationError)
+                        .build());
+            }
+
             MaintenanceDto updated = service.update(id, dto);
             if (updated == null) {
                 return ResponseEntity.ok(ApiResponse.<MaintenanceDto>builder()
@@ -153,5 +171,42 @@ public class MaintenanceController {
                     .message("Failed to update maintenance status: " + e.getMessage())
                     .build());
         }
+    }
+
+    /**
+     * Validates mandatory fields for Maintenance creation and update
+     * @param dto MaintenanceDto to validate
+     * @return error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(MaintenanceDto dto) {
+        StringBuilder missingFields = new StringBuilder();
+
+        if (dto.getEquipment() == null || dto.getEquipment().trim().isEmpty()) {
+            missingFields.append("equipment, ");
+        }
+
+        if (dto.getCategory() == null || dto.getCategory().trim().isEmpty()) {
+            missingFields.append("category, ");
+        }
+
+        if (dto.getLocation() == null || dto.getLocation().trim().isEmpty()) {
+            missingFields.append("location, ");
+        }
+
+        if (dto.getPriority() == null || dto.getPriority().trim().isEmpty()) {
+            missingFields.append("priority, ");
+        }
+
+        if (dto.getStatus() == null || dto.getStatus().trim().isEmpty()) {
+            missingFields.append("status, ");
+        }
+
+        if (!missingFields.isEmpty()) {
+            // Remove the trailing comma and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
+        }
+
+        return null;
     }
 }
