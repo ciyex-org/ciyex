@@ -1,10 +1,6 @@
 package com.qiaben.ciyex.controller;
 
-import com.qiaben.ciyex.dto.ApiResponse;
-import com.qiaben.ciyex.dto.ClaimStatusUpdateDto;
-import com.qiaben.ciyex.dto.ClaimTypeConvertDto;
-import com.qiaben.ciyex.dto.PatientClaimDto;
-import com.qiaben.ciyex.dto.PatientDto;
+import com.qiaben.ciyex.dto.*;
 import com.qiaben.ciyex.service.PatientBillingService;
 import com.qiaben.ciyex.service.PatientService;
 import lombok.RequiredArgsConstructor;
@@ -97,5 +93,15 @@ public class AllClaimsController {
     public ResponseEntity<ApiResponse<List<PatientClaimDto>>> getClaimsByPatientId(@PathVariable Long patientId) {
         List<PatientClaimDto> claims = service.listAllClaimsForPatient(patientId);
         return ResponseEntity.ok(ApiResponse.ok("Claims for patient", claims));
+    }
+
+    /**
+     * Get claim line details (DOS, code, description, provider, total submitted amount)
+     * GET /api/all-claims/{claimId}/line-details
+     */
+    @GetMapping("/{claimId}/line-details")
+    public ResponseEntity<ApiResponse<List<ClaimLineDetailDto>>> getClaimLineDetails(@PathVariable Long claimId) {
+        List<ClaimLineDetailDto> lineDetails = service.getClaimLineDetails(claimId);
+        return ResponseEntity.ok(ApiResponse.ok("Claim line details", lineDetails));
     }
 }
