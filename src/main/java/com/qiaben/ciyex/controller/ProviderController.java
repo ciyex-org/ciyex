@@ -30,17 +30,6 @@ public class ProviderController {
     @PostMapping
     public ResponseEntity<ApiResponse<ProviderDto>> create(@RequestBody ProviderDto dto) {
         try {
-            // Validate mandatory fields
-            String validationError = validateMandatoryFields(dto);
-            if (validationError != null) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ApiResponse.<ProviderDto>builder()
-                                .success(false)
-                                .message(validationError)
-                                .data(null)
-                                .build());
-            }
-
             ProviderDto createdProvider = service.create(dto);
             return ResponseEntity.ok(
                     ApiResponse.<ProviderDto>builder()
@@ -50,17 +39,17 @@ public class ProviderController {
                             .build()
             );
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ApiResponse.<ProviderDto>builder()
+            return ResponseEntity.ok(
+                    ApiResponse.<ProviderDto>builder()
                             .success(false)
-                            .message("Validation failed")
+                            .message("Failed to create provider: " + e.getMessage())
                             .data(null)
                             .build());
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.<ProviderDto>builder()
+            return ResponseEntity.ok(
+                    ApiResponse.<ProviderDto>builder()
                             .success(false)
-                            .message("Failed to create provider")
+                            .message("Failed to create provider: " + e.getMessage())
                             .data(null)
                             .build());
         }
@@ -70,14 +59,6 @@ public class ProviderController {
     public ResponseEntity<ApiResponse<ProviderDto>> get(@PathVariable Long id) {
         try {
             ProviderDto provider = service.getById(id);
-            if (provider == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ApiResponse.<ProviderDto>builder()
-                                .success(false)
-                                .message("Provider not found")
-                                .data(null)
-                                .build());
-            }
             return ResponseEntity.ok(
                     ApiResponse.<ProviderDto>builder()
                             .success(true)
@@ -85,11 +66,18 @@ public class ProviderController {
                             .data(provider)
                             .build()
             );
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.<ProviderDto>builder()
+        } catch (RuntimeException e) {
+            return ResponseEntity.ok(
+                    ApiResponse.<ProviderDto>builder()
                             .success(false)
-                            .message("Failed to retrieve provider")
+                            .message("Failed to retrieve provider: " + e.getMessage())
+                            .data(null)
+                            .build());
+        } catch (Exception e) {
+            return ResponseEntity.ok(
+                    ApiResponse.<ProviderDto>builder()
+                            .success(false)
+                            .message("Failed to retrieve provider: " + e.getMessage())
                             .data(null)
                             .build());
         }
@@ -98,26 +86,7 @@ public class ProviderController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<ProviderDto>> update(@PathVariable Long id, @RequestBody ProviderDto dto) {
         try {
-            // Validate mandatory fields
-            String validationError = validateMandatoryFields(dto);
-            if (validationError != null) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ApiResponse.<ProviderDto>builder()
-                                .success(false)
-                                .message(validationError)
-                                .data(null)
-                                .build());
-            }
-
             ProviderDto updatedProvider = service.update(id, dto);
-            if (updatedProvider == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ApiResponse.<ProviderDto>builder()
-                                .success(false)
-                                .message("Provider not found")
-                                .data(null)
-                                .build());
-            }
             return ResponseEntity.ok(
                     ApiResponse.<ProviderDto>builder()
                             .success(true)
@@ -125,11 +94,18 @@ public class ProviderController {
                             .data(updatedProvider)
                             .build()
             );
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.<ProviderDto>builder()
+        } catch (RuntimeException e) {
+            return ResponseEntity.ok(
+                    ApiResponse.<ProviderDto>builder()
                             .success(false)
-                            .message("Failed to update provider")
+                            .message("Failed to update provider: " + e.getMessage())
+                            .data(null)
+                            .build());
+        } catch (Exception e) {
+            return ResponseEntity.ok(
+                    ApiResponse.<ProviderDto>builder()
+                            .success(false)
+                            .message("Failed to update provider: " + e.getMessage())
                             .data(null)
                             .build());
         }
@@ -178,27 +154,6 @@ public class ProviderController {
         }
     }
 
-    // Global exception handler for the controller
-    @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<ApiResponse<ProviderDto>> handleResponseStatusException(ResponseStatusException ex) {
-        return ResponseEntity.status(ex.getStatusCode())
-                .body(ApiResponse.<ProviderDto>builder()
-                        .success(false)
-                        .message(ex.getReason())
-                        .data(null)
-                        .build());
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<ProviderDto>> handleGenericException(Exception ex) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.<ProviderDto>builder()
-                        .success(false)
-                        .message("An unexpected error occurred")
-                        .data(null)
-                        .build());
-    }
-
     @GetMapping("/count")
     public ResponseEntity<ApiResponse<Long>> getProviderCountBy() {
         try {
@@ -235,17 +190,17 @@ public class ProviderController {
                             .build()
             );
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.<ProviderDto>builder()
+            return ResponseEntity.ok(
+                    ApiResponse.<ProviderDto>builder()
                             .success(false)
-                            .message("Provider not found")
+                            .message("Failed to update provider status: " + e.getMessage())
                             .data(null)
                             .build());
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.<ProviderDto>builder()
+            return ResponseEntity.ok(
+                    ApiResponse.<ProviderDto>builder()
                             .success(false)
-                            .message("Failed to update provider status")
+                            .message("Failed to update provider status: " + e.getMessage())
                             .data(null)
                             .build());
         }
@@ -288,71 +243,6 @@ public class ProviderController {
     @Data
     public static class StatusUpdateRequest {
         private ProviderStatus status;
-    }
-
-    /**
-     * Validates mandatory fields for Provider creation and update
-     * @param dto ProviderDto to validate
-     * @return error message if validation fails, null if validation passes
-     */
-    private String validateMandatoryFields(ProviderDto dto) {
-        StringBuilder missingFields = new StringBuilder();
-
-        // Validate Identification fields
-        if (dto.getIdentification() == null) {
-            missingFields.append("identification object, ");
-        } else {
-            ProviderDto.Identification identification = dto.getIdentification();
-            if (identification.getFirstName() == null || identification.getFirstName().trim().isEmpty()) {
-                missingFields.append("firstName, ");
-            }
-            if (identification.getLastName() == null || identification.getLastName().trim().isEmpty()) {
-                missingFields.append("lastName, ");
-            }
-            if (identification.getGender() == null || identification.getGender().trim().isEmpty()) {
-                missingFields.append("gender, ");
-            }
-            if (identification.getDateOfBirth() == null || identification.getDateOfBirth().trim().isEmpty()) {
-                missingFields.append("dateOfBirth, ");
-            }
-        }
-
-        // Validate Contact fields
-        if (dto.getContact() == null) {
-            missingFields.append("contact object, ");
-        } else {
-            ProviderDto.Contact contact = dto.getContact();
-            if (contact.getEmail() == null || contact.getEmail().trim().isEmpty()) {
-                missingFields.append("email, ");
-            }
-            if (contact.getMobileNumber() == null || contact.getMobileNumber().trim().isEmpty()) {
-                missingFields.append("mobileNumber, ");
-            }
-            if (contact.getAddress() == null) {
-                missingFields.append("address, ");
-            }
-        }
-
-        // Validate Professional Details fields
-        if (dto.getProfessionalDetails() == null) {
-            missingFields.append("professionalDetails object, ");
-        } else {
-            ProviderDto.ProfessionalDetails professionalDetails = dto.getProfessionalDetails();
-            if (professionalDetails.getSpecialty() == null || professionalDetails.getSpecialty().trim().isEmpty()) {
-                missingFields.append("specialty, ");
-            }
-            if (professionalDetails.getProviderType() == null || professionalDetails.getProviderType().trim().isEmpty()) {
-                missingFields.append("providerType, ");
-            }
-        }
-
-        if (!missingFields.isEmpty()) {
-            // Remove the trailing comma and space
-            missingFields.setLength(missingFields.length() - 2);
-            return "Missing mandatory fields: " + missingFields;
-        }
-
-        return null;
     }
 
 }

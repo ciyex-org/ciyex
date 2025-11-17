@@ -1,12 +1,16 @@
+
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.InsuranceCompanyDto;
 import com.qiaben.ciyex.entity.InsuranceStatus;
 import com.qiaben.ciyex.service.InsuranceCompanyService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/insurance-companies")
@@ -19,7 +23,7 @@ public class InsuranceCompanyController {
     }
 
     @PostMapping
-    public ResponseEntity<InsuranceCompanyDto> create(@RequestBody InsuranceCompanyDto dto) {
+    public ResponseEntity<InsuranceCompanyDto> create(@Valid @RequestBody InsuranceCompanyDto dto) {
         InsuranceCompanyDto createdDto = service.create(dto);
         return ResponseEntity.ok(createdDto);
     }
@@ -31,15 +35,18 @@ public class InsuranceCompanyController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<InsuranceCompanyDto> update(@PathVariable Long id, @RequestBody InsuranceCompanyDto dto) {
+    public ResponseEntity<InsuranceCompanyDto> update(@PathVariable Long id, @Valid @RequestBody InsuranceCompanyDto dto) {
         InsuranceCompanyDto updatedDto = service.update(id, dto);
         return ResponseEntity.ok(updatedDto);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Map<String, String>> delete(@PathVariable Long id) {
         service.delete(id);
-        return ResponseEntity.noContent().build();
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Insurance company deleted successfully");
+        response.put("id", id.toString());
+        return ResponseEntity.ok(response);
     }
 
     // 🔹 New endpoints for status toggle

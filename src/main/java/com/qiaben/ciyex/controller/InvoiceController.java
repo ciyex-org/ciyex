@@ -3,6 +3,7 @@ package com.qiaben.ciyex.controller;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.InvoiceDto;
 import com.qiaben.ciyex.service.InvoiceService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -39,7 +40,7 @@ public class InvoiceController {
 
     @PostMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<InvoiceDto>> create(
-            @PathVariable Long patientId, @PathVariable Long encounterId, @RequestBody InvoiceDto dto) {
+            @PathVariable Long patientId, @PathVariable Long encounterId, @Valid @RequestBody InvoiceDto dto) {
         var created = service.create(patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<InvoiceDto>builder().success(true).message("Invoice created").data(created).build());
     }
@@ -47,7 +48,7 @@ public class InvoiceController {
     @PutMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<ApiResponse<InvoiceDto>> update(
             @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
-            @RequestBody InvoiceDto dto) {
+            @Valid @RequestBody InvoiceDto dto) {
         var updated = service.update(patientId, encounterId, id, dto);
         return ResponseEntity.ok(ApiResponse.<InvoiceDto>builder().success(true).message("Invoice updated").data(updated).build());
     }
