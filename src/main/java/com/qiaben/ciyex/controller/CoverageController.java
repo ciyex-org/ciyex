@@ -227,22 +227,18 @@ public class CoverageController {
     // 👩‍⚕️ Patient Portal Endpoint - Only logged-in patient can see their insurance coverage
     @GetMapping("/my")
     @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
-    public ApiResponse<List<CoverageDto>> getMyInsurance(HttpServletRequest request) {
+    public ApiResponse<List<CoverageDto>> getMyInsurance(org.springframework.security.core.Authentication authentication) {
         try {
-            // Extract JWT token from Authorization header
-            String authHeader = request.getHeader("Authorization");
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            if (authentication == null || !authentication.isAuthenticated()) {
                 return ApiResponse.<List<CoverageDto>>builder()
                         .success(false)
-                        .message("Authorization token missing")
+                        .message("Unauthorized - not authenticated")
                         .data(null)
                         .build();
             }
 
-            String token = authHeader.substring(7);
-
-            // Use the new tenant-aware method to get coverages
-            List<CoverageDto> coverages = service.getCoveragesForPortalUser(token);
+            // Delegate to service which understands portal Authentication principals
+            List<CoverageDto> coverages = service.getCoveragesForPortalUser(authentication);
 
             return ApiResponse.<List<CoverageDto>>builder()
                     .success(true)

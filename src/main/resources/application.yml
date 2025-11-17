@@ -1,11 +1,13 @@
 spring:
   application:
     name: ciyex
+
   datasource:
     url: jdbc:postgresql://localhost:5432/ciyexdb
     username: postgres
-    password: postgres
+    password: mypassword
     driver-class-name: org.postgresql.Driver
+
   jpa:
     hibernate:
       ddl-auto: update
@@ -15,30 +17,39 @@ spring:
     properties:
       hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
       hibernate.hbm2ddl.create_namespaces: true
+      hibernate.default_schema: public
+
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://aran-stg.zpoa.com/realms/master
+          jwk-set-uri: https://aran-stg.zpoa.com/realms/master/protocol/openid-connect/certs
+
   servlet:
     multipart:
-      max-file-size: 1GB        # ⬅️ individual file size
-      max-request-size: 1GB     # ⬅️ total request size
+      max-file-size: 1GB
+      max-request-size: 1GB
 
 jwt:
   secret: Um7I76bdvjLLGMWPPYYZr4jYXSNKpHOtIQS8Ktg8C4w=
-  expiration: 31557600000
+  expiration: 31557600000  # 1 year
 
 keycloak:
-  enabled: ${KEYCLOAK_ENABLED:false}
-  auth-server-url: ${KEYCLOAK_AUTH_SERVER_URL:https://aran-stg.zpoa.com}
-  realm: ${KEYCLOAK_REALM:master}
-  resource: ${KEYCLOAK_RESOURCE:ciyex-app}
+  enabled: true
+  auth-server-url: https://aran-stg.zpoa.com
+  realm: master
+  resource: ciyex-app
   credentials:
-    secret: ${KEYCLOAK_CLIENT_SECRET:LgDl38nUg6leUfB9DCG5LDglC75bxpOp}
+    secret: LgDl38nUg6leUfB9DCG5LDglC75bxpOp
   admin:
-    username: ${KEYCLOAK_ADMIN_USERNAME:aran-admin}
-    password: ${KEYCLOAK_ADMIN_PASSWORD:Kc@2024!Secure#Pass}
+    username: aran-admin
+    password: Kc@2024!Secure#Pass
 
 cors:
   allowed-origins: http://localhost:3000
@@ -46,16 +57,15 @@ cors:
 logging:
   level:
     root: info
+    org.springframework.security.oauth2.server.resource: debug
+    org.springframework.security.authentication: debug
     com.qiaben.ciyex.audit: debug
 
 ciyex:
-  env: ${CIYEX_ENV:local}
-  # Single schema per instance configuration
-  # Each instance/practice uses one schema specified by CIYEX_SCHEMA_NAME
+  env: local
   schema:
-    name: ${CIYEX_SCHEMA_NAME:public}  # Default to public schema, override per practice
-  
-  # ONC-Compliant Audit Configuration
+    name: public
+
   audit:
     enabled: true
     log-successful-operations: true
@@ -66,7 +76,7 @@ ciyex:
     max-description-length: 500
     max-details-length: 10000
     anonymize-user-info: false
-    retention-period-days: 2555  # 7 years for healthcare compliance
+    retention-period-days: 2555
     archive-old-logs: true
     batch-size: 100
     async-logging: false
@@ -75,8 +85,6 @@ ciyex:
     log-ip-addresses: true
     log-user-agent: true
     log-session-info: true
-    
-    # Security monitoring and alerting
     enable-alerts: true
     failed-login-alert-threshold: 5
     failed-login-time-window-minutes: 15
@@ -84,16 +92,14 @@ ciyex:
     generate-daily-reports: true
     enable-tamper-detection: true
     use-digital-signatures: false
-    
-    # Endpoints to exclude from automatic audit logging
+
     excluded-endpoints:
       - /health
       - /metrics
       - /info
       - /actuator
-      - /api/audit  # Prevent recursive audit logging
-    
-    # User roles to exclude from automatic audit logging  
+      - /api/audit
+
     excluded-user-roles:
       - SYSTEM
       - HEALTH_CHECK
