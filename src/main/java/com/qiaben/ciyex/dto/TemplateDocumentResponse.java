@@ -6,7 +6,6 @@ import java.util.Map;
 
 public class TemplateDocumentResponse {
     public Long id;
-    public Long orgId;
     public TemplateContext context;
     public String name;
     public String content;

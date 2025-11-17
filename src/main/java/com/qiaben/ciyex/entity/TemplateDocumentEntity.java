@@ -11,22 +11,13 @@ import java.time.Instant;
 import java.util.Map;
 
 @Entity
-@Table(name = "template_document",
-        indexes = {
-                @Index(name = "idx_tpldoc_org", columnList = "org_id"),
-                @Index(name = "idx_tpldoc_org_context", columnList = "org_id,context"),
-                @Index(name = "idx_tpldoc_org_name", columnList = "org_id,name")
-        })
+@Table(name = "template_document")
 public class TemplateDocumentEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(nullable = false, updatable = false)
     private Long id;
-
-    /** Owning organization */
-    @Column(name = "org_id", nullable = false)
-    private Long orgId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
@@ -55,9 +46,6 @@ public class TemplateDocumentEntity {
 
     // Getters & setters
     public Long getId() { return id; }
-
-    public Long getOrgId() { return orgId; }
-    public void setOrgId(Long orgId) { this.orgId = orgId; }
 
     public TemplateContext getContext() { return context; }
     public void setContext(TemplateContext context) { this.context = context; }
