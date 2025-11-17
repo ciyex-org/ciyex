@@ -45,6 +45,9 @@ public class AppointmentService {
     // -------- Create --------
     @Transactional
     public AppointmentDTO create(AppointmentDTO dto) {
+        // Validate mandatory fields
+        validateMandatoryFields(dto);
+        
         Appointment entity = mapToEntity(dto);
 
         entity = repository.save(entity);
@@ -85,6 +88,9 @@ public class AppointmentService {
 
         updateEntityFromDto(entity, dto);
         entity.setLastModifiedDate(LocalDateTime.now());
+
+        // Validate mandatory fields after update
+        validateMandatoryFields(entity);
 
         entity = repository.save(entity);
         syncExternalUpdate(entity, dto);
@@ -328,5 +334,24 @@ public class AppointmentService {
         }
 
         return mapToDto(entity);
+    }
+
+    // ---- Validation helpers ----
+    private void validateMandatoryFields(AppointmentDTO dto) {
+        if (dto == null) throw new IllegalArgumentException("appointment payload is required");
+        if (isBlank(dto.getPriority())) throw new IllegalArgumentException("priority is required");
+        if (dto.getLocationId() == null) throw new IllegalArgumentException("locationId is required");
+        if (isBlank(dto.getStatus())) throw new IllegalArgumentException("status is required");
+    }
+
+    private void validateMandatoryFields(Appointment entity) {
+        if (entity == null) throw new IllegalArgumentException("appointment is required");
+        if (isBlank(entity.getPriority())) throw new IllegalArgumentException("priority is required");
+        if (entity.getLocationId() == null) throw new IllegalArgumentException("locationId is required");
+        if (isBlank(entity.getStatus())) throw new IllegalArgumentException("status is required");
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
     }
 }
