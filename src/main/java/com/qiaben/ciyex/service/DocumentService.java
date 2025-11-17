@@ -4,12 +4,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.DocumentDto;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+// import com.qiaben.ciyex.dto.integration.RequestContext; // not used anymore
 import com.qiaben.ciyex.dto.integration.StorageConfig;
 import com.qiaben.ciyex.entity.Document;
 import com.qiaben.ciyex.entity.DocumentSettings;
 import com.qiaben.ciyex.repository.DocumentRepository;
-import com.qiaben.ciyex.repository.DocumentSettingsRepo;
 import com.qiaben.ciyex.util.EncryptionUtil;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.extern.slf4j.Slf4j;
@@ -35,23 +34,37 @@ import java.util.stream.Collectors;
 public class DocumentService {
 
     private final DocumentRepository repository;
-    private final DocumentSettingsRepo settingsRepo;
+    // DocumentSettingsRepo removed in favor of DocumentSettingsService
     private final OrgIntegrationConfigProvider configProvider;
+    private final com.qiaben.ciyex.service.DocumentSettingsService documentSettingsService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public DocumentService(DocumentRepository repository,
-                           DocumentSettingsRepo settingsRepo,
-                           OrgIntegrationConfigProvider configProvider) {
+                           OrgIntegrationConfigProvider configProvider,
+                           com.qiaben.ciyex.service.DocumentSettingsService documentSettingsService) {
         this.repository = repository;
-        this.settingsRepo = settingsRepo;
         this.configProvider = configProvider;
+        this.documentSettingsService = documentSettingsService;
     }
 
     @Transactional
     public DocumentDto create(String tenantName, Long patientId, DocumentDto dto, MultipartFile file) {
         // 1. Load document settings for org
-        DocumentSettings settings = settingsRepo.findFirstByOrderByIdAsc()
-                .orElseThrow(() -> new RuntimeException("Document settings not configured"));
+        // Load settings via service which will create and persist defaults if missing
+        com.qiaben.ciyex.dto.DocumentSettingsDto settingsDto = documentSettingsService.get();
+        if (settingsDto == null) {
+            throw new RuntimeException("Document settings not configured");
+        }
+
+        DocumentSettings settings = new DocumentSettings();
+        settings.setMaxUploadBytes((long) settingsDto.getMaxUploadSizeMB() * 1024L * 1024L);
+        settings.setEnableAudio(settingsDto.isEnableAudio());
+        settings.setEncryptionEnabled(settingsDto.isEncryptionEnabled());
+        try {
+            settings.setAllowedFileTypesJson(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(settingsDto.getAllowedFileTypes()));
+        } catch (Exception e) {
+            settings.setAllowedFileTypesJson(null);
+        }
 
         // 2. File size validation
         long fileSize = file.getSize();

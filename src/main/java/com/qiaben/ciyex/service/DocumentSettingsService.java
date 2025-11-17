@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.DocumentSettingsDto;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+// import com.qiaben.ciyex.dto.integration.RequestContext; // not used here
 import com.qiaben.ciyex.entity.DocumentSettings;
 import com.qiaben.ciyex.repository.DocumentSettingsRepo;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +29,10 @@ public class DocumentSettingsService {
      */
     public DocumentSettingsDto get() {
         DocumentSettings entity = repository.findFirstByOrderByIdAsc()
-                .orElse(createDefaultSettings());
+            .orElseGet(() -> {
+                DocumentSettings created = createDefaultSettings();
+                return repository.save(created);
+            });
 
         return toDto(entity);
     }
@@ -171,7 +174,7 @@ public class DocumentSettingsService {
 
         try {
             settings.setAllowedFileTypesJson(objectMapper.writeValueAsString(
-                    List.of("PDF", "JPG", "JPEG", "PNG", "DOC", "DOCX")));
+                List.of("PDF", "JPG", "JPEG", "PNG", "DOC", "DOCX", "TXT")));
             settings.setCategoriesJson(objectMapper.writeValueAsString(
                     List.of(
                             new DocumentSettingsDto.Category("Medical Records", true),

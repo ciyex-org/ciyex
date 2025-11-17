@@ -13,10 +13,8 @@ public class RequestContextInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         String authHeader = request.getHeader("Authorization");
 
-
         RequestContext ctx = new RequestContext();
         ctx.setAuthToken(authHeader);
-
         RequestContext.set(ctx);
 
         return true;
@@ -27,3 +25,4 @@ public class RequestContextInterceptor implements HandlerInterceptor {
         RequestContext.clear();
     }
 }
+

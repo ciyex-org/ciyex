@@ -139,28 +139,67 @@ public class CoverageService {
      */
     @Transactional(readOnly = true) 
     public List<CoverageDto> getCoveragesForPortalUser(String token) {
+        // Backwards-compatible method kept for callers that pass token string
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            log.error("No authenticated user found in security context");
+            throw new RuntimeException("User not authenticated");
+        }
+        return getCoveragesForPortalUser(authentication);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CoverageDto> getCoveragesForPortalUser(Authentication authentication) {
         try {
-            // Extract user info from Keycloak authentication context
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             if (authentication == null || !authentication.isAuthenticated()) {
-                log.error("No authenticated user found in security context");
+                log.error("No authenticated user found in provided authentication");
                 throw new RuntimeException("User not authenticated");
             }
-            
-            // Get Keycloak user UUID (subject) from authentication principal
-            String keycloakUserId = authentication.getName(); // This is the Keycloak user UUID
-            log.info("Processing coverage request for Keycloak user: {}", keycloakUserId);
-            
-            // Get the EHR patient ID for this Keycloak user
-            Long patientId = getEhrPatientIdFromPortalUserEmail(keycloakUserId);
+
+            // Extract email from Jwt principal if available
+            String email = null;
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof org.springframework.security.oauth2.jwt.Jwt jwt) {
+                email = jwt.getClaimAsString("email");
+            }
+            // Try reflection to extract email if Jwt claim not present
+            if (email == null) {
+                try {
+                    java.lang.reflect.Method m = principal.getClass().getMethod("getEmail");
+                    Object em = m.invoke(principal);
+                    if (em instanceof String) {
+                        email = (String) em;
+                    }
+                } catch (Exception ex) {
+                    log.debug("Could not extract email from authentication principal via reflection: {}", ex.getMessage());
+                }
+            }
+
+            if (email == null || email.trim().isEmpty()) {
+                // As a fallback; use the authentication name if it looks like an email
+                String name = authentication.getName();
+                if (name != null && name.contains("@")) {
+                    email = name;
+                }
+            }
+
+            if (email == null) {
+                log.warn("No email found in authentication principal");
+                return List.of();
+            }
+
+            log.info("Processing coverage request for portal user email: {}", email);
+
+            // Get the EHR patient ID for this portal user email
+            Long patientId = getEhrPatientIdFromPortalUserEmail(email);
             if (patientId == null) {
-                log.warn("No patient ID found for Keycloak user {}", keycloakUserId);
+                log.warn("No patient ID found for portal user {}", email);
                 return List.of(); // Return empty list instead of null
             }
-            
+
             // Get coverages for patient
             return getCoveragesByPatient(patientId);
-            
+
         } catch (Exception e) {
             log.error("Error getting coverages for portal user: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to get coverages for user", e);

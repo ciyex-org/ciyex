@@ -64,22 +64,27 @@ public class PortalListOptionsController {
             @RequestParam(value = "list_id", required = false) String listId,
             HttpServletRequest request) {
         if (listId == null || listId.trim().isEmpty()) {
-            // Return both visit_types and appointment_priorities in unified response
+            // Return both visit_types, appointment_priorities, allergy_severities, and history_types
             try {
-                log.info("Portal fetching unified list-options (visit_types + appointment_priorities)");
+                log.info("Portal fetching unified list-options (visit_types + appointment_priorities + allergy_severities + history_types)");
 
                 List<ListOptionDto> visitTypes =listOptionService.getListOptionsByListId("visit_types");
                 List<ListOptionDto> priorities = listOptionService.getListOptionsByListId("appointment_priorities");
+                List<ListOptionDto> allergySeverities = listOptionService.getListOptionsByListId("allergy_severities");
+                List<ListOptionDto> historyTypes = listOptionService.getListOptionsByListId("history_types");
 
-                log.info("Retrieved {} visit types and {} priorities", visitTypes.size(), priorities.size());
+                log.info("Retrieved {} visit types, {} priorities, {} allergy severities, and {} history types",
+                    visitTypes.size(), priorities.size(), allergySeverities.size(), historyTypes.size());
 
-                // Return unified response with both lists
+                // Return unified response with all lists
                 return ResponseEntity.ok(ApiResponse.builder()
                         .success(true)
                         .message("Unified list options retrieved")
                         .data(java.util.Map.of(
                             "visit_types", visitTypes,
-                            "appointment_priorities", priorities
+                            "appointment_priorities", priorities,
+                            "allergy_severities", allergySeverities,
+                            "history_types", historyTypes
                         ))
                         .build());
 
@@ -90,7 +95,9 @@ public class PortalListOptionsController {
                         .message("Failed to fetch list options: " + e.getMessage())
                         .data(java.util.Map.of(
                             "visit_types", java.util.List.of(),
-                            "appointment_priorities", java.util.List.of()
+                            "appointment_priorities", java.util.List.of(),
+                            "allergy_severities", java.util.List.of(),
+                            "history_types", java.util.List.of()
                         ))
                         .build());
             }
