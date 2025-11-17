@@ -9,6 +9,11 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+/**
+ * Global web configuration for the Ciyex backend.
+ * - Forces JSON as the default response type.
+ * - Registers RequestContextInterceptor for all API requests.
+ */
 @Configuration
 @EnableWebMvc
 public class WebConfig implements WebMvcConfigurer {
@@ -18,8 +23,9 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
-        // Force JSON as the default when client doesn't specify Accept header
-        configurer.ignoreAcceptHeader(false)
+        configurer.favorPathExtension(false)
+                .favorParameter(false)
+                .ignoreAcceptHeader(false)
                 .defaultContentType(MediaType.APPLICATION_JSON);
     }
 

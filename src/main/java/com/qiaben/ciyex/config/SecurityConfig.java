@@ -1,6 +1,5 @@
 package com.qiaben.ciyex.config;
 
-import com.qiaben.ciyex.security.JwtAuthenticationFilter;
 import com.qiaben.ciyex.security.KeycloakJwtAuthenticationConverter;
 import jakarta.annotation.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +13,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
@@ -24,10 +22,6 @@ import java.nio.charset.StandardCharsets;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
-
-    @Autowired(required = false)
-    @Nullable
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Autowired
     private KeycloakJwtAuthenticationConverter keycloakJwtAuthenticationConverter;
@@ -41,12 +35,15 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // ✅ Enable CORS
+            // ✅ Enable CORS for frontend integration
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            // ✅ Disable CSRF for REST APIs
             .csrf(csrf -> csrf.disable())
+            // ✅ Stateless session (each request must have JWT)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // ✅ Authorization rules
             .authorizeHttpRequests(auth -> auth
-                // Public endpoints (unsecured)
+                // Public endpoints (no authentication required)
                 .requestMatchers(
                     "/api/auth/**",
                     "/api/public/**",
@@ -55,64 +52,64 @@ public class SecurityConfig {
                     "/actuator/**"
                 ).permitAll()
 
-                // Role-based access
+                // Role-based access control
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/provider/**").hasAnyRole("PROVIDER", "ADMIN")
                 .requestMatchers("/api/portal/**").hasAnyRole("PATIENT", "PROVIDER", "ADMIN")
+                .requestMatchers("/api/fhir/**").hasAnyRole("PATIENT", "PROVIDER", "ADMIN") // ✅ Added for FHIR endpoints
 
-                // Secure everything else
+                // All other requests require authentication
                 .anyRequest().authenticated()
             )
-
-            // ✅ Enable OAuth2 resource server for Keycloak JWT
+            // ✅ Use Keycloak JWT as authentication source
             .oauth2ResourceServer(oauth -> oauth
                 .jwt(jwt -> jwt
-                    .decoder(combinedJwtDecoder()) // Hybrid decoder
+                    .decoder(combinedJwtDecoder())
                     .jwtAuthenticationConverter(keycloakJwtAuthenticationConverter)
                 )
             );
-
-        // ✅ Add local JWT authentication filter (for /api/auth/login)
-        if (jwtAuthenticationFilter != null) {
-            http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        }
 
         return http.build();
     }
 
     /**
      * ✅ Hybrid JWT Decoder:
-     *  - Primary: Keycloak RS256 (via JWKS endpoint)
-     *  - Fallback: Local HS256 for internal tokens
+     *  1. Tries Keycloak RS256 public key validation.
+     *  2. Falls back to local HS256 secret for development.
      */
     @Bean
     public JwtDecoder combinedJwtDecoder() {
         try {
-            // ✅ Try loading Keycloak’s RS256 public keys
             System.out.println("✅ Initializing Keycloak JWT Decoder from issuer: " + issuerUri);
             return JwtDecoders.fromIssuerLocation(issuerUri);
         } catch (Exception e) {
-            // ⚠️ Fallback to local JWT (HS256)
-            System.out.println("⚠️ Failed to load Keycloak JWKS, using local JWT decoder: " + e.getMessage());
-            SecretKeySpec secretKey = new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            System.out.println("⚠️ Failed to load Keycloak JWKS, using fallback local JWT decoder: " + e.getMessage());
+            
+            // ✅ Decode the Base64-encoded secret from application.yml
+            byte[] keyBytes = java.util.Base64.getDecoder().decode(jwtSecret);
+            SecretKeySpec secretKey = new SecretKeySpec(keyBytes, "HmacSHA256");
+            
             return NimbusJwtDecoder.withSecretKey(secretKey).build();
         }
     }
 
+    /**
+     * ✅ BCrypt encoder for user password hashing (if local login ever used)
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
     /**
-     * ✅ Global CORS for local + staging + production
+     * ✅ CORS configuration for frontend communication (local + staging + prod)
      */
     @Bean
     public UrlBasedCorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.addAllowedOriginPattern("http://localhost:3000"); // Local frontend
-        config.addAllowedOriginPattern("https://aran-stg.zpoa.com"); // Keycloak
-        config.addAllowedOriginPattern("https://portal.ciyex.com");  // Production
+        config.addAllowedOriginPattern("http://localhost:3000");
+        config.addAllowedOriginPattern("https://aran-stg.zpoa.com");
+        config.addAllowedOriginPattern("https://portal.ciyex.com");
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
         config.setAllowCredentials(true);

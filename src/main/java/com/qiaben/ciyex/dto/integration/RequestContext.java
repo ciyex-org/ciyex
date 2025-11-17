@@ -7,8 +7,9 @@ public class RequestContext {
     private static final ThreadLocal<RequestContext> context = new ThreadLocal<>();
 
     private String authToken;
-    private String tenantName;  // Tenant name (e.g., "practice_1", "hinisoft")
-    private String schemaName;  // Database schema name from Keycloak group attribute
+    private String tenantName;
+    private String schemaName;
+    private Long orgId;
 
     public static void set(RequestContext ctx) {
         context.set(ctx);
@@ -17,9 +18,8 @@ public class RequestContext {
     public static RequestContext get() {
         RequestContext ctx = context.get();
         if (ctx == null) {
-            // Create a default, empty RequestContext so callers don't NPE when
-            // the interceptor hasn't been registered or a header is missing.
             ctx = new RequestContext();
+            ctx.setOrgId(1L); // Default orgId for development
             context.set(ctx);
         }
         return ctx;
