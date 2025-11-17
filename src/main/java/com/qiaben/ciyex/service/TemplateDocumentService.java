@@ -57,7 +57,7 @@ public class TemplateDocumentService {
         e.setOptions(req.options);
 
         e = repository.save(e);
-        log.info("Updated template document id={} orgId={} name='{}'", e.getId(), e.getOrgId(), e.getName());
+        log.info("Updated template document id={} name='{}'", e.getId(), e.getName());
 
         return toResponse(e);
     }
@@ -76,18 +76,18 @@ public class TemplateDocumentService {
      */
     @Transactional(readOnly = true)
     public List<TemplateDocumentResponse> getAll(TemplateContext context, String q) {
-        List<TemplateDocumentEntity> data = List.of();
+        List<TemplateDocumentEntity> data;
         boolean hasQ = (q != null && !q.isBlank());
 
-       /* if (context != null && hasQ) {
-            data = repository.findByContextAndNameContainingIgnoreCase(effectivecontext, q.trim());
+        if (context != null && hasQ) {
+            data = repository.findByContextAndNameContainingIgnoreCase(context, q.trim());
         } else if (context != null) {
-            data = repository.findByContext(effectivecontext);
+            data = repository.findByContext(context);
         } else if (hasQ) {
-            data = repository.findByNameContainingIgnoreCase(effectiveq.trim());
+            data = repository.findByNameContainingIgnoreCase(q.trim());
         } else {
-            data = repository.find(effectiveOrgId);
-        }*/
+            data = repository.findAll();
+        }
 
         return data.stream().map(this::toResponse).toList();
     }
@@ -120,7 +120,6 @@ public class TemplateDocumentService {
     private TemplateDocumentResponse toResponse(TemplateDocumentEntity e) {
         var r = new TemplateDocumentResponse();
         r.id = e.getId();
-        r.orgId = e.getOrgId();
         r.context = e.getContext();
         r.name = e.getName();
         r.content = e.getContent();
