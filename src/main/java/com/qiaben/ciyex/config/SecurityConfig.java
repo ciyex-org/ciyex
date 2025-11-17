@@ -35,39 +35,39 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // ✅ Enable CORS for frontend integration
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            // ✅ Disable CSRF for REST APIs
-            .csrf(csrf -> csrf.disable())
-            // ✅ Stateless session (each request must have JWT)
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            // ✅ Authorization rules
-            .authorizeHttpRequests(auth -> auth
-                // Public endpoints (no authentication required)
-                .requestMatchers(
-                    "/api/auth/**",
-                    "/api/public/**",
-                    "/api/portal/auth/**",
-                    "/api/portal/approvals/**",
-                    "/actuator/**"
-                ).permitAll()
+                // ✅ Enable CORS for frontend integration
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // ✅ Disable CSRF for REST APIs
+                .csrf(csrf -> csrf.disable())
+                // ✅ Stateless session (each request must have JWT)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // ✅ Authorization rules
+                .authorizeHttpRequests(auth -> auth
+                        // Public endpoints (no authentication required)
+                        .requestMatchers(
+                                "/api/auth/**",
+                                "/api/public/**",
+                                "/api/portal/auth/**",
+                                "/api/portal/approvals/**",
+                                "/actuator/**"
+                        ).permitAll()
 
-                // Role-based access control
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .requestMatchers("/api/provider/**").hasAnyRole("PROVIDER", "ADMIN")
-                .requestMatchers("/api/portal/**").hasAnyRole("PATIENT", "PROVIDER", "ADMIN")
-                .requestMatchers("/api/fhir/**").hasAnyRole("PATIENT", "PROVIDER", "ADMIN") // ✅ Added for FHIR endpoints
+                        // Role-based access control
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/provider/**").hasAnyRole("PROVIDER", "ADMIN")
+                        .requestMatchers("/api/portal/**").hasAnyRole("PATIENT", "PROVIDER", "ADMIN")
+                        .requestMatchers("/api/fhir/**").hasAnyRole("PATIENT", "PROVIDER", "ADMIN") // ✅ Added for FHIR endpoints
 
-                // All other requests require authentication
-                .anyRequest().authenticated()
-            )
-            // ✅ Use Keycloak JWT as authentication source
-            .oauth2ResourceServer(oauth -> oauth
-                .jwt(jwt -> jwt
-                    .decoder(combinedJwtDecoder())
-                    .jwtAuthenticationConverter(keycloakJwtAuthenticationConverter)
+                        // All other requests require authentication
+                        .anyRequest().authenticated()
                 )
-            );
+                // ✅ Use Keycloak JWT as authentication source
+                .oauth2ResourceServer(oauth -> oauth
+                        .jwt(jwt -> jwt
+                                .decoder(combinedJwtDecoder())
+                                .jwtAuthenticationConverter(keycloakJwtAuthenticationConverter)
+                        )
+                );
 
         return http.build();
     }
@@ -84,11 +84,11 @@ public class SecurityConfig {
             return JwtDecoders.fromIssuerLocation(issuerUri);
         } catch (Exception e) {
             System.out.println("⚠️ Failed to load Keycloak JWKS, using fallback local JWT decoder: " + e.getMessage());
-            
+
             // ✅ Decode the Base64-encoded secret from application.yml
             byte[] keyBytes = java.util.Base64.getDecoder().decode(jwtSecret);
             SecretKeySpec secretKey = new SecretKeySpec(keyBytes, "HmacSHA256");
-            
+
             return NimbusJwtDecoder.withSecretKey(secretKey).build();
         }
     }
