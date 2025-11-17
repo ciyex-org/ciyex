@@ -27,6 +27,8 @@ public class AdminTemplateService {
 
     @Transactional
     public AdminTemplateDto create(AdminTemplateDto dto) {
+        // Validate mandatory fields
+        validateMandatoryFields(dto);
         
         AdminTemplate entity = mapToEntity(dto);
         entity = repository.save(entity);
@@ -55,6 +57,9 @@ public class AdminTemplateService {
         if (dto.getPracticeType() != null) {
             entity.setPracticeType(dto.getPracticeType());
         }
+
+        // Validate mandatory fields after update
+        validateMandatoryFields(entity);
 
         entity = repository.save(entity);
         return mapToDto(entity);
@@ -122,4 +127,21 @@ public class AdminTemplateService {
     // RequestContext/org scoping removed for AdminTemplate service
 
     // templateId generation removed
+
+    // ---- Validation helpers ----
+    private void validateMandatoryFields(AdminTemplateDto dto) {
+        if (dto == null) throw new IllegalArgumentException("admin template payload is required");
+        if (isBlank(dto.getLocations())) throw new IllegalArgumentException("locations is required");
+        if (isBlank(dto.getPracticeType())) throw new IllegalArgumentException("practiceType is required");
+    }
+
+    private void validateMandatoryFields(AdminTemplate entity) {
+        if (entity == null) throw new IllegalArgumentException("admin template is required");
+        if (isBlank(entity.getLocations())) throw new IllegalArgumentException("locations is required");
+        if (isBlank(entity.getPracticeType())) throw new IllegalArgumentException("practiceType is required");
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
 }
