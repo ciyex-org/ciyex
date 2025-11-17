@@ -1,7 +1,9 @@
 package com.qiaben.ciyex.controller;
 
+import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.ReferralPracticeDto;
 import com.qiaben.ciyex.service.ReferralPracticeService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -9,6 +11,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/referral-practices")
+@Slf4j
 public class ReferralPracticeController {
 
     private final ReferralPracticeService service;
@@ -18,32 +21,93 @@ public class ReferralPracticeController {
     }
 
     @PostMapping
-    public ResponseEntity<ReferralPracticeDto> create(@RequestBody ReferralPracticeDto dto) {
-        ReferralPracticeDto createdDto = service.create(dto);
-        return ResponseEntity.ok(createdDto);
+    public ResponseEntity<ApiResponse<ReferralPracticeDto>> create(@RequestBody ReferralPracticeDto dto) {
+        try {
+            ReferralPracticeDto createdDto = service.create(dto);
+            return ResponseEntity.ok(ApiResponse.<ReferralPracticeDto>builder()
+                    .success(true)
+                    .message("Referral practice created successfully")
+                    .data(createdDto)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to create referral practice", e);
+            return ResponseEntity.ok(ApiResponse.<ReferralPracticeDto>builder()
+                    .success(false)
+                    .message("Failed to create referral practice: " + e.getMessage())
+                    .build());
+        }
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ReferralPracticeDto> get(@PathVariable Long id) {
-        ReferralPracticeDto dto = service.getById(id);
-        return ResponseEntity.ok(dto);
+    public ResponseEntity<ApiResponse<ReferralPracticeDto>> get(@PathVariable Long id) {
+        try {
+            ReferralPracticeDto dto = service.getById(id);
+            return ResponseEntity.ok(ApiResponse.<ReferralPracticeDto>builder()
+                    .success(true)
+                    .message("Referral practice retrieved successfully")
+                    .data(dto)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve referral practice with id {}", id, e);
+            return ResponseEntity.ok(ApiResponse.<ReferralPracticeDto>builder()
+                    .success(false)
+                    .message("Failed to retrieve referral practice: " + e.getMessage())
+                    .build());
+        }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ReferralPracticeDto> update(@PathVariable Long id, @RequestBody ReferralPracticeDto dto) {
-        ReferralPracticeDto updatedDto = service.update(id, dto);
-        return ResponseEntity.ok(updatedDto);
+    public ResponseEntity<ApiResponse<ReferralPracticeDto>> update(@PathVariable Long id, @RequestBody ReferralPracticeDto dto) {
+        try {
+            ReferralPracticeDto updatedDto = service.update(id, dto);
+            return ResponseEntity.ok(ApiResponse.<ReferralPracticeDto>builder()
+                    .success(true)
+                    .message("Referral practice updated successfully")
+                    .data(updatedDto)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to update referral practice with id {}", id, e);
+            return ResponseEntity.ok(ApiResponse.<ReferralPracticeDto>builder()
+                    .success(false)
+                    .message("Failed to update referral practice: " + e.getMessage())
+                    .build());
+        }
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        service.delete(id);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+        try {
+            service.delete(id);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(true)
+                    .message("Referral practice deleted successfully")
+                    .data(null)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to delete referral practice with id {}", id, e);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(false)
+                    .message("Failed to delete referral practice: " + e.getMessage())
+                    .data(null)
+                    .build());
+        }
     }
 
     @GetMapping
-    public ResponseEntity<List<ReferralPracticeDto>> getAll() {
-        List<ReferralPracticeDto> dtoList = service.getAll();
-        return ResponseEntity.ok(dtoList);
+    public ResponseEntity<ApiResponse<List<ReferralPracticeDto>>> getAll() {
+        try {
+            List<ReferralPracticeDto> dtoList = service.getAll();
+            return ResponseEntity.ok(ApiResponse.<List<ReferralPracticeDto>>builder()
+                    .success(true)
+                    .message("Referral practices retrieved successfully")
+                    .data(dtoList)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve referral practices", e);
+            return ResponseEntity.ok(ApiResponse.<List<ReferralPracticeDto>>builder()
+                    .success(false)
+                    .message("Failed to retrieve referral practices: " + e.getMessage())
+                    .build());
+        }
     }
 }

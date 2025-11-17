@@ -4,6 +4,7 @@ import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.InventoryDto;
 import com.qiaben.ciyex.dto.OrderDto;
 import com.qiaben.ciyex.service.InventoryService;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -24,7 +25,7 @@ public class InventoryController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<InventoryDto>> create(@RequestBody InventoryDto dto) {
+    public ResponseEntity<ApiResponse<InventoryDto>> create(@Valid @RequestBody InventoryDto dto) {
         InventoryDto created = service.create(dto);
         return ResponseEntity.ok(
                 ApiResponse.<InventoryDto>builder()
@@ -48,7 +49,7 @@ public class InventoryController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<InventoryDto>> update(@PathVariable Long id, @RequestBody InventoryDto dto) {
+    public ResponseEntity<ApiResponse<InventoryDto>> update(@PathVariable Long id, @Valid @RequestBody InventoryDto dto) {
         InventoryDto updated = service.update(id, dto);
         return ResponseEntity.ok(
                 ApiResponse.<InventoryDto>builder()
