@@ -3,6 +3,7 @@ package com.qiaben.ciyex.service;
 import com.qiaben.ciyex.dto.InsuranceCompanyDto;
 import com.qiaben.ciyex.entity.InsuranceCompany;
 import com.qiaben.ciyex.entity.InsuranceStatus;
+import com.qiaben.ciyex.exception.ResourceNotFoundException;
 import com.qiaben.ciyex.repository.InsuranceCompanyRepository;
 import com.qiaben.ciyex.storage.ExternalStorage;
 import com.qiaben.ciyex.storage.ExternalStorageResolver;
@@ -39,10 +40,6 @@ public class InsuranceCompanyService {
         String externalId = null;
         InsuranceCompany insuranceCompany = mapToEntity(dto);
 
-        // Set current timestamp for created and last modified date
-        String currentDate = LocalDateTime.now().format(DATE_FORMATTER);
-
-
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null) {
             try {
@@ -68,7 +65,7 @@ public class InsuranceCompanyService {
     @Transactional
     public InsuranceCompanyDto updateStatus(Long id, InsuranceStatus status) {
         InsuranceCompany entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Insurance company not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Insurance company not found with id: " + id));
         entity.setStatus(status);
         entity = repository.save(entity);
         return mapToDto(entity);
@@ -77,13 +74,15 @@ public class InsuranceCompanyService {
 
     @Transactional(readOnly = true)
     public InsuranceCompanyDto getById(Long id) {
-        InsuranceCompany entity = repository.findById(id).orElseThrow(() -> new RuntimeException("Insurance company not found"));
+        InsuranceCompany entity = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Insurance company not found with id: " + id));
         return mapToDto(entity);
     }
 
     @Transactional
     public InsuranceCompanyDto update(Long id, InsuranceCompanyDto dto) {
-        InsuranceCompany entity = repository.findById(id).orElseThrow(() -> new RuntimeException("Insurance company not found"));
+        InsuranceCompany entity = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Insurance company not found with id: " + id));
         entity = updateEntityFromDto(entity, dto);
 
         String externalId = entity.getFhirId();
@@ -103,7 +102,8 @@ public class InsuranceCompanyService {
 
     @Transactional
     public void delete(Long id) {
-        InsuranceCompany entity = repository.findById(id).orElseThrow(() -> new RuntimeException("Insurance company not found"));
+        InsuranceCompany entity = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Insurance company not found with id: " + id));
         repository.delete(entity);
     }
 

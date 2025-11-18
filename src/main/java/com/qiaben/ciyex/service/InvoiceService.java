@@ -7,6 +7,7 @@ import com.qiaben.ciyex.dto.InvoiceDto.PaymentDto;
 import com.qiaben.ciyex.entity.Invoice;
 import com.qiaben.ciyex.entity.InvoiceLine;
 import com.qiaben.ciyex.entity.InvoicePayment;
+import com.qiaben.ciyex.exception.ResourceNotFoundException;
 import com.qiaben.ciyex.repository.ImmunizationRepository;
 import com.qiaben.ciyex.repository.InvoiceRepository;
 import com.qiaben.ciyex.storage.ExternalInvoiceStorage;
@@ -17,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +32,9 @@ public class InvoiceService {
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     public InvoiceDto create(Long patientId, Long encounterId, InvoiceDto in) {
+        // Validate mandatory fields
+        validateInvoiceDto(in);
+
         Invoice inv = new Invoice(); inv.setPatientId(patientId); inv.setEncounterId(encounterId);
         inv.setInvoiceNumber(in.getInvoiceNumber());
         inv.setStatus(in.getStatus());
@@ -82,8 +87,11 @@ public class InvoiceService {
     }
 
     public InvoiceDto update(Long patientId, Long encounterId, Long id, InvoiceDto in) {
+        // Validate mandatory fields
+        validateInvoiceDto(in);
+
         Invoice inv = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Invoice not found with patientId: " + patientId + ", encounterId: " + encounterId + ", id: " + id));
 
         inv.setInvoiceNumber(in.getInvoiceNumber());
         inv.setStatus(in.getStatus());
@@ -133,14 +141,14 @@ public class InvoiceService {
 
     public void delete(Long patientId, Long encounterId, Long id) {
         Invoice inv = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
-        external.ifPresent(ext -> { if (inv.getExternalId()!=null) ext.delete(inv.getExternalId()); });
+                .orElseThrow(() -> new ResourceNotFoundException("Invoice not found with patientId: " + patientId + ", encounterId: " + encounterId + ", id: " + id));
+        external.ifPresent(ext -> {/* Line 137 omitted */});
         repo.delete(inv);
     }
 
     public InvoiceDto getOne(Long patientId, Long encounterId, Long id) {
         Invoice inv = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Invoice not found with patientId: " + patientId + ", encounterId: " + encounterId + ", id: " + id));
         return mapToDto(inv);
     }
 
@@ -191,4 +199,81 @@ public class InvoiceService {
 
     private BigDecimal dec(String s){ return (s==null||s.isBlank())? null : new BigDecimal(s); }
     private String val(BigDecimal d){ return d==null? null : d.toPlainString(); }
+
+    /**
+     * Validates mandatory fields in InvoiceDto.
+     * Throws IllegalArgumentException if any mandatory field is missing or empty.
+     */
+    private void validateInvoiceDto(InvoiceDto dto) {
+        List<String> errors = new ArrayList<>();
+
+        // Validate main invoice fields
+        if (!StringUtils.hasText(dto.getInvoiceNumber())) {
+            errors.add("Invoice number is mandatory");
+        }
+        if (!StringUtils.hasText(dto.getStatus())) {
+            errors.add("Status is mandatory");
+        }
+        if (!StringUtils.hasText(dto.getCurrency())) {
+            errors.add("Currency is mandatory");
+        }
+        if (!StringUtils.hasText(dto.getIssueDate())) {
+            errors.add("Issue date is mandatory");
+        }
+        if (!StringUtils.hasText(dto.getDueDate())) {
+            errors.add("Due date is mandatory");
+        }
+        if (!StringUtils.hasText(dto.getPayer())) {
+            errors.add("Payer is mandatory");
+        }
+
+        // Validate lines (optional, but if provided must be valid)
+        if (dto.getLines() != null && !dto.getLines().isEmpty()) {
+            for (int i = 0; i < dto.getLines().size(); i++) {
+                LineDto line = dto.getLines().get(i);
+                String prefix = "Line " + (i + 1) + ": ";
+
+                if (!StringUtils.hasText(line.getDescription())) {
+                    errors.add(prefix + "Description is mandatory");
+                }
+                if (!StringUtils.hasText(line.getCode())) {
+                    errors.add(prefix + "Code is mandatory");
+                }
+                if (line.getQuantity() == null || line.getQuantity() <= 0) {
+                    errors.add(prefix + "Quantity must be greater than 0");
+                }
+                if (!StringUtils.hasText(line.getUnitPrice())) {
+                    errors.add(prefix + "Unit price is mandatory");
+                } else {
+                    try {
+                        BigDecimal price = new BigDecimal(line.getUnitPrice());
+                        if (price.compareTo(BigDecimal.ZERO) <= 0) {
+                            errors.add(prefix + "Unit price must be greater than 0");
+                        }
+                    } catch (NumberFormatException e) {
+                        errors.add(prefix + "Unit price must be a valid number");
+                    }
+                }
+                if (!StringUtils.hasText(line.getAmount())) {
+                    errors.add(prefix + "Amount is mandatory");
+                } else {
+                    try {
+                        BigDecimal amount = new BigDecimal(line.getAmount());
+                        if (amount.compareTo(BigDecimal.ZERO) < 0) {
+                            errors.add(prefix + "Amount cannot be negative");
+                        }
+                    } catch (NumberFormatException e) {
+                        errors.add(prefix + "Amount must be a valid number");
+                    }
+                }
+            }
+        }
+
+        // If there are any validation errors, throw exception
+        if (!errors.isEmpty()) {
+            String errorMessage = "Validation failed: " + String.join("; ", errors);
+            log.error("Invoice validation failed: {}", errorMessage);
+            throw new IllegalArgumentException(errorMessage);
+        }
+    }
 }

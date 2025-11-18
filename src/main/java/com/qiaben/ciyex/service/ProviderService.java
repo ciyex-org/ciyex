@@ -1,4 +1,3 @@
-
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.ApiResponse;
@@ -36,12 +35,8 @@ public class ProviderService {
 
     @Transactional
     public ProviderDto create(ProviderDto dto) {
-        // Validate the required fields
-        if (dto.getNpi() == null || dto.getIdentification() == null || dto.getIdentification().getFirstName() == null ||
-                dto.getIdentification().getLastName() == null || dto.getProfessionalDetails() == null ||
-                dto.getProfessionalDetails().getLicenseNumber() == null) {
-            throw new IllegalArgumentException("NPI, first name, last name, and license number are required");
-        }
+        // Validate the required fields with detailed error message
+        validateMandatoryFields(dto);
 
         // Map DTO to Entity
         Provider provider = mapToEntity(dto);
@@ -156,30 +151,40 @@ public class ProviderService {
     public ProviderDto update(Long id, ProviderDto dto) {
         Provider provider = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
-        provider.setNpi(dto.getNpi());
+
+        // Update NPI only if provided
+        if (dto.getNpi() != null) {
+            provider.setNpi(dto.getNpi());
+        }
+
         if (dto.getIdentification() != null) {
-            provider.setFirstName(dto.getIdentification().getFirstName());
-            provider.setLastName(dto.getIdentification().getLastName());
-            provider.setMiddleName(dto.getIdentification().getMiddleName());
-            provider.setPrefix(dto.getIdentification().getPrefix());
-            provider.setSuffix(dto.getIdentification().getSuffix());
-            provider.setGender(dto.getIdentification().getGender());
-            provider.setDateOfBirth(dto.getIdentification().getDateOfBirth());
-            provider.setPhoto(dto.getIdentification().getPhoto());
+            if (dto.getIdentification().getFirstName() != null) provider.setFirstName(dto.getIdentification().getFirstName());
+            if (dto.getIdentification().getLastName() != null) provider.setLastName(dto.getIdentification().getLastName());
+            if (dto.getIdentification().getMiddleName() != null) provider.setMiddleName(dto.getIdentification().getMiddleName());
+            if (dto.getIdentification().getPrefix() != null) provider.setPrefix(dto.getIdentification().getPrefix());
+            if (dto.getIdentification().getSuffix() != null) provider.setSuffix(dto.getIdentification().getSuffix());
+            if (dto.getIdentification().getGender() != null) provider.setGender(dto.getIdentification().getGender());
+            if (dto.getIdentification().getDateOfBirth() != null) provider.setDateOfBirth(dto.getIdentification().getDateOfBirth());
+            if (dto.getIdentification().getPhoto() != null) provider.setPhoto(dto.getIdentification().getPhoto());
         }
         if (dto.getContact() != null) {
-            provider.setEmail(dto.getContact().getEmail());
-            provider.setPhoneNumber(dto.getContact().getPhoneNumber());
-            provider.setMobileNumber(dto.getContact().getMobileNumber());
-            provider.setFaxNumber(dto.getContact().getFaxNumber());
-            provider.setAddress(dto.getContact().getAddress() != null ? dto.getContact().getAddress().toString() : null);
+            if (dto.getContact().getEmail() != null) provider.setEmail(dto.getContact().getEmail());
+            if (dto.getContact().getPhoneNumber() != null) provider.setPhoneNumber(dto.getContact().getPhoneNumber());
+            if (dto.getContact().getMobileNumber() != null) provider.setMobileNumber(dto.getContact().getMobileNumber());
+            if (dto.getContact().getFaxNumber() != null) provider.setFaxNumber(dto.getContact().getFaxNumber());
+            if (dto.getContact().getAddress() != null) provider.setAddress(dto.getContact().getAddress().toString());
         }
         if (dto.getProfessionalDetails() != null) {
-            provider.setSpecialty(dto.getProfessionalDetails().getSpecialty());
-            provider.setProviderType(dto.getProfessionalDetails().getProviderType());
-            provider.setLicenseNumber(dto.getProfessionalDetails().getLicenseNumber());
-            provider.setLicenseState(dto.getProfessionalDetails().getLicenseState());
-            provider.setLicenseExpiry(dto.getProfessionalDetails().getLicenseExpiry());
+            if (dto.getProfessionalDetails().getSpecialty() != null) provider.setSpecialty(dto.getProfessionalDetails().getSpecialty());
+            if (dto.getProfessionalDetails().getProviderType() != null) provider.setProviderType(dto.getProfessionalDetails().getProviderType());
+            if (dto.getProfessionalDetails().getLicenseNumber() != null) provider.setLicenseNumber(dto.getProfessionalDetails().getLicenseNumber());
+            if (dto.getProfessionalDetails().getLicenseState() != null) provider.setLicenseState(dto.getProfessionalDetails().getLicenseState());
+            if (dto.getProfessionalDetails().getLicenseExpiry() != null) provider.setLicenseExpiry(dto.getProfessionalDetails().getLicenseExpiry());
+        }
+
+        // Update SystemAccess status if provided
+        if (dto.getSystemAccess() != null && dto.getSystemAccess().getStatus() != null) {
+            provider.setStatus(dto.getSystemAccess().getStatus());
         }
 
         String tenantName = getTenantNameSafely();
@@ -344,7 +349,7 @@ public class ProviderService {
     @Transactional
     public ProviderDto updateStatus(Long id, ProviderStatus status) {
         Provider provider = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Provider not found"));
+                .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
         provider.setStatus(status);
         return mapToDto(repository.save(provider));
     }
@@ -371,6 +376,42 @@ public class ProviderService {
         } catch (Exception e) {
             log.warn("Failed to get tenant name from RequestContext: {}", e.getMessage());
             return "default";
+        }
+    }
+
+    /**
+     * Validate mandatory fields for Provider creation
+     */
+    private void validateMandatoryFields(ProviderDto dto) {
+        StringBuilder errors = new StringBuilder();
+
+        if (dto.getNpi() == null || dto.getNpi().trim().isEmpty()) {
+            errors.append("npi, ");
+        }
+
+        if (dto.getIdentification() == null) {
+            errors.append("identification, ");
+        } else {
+            if (dto.getIdentification().getFirstName() == null || dto.getIdentification().getFirstName().trim().isEmpty()) {
+                errors.append("firstName, ");
+            }
+            if (dto.getIdentification().getLastName() == null || dto.getIdentification().getLastName().trim().isEmpty()) {
+                errors.append("lastName, ");
+            }
+        }
+
+        if (dto.getProfessionalDetails() == null) {
+            errors.append("professionalDetails, ");
+        } else {
+            if (dto.getProfessionalDetails().getLicenseNumber() == null || dto.getProfessionalDetails().getLicenseNumber().trim().isEmpty()) {
+                errors.append("licenseNumber, ");
+            }
+        }
+
+        if (errors.length() > 0) {
+            // Remove trailing comma and space
+            String missingFields = errors.substring(0, errors.length() - 2);
+            throw new IllegalArgumentException("Missing mandatory fields: " + missingFields);
         }
     }
 

@@ -4,6 +4,7 @@ import com.qiaben.ciyex.dto.InventoryDto;
 import com.qiaben.ciyex.dto.MonthlyOrderCountDto;
 import com.qiaben.ciyex.dto.OrderDto;
 import com.qiaben.ciyex.entity.Inventory;
+import com.qiaben.ciyex.exception.ResourceNotFoundException;
 import com.qiaben.ciyex.repository.InventoryRepository;
 import com.qiaben.ciyex.storage.ExternalInventoryStorage;
 import com.qiaben.ciyex.storage.ExternalStorage;
@@ -65,14 +66,14 @@ public class InventoryService {
     @Transactional(readOnly = true)
     public InventoryDto getById(Long id) {
         Inventory entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Inventory item not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found with id: " + id));
         return mapToDto(entity);
     }
 
     @Transactional
     public InventoryDto update(Long id, InventoryDto dto) {
         Inventory entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Inventory item not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found with id: " + id));
 
         entity.setSupplier(dto.getSupplier());
         entity.setName(dto.getName());
@@ -100,7 +101,7 @@ public class InventoryService {
     @Transactional
     public void delete(Long id) {
         Inventory entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Inventory item not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found with id: " + id));
 
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && entity.getExternalId() != null) {
@@ -121,14 +122,14 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public Page<InventoryDto> getAll(Pageable pageable) {
-        
+
         return repository.findAll(pageable).map(this::mapToDto);
     }
 
     @Transactional
     public OrderDto createReorder(Long inventoryId, OrderDto dto) {
         Inventory entity = repository.findById(inventoryId)
-                .orElseThrow(() -> new RuntimeException("Inventory item not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found with id: " + inventoryId));
 
         // use dto.getStock() instead of getQuantity()
         return orderService.createOrder(entity, dto.getStock(), dto.getSupplier());
@@ -137,7 +138,7 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getWeeklyConsumption() {
-        
+
         List<Inventory> items = repository.findAll();
 
         Map<String, Integer> grouped = items.stream()
@@ -164,7 +165,7 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getMonthlyOrders() {
-        
+
         List<MonthlyOrderCountDto> counts = orderService.countOrdersByMonth();
 
         return counts.stream()
@@ -186,7 +187,7 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public Map<String, Long> countLowAndCritical() {
-        
+
         List<Inventory> items = repository.findAll();
 
         long low = items.stream()
@@ -244,7 +245,7 @@ public class InventoryService {
         return dto;
     }
 
-    
+
 
     private String now() {
         return LocalDateTime.now().toString();
