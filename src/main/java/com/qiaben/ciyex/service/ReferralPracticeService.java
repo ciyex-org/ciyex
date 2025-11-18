@@ -37,6 +37,9 @@ public class ReferralPracticeService {
 
     @Transactional
     public ReferralPracticeDto create(ReferralPracticeDto dto) {
+        // Validate mandatory fields
+        validateMandatoryFields(dto);
+
         ReferralPractice entity = mapToEntity(dto);
         // Save locally first
         entity = repository.save(entity);
@@ -57,17 +60,31 @@ public class ReferralPracticeService {
         return mapToDto(entity);
     }
 
+    private void validateMandatoryFields(ReferralPracticeDto dto) {
+        StringBuilder errors = new StringBuilder();
+
+        if (dto.getName() == null || dto.getName().trim().isEmpty()) {
+            errors.append("name, ");
+        }
+
+        if (errors.length() > 0) {
+            // Remove trailing comma and space
+            String missingFields = errors.substring(0, errors.length() - 2);
+            throw new IllegalArgumentException("Missing mandatory fields: " + missingFields);
+        }
+    }
+
     @Transactional(readOnly = true)
     public ReferralPracticeDto getById(Long id) {
         ReferralPractice entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Referral practice not found"));
+                .orElseThrow(() -> new RuntimeException("Referral practice not found with id: " + id));
         return mapToDto(entity);
     }
 
     @Transactional
     public ReferralPracticeDto update(Long id, ReferralPracticeDto dto) {
         ReferralPractice entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Referral practice not found"));
+                .orElseThrow(() -> new RuntimeException("Referral practice not found with id: " + id));
 
         entity = updateEntityFromDto(entity, dto);
         entity = repository.save(entity); // save first
@@ -96,7 +113,7 @@ public class ReferralPracticeService {
     @Transactional
     public void delete(Long id) {
         ReferralPractice entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Referral practice not found"));
+                .orElseThrow(() -> new RuntimeException("Referral practice not found with id: " + id));
         repository.delete(entity);
     }
 
