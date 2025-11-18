@@ -1,6 +1,5 @@
 package com.qiaben.ciyex.service;
 
-
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.ScheduleDto;
 import com.qiaben.ciyex.entity.Schedule;
@@ -70,7 +69,31 @@ public class ScheduleService {
         Schedule entity = Schedule.builder()
                 .providerId(dto.getProviderId())
                 .externalId(externalId)
+                .start(dto.getStart())
+                .end(dto.getEnd())
+                .timezone(dto.getTimezone())
+                .serviceCategory(dto.getServiceCategory())
+                .serviceType(dto.getServiceType())
+                .specialty(dto.getSpecialty())
+                .status(dto.getStatus())
+                .comment(dto.getComment())
+                .actorReferences(dto.getActorReferences() != null ? String.join(",", dto.getActorReferences()) : null)
                 .build();
+        
+        // Map recurrence if present
+        if (dto.getRecurrence() != null) {
+            ScheduleDto.Recurrence r = dto.getRecurrence();
+            entity.setRecurrenceFrequency(r.getFrequency());
+            entity.setRecurrenceInterval(r.getInterval());
+            entity.setRecurrenceByWeekday(r.getByWeekday() != null ? String.join(",", r.getByWeekday()) : null);
+            entity.setRecurrenceStartDate(r.getStartDate());
+            entity.setRecurrenceEndDate(r.getEndDate());
+            entity.setRecurrenceStartTime(r.getStartTime());
+            entity.setRecurrenceEndTime(r.getEndTime());
+            entity.setRecurrenceMaxOccurrences(r.getMaxOccurrences());
+            entity.setRecurrenceLocationId(r.getLocationId());
+        }
+        
         entity = repository.save(entity);
 
 
@@ -143,6 +166,29 @@ public class ScheduleService {
 
         // allow providerId update locally (all other details live in external)
         if (dto.getProviderId() != null) entity.setProviderId(dto.getProviderId());
+        if (dto.getStart() != null) entity.setStart(dto.getStart());
+        if (dto.getEnd() != null) entity.setEnd(dto.getEnd());
+        if (dto.getTimezone() != null) entity.setTimezone(dto.getTimezone());
+        if (dto.getServiceCategory() != null) entity.setServiceCategory(dto.getServiceCategory());
+        if (dto.getServiceType() != null) entity.setServiceType(dto.getServiceType());
+        if (dto.getSpecialty() != null) entity.setSpecialty(dto.getSpecialty());
+        if (dto.getStatus() != null) entity.setStatus(dto.getStatus());
+        if (dto.getComment() != null) entity.setComment(dto.getComment());
+        if (dto.getActorReferences() != null) entity.setActorReferences(String.join(",", dto.getActorReferences()));
+        
+        // Update recurrence if present
+        if (dto.getRecurrence() != null) {
+            ScheduleDto.Recurrence r = dto.getRecurrence();
+            entity.setRecurrenceFrequency(r.getFrequency());
+            entity.setRecurrenceInterval(r.getInterval());
+            entity.setRecurrenceByWeekday(r.getByWeekday() != null ? String.join(",", r.getByWeekday()) : null);
+            entity.setRecurrenceStartDate(r.getStartDate());
+            entity.setRecurrenceEndDate(r.getEndDate());
+            entity.setRecurrenceStartTime(r.getStartTime());
+            entity.setRecurrenceEndTime(r.getEndTime());
+            entity.setRecurrenceMaxOccurrences(r.getMaxOccurrences());
+            entity.setRecurrenceLocationId(r.getLocationId());
+        }
 
         // sync to external
         dto.setExternalId(entity.getExternalId());
@@ -177,18 +223,43 @@ public class ScheduleService {
         dto.setId(entity.getId());
         dto.setProviderId(entity.getProviderId());
         dto.setExternalId(entity.getExternalId());
-        if (externalDto != null) {
-            dto.setStart(externalDto.getStart());
-            dto.setEnd(externalDto.getEnd());
+        
+        // Use entity values first, fall back to external
+        dto.setStart(entity.getStart() != null ? entity.getStart() : (externalDto != null ? externalDto.getStart() : null));
+        dto.setEnd(entity.getEnd() != null ? entity.getEnd() : (externalDto != null ? externalDto.getEnd() : null));
+        dto.setTimezone(entity.getTimezone() != null ? entity.getTimezone() : (externalDto != null ? externalDto.getTimezone() : null));
+        dto.setServiceCategory(entity.getServiceCategory() != null ? entity.getServiceCategory() : (externalDto != null ? externalDto.getServiceCategory() : null));
+        dto.setServiceType(entity.getServiceType() != null ? entity.getServiceType() : (externalDto != null ? externalDto.getServiceType() : null));
+        dto.setSpecialty(entity.getSpecialty() != null ? entity.getSpecialty() : (externalDto != null ? externalDto.getSpecialty() : null));
+        dto.setStatus(entity.getStatus() != null ? entity.getStatus() : (externalDto != null ? externalDto.getStatus() : null));
+        dto.setComment(entity.getComment() != null ? entity.getComment() : (externalDto != null ? externalDto.getComment() : null));
+        
+        // Parse actor references from comma-separated string
+        if (entity.getActorReferences() != null) {
+            dto.setActorReferences(List.of(entity.getActorReferences().split(",")));
+        } else if (externalDto != null && externalDto.getActorReferences() != null) {
             dto.setActorReferences(externalDto.getActorReferences());
-            dto.setServiceCategory(externalDto.getServiceCategory());
-            dto.setServiceType(externalDto.getServiceType());
-            dto.setSpecialty(externalDto.getSpecialty());
-            dto.setStatus(externalDto.getStatus());
-            dto.setComment(externalDto.getComment());
-            dto.setTimezone(externalDto.getTimezone());
+        }
+        
+        // Map recurrence from entity
+        if (entity.getRecurrenceFrequency() != null) {
+            ScheduleDto.Recurrence recurrence = new ScheduleDto.Recurrence();
+            recurrence.setFrequency(entity.getRecurrenceFrequency());
+            recurrence.setInterval(entity.getRecurrenceInterval());
+            if (entity.getRecurrenceByWeekday() != null) {
+                recurrence.setByWeekday(List.of(entity.getRecurrenceByWeekday().split(",")));
+            }
+            recurrence.setStartDate(entity.getRecurrenceStartDate());
+            recurrence.setEndDate(entity.getRecurrenceEndDate());
+            recurrence.setStartTime(entity.getRecurrenceStartTime());
+            recurrence.setEndTime(entity.getRecurrenceEndTime());
+            recurrence.setMaxOccurrences(entity.getRecurrenceMaxOccurrences());
+            recurrence.setLocationId(entity.getRecurrenceLocationId());
+            dto.setRecurrence(recurrence);
+        } else if (externalDto != null && externalDto.getRecurrence() != null) {
             dto.setRecurrence(externalDto.getRecurrence());
         }
+        
         return dto;
     }
 
