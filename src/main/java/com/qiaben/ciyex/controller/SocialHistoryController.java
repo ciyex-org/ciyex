@@ -128,6 +128,22 @@ public class SocialHistoryController {
         }
     }
 
+    // READ by ID — get specific social history by ID
+    @GetMapping("/{patientId}/{encounterId}/{id}")
+    public ResponseEntity<ApiResponse<SocialHistoryDto>> getById(
+            @PathVariable Long patientId,
+            @PathVariable Long encounterId,
+            @PathVariable Long id) {
+        try {
+            var dto = service.getById(patientId, encounterId, id);
+            return ResponseEntity.ok(ApiResponse.<SocialHistoryDto>builder()
+                    .success(true).message("Social History fetched").data(dto).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<SocialHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        }
+    }
+
     // CREATE container (+entries)
     @PostMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<SocialHistoryDto>> create(

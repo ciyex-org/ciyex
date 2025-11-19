@@ -25,4 +25,7 @@ public interface PatientInsuranceRemitLineRepository extends JpaRepository<Patie
     /* Fallbacks for older code paths without explicit ordering */
     List<PatientInsuranceRemitLine> findAllByPatientId(Long patientId);
     List<PatientInsuranceRemitLine> findAllByPatientIdAndInvoiceId(Long patientId, Long invoiceId);
+    
+    /* Find by invoice ID only (for statement generation) */
+    List<PatientInsuranceRemitLine> findByInvoiceId(Long invoiceId);
 }

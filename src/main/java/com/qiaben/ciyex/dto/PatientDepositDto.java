@@ -3,9 +3,12 @@ package com.qiaben.ciyex.dto;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-public record PatientDepositRequest(
+public record PatientDepositDto(
+        Long id,
+        Long patientId,
         BigDecimal amount,
         LocalDate depositDate,
-        String description
+        String description,
+        String PaymentMethod
 ) {}
 
