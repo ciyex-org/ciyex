@@ -232,7 +232,12 @@ public class AppointmentService {
         // dto.setMeetingUrl(entity.getMeetingUrl());
 
         AppointmentDTO.Audit audit = new AppointmentDTO.Audit();
-
+        if (entity.getCreatedDate() != null) {
+            audit.setCreatedDate(entity.getCreatedDate().toString());
+        }
+        if (entity.getLastModifiedDate() != null) {
+            audit.setLastModifiedDate(entity.getLastModifiedDate().toString());
+        }
         dto.setAudit(audit);
 
         if (dto.getAppointmentStartDate() != null && dto.getAppointmentStartTime() != null) {

@@ -18,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 
-
 @Service
 @Slf4j
 public class ScheduleService {
@@ -55,7 +54,7 @@ public class ScheduleService {
 
 
 // Create in external storage and capture externalId
-        String externalId = null;
+        String externalId = dto.getExternalId(); // Use provided externalId if available
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null) {
             ExternalScheduleStorage external =
@@ -259,6 +258,16 @@ public class ScheduleService {
         } else if (externalDto != null && externalDto.getRecurrence() != null) {
             dto.setRecurrence(externalDto.getRecurrence());
         }
+        
+        // Map audit information from entity
+        ScheduleDto.Audit audit = new ScheduleDto.Audit();
+        if (entity.getCreatedDate() != null) {
+            audit.setCreatedDate(entity.getCreatedDate().toString());
+        }
+        if (entity.getLastModifiedDate() != null) {
+            audit.setLastModifiedDate(entity.getLastModifiedDate().toString());
+        }
+        dto.setAudit(audit);
         
         return dto;
     }
