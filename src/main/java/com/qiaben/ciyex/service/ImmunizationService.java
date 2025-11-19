@@ -223,6 +223,15 @@ public class ImmunizationService {
         ImmunizationDto dto = new ImmunizationDto();
         dto.setPatientId(entity.getPatientId());
 
+        ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
+        if (entity.getCreatedDate() != null) {
+            audit.setCreatedDate(entity.getCreatedDate().toString());
+        }
+        if (entity.getLastModifiedDate() != null) {
+            audit.setLastModifiedDate(entity.getLastModifiedDate().toString());
+        }
+        dto.setAudit(audit);
+
         dto.setImmunizations(List.of(mapToItem(entity)));
         return dto;
     }
@@ -232,7 +241,15 @@ public class ImmunizationService {
         dto.setPatientId(patientId);
 
         if (!entities.isEmpty()) {
-            Immunization latest = entities.get(entities.size() - 1);
+            Immunization firstEntity = entities.get(0);
+            ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
+            if (firstEntity.getCreatedDate() != null) {
+                audit.setCreatedDate(firstEntity.getCreatedDate().toString());
+            }
+            if (firstEntity.getLastModifiedDate() != null) {
+                audit.setLastModifiedDate(firstEntity.getLastModifiedDate().toString());
+            }
+            dto.setAudit(audit);
         }
 
         dto.setImmunizations(entities.stream().map(this::mapToItem).collect(Collectors.toList()));

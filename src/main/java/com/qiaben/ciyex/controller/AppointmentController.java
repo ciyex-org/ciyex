@@ -36,6 +36,12 @@ public class AppointmentController {
                     .message("Appointment created successfully")
                     .data(created)
                     .build());
+        } catch (IllegalArgumentException e) {
+            log.warn("Validation error creating appointment: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(ApiResponse.<AppointmentDTO>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
         } catch (Exception e) {
             log.error("Failed to create appointment", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<AppointmentDTO>builder()
@@ -78,6 +84,12 @@ public class AppointmentController {
                     .success(true)
                     .message("Appointment updated successfully")
                     .data(updated)
+                    .build());
+        } catch (IllegalArgumentException e) {
+            log.warn("Validation error updating appointment with id {}: {}", id, e.getMessage());
+            return ResponseEntity.badRequest().body(ApiResponse.<AppointmentDTO>builder()
+                    .success(false)
+                    .message(e.getMessage())
                     .build());
         } catch (Exception e) {
             log.error("Failed to update appointment with id {}", id, e);

@@ -49,6 +49,7 @@ public class SecurityConfig {
                                 "/api/public/**",
                                 "/api/portal/auth/**",
                                 "/api/portal/approvals/**",
+                                "/api/admin/templates/**",  // ✅ Allow public access to admin templates for testing
                                 "/actuator/**"
                         ).permitAll()
 
