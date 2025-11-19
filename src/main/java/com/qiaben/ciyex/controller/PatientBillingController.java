@@ -124,6 +124,8 @@ public class PatientBillingController {
         return ResponseEntity.ok(ApiResponse.ok("Invoice created", data));
     }
 
+
+
     /** Update invoice from procedure (JSON body) */
     @PutMapping("/invoices/{invoiceId}")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> updateInvoiceFromProcedure(
@@ -133,6 +135,16 @@ public class PatientBillingController {
 
         var data = service.updateInvoiceFromProcedure(patientId, invoiceId, body);
         return ResponseEntity.ok(ApiResponse.ok("Invoice updated", data));
+    }
+
+    /** Delete invoice */
+    @DeleteMapping("/invoices/{invoiceId}")
+    public ResponseEntity<ApiResponse<Void>> deleteInvoice(
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId) {
+
+        service.deleteInvoice(patientId, invoiceId);
+        return ResponseEntity.ok(ApiResponse.ok("Invoice deleted", null));
     }
 
     /** Get invoice lines for a specific invoice */
@@ -169,16 +181,7 @@ public class PatientBillingController {
         var data = service.applyInvoicePercentageAdjustment(patientId, invoiceId, body);
         return ResponseEntity.ok(ApiResponse.ok("Adjustment applied", data));
     }
-    /** Delete invoice */
-    @DeleteMapping("/invoices/{invoiceId}/delete")
-    public ResponseEntity<Void> deleteInvoice(
 
-            @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
-
-        service.deleteInvoice(patientId, invoiceId);
-        return ResponseEntity.noContent().build();
-    }
 
 
 
@@ -275,6 +278,17 @@ public class PatientBillingController {
         var data = service.updateClaim(patientId, invoiceId, body);
         return ResponseEntity.ok(ApiResponse.ok("Claim updated", data));
     }
+
+    /** Get claim line details (DOS, code, description, provider, total submitted amount) */
+    @GetMapping("/claims/{claimId}/lines")
+    public ResponseEntity<ApiResponse<List<ClaimLineDetailDto>>> getClaimLineDetails(
+            @PathVariable Long patientId,
+            @PathVariable Long claimId) {
+
+        var data = service.getClaimLineDetails(claimId);
+        return ResponseEntity.ok(ApiResponse.ok("Claim lines loaded", data));
+    }
+
     // --- Attachment & EOB endpoints ---
     @PostMapping(value = "/claims/{claimId}/attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Void>> uploadClaimAttachment(
@@ -407,6 +421,17 @@ public class PatientBillingController {
         return ResponseEntity.ok(ApiResponse.ok("Insurance credit transferred to patient credit", data));
     }
 
+    /** Get detailed insurance payment information */
+    @GetMapping("/invoices/{invoiceId}/insurance-payments/{remitId}/details")
+    public ResponseEntity<ApiResponse<InsurancePaymentDetailDto>> getInsurancePaymentDetails(
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @PathVariable Long remitId) {
+        log.info("Getting insurance payment details for patient {} invoice {} remit {}", patientId, invoiceId, remitId);
+        InsurancePaymentDetailDto details = service.getInsurancePaymentDetails(patientId, invoiceId, remitId);
+        return ResponseEntity.ok(ApiResponse.ok("Insurance payment details retrieved", details));
+    }
+
     /* ================= Patient Payment & Credit ================= */
 
     /** Patient payment → Apply */
@@ -419,6 +444,17 @@ public class PatientBillingController {
 
         var data = service.applyPatientPayment(patientId, invoiceId, body);
         return ResponseEntity.ok(ApiResponse.ok("Patient payment applied", data));
+    }
+
+    /** Get detailed patient payment information */
+    @GetMapping("/invoices/{invoiceId}/patient-payments/{paymentId}/details")
+    public ResponseEntity<ApiResponse<PatientPaymentDetailDto>> getPatientPaymentDetails(
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId,
+            @PathVariable Long paymentId) {
+        log.info("Getting patient payment details for patient {} invoice {} payment {}", patientId, invoiceId, paymentId);
+        PatientPaymentDetailDto details = service.getPatientPaymentDetails(patientId, invoiceId, paymentId);
+        return ResponseEntity.ok(ApiResponse.ok("Patient payment details retrieved", details));
     }
 
     /** GET all patient payment allocations for a patient */
@@ -594,11 +630,47 @@ public class PatientBillingController {
 
     /** Add patient deposit */
     @PostMapping("/deposit")
-    public ResponseEntity<ApiResponse<PatientAccountCreditDto>> addPatientDeposit(
+    public ResponseEntity<ApiResponse<PatientDepositDto>> addPatientDeposit(
             @PathVariable Long patientId,
             @RequestBody PatientDepositRequest request) {
-        PatientAccountCreditDto result = service.addPatientDeposit(patientId, request);
+        PatientDepositDto result = service.addPatientDeposit(patientId, request);
         return ResponseEntity.ok(ApiResponse.ok("Deposit added successfully", result));
+    }
+
+    /** Get all patient deposits */
+    @GetMapping("/deposit")
+    public ResponseEntity<ApiResponse<List<PatientDepositDto>>> getPatientDeposits(
+            @PathVariable Long patientId) {
+        List<PatientDepositDto> deposits = service.getPatientDeposits(patientId);
+        return ResponseEntity.ok(ApiResponse.ok("Deposits retrieved successfully", deposits));
+    }
+
+    /** Get a single patient deposit */
+    @GetMapping("/deposit/{depositId}")
+    public ResponseEntity<ApiResponse<PatientDepositDto>> getPatientDeposit(
+            @PathVariable Long patientId,
+            @PathVariable Long depositId) {
+        PatientDepositDto deposit = service.getPatientDeposit(patientId, depositId);
+        return ResponseEntity.ok(ApiResponse.ok("Deposit retrieved successfully", deposit));
+    }
+
+    /** Update patient deposit */
+    @PutMapping("/deposit/{depositId}")
+    public ResponseEntity<ApiResponse<PatientDepositDto>> updatePatientDeposit(
+            @PathVariable Long patientId,
+            @PathVariable Long depositId,
+            @RequestBody PatientDepositRequest request) {
+        PatientDepositDto result = service.updatePatientDeposit(patientId, depositId, request);
+        return ResponseEntity.ok(ApiResponse.ok("Deposit updated successfully", result));
+    }
+
+    /** Delete patient deposit */
+    @DeleteMapping("/deposit/{depositId}")
+    public ResponseEntity<ApiResponse<Void>> deletePatientDeposit(
+            @PathVariable Long patientId,
+            @PathVariable Long depositId) {
+        service.deletePatientDeposit(patientId, depositId);
+        return ResponseEntity.ok(ApiResponse.ok("Deposit deleted successfully", null));
     }
 
 
@@ -624,12 +696,12 @@ public class PatientBillingController {
         return ResponseEntity.ok(ApiResponse.ok("Courtesy credit added and account credit updated", data));
     }
 
-
-
-
-    /** Apply courtesy credit to invoice (for uncollected patient balance) */
+    /**
+     * //     * Apply courtesy credit to invoice (for uncollected patient balance)
+     * //
+     */
     @PostMapping("/invoices/{invoiceId}/courtesy-credit")
-    public ResponseEntity<ApiResponse<PatientInvoiceDto>> applyCourtesyCreditToInvoice(
+    public ResponseEntity<ApiResponse<InvoiceCourtesyCreditDto>> applyCourtesyCreditToInvoice(
 
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
@@ -639,9 +711,12 @@ public class PatientBillingController {
         return ResponseEntity.ok(ApiResponse.ok("Courtesy credit applied to invoice, patient balance reduced", data));
     }
 
-    /** Get courtesy credit applied to specific invoice */
+
+    /**
+     * Get courtesy credit applied to specific invoice
+     */
     @GetMapping("/invoices/{invoiceId}/courtesy-credit")
-    public ResponseEntity<ApiResponse<PatientInvoiceDto>> getInvoiceCourtesyCredit(
+    public ResponseEntity<ApiResponse<List<InvoiceCourtesyCreditDto>>> getInvoiceCourtesyCredit(
             @PathVariable Long patientId,
             @PathVariable Long invoiceId
     ) {
@@ -649,9 +724,11 @@ public class PatientBillingController {
         return ResponseEntity.ok(ApiResponse.ok("Invoice courtesy credit details retrieved", data));
     }
 
-    /** Update courtesy credit applied to specific invoice */
+    /**
+     * Update courtesy credit applied to specific invoice
+     */
     @PutMapping("/invoices/{invoiceId}/courtesy-credit")
-    public ResponseEntity<ApiResponse<PatientInvoiceDto>> updateInvoiceCourtesyCredit(
+    public ResponseEntity<ApiResponse<InvoiceCourtesyCreditDto>> updateInvoiceCourtesyCredit(
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody CourtesyCreditRequest request
@@ -660,14 +737,15 @@ public class PatientBillingController {
         return ResponseEntity.ok(ApiResponse.ok("Invoice courtesy credit updated successfully", data));
     }
 
-    /** Remove courtesy credit from specific invoice */
+    /**
+     * Remove courtesy credit from specific invoice
+     */
     @DeleteMapping("/invoices/{invoiceId}/courtesy-credit")
-    public ResponseEntity<ApiResponse<PatientInvoiceDto>> removeInvoiceCourtesyCredit(
+    public ResponseEntity<ApiResponse<InvoiceCourtesyCreditDto>> removeInvoiceCourtesyCredit(
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @RequestBody CourtesyCreditRequest request
+            @PathVariable Long invoiceId
     ) {
-        var data = service.removeInvoiceCourtesyCredit(patientId, invoiceId, request);
+        var data = service.removeInvoiceCourtesyCredit(patientId, invoiceId);
         return ResponseEntity.ok(ApiResponse.ok("Courtesy credit removed from invoice successfully", data));
     }
 

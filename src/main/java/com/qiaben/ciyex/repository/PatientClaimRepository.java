@@ -39,8 +39,9 @@ public interface PatientClaimRepository extends JpaRepository<PatientClaim, Long
 
     /** All (historical) claims for a specific invoice (new) */
     List<PatientClaim> findAllByInvoiceIdAndPatientIdOrderByIdDesc(Long invoiceId, Long patientId);
-
-
+    
+    /** All claims for a specific invoice (for statement generation) */
+    List<PatientClaim> findByInvoiceIdOrderByIdAsc(Long invoiceId);
 
 
 
