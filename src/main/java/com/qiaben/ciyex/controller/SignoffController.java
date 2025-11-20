@@ -95,38 +95,55 @@ import java.util.List;
 public class SignoffController {
     @GetMapping("/{patientId}")
     public ResponseEntity<ApiResponse<List<SignoffDto>>> getAllByPatient(@PathVariable Long patientId) {
-        var items = service.getAllByPatient(patientId);
-        return ResponseEntity.ok(ApiResponse.<List<SignoffDto>>builder().success(true).message("Fetched").data(items).build());
+        try {
+            var items = service.getAllByPatient(patientId);
+            if (items.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<List<SignoffDto>>builder()
+                        .success(true)
+                        .message("No Sign-offs found for Patient ID: " + patientId)
+                        .data(items)
+                        .build());
+            }
+            return ResponseEntity.ok(ApiResponse.<List<SignoffDto>>builder()
+                    .success(true)
+                    .message("Sign-offs fetched successfully")
+                    .data(items)
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error fetching Sign-offs for Patient ID: " + patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<SignoffDto>>builder()
+                            .success(false)
+                            .message("Error fetching Sign-offs for Patient ID: " + patientId + ". " + ex.getMessage())
+                            .build());
+        }
     }
 
     private final SignoffService service;
 
     /**
-     * Validates that all mandatory fields are present: signedBy, signerRole, signedAt, attestationText, and comments.
-     * Throws IllegalArgumentException if any field is missing.
+     * Validates mandatory fields for Signoff creation and update
+     * @param dto SignoffDto to validate
+     * @return error message if validation fails, null if validation passes
      */
-    private void validateMandatoryFields(SignoffDto dto) {
-        List<String> missingFields = new java.util.ArrayList<>();
+    private String validateMandatoryFields(SignoffDto dto) {
+        StringBuilder missingFields = new StringBuilder();
 
-        if (dto.getSignedBy() == null || dto.getSignedBy().trim().isEmpty()) {
-            missingFields.add("signedBy");
-        }
-        if (dto.getSignerRole() == null || dto.getSignerRole().trim().isEmpty()) {
-            missingFields.add("signerRole");
-        }
-        if (dto.getSignedAt() == null || dto.getSignedAt().trim().isEmpty()) {
-            missingFields.add("signedAt");
-        }
         if (dto.getAttestationText() == null || dto.getAttestationText().trim().isEmpty()) {
-            missingFields.add("attestationText");
+            missingFields.append("attestationText, ");
         }
+
         if (dto.getComments() == null || dto.getComments().trim().isEmpty()) {
-            missingFields.add("comments");
+            missingFields.append("comments, ");
         }
 
         if (!missingFields.isEmpty()) {
-            throw new IllegalArgumentException("Missing mandatory fields: " + String.join(", ", missingFields));
+            // Remove the trailing comma and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
         }
+
+        return null;
     }
 
     // LIST (SignoffCard loads here first)
@@ -134,9 +151,28 @@ public class SignoffController {
     public ResponseEntity<ApiResponse<List<SignoffDto>>> list(
             @PathVariable Long patientId,
             @PathVariable Long encounterId) {
-        var items = service.list(patientId, encounterId);
-        return ResponseEntity.ok(ApiResponse.<List<SignoffDto>>builder()
-                .success(true).message("Sign-offs fetched").data(items).build());
+        try {
+            var items = service.list(patientId, encounterId);
+            if (items.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<List<SignoffDto>>builder()
+                        .success(true)
+                        .message(String.format("No Sign-offs found for Patient ID: %d, Encounter ID: %d", patientId, encounterId))
+                        .data(items)
+                        .build());
+            }
+            return ResponseEntity.ok(ApiResponse.<List<SignoffDto>>builder()
+                    .success(true)
+                    .message("Sign-offs fetched successfully")
+                    .data(items)
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error fetching Sign-offs for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<SignoffDto>>builder()
+                            .success(false)
+                            .message(String.format("Error fetching Sign-offs for Patient ID: %d, Encounter ID: %d. %s", patientId, encounterId, ex.getMessage()))
+                            .build());
+        }
     }
 
     // GET ONE
@@ -161,9 +197,16 @@ public class SignoffController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody(required = false) SignoffDto dto) {
+        SignoffDto signoffDto = (dto != null ? dto : new SignoffDto());
+
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(signoffDto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<SignoffDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         try {
-            SignoffDto signoffDto = (dto != null ? dto : new SignoffDto());
-            validateMandatoryFields(signoffDto);
             var saved = service.create(patientId, encounterId, signoffDto);
             return ResponseEntity.ok(ApiResponse.<SignoffDto>builder()
                     .success(true).message("Sign-off created").data(saved).build());
@@ -180,8 +223,14 @@ public class SignoffController {
             @PathVariable Long encounterId,
             @PathVariable Long id,
             @RequestBody SignoffDto dto) {
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<SignoffDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         try {
-            validateMandatoryFields(dto);
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<SignoffDto>builder()
                     .success(true).message("Sign-off updated").data(saved).build());
@@ -236,15 +285,27 @@ public class SignoffController {
 
     // PRINT (PDF)
     @GetMapping("/{patientId}/{encounterId}/{id}/print")
-    public ResponseEntity<byte[]> print(
+    public ResponseEntity<?> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id) {
-        byte[] pdf = service.renderPdf(patientId, encounterId, id);
-        String filename = "signoff-" + id + ".pdf";
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(pdf);
+        try {
+            byte[] pdf = service.renderPdf(patientId, encounterId, id);
+            String filename = "signoff-" + id + ".pdf";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdf);
+        } catch (IllegalArgumentException ex) {
+            log.error("Error printing Sign-off for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiResponse.<Void>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error generating Sign-off PDF", ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiResponse.<Void>builder().success(false).message("Error generating PDF: " + ex.getMessage()).build());
+        }
     }
 }

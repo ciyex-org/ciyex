@@ -9,6 +9,6 @@ public record PatientDepositDto(
         BigDecimal amount,
         LocalDate depositDate,
         String description,
-        String PaymentMethod
+        String paymentMethod
 ) {}
 

@@ -108,8 +108,28 @@ import java.util.List;
 public class ProviderSignatureController {
     @GetMapping("/{patientId}")
     public ResponseEntity<ApiResponse<List<ProviderSignatureDto>>> getAllByPatient(@PathVariable Long patientId) {
-        var items = service.getAllByPatient(patientId);
-        return ResponseEntity.ok(ApiResponse.<List<ProviderSignatureDto>>builder().success(true).message("Fetched").data(items).build());
+        try {
+            var items = service.getAllByPatient(patientId);
+            if (items.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<List<ProviderSignatureDto>>builder()
+                        .success(true)
+                        .message("No Provider Signatures found for Patient ID: " + patientId)
+                        .data(items)
+                        .build());
+            }
+            return ResponseEntity.ok(ApiResponse.<List<ProviderSignatureDto>>builder()
+                    .success(true)
+                    .message("Provider Signatures fetched successfully")
+                    .data(items)
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error fetching Provider Signatures for Patient ID: " + patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<ProviderSignatureDto>>builder()
+                            .success(false)
+                            .message("Error fetching Provider Signatures for Patient ID: " + patientId + ". " + ex.getMessage())
+                            .build());
+        }
     }
 
     private final ProviderSignatureService service;
@@ -144,9 +164,28 @@ public class ProviderSignatureController {
     public ResponseEntity<ApiResponse<List<ProviderSignatureDto>>> list(
             @PathVariable Long patientId,
             @PathVariable Long encounterId) {
-        var items = service.list(patientId, encounterId);
-        return ResponseEntity.ok(ApiResponse.<List<ProviderSignatureDto>>builder()
-                .success(true).message("Provider signatures fetched").data(items).build());
+        try {
+            var items = service.list(patientId, encounterId);
+            if (items.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<List<ProviderSignatureDto>>builder()
+                        .success(true)
+                        .message(String.format("No Provider Signatures found for Patient ID: %d, Encounter ID: %d", patientId, encounterId))
+                        .data(items)
+                        .build());
+            }
+            return ResponseEntity.ok(ApiResponse.<List<ProviderSignatureDto>>builder()
+                    .success(true)
+                    .message("Provider signatures fetched successfully")
+                    .data(items)
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error fetching Provider Signatures for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<ProviderSignatureDto>>builder()
+                            .success(false)
+                            .message(String.format("Error fetching Provider Signatures for Patient ID: %d, Encounter ID: %d. %s", patientId, encounterId, ex.getMessage()))
+                            .build());
+        }
     }
 
     // GET ONE
@@ -235,15 +274,27 @@ public class ProviderSignatureController {
 
     // PRINT (PDF)
     @GetMapping("/{patientId}/{encounterId}/{id}/print")
-    public ResponseEntity<byte[]> print(
+    public ResponseEntity<?> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id) {
-        byte[] pdf = service.renderPdf(patientId, encounterId, id);
-        String filename = "provider-signature-" + id + ".pdf";
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(pdf);
+        try {
+            byte[] pdf = service.renderPdf(patientId, encounterId, id);
+            String filename = "provider-signature-" + id + ".pdf";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdf);
+        } catch (IllegalArgumentException ex) {
+            log.error("Error printing Provider Signature for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiResponse.<Void>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error generating Provider Signature PDF", ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiResponse.<Void>builder().success(false).message("Error generating PDF: " + ex.getMessage()).build());
+        }
     }
 }

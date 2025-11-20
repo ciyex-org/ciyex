@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 
 @Entity
 @Table(name = "patient_account_credit", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_credit_patient", columnNames = {"orgId","patientId"})
+        @UniqueConstraint(name = "uk_credit_patient", columnNames = {"patientid"})
 })
 @EqualsAndHashCode(callSuper = true)
 public class PatientAccountCredit extends AuditableEntity {

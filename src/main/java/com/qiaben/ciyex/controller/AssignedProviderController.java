@@ -108,8 +108,28 @@ import java.util.List;
 public class AssignedProviderController {
     @GetMapping("/{patientId}")
     public ResponseEntity<ApiResponse<List<AssignedProviderDto>>> getAllByPatient(@PathVariable Long patientId) {
-        var items = service.getAllByPatient(patientId);
-        return ResponseEntity.ok(ApiResponse.<List<AssignedProviderDto>>builder().success(true).message("Fetched").data(items).build());
+        try {
+            var items = service.getAllByPatient(patientId);
+            if (items.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<List<AssignedProviderDto>>builder()
+                        .success(true)
+                        .message("No Assigned Providers found for Patient ID: " + patientId)
+                        .data(items)
+                        .build());
+            }
+            return ResponseEntity.ok(ApiResponse.<List<AssignedProviderDto>>builder()
+                    .success(true)
+                    .message("Assigned Providers fetched successfully")
+                    .data(items)
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error fetching Assigned Providers for Patient ID: " + patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<AssignedProviderDto>>builder()
+                            .success(false)
+                            .message("Error fetching Assigned Providers for Patient ID: " + patientId + ". " + ex.getMessage())
+                            .build());
+        }
     }
 
     private final AssignedProviderService service;
@@ -119,9 +139,28 @@ public class AssignedProviderController {
     public ResponseEntity<ApiResponse<List<AssignedProviderDto>>> list(
             @PathVariable Long patientId,
             @PathVariable Long encounterId) {
-        var items = service.list(patientId, encounterId);
-        return ResponseEntity.ok(ApiResponse.<List<AssignedProviderDto>>builder()
-                .success(true).message("Assigned providers fetched").data(items).build());
+        try {
+            var items = service.list(patientId, encounterId);
+            if (items.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<List<AssignedProviderDto>>builder()
+                        .success(true)
+                        .message(String.format("No Assigned Providers found for Patient ID: %d, Encounter ID: %d", patientId, encounterId))
+                        .data(items)
+                        .build());
+            }
+            return ResponseEntity.ok(ApiResponse.<List<AssignedProviderDto>>builder()
+                    .success(true)
+                    .message("Assigned providers fetched successfully")
+                    .data(items)
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error fetching Assigned Providers for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<AssignedProviderDto>>builder()
+                            .success(false)
+                            .message(String.format("Error fetching Assigned Providers for Patient ID: %d, Encounter ID: %d. %s", patientId, encounterId, ex.getMessage()))
+                            .build());
+        }
     }
 
     // GET
@@ -228,16 +267,28 @@ public class AssignedProviderController {
 
     // PRINT (PDF)
     @GetMapping("/{patientId}/{encounterId}/{id}/print")
-    public ResponseEntity<byte[]> print(
+    public ResponseEntity<?> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id) {
-        byte[] pdf = service.renderPdf(patientId, encounterId, id);
-        String filename = "assigned-provider-" + id + ".pdf";
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(pdf);
+        try {
+            byte[] pdf = service.renderPdf(patientId, encounterId, id);
+            String filename = "assigned-provider-" + id + ".pdf";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdf);
+        } catch (IllegalArgumentException ex) {
+            log.error("Error printing Assigned Provider for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiResponse.<Void>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error generating Assigned Provider PDF", ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiResponse.<Void>builder().success(false).message("Error generating PDF: " + ex.getMessage()).build());
+        }
     }
 
     /**

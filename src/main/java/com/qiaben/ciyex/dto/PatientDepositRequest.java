@@ -6,6 +6,7 @@ import java.time.LocalDate;
 public record PatientDepositRequest(
         BigDecimal amount,
         LocalDate depositDate,
-        String description
+        String description,
+        String paymentMethod
 ) {}
 

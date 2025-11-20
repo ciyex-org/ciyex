@@ -18,6 +18,8 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/patient-billing/{patientId}")
 public class PatientBillingController {
 
+
+
     /**
      * Generate a printable patient statement (for print/statement button)
      */
@@ -789,6 +791,17 @@ public class PatientBillingController {
         service.submitClaimAttachment(patientId, claimId, file);
         PatientClaimDto dto = service.toClaimDto(service.getClaimOrThrow(patientId, claimId));
         return ResponseEntity.ok(ApiResponse.ok("Claim attachment submitted", dto));
+    }
+
+    /**
+     * Generate a printable invoice for a specific invoice (for print invoice button)
+     */
+    @GetMapping("/invoices/{invoiceId}/print")
+    public ResponseEntity<ApiResponse<PatientInvoicePrintDto>> getPrintableInvoice(
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId) {
+        PatientInvoicePrintDto dto = service.getPrintableInvoice(patientId, invoiceId);
+        return ResponseEntity.ok(ApiResponse.ok("Invoice loaded for printing", dto));
     }
 }
 

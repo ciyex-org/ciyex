@@ -200,7 +200,9 @@ public class ProviderNoteService {
     // Read one
     public ProviderNoteDto getOne(Long patientId, Long encounterId, Long id) {
         ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Provider Note not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         return toDto(e);
     }
 
@@ -213,7 +215,9 @@ public class ProviderNoteService {
     // Update (blocked if signed)
     public ProviderNoteDto update(Long patientId, Long encounterId, Long id, ProviderNoteDto dto) {
         ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Provider Note not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed provider notes are read-only.");
         }
@@ -225,7 +229,9 @@ public class ProviderNoteService {
     // Delete (blocked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
         ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Provider Note not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed provider notes cannot be deleted.");
         }
@@ -235,7 +241,9 @@ public class ProviderNoteService {
     // eSign (idempotent)
     public ProviderNoteDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Provider Note not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
         e.setESigned(true);
@@ -246,7 +254,9 @@ public class ProviderNoteService {
     }
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Provider Note not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));
         repo.save(e);

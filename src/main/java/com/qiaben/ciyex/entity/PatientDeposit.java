@@ -29,7 +29,7 @@ public class PatientDeposit extends AuditableEntity {
     @Column(length = 500)
     private String description;
 
-    @Column(length = 500)
-    private String  PaymentMethod;
+    @Column( length = 500)
+    private String paymentMethod;
 }
 

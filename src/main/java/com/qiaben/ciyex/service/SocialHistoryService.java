@@ -199,21 +199,27 @@ public class SocialHistoryService {
     public SocialHistoryDto getOne(Long patientId, Long encounterId) {
         List<SocialHistory> list = repo.findByPatientIdAndEncounterId(patientId, encounterId);
         SocialHistory e = list.isEmpty() ? null : list.get(0);
-        if (e == null) throw new IllegalArgumentException("Social History not found");
+        if (e == null) throw new IllegalArgumentException(
+            String.format("Social History not found for Patient ID: %d, Encounter ID: %d", patientId, encounterId)
+        );
         return toDto(e);
     }
 
     // READ by id
     public SocialHistoryDto getById(Long patientId, Long encounterId, Long id) {
         SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         return toDto(e);
     }
 
     // UPDATE container (blocked if signed)
     public SocialHistoryDto update(Long patientId, Long encounterId, Long id, SocialHistoryDto dto) {
         SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed Social History is read-only.");
         }
@@ -225,7 +231,9 @@ public class SocialHistoryService {
     // DELETE container (blocked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
         SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed Social History cannot be deleted.");
         }
@@ -235,7 +243,9 @@ public class SocialHistoryService {
     // eSIGN (idempotent)
     public SocialHistoryDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
         e.setESigned(true);
         e.setSignedAt(OffsetDateTime.now(ZoneOffset.UTC));
@@ -247,7 +257,9 @@ public class SocialHistoryService {
     // PRINT (PDF) — also stamps printedAt
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));
         repo.save(e);
 

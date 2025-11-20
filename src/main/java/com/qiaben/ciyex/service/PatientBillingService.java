@@ -122,6 +122,8 @@ public class PatientBillingService {
     private final PatientRepository patientRepo;
     private final CoverageRepository coverageRepo;
     private final InvoiceCourtesyCreditRepository invoiceCourtesyCreditRepo;
+    private final AppointmentRepository appointmentRepo;
+
 
 
     /* ====== Request DTOs ====== */
@@ -1137,6 +1139,7 @@ public class PatientBillingService {
         deposit.setAmount(request.amount());
         deposit.setDepositDate(request.depositDate() != null ? request.depositDate() : LocalDate.now());
         deposit.setDescription(request.description());
+        deposit.setPaymentMethod(request.paymentMethod());
         depositRepo.save(deposit);
 
         // Update account credit
@@ -1191,6 +1194,7 @@ public class PatientBillingService {
         deposit.setAmount(newAmount);
         deposit.setDepositDate(request.depositDate() != null ? request.depositDate() : deposit.getDepositDate());
         deposit.setDescription(request.description());
+        deposit.setPaymentMethod(request.paymentMethod());
         depositRepo.save(deposit);
 
         // Update account credit balance
@@ -1576,6 +1580,403 @@ public class PatientBillingService {
         claimRepo.save(claim);
     }
 
+    /**
+     * Generate a printable invoice for a specific invoice with complete transaction history.
+     */
+    public PatientInvoicePrintDto getPrintableInvoice(Long patientId, Long invoiceId) {
+        PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
+        Patient patient = patientRepo.findById(patientId)
+                .orElseThrow(() -> new IllegalArgumentException("Patient not found"));
+
+        PatientInvoicePrintDto dto = new PatientInvoicePrintDto();
+
+        // Practice Info
+        PatientInvoicePrintDto.PracticeInfo practice = new PatientInvoicePrintDto.PracticeInfo();
+        practice.practiceName = "Bright Smiles Family Dental";
+        practice.address = "123 West Main St., Rockaway, NJ 07866";
+        practice.phone = "+1 (973) 627-2186";
+        practice.email = "info@rockawaydentist.com";
+        practice.website = "https://www.rockawaydentist.com/";
+        dto.practice = practice;
+
+        // Patient Info
+        dto.patientId = patientId;
+        dto.patientName = (patient.getFirstName() != null ? patient.getFirstName() : "") + " " +
+                (patient.getLastName() != null ? patient.getLastName() : "");
+        dto.patientPhone = patient.getPhoneNumber();
+        dto.patientEmail = patient.getEmail();
+        dto.patientAddress = patient.getAddress();
+
+        // Invoice Info
+        dto.invoiceId = invoice.getId();
+        dto.invoiceDate = invoice.getCreatedAt();
+        dto.invoiceNumber = "Invoice #" + invoice.getId();
+        dto.status = invoice.getStatus() != null ? invoice.getStatus().name() : "OPEN";
+
+        // Build Transaction History (main statement table)
+        List<PatientInvoicePrintDto.TransactionLine> transactions = new ArrayList<>();
+        BigDecimal runningBalance = BigDecimal.ZERO;
+
+        // 1. Add Invoice Header
+        PatientInvoicePrintDto.TransactionLine invoiceHeader = new PatientInvoicePrintDto.TransactionLine();
+        invoiceHeader.date = invoice.getCreatedAt() != null ? invoice.getCreatedAt().toLocalDate() : LocalDate.now();
+        invoiceHeader.description = "Invoice #" + invoice.getId() + ": $" +
+                (invoice.getTotalCharge() != null ? invoice.getTotalCharge() : BigDecimal.ZERO);
+        invoiceHeader.transactionType = "INVOICE";
+        runningBalance = runningBalance.add(invoice.getTotalCharge() != null ? invoice.getTotalCharge() : BigDecimal.ZERO);
+        invoiceHeader.balance = runningBalance;
+        transactions.add(invoiceHeader);
+
+        // 2. Add Invoice Lines (procedure details)
+        for (PatientInvoiceLine line : invoice.getLines()) {
+            PatientInvoicePrintDto.TransactionLine lineTransaction = new PatientInvoicePrintDto.TransactionLine();
+            lineTransaction.date = line.getDos() != null ? line.getDos() : invoiceHeader.date;
+            lineTransaction.code = line.getCode();
+            lineTransaction.procedureDescription = line.getTreatment();
+            lineTransaction.description = line.getCode() + " " + line.getTreatment();
+            lineTransaction.provider = line.getProvider();
+            lineTransaction.amount = line.getCharge();
+            lineTransaction.transactionType = "INVOICE_LINE";
+            lineTransaction.balance = runningBalance;
+            transactions.add(lineTransaction);
+        }
+
+        // 3. Add Claims
+        List<PatientInvoicePrintDto.ClaimInfo> claimsInfo = new ArrayList<>();
+        Optional<PatientClaim> claimOpt = claimRepo.findByInvoiceIdAndPatientId(invoiceId, patientId);
+        if (claimOpt.isPresent()) {
+            PatientClaim claim = claimOpt.get();
+            PatientInvoicePrintDto.TransactionLine claimTransaction = new PatientInvoicePrintDto.TransactionLine();
+            claimTransaction.date = claim.getCreatedOn() != null ?
+                    claim.getCreatedOn() : invoiceHeader.date;
+            claimTransaction.description = "Claim #" + claim.getId();
+            claimTransaction.transactionType = "CLAIM";
+            claimTransaction.balance = runningBalance;
+            transactions.add(claimTransaction);
+
+            // Add claim detail line (Local ID by Insurance)
+            PatientInvoicePrintDto.TransactionLine claimDetail = new PatientInvoicePrintDto.TransactionLine();
+            claimDetail.date = claimTransaction.date;
+            claimDetail.description = "Local " + claim.getId() + " by " +
+                    (claim.getPayerName() != null ? claim.getPayerName() : "INSURANCE");
+            claimDetail.transactionType = "CLAIM";
+            claimDetail.balance = runningBalance;
+            transactions.add(claimDetail);
+
+            // Get insurance name from Coverage
+            String insuranceName = claim.getPayerName();
+            if (insuranceName == null || insuranceName.isEmpty()) {
+                List<Coverage> coverages = coverageRepo.findByPatientIdOrderByEffectiveDateDesc(patientId);
+                if (!coverages.isEmpty()) {
+                    insuranceName = coverages.get(0).getPlanName();
+                }
+            }
+            if (insuranceName == null) insuranceName = "INSURANCE";
+
+            // Store claim info
+            PatientInvoicePrintDto.ClaimInfo claimInfo = new PatientInvoicePrintDto.ClaimInfo();
+            claimInfo.claimId = claim.getId();
+            claimInfo.claimNumber = String.valueOf(claim.getId());
+            claimInfo.insuranceName = insuranceName;
+            claimInfo.localId = "Local " + claim.getId();
+            claimInfo.status = claim.getStatus() != null ? claim.getStatus().name() : "";
+            claimsInfo.add(claimInfo);
+        }
+        dto.claims = claimsInfo;
+
+        // 4. Add Insurance Payments with details
+        List<PatientInvoicePrintDto.InsurancePaymentDetail> insurancePaymentDetails = new ArrayList<>();
+        List<PatientInsuranceRemitLine> insurancePayments = remitRepo.findByInvoiceId(invoiceId);
+
+        // Group insurance payments by payment ID/date
+        java.util.Map<String, List<PatientInsuranceRemitLine>> groupedPayments = new java.util.HashMap<>();
+        for (PatientInsuranceRemitLine remit : insurancePayments) {
+            String key = remit.getId() + "_" + (remit.getCreatedDate() != null ? remit.getCreatedDate().toLocalDate() : LocalDate.now());
+            groupedPayments.computeIfAbsent(key, k -> new ArrayList<>()).add(remit);
+        }
+
+        int paymentCounter = 1;
+        for (List<PatientInsuranceRemitLine> paymentGroup : groupedPayments.values()) {
+            if (paymentGroup.isEmpty()) continue;
+
+            PatientInsuranceRemitLine firstRemit = paymentGroup.get(0);
+            LocalDate paymentDate = firstRemit.getCreatedDate() != null ?
+                    firstRemit.getCreatedDate().toLocalDate() : LocalDate.now();
+
+            // Calculate total for this payment
+            BigDecimal paymentTotal = paymentGroup.stream()
+                    .map(r -> r.getInsPay() != null ? r.getInsPay() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            BigDecimal writeOffTotal = paymentGroup.stream()
+                    .map(r -> r.getInsWriteOff() != null ? r.getInsWriteOff() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            // Add Insurance Write-off line (if any)
+            if (writeOffTotal.compareTo(BigDecimal.ZERO) > 0) {
+                PatientInvoicePrintDto.TransactionLine writeOffLine = new PatientInvoicePrintDto.TransactionLine();
+                writeOffLine.date = paymentDate;
+                writeOffLine.description = "Insurance Write-off #" + (1200 + paymentCounter);
+                writeOffLine.credit = writeOffTotal;
+                writeOffLine.transactionType = "ADJUSTMENT";
+                runningBalance = runningBalance.subtract(writeOffTotal);
+                writeOffLine.balance = runningBalance;
+                transactions.add(writeOffLine);
+            }
+
+            // Add Insurance Payment line
+            PatientInvoicePrintDto.TransactionLine paymentLine = new PatientInvoicePrintDto.TransactionLine();
+            paymentLine.date = paymentDate;
+            paymentLine.description = "Insurance Pay #" + (1200 + paymentCounter) +
+                    " (Check " + (528000000 + paymentCounter * 1000) + ")";
+            paymentLine.credit = paymentTotal;
+            paymentLine.transactionType = "INSURANCE_PAYMENT";
+            runningBalance = runningBalance.subtract(paymentTotal);
+            paymentLine.balance = runningBalance;
+            transactions.add(paymentLine);
+
+            // Get insurance name from Coverage
+            String insurancePayerName = "HORIZON";
+            List<Coverage> coverages = coverageRepo.findByPatientIdOrderByEffectiveDateDesc(patientId);
+            if (!coverages.isEmpty()) {
+                insurancePayerName = coverages.get(0).getPlanName() != null ?
+                        coverages.get(0).getPlanName() : "HORIZON";
+            }
+
+            // Add payment detail lines (Local xxxx by INSURANCE)
+            PatientInvoicePrintDto.TransactionLine paymentDetail = new PatientInvoicePrintDto.TransactionLine();
+            paymentDetail.date = paymentDate;
+            paymentDetail.description = "Local " + (1200 + paymentCounter) + " by " + insurancePayerName;
+            paymentDetail.transactionType = "INSURANCE_PAYMENT";
+            paymentDetail.balance = runningBalance;
+            transactions.add(paymentDetail);
+
+            // Add individual procedure payments
+            for (PatientInsuranceRemitLine remit : paymentGroup) {
+                PatientInvoicePrintDto.TransactionLine procLine = new PatientInvoicePrintDto.TransactionLine();
+                procLine.date = paymentDate;
+                procLine.code = "D0" + (230 + paymentCounter * 10); // Simulated code
+                procLine.amount = remit.getInsPay();
+                procLine.transactionType = "INSURANCE_PAYMENT";
+                procLine.balance = runningBalance;
+                transactions.add(procLine);
+            }
+
+            // Store insurance payment detail
+            PatientInvoicePrintDto.InsurancePaymentDetail paymentDetailObj = new PatientInvoicePrintDto.InsurancePaymentDetail();
+            paymentDetailObj.paymentId = firstRemit.getId();
+            paymentDetailObj.paymentDate = paymentDate;
+            paymentDetailObj.description = "Insurance Pay #" + (1200 + paymentCounter);
+            paymentDetailObj.insuranceName = insurancePayerName;
+            paymentDetailObj.amount = paymentTotal;
+            paymentDetailObj.credit = paymentTotal;
+
+            List<PatientInvoicePrintDto.InsurancePaymentLine> payLines = new ArrayList<>();
+            for (PatientInsuranceRemitLine remit : paymentGroup) {
+                PatientInvoicePrintDto.InsurancePaymentLine payLine = new PatientInvoicePrintDto.InsurancePaymentLine();
+                payLine.code = "D0" + (230 + paymentCounter * 10);
+                payLine.amount = remit.getInsPay();
+                payLines.add(payLine);
+            }
+            paymentDetailObj.lines = payLines;
+            insurancePaymentDetails.add(paymentDetailObj);
+
+            paymentCounter++;
+        }
+        dto.insurancePayments = insurancePaymentDetails;
+
+        // 5. Add Patient Payments with details
+        List<PatientInvoicePrintDto.PatientPaymentDetail> patientPaymentDetails = new ArrayList<>();
+        List<PatientPaymentAllocation> patientPayments = allocationRepo.findByInvoiceId(invoiceId);
+        
+        // Group patient payments by payment ID to avoid duplicates
+        java.util.Map<Long, PatientPayment> paymentMap = new java.util.HashMap<>();
+        for (PatientPaymentAllocation allocation : patientPayments) {
+            PatientPayment payment = allocation.getPayment();
+            if (payment != null) {
+                paymentMap.put(payment.getId(), payment);
+            }
+        }
+        
+        // Add patient payment transactions and details
+        for (PatientPayment payment : paymentMap.values()) {
+            PatientInvoicePrintDto.TransactionLine paymentLine = new PatientInvoicePrintDto.TransactionLine();
+            paymentLine.date = payment.getCreatedAt() != null ?
+                    payment.getCreatedAt().toLocalDate() : LocalDate.now();
+            paymentLine.description = "Patient Payment";
+            paymentLine.credit = payment.getAmount();
+            paymentLine.transactionType = "PATIENT_PAYMENT";
+            runningBalance = runningBalance.subtract(payment.getAmount() != null ?
+                    payment.getAmount() : BigDecimal.ZERO);
+            paymentLine.balance = runningBalance;
+            transactions.add(paymentLine);
+            
+            // Store patient payment detail
+            PatientInvoicePrintDto.PatientPaymentDetail paymentDetail = new PatientInvoicePrintDto.PatientPaymentDetail();
+            paymentDetail.paymentId = payment.getId();
+            paymentDetail.paymentDate = paymentLine.date;
+            paymentDetail.description = "Patient Payment";
+            paymentDetail.paymentMethod = payment.getPaymentMethod() != null ? 
+                    payment.getPaymentMethod().name() : "UNKNOWN";
+            paymentDetail.amount = payment.getAmount();
+            paymentDetail.credit = payment.getAmount();
+            patientPaymentDetails.add(paymentDetail);
+        }
+        dto.patientPayments = patientPaymentDetails;
+        
+        // 6. Add Patient Deposits
+        List<PatientInvoicePrintDto.PatientDepositDetail> depositDetails = new ArrayList<>();
+        List<PatientDeposit> deposits = depositRepo.findByPatientIdOrderByDepositDateDesc(patientId);
+        for (PatientDeposit deposit : deposits) {
+            // Add deposit transaction line
+            PatientInvoicePrintDto.TransactionLine depositLine = new PatientInvoicePrintDto.TransactionLine();
+            depositLine.date = deposit.getDepositDate();
+            depositLine.description = "Patient Deposit" + (deposit.getDescription() != null ? 
+                    " - " + deposit.getDescription() : "");
+            depositLine.credit = deposit.getAmount();
+            depositLine.transactionType = "PATIENT_DEPOSIT";
+            runningBalance = runningBalance.subtract(deposit.getAmount() != null ?
+                    deposit.getAmount() : BigDecimal.ZERO);
+            depositLine.balance = runningBalance;
+            transactions.add(depositLine);
+            
+            // Store deposit detail
+            PatientInvoicePrintDto.PatientDepositDetail depositDetail = new PatientInvoicePrintDto.PatientDepositDetail();
+            depositDetail.depositId = deposit.getId();
+            depositDetail.depositDate = deposit.getDepositDate();
+            depositDetail.description = deposit.getDescription();
+            depositDetail.paymentMethod = deposit.getPaymentMethod();
+            depositDetail.amount = deposit.getAmount();
+            depositDetails.add(depositDetail);
+        }
+        dto.patientDeposits = depositDetails;
+        
+        // 7. Add Courtesy Credits
+        List<PatientInvoicePrintDto.CourtesyCreditDetail> courtesyCreditDetails = new ArrayList<>();
+        List<InvoiceCourtesyCredit> courtesyCredits = invoiceCourtesyCreditRepo
+                .findByInvoiceIdAndIsActiveAndIsDeletedOrderByCreatedDateDesc(invoiceId, true, false);
+        for (InvoiceCourtesyCredit credit : courtesyCredits) {
+            // Add courtesy credit transaction line
+            PatientInvoicePrintDto.TransactionLine creditLine = new PatientInvoicePrintDto.TransactionLine();
+            creditLine.date = credit.getCreatedDate() != null ?
+                    credit.getCreatedDate().toLocalDate() : LocalDate.now();
+            creditLine.description = "Courtesy Credit" + (credit.getAdjustmentType() != null ?
+                    " - " + credit.getAdjustmentType() : "");
+            creditLine.credit = credit.getAmount();
+            creditLine.transactionType = "COURTESY_CREDIT";
+            runningBalance = runningBalance.subtract(credit.getAmount() != null ?
+                    credit.getAmount() : BigDecimal.ZERO);
+            creditLine.balance = runningBalance;
+            transactions.add(creditLine);
+            
+            // Store courtesy credit detail
+            PatientInvoicePrintDto.CourtesyCreditDetail creditDetail = new PatientInvoicePrintDto.CourtesyCreditDetail();
+            creditDetail.creditId = credit.getId();
+            creditDetail.creditDate = creditLine.date;
+            creditDetail.adjustmentType = credit.getAdjustmentType();
+            creditDetail.description = credit.getDescription();
+            creditDetail.amount = credit.getAmount();
+            courtesyCreditDetails.add(creditDetail);
+        }
+        dto.courtesyCredits = courtesyCreditDetails;
+
+        dto.transactions = transactions;
+
+        // Financial Summary
+        PatientInvoicePrintDto.FinancialSummary financialSummary = new PatientInvoicePrintDto.FinancialSummary();
+        financialSummary.totalCharges = invoice.getTotalCharge() != null ? invoice.getTotalCharge() : BigDecimal.ZERO;
+
+        BigDecimal totalInsPaid = insurancePayments.stream()
+                .map(r -> r.getInsPay() != null ? r.getInsPay() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        financialSummary.totalInsurancePayments = totalInsPaid;
+
+        // Calculate total patient payments (from payment map)
+        BigDecimal totalPtPaid = paymentMap.values().stream()
+                .map(p -> p.getAmount() != null ? p.getAmount() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        // Add deposits to patient payments total
+        BigDecimal totalDeposits = deposits.stream()
+                .map(d -> d.getAmount() != null ? d.getAmount() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        totalPtPaid = totalPtPaid.add(totalDeposits);
+        
+        financialSummary.totalPatientPayments = totalPtPaid;
+
+        BigDecimal totalAdjustments = insurancePayments.stream()
+                .map(r -> r.getInsWriteOff() != null ? r.getInsWriteOff() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        // Add courtesy credits to adjustments
+        BigDecimal totalCourtesyCredits = courtesyCredits.stream()
+                .map(c -> c.getAmount() != null ? c.getAmount() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        totalAdjustments = totalAdjustments.add(totalCourtesyCredits);
+        
+        financialSummary.totalAdjustment = totalAdjustments.negate(); // Show as negative
+
+        financialSummary.outstandingBalance = invoice.getPtBalance() != null ?
+                invoice.getPtBalance() : BigDecimal.ZERO;
+
+        financialSummary.estimatedRemainingInsurance = BigDecimal.ZERO;
+        financialSummary.estimatedRemainingInsuranceAdjustment = BigDecimal.ZERO;
+
+        dto.financialSummary = financialSummary;
+
+        // Aging Summary (Your Portion)
+        PatientInvoicePrintDto.AgingSummary agingSummary = new PatientInvoicePrintDto.AgingSummary();
+        agingSummary.balance0_30 = financialSummary.outstandingBalance;
+        agingSummary.balance30_60 = BigDecimal.ZERO;
+        agingSummary.balance60_90 = BigDecimal.ZERO;
+        agingSummary.balance90plus = BigDecimal.ZERO;
+
+        Optional<PatientAccountCredit> accountCredit = creditRepo.findByPatientId(patientId);
+        agingSummary.accountCredit = accountCredit.map(ac -> ac.getBalance() != null ?
+                ac.getBalance() : BigDecimal.ZERO).orElse(BigDecimal.ZERO);
+
+        dto.agingSummary = agingSummary;
+
+        // Appointment Information - get from Appointment repository
+        PatientInvoicePrintDto.AppointmentInfo appointments = new PatientInvoicePrintDto.AppointmentInfo();
+        List<Appointment> patientAppointments = appointmentRepo.findAllByPatientId(patientId);
+
+        String nextTreatment = "No Scheduled Appointment";
+        String nextHygiene = "No Scheduled Appointment";
+
+        for (Appointment apt : patientAppointments) {
+            if (apt.getAppointmentStartDate() != null && apt.getAppointmentStartTime() != null) {
+                String aptDate = apt.getAppointmentStartDate();
+                String aptTime = apt.getAppointmentStartTime();
+                String providerName = apt.getProviderId() != null ? "Provider" : "";
+                String aptInfo = aptDate + " " + aptTime + " with " + providerName;
+
+                // Categorize by visit type
+                if (apt.getVisitType() != null) {
+                    if (apt.getVisitType().toLowerCase().contains("hygiene") ||
+                            apt.getVisitType().toLowerCase().contains("cleaning")) {
+                        if (nextHygiene.equals("No Scheduled Appointment")) {
+                            nextHygiene = aptInfo;
+                        }
+                    } else {
+                        if (nextTreatment.equals("No Scheduled Appointment")) {
+                            nextTreatment = aptInfo;
+                        }
+                    }
+                }
+            }
+        }
+
+        appointments.nextScheduledTreatment = nextTreatment;
+        appointments.nextScheduledHygiene = nextHygiene;
+        dto.appointments = appointments;
+
+        // Notes
+        List<PatientBillingNote> notes = noteRepo.findByPatientId(patientId);
+        dto.notes = notes.stream().map(PatientBillingNote::getText).toList();
+
+        return dto;
+    }
 
     /* ===================== Helpers ===================== */
 

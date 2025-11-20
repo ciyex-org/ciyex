@@ -49,7 +49,9 @@ public class VitalsService {
                 .filter(v -> v.getPatientId().equals(patientId)
                         && v.getEncounterId().equals(encounterId))
                 .map(this::toDto)
-                .orElse(null);
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
     }
 
     public List<VitalsDto> getByEncounter(Long patientId, Long encounterId) {
@@ -59,7 +61,15 @@ public class VitalsService {
     }
 
     public VitalsDto update(Long patientId, Long encounterId, Long id, VitalsDto dto) {
-        Vitals existing = repository.findById(id).orElseThrow();
+        Vitals existing = repository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
+        if (!existing.getPatientId().equals(patientId) || !existing.getEncounterId().equals(encounterId)) {
+            throw new IllegalArgumentException(
+                String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+            );
+        }
         existing.setWeightKg(dto.getWeightKg());
         existing.setBpSystolic(dto.getBpSystolic());
         existing.setBpDiastolic(dto.getBpDiastolic());
@@ -74,19 +84,28 @@ public class VitalsService {
     }
 
     public void delete(Long patientId, Long encounterId, Long id) {
-        Vitals existing = repository.findById(id).orElseThrow();
-        if (existing.getPatientId().equals(patientId)
-                && existing.getEncounterId().equals(encounterId)) {
-            repository.delete(existing);
-            externalStorage.delete(id);
+        Vitals existing = repository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
+        if (!existing.getPatientId().equals(patientId) || !existing.getEncounterId().equals(encounterId)) {
+            throw new IllegalArgumentException(
+                String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+            );
         }
+        repository.delete(existing);
+        externalStorage.delete(id);
     }
 
     public VitalsDto eSign(Long patientId, Long encounterId, Long id) {
-        Vitals vitals = repository.findById(id).orElseThrow();
-        if (!vitals.getPatientId().equals(patientId)
-                || !vitals.getEncounterId().equals(encounterId)) {
-            throw new IllegalArgumentException("Vitals does not belong to org/patient/encounter");
+        Vitals vitals = repository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
+        if (!vitals.getPatientId().equals(patientId) || !vitals.getEncounterId().equals(encounterId)) {
+            throw new IllegalArgumentException(
+                String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+            );
         }
         vitals.setSigned(true);
         Vitals saved = repository.save(vitals);
@@ -95,10 +114,14 @@ public class VitalsService {
     }
 
     public byte[] print(Long patientId, Long encounterId, Long id) {
-        Vitals vitals = repository.findById(id).orElseThrow();
-        if (!vitals.getPatientId().equals(patientId)
-                || !vitals.getEncounterId().equals(encounterId)) {
-            throw new IllegalArgumentException("Vitals does not belong to org/patient/encounter");
+        Vitals vitals = repository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
+        if (!vitals.getPatientId().equals(patientId) || !vitals.getEncounterId().equals(encounterId)) {
+            throw new IllegalArgumentException(
+                String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+            );
         }
         return externalStorage.print(vitals);
     }
