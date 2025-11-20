@@ -266,14 +266,18 @@ public class ChiefComplaintService {
     // GET ONE
     public ChiefComplaintDto getOne(Long patientId, Long encounterId, Long id) {
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Chief complaint not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Chief Complaint not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         return toDto(e);
     }
 
     // UPDATE (blocked if signed)
     public ChiefComplaintDto update(Long patientId, Long encounterId, Long id, ChiefComplaintDto dto) {
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Chief complaint not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Chief Complaint not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed chief complaint is read-only.");
         }
@@ -285,7 +289,9 @@ public class ChiefComplaintService {
     // DELETE (blocked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Chief complaint not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Chief Complaint not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed chief complaint cannot be deleted.");
         }
@@ -295,7 +301,9 @@ public class ChiefComplaintService {
     // ESIGN (no request body; idempotent)
     public ChiefComplaintDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Chief complaint not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Chief Complaint not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
         e.setESigned(true);
@@ -308,7 +316,9 @@ public class ChiefComplaintService {
     // PRINT (PDF) — stamps printedAt
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Chief complaint not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Chief Complaint not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));
         repo.save(e);

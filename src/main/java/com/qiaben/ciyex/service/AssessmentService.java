@@ -202,7 +202,9 @@ public class AssessmentService {
     // ----- Read -----
     public AssessmentDto getOne(Long patientId, Long encounterId, Long id) {
         Assessment e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Assessment not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Assessment not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         return toDto(e);
     }
 
@@ -214,7 +216,9 @@ public class AssessmentService {
     // ----- Update (LOCK if signed) -----
     public AssessmentDto update(Long patientId, Long encounterId, Long id, AssessmentDto dto) {
         Assessment e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Assessment not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Assessment not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed assessments are read-only.");
@@ -237,7 +241,9 @@ public class AssessmentService {
     // ----- Delete (BLOCK if signed) -----
     public void delete(Long patientId, Long encounterId, Long id) {
         Assessment e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Assessment not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Assessment not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed assessments cannot be deleted.");
@@ -257,7 +263,9 @@ public class AssessmentService {
     // ----- eSign (idempotent) -----
     public AssessmentDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         Assessment a = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Assessment not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Assessment not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         if (Boolean.TRUE.equals(a.getESigned())) {
             return toDto(a);
@@ -273,7 +281,9 @@ public class AssessmentService {
     // ----- Print PDF (also stamps printedAt) -----
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         Assessment a = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Assessment not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Assessment not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         a.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
         repo.save(a);

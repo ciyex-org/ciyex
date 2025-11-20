@@ -189,7 +189,9 @@ public class DateTimeFinalizedService {
     // Read
     public DateTimeFinalizedDto getOne(Long patientId, Long encounterId, Long id) {
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Date/Time Finalized not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         return toDto(e);
     }
 
@@ -201,7 +203,9 @@ public class DateTimeFinalizedService {
     // Update (LOCKED if eSigned)
     public DateTimeFinalizedDto update(Long patientId, Long encounterId, Long id, DateTimeFinalizedDto dto) {
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Date/Time Finalized not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed finalizations are read-only.");
@@ -215,7 +219,9 @@ public class DateTimeFinalizedService {
     // Delete (BLOCKED if eSigned)
     public void delete(Long patientId, Long encounterId, Long id) {
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Date/Time Finalized not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed finalizations cannot be deleted.");
@@ -226,7 +232,9 @@ public class DateTimeFinalizedService {
     // eSign (idempotent)
     public DateTimeFinalizedDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Date/Time Finalized not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
             return toDto(e);
@@ -246,7 +254,9 @@ public class DateTimeFinalizedService {
     // Print (PDF) — stamps printedAt
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Date/Time Finalized not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
         repo.save(e);

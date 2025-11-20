@@ -23,11 +23,31 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class VitalsController {
-        @GetMapping("/{patientId}")
-        public ResponseEntity<ApiResponse<List<VitalsDto>>> getAllByPatient(@PathVariable Long patientId) {
-                var items = service.getAllByPatient(patientId);
-                return ResponseEntity.ok(ApiResponse.<List<VitalsDto>>builder().success(true).message("Fetched").data(items).build());
+    @GetMapping("/{patientId}")
+    public ResponseEntity<ApiResponse<List<VitalsDto>>> getAllByPatient(@PathVariable Long patientId) {
+        try {
+            var items = service.getAllByPatient(patientId);
+            if (items.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<List<VitalsDto>>builder()
+                        .success(true)
+                        .message("No Vitals found for Patient ID: " + patientId)
+                        .data(items)
+                        .build());
+            }
+            return ResponseEntity.ok(ApiResponse.<List<VitalsDto>>builder()
+                    .success(true)
+                    .message("Vitals fetched successfully")
+                    .data(items)
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error fetching Vitals for Patient ID: " + patientId, ex);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<VitalsDto>>builder()
+                            .success(false)
+                            .message("Error fetching Vitals for Patient ID: " + patientId + ". " + ex.getMessage())
+                            .build());
         }
+    }
     private final VitalsService service;
 
     @PostMapping("/{patientId}/{encounterId}")
@@ -43,26 +63,60 @@ public class VitalsController {
     }
 
     @GetMapping("/{patientId}/{encounterId}/{id}")
-    public ApiResponse<VitalsDto> get(
+    public ResponseEntity<ApiResponse<VitalsDto>> get(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id) {
-        return ApiResponse.<VitalsDto>builder()
-                .success(true)
-                .message("Vitals retrieved")
-                .data(service.get(patientId, encounterId, id))
-                .build();
+        try {
+            var dto = service.get(patientId, encounterId, id);
+            return ResponseEntity.ok(ApiResponse.<VitalsDto>builder()
+                    .success(true)
+                    .message("Vitals retrieved successfully")
+                    .data(dto)
+                    .build());
+        } catch (IllegalArgumentException ex) {
+            log.error("Vitals not found: " + ex.getMessage());
+            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<VitalsDto>builder()
+                            .success(false)
+                            .message(ex.getMessage())
+                            .build());
+        } catch (Exception ex) {
+            log.error("Error fetching Vitals for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<VitalsDto>builder()
+                            .success(false)
+                            .message("Error fetching Vitals: " + ex.getMessage())
+                            .build());
+        }
     }
 
     @GetMapping("/{patientId}/{encounterId}")
-    public ApiResponse<List<VitalsDto>> getByEncounter(
+    public ResponseEntity<ApiResponse<List<VitalsDto>>> getByEncounter(
             @PathVariable Long patientId,
             @PathVariable Long encounterId) {
-        return ApiResponse.<List<VitalsDto>>builder()
-                .success(true)
-                .message("Vitals by encounter")
-                .data(service.getByEncounter(patientId, encounterId))
-                .build();
+        try {
+            var items = service.getByEncounter(patientId, encounterId);
+            if (items.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<List<VitalsDto>>builder()
+                        .success(true)
+                        .message(String.format("No Vitals found for Patient ID: %d, Encounter ID: %d", patientId, encounterId))
+                        .data(items)
+                        .build());
+            }
+            return ResponseEntity.ok(ApiResponse.<List<VitalsDto>>builder()
+                    .success(true)
+                    .message("Vitals by encounter fetched successfully")
+                    .data(items)
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error fetching Vitals for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<VitalsDto>>builder()
+                            .success(false)
+                            .message(String.format("Error fetching Vitals for Patient ID: %d, Encounter ID: %d. %s", patientId, encounterId, ex.getMessage()))
+                            .build());
+        }
     }
 
     @PutMapping("/{patientId}/{encounterId}/{id}")
@@ -103,15 +157,27 @@ public class VitalsController {
     }
 
     @GetMapping("/{patientId}/{encounterId}/{id}/print")
-    public ResponseEntity<byte[]> print(
+    public ResponseEntity<?> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id) {
-        byte[] pdf = service.print(patientId, encounterId, id);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=vitals-" + id + ".pdf")
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(pdf);
+        try {
+            byte[] pdf = service.print(patientId, encounterId, id);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=vitals-" + id + ".pdf")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdf);
+        } catch (IllegalArgumentException ex) {
+            log.error("Error printing Vitals for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiResponse.<Void>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error generating Vitals PDF", ex);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiResponse.<Void>builder().success(false).message("Error generating PDF: " + ex.getMessage()).build());
+        }
     }
 
     // 🏥 EHR Endpoint - Staff can query any patient's vitals

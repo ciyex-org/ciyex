@@ -150,7 +150,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.Base64;
 import java.util.List;
 
 @Service
@@ -186,7 +185,9 @@ public class ProviderSignatureService {
 
     public ProviderSignatureDto getOne(Long patientId, Long encounterId, Long id) {
         ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Provider Signature not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         return toDto(e);
     }
 
@@ -197,7 +198,9 @@ public class ProviderSignatureService {
 
     public ProviderSignatureDto update(Long patientId, Long encounterId, Long id, ProviderSignatureDto dto) {
         ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Provider Signature not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         applyDto(e, dto);
         if (StringUtils.hasText(e.getSignatureData())) {
             e.setSignatureHash(sha256(e.getSignatureData()));
@@ -208,14 +211,18 @@ public class ProviderSignatureService {
 
     public void delete(Long patientId, Long encounterId, Long id) {
         ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Provider Signature not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         repo.delete(e);
     }
 
     // Print a simple PDF with the signature image (if present)
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Provider Signature not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             PDPage page = new PDPage(PDRectangle.LETTER);

@@ -146,15 +146,55 @@ public class PlanController {
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<PlanDto>>> list(
             @PathVariable Long patientId, @PathVariable Long encounterId) {
-        var items = service.list(patientId, encounterId);
-        return ResponseEntity.ok(ApiResponse.<List<PlanDto>>builder().success(true).message("Plans fetched").data(items).build());
+        try {
+            var items = service.list(patientId, encounterId);
+            if (items.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<List<PlanDto>>builder()
+                        .success(true)
+                        .message(String.format("No Plan found for Patient ID: %d, Encounter ID: %d", patientId, encounterId))
+                        .data(items)
+                        .build());
+            }
+            return ResponseEntity.ok(ApiResponse.<List<PlanDto>>builder()
+                    .success(true)
+                    .message("Plans fetched successfully")
+                    .data(items)
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error fetching Plans for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<PlanDto>>builder()
+                            .success(false)
+                            .message(String.format("Error fetching Plans for Patient ID: %d, Encounter ID: %d. %s", patientId, encounterId, ex.getMessage()))
+                            .build());
+        }
     }
 
         // GET ALL BY PATIENT
         @GetMapping("/{patientId}")
         public ResponseEntity<ApiResponse<List<PlanDto>>> getAllByPatient(@PathVariable Long patientId) {
-            var items = service.getAllByPatient(patientId);
-            return ResponseEntity.ok(ApiResponse.<List<PlanDto>>builder().success(true).message("Plans fetched").data(items).build());
+            try {
+                var items = service.getAllByPatient(patientId);
+                if (items.isEmpty()) {
+                    return ResponseEntity.ok(ApiResponse.<List<PlanDto>>builder()
+                            .success(true)
+                            .message("No Plan found for Patient ID: " + patientId)
+                            .data(items)
+                            .build());
+                }
+                return ResponseEntity.ok(ApiResponse.<List<PlanDto>>builder()
+                        .success(true)
+                        .message("Plans fetched successfully")
+                        .data(items)
+                        .build());
+            } catch (Exception ex) {
+                log.error("Error fetching Plans for Patient ID: " + patientId, ex);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(ApiResponse.<List<PlanDto>>builder()
+                                .success(false)
+                                .message("Error fetching Plans for Patient ID: " + patientId + ". " + ex.getMessage())
+                                .build());
+            }
         }
 
     // GET ONE
@@ -227,11 +267,23 @@ public class PlanController {
 
     // PRINT (PDF)
     @GetMapping("/{patientId}/{encounterId}/{id}/print")
-    public ResponseEntity<byte[]> print(@PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id) {
-        byte[] pdf = service.renderPdf(patientId, encounterId, id);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"plan-" + id + ".pdf\"")
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(pdf);
+    public ResponseEntity<?> print(@PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id) {
+        try {
+            byte[] pdf = service.renderPdf(patientId, encounterId, id);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"plan-" + id + ".pdf\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdf);
+        } catch (IllegalArgumentException ex) {
+            log.error("Error printing Plan for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiResponse.<Void>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error generating Plan PDF", ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiResponse.<Void>builder().success(false).message("Error generating PDF: " + ex.getMessage()).build());
+        }
     }
 }

@@ -170,7 +170,6 @@ package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.EntryDto;
 import com.qiaben.ciyex.dto.FamilyHistoryDto;
-import com.qiaben.ciyex.dto.EntryDto;
 import com.qiaben.ciyex.entity.FamilyHistory;
 import com.qiaben.ciyex.entity.FamilyHistoryEntry;
 import com.qiaben.ciyex.repository.FamilyHistoryRepository;
@@ -214,7 +213,9 @@ public class FamilyHistoryService {
     // Get one container
     public FamilyHistoryDto getOne(Long patientId, Long encounterId, Long id) {
         FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Family history not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Family history not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         return toDto(fh);
     }
 
@@ -227,7 +228,9 @@ public class FamilyHistoryService {
     // Replace entries (LOCKED if signed)
     public FamilyHistoryDto update(Long patientId, Long encounterId, Long id, FamilyHistoryDto dto) {
         FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Family history not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Family history not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         if (Boolean.TRUE.equals(fh.getESigned())) {
             throw new IllegalStateException("Signed family history is read-only.");
@@ -243,7 +246,9 @@ public class FamilyHistoryService {
     // Delete container (BLOCKED if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
         FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Family history not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Family history not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         if (Boolean.TRUE.equals(fh.getESigned())) {
             throw new IllegalStateException("Signed family history cannot be deleted.");
@@ -254,7 +259,9 @@ public class FamilyHistoryService {
     // eSign container (idempotent). Accepts optional entryId (which entry initiated sign)
     public FamilyHistoryDto eSign(Long patientId, Long encounterId, Long id, String signedBy, Long entryId) {
         FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Family history not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Family history not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         if (Boolean.TRUE.equals(fh.getESigned())) {
             // idempotent
@@ -273,7 +280,9 @@ public class FamilyHistoryService {
     // Print PDF (also stamps printedAt)
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Family history not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Family history not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         fh.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
         repo.save(fh);

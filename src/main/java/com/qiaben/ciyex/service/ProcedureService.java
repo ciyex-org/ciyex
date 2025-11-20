@@ -82,7 +82,9 @@ public class ProcedureService {
 
     public ProcedureDto update(Long patientId, Long encounterId, Long id, ProcedureDto in) {
         Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Procedure not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Procedure not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         p.setCpt4(in.getCpt4());
         p.setDescription(in.getDescription());
@@ -112,7 +114,9 @@ public class ProcedureService {
 
     public void delete(Long patientId, Long encounterId, Long id) {
         Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Procedure not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Procedure not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         final Procedure toDelete = p;
         external.ifPresent(ext -> {
@@ -126,7 +130,9 @@ public class ProcedureService {
 
     public ProcedureDto getOne(Long patientId, Long encounterId, Long id) {
         Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Procedure not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Procedure not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         return mapToDto(p);
     }
 

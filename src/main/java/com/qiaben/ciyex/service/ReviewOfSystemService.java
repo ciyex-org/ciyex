@@ -163,7 +163,9 @@ public class ReviewOfSystemService {
     // GET ONE
     public ReviewOfSystemDto getOne(Long patientId, Long encounterId, Long id) {
         ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Review of System not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         return toDto(e);
     }
 
@@ -176,7 +178,9 @@ public class ReviewOfSystemService {
     // UPDATE (locked if signed)
     public ReviewOfSystemDto update(Long patientId, Long encounterId, Long id, ReviewOfSystemDto dto) {
         ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Review of System not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed ROS entries are read-only.");
         }
@@ -188,7 +192,9 @@ public class ReviewOfSystemService {
     // DELETE (locked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
         ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Review of System not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed ROS entries cannot be deleted.");
         }
@@ -198,7 +204,9 @@ public class ReviewOfSystemService {
     // eSIGN (idempotent)
     public ReviewOfSystemDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Review of System not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
         e.setESigned(true);
@@ -211,7 +219,9 @@ public class ReviewOfSystemService {
     // PRINT (PDF) — also stamps printedAt
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("ROS not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Review of System not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
         repo.save(e);

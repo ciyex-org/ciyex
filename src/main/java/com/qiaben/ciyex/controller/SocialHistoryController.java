@@ -107,8 +107,28 @@ import java.util.List;
 public class SocialHistoryController {
     @GetMapping("/{patientId}")
     public ResponseEntity<ApiResponse<List<SocialHistoryDto>>> getAllByPatient(@PathVariable Long patientId) {
-        var items = service.getAllByPatient(patientId);
-        return ResponseEntity.ok(ApiResponse.<List<SocialHistoryDto>>builder().success(true).message("Fetched").data(items).build());
+        try {
+            var items = service.getAllByPatient(patientId);
+            if (items.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<List<SocialHistoryDto>>builder()
+                        .success(true)
+                        .message("No Social History found for Patient ID: " + patientId)
+                        .data(items)
+                        .build());
+            }
+            return ResponseEntity.ok(ApiResponse.<List<SocialHistoryDto>>builder()
+                    .success(true)
+                    .message("Social History fetched successfully")
+                    .data(items)
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error fetching Social History for Patient ID: " + patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<SocialHistoryDto>>builder()
+                            .success(false)
+                            .message("Error fetching Social History for Patient ID: " + patientId + ". " + ex.getMessage())
+                            .build());
+        }
     }
 
     private final SocialHistoryService service;
@@ -121,10 +141,18 @@ public class SocialHistoryController {
         try {
             var dto = service.getOne(patientId, encounterId);
             return ResponseEntity.ok(ApiResponse.<SocialHistoryDto>builder()
-                    .success(true).message("Social History fetched").data(dto).build());
+                    .success(true).message("Social History fetched successfully").data(dto).build());
         } catch (IllegalArgumentException ex) {
+            log.error("Social History not found: " + ex.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.<SocialHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error fetching Social History for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<SocialHistoryDto>builder()
+                            .success(false)
+                            .message("Error fetching Social History: " + ex.getMessage())
+                            .build());
         }
     }
 
@@ -137,10 +165,18 @@ public class SocialHistoryController {
         try {
             var dto = service.getById(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<SocialHistoryDto>builder()
-                    .success(true).message("Social History fetched").data(dto).build());
+                    .success(true).message("Social History fetched successfully").data(dto).build());
         } catch (IllegalArgumentException ex) {
+            log.error("Social History not found: " + ex.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.<SocialHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error fetching Social History for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<SocialHistoryDto>builder()
+                            .success(false)
+                            .message("Error fetching Social History: " + ex.getMessage())
+                            .build());
         }
     }
 
@@ -219,15 +255,27 @@ public class SocialHistoryController {
 
     // PRINT (PDF)
     @GetMapping("/{patientId}/{encounterId}/{id}/print")
-    public ResponseEntity<byte[]> print(
+    public ResponseEntity<?> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id) {
-        byte[] pdf = service.renderPdf(patientId, encounterId, id);
-        String filename = "social-history-" + id + ".pdf";
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(pdf);
+        try {
+            byte[] pdf = service.renderPdf(patientId, encounterId, id);
+            String filename = "social-history-" + id + ".pdf";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdf);
+        } catch (IllegalArgumentException ex) {
+            log.error("Error printing Social History for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiResponse.<Void>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error generating Social History PDF", ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiResponse.<Void>builder().success(false).message("Error generating PDF: " + ex.getMessage()).build());
+        }
     }
 }

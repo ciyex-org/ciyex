@@ -167,7 +167,9 @@ public class HistoryOfPresentIllnessService {
     // Read one
     public HistoryOfPresentIllnessDto getOne(Long patientId, Long encounterId, Long id) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         return toDto(e);
     }
 
@@ -180,7 +182,9 @@ public class HistoryOfPresentIllnessService {
     // Update (blocked if signed)
     public HistoryOfPresentIllnessDto update(Long patientId, Long encounterId, Long id, HistoryOfPresentIllnessDto dto) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed HPI entries are read-only.");
 
         applyDto(e, dto);
@@ -191,7 +195,9 @@ public class HistoryOfPresentIllnessService {
     // Delete (blocked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed HPI entries cannot be deleted.");
         repo.delete(e);
     }
@@ -199,7 +205,9 @@ public class HistoryOfPresentIllnessService {
     // eSign (idempotent)
     public HistoryOfPresentIllnessDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
         e.setESigned(Boolean.TRUE);
@@ -212,7 +220,9 @@ public class HistoryOfPresentIllnessService {
     // Print (PDF) — stamps printedAt
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("HPI not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
         repo.save(e);
@@ -235,13 +245,13 @@ public class HistoryOfPresentIllnessService {
                 draw(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 16;
                 draw(cs, x, y, "HPI ID:", String.valueOf(id)); y -= 22;
 
-                drawMultiline(cs, x, y, "Description:", e.getDescription(), 80);
-                // (drawMultiline returns last y; we don't need it further here)
+                y = drawMultiline(cs, x, y, "Description:", e.getDescription(), 80);
 
-                y -= 8;
+                y -= 22;
                 draw(cs, x, y, "eSigned:", Boolean.TRUE.equals(e.getESigned()) ? "Yes" : "No"); y -= 16;
                 if (e.getSignedAt() != null) { draw(cs, x, y, "Signed At:", e.getSignedAt().toString()); y -= 16; }
                 if (e.getSignedBy() != null) { draw(cs, x, y, "Signed By:", e.getSignedBy()); y -= 16; }
+                if (e.getPrintedAt() != null) { draw(cs, x, y, "Printed At:", e.getPrintedAt().toString()); y -= 16; }
             }
 
             doc.save(baos);
@@ -257,11 +267,11 @@ public class HistoryOfPresentIllnessService {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
     }
 
-    private static void drawMultiline(PDPageContentStream cs, float x, float y, String label, String text, int wrap) throws IOException {
+    private static float drawMultiline(PDPageContentStream cs, float x, float y, String label, String text, int wrap) throws IOException {
         draw(cs, x, y, label, ""); y -= 16;
         if (text == null || text.isBlank()) {
             draw(cs, x, y, "", "-");
-            return;
+            return y - 14;
         }
         String[] lines = text.split("\\r?\\n");
         for (String ln : lines) {
@@ -272,6 +282,7 @@ public class HistoryOfPresentIllnessService {
                 y -= 14; i += wrap;
             }
         }
+        return y;
     }
 
     private HistoryOfPresentIllnessDto toDto(HistoryOfPresentIllness e) {

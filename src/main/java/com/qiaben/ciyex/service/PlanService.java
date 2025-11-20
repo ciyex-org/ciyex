@@ -176,13 +176,17 @@ public class PlanService {
 
     public PlanDto getOne(Long patientId, Long encounterId, Long id) {
         Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         return toDto(e);
     }
 
     public PlanDto update(Long patientId, Long encounterId, Long id, PlanDto dto) {
         Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed plan is read-only.");
         applyEditable(e, dto);
         return toDto(repo.save(e));
@@ -190,14 +194,18 @@ public class PlanService {
 
     public void delete(Long patientId, Long encounterId, Long id) {
         Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed plan cannot be deleted.");
         repo.delete(e);
     }
 
     public PlanDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
         e.setESigned(true);
@@ -208,7 +216,9 @@ public class PlanService {
 
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));
         repo.save(e);
 

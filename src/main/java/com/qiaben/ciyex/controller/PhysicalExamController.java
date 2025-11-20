@@ -110,6 +110,32 @@ public class PhysicalExamController {
 
     private final PhysicalExamService service;
 
+    @GetMapping("/{patientId}")
+    public ResponseEntity<ApiResponse<List<PhysicalExamDto>>> getAllByPatient(@PathVariable Long patientId) {
+        try {
+            var items = service.getAllByPatient(patientId);
+            if (items.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<List<PhysicalExamDto>>builder()
+                        .success(true)
+                        .message("No Physical Exam found for Patient ID: " + patientId)
+                        .data(items)
+                        .build());
+            }
+            return ResponseEntity.ok(ApiResponse.<List<PhysicalExamDto>>builder()
+                    .success(true)
+                    .message("Physical Exam fetched successfully")
+                    .data(items)
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error fetching Physical Exam for Patient ID: " + patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<PhysicalExamDto>>builder()
+                            .success(false)
+                            .message("Error fetching Physical Exam for Patient ID: " + patientId + ". " + ex.getMessage())
+                            .build());
+        }
+    }
+
     /**
      * Validates that all sections have mandatory fields: sectionKey, allNormal, and normalText.
      * Throws IllegalArgumentException if any field is missing.
@@ -143,9 +169,28 @@ public class PhysicalExamController {
     public ResponseEntity<ApiResponse<List<PhysicalExamDto>>> list(
             @PathVariable Long patientId,
             @PathVariable Long encounterId) {
-        var items = service.list(patientId, encounterId);
-        return ResponseEntity.ok(ApiResponse.<List<PhysicalExamDto>>builder()
-                .success(true).message("Physical exam list fetched").data(items).build());
+        try {
+            var items = service.list(patientId, encounterId);
+            if (items.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<List<PhysicalExamDto>>builder()
+                        .success(true)
+                        .message(String.format("No Physical Exam found for Patient ID: %d, Encounter ID: %d", patientId, encounterId))
+                        .data(items)
+                        .build());
+            }
+            return ResponseEntity.ok(ApiResponse.<List<PhysicalExamDto>>builder()
+                    .success(true)
+                    .message("Physical exam list fetched successfully")
+                    .data(items)
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error fetching Physical Exam for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<PhysicalExamDto>>builder()
+                            .success(false)
+                            .message(String.format("Error fetching Physical Exam for Patient ID: %d, Encounter ID: %d. %s", patientId, encounterId, ex.getMessage()))
+                            .build());
+        }
     }
 
     // GET
@@ -245,15 +290,27 @@ public class PhysicalExamController {
 
     // PRINT (PDF)
     @GetMapping("/{patientId}/{encounterId}/{id}/print")
-    public ResponseEntity<byte[]> print(
+    public ResponseEntity<?> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id) {
-        byte[] pdf = service.renderPdf(patientId, encounterId, id);
-        String filename = "physical-exam-" + id + ".pdf";
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(pdf);
+        try {
+            byte[] pdf = service.renderPdf(patientId, encounterId, id);
+            String filename = "physical-exam-" + id + ".pdf";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdf);
+        } catch (IllegalArgumentException ex) {
+            log.error("Error printing Physical Exam for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiResponse.<Void>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error generating Physical Exam PDF", ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiResponse.<Void>builder().success(false).message("Error generating PDF: " + ex.getMessage()).build());
+        }
     }
 }

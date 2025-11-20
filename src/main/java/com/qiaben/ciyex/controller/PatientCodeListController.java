@@ -53,6 +53,13 @@ public class PatientCodeListController {
     @PostMapping
     public ResponseEntity<ApiResponse<PatientCodeListDto>> create(
             @RequestBody PatientCodeListDto dto) {
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<PatientCodeListDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         try {
             PatientCodeListDto created = service.create(dto);
             return ResponseEntity.created(URI.create("/api/patient-codes/" + created.id))
@@ -69,6 +76,13 @@ public class PatientCodeListController {
     public ResponseEntity<ApiResponse<PatientCodeListDto>> update(
             @PathVariable Long id,
             @RequestBody PatientCodeListDto dto) {
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<PatientCodeListDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         try {
             PatientCodeListDto updated = service.update(id, dto);
             if (updated == null) {
@@ -132,5 +146,34 @@ public class PatientCodeListController {
             return ResponseEntity.ok(ApiResponse.<PatientCodeListDto>builder()
                     .success(false).message("Failed to set default: " + e.getMessage()).build());
         }
+    }
+
+    /**
+     * Validates mandatory fields for PatientCodeList creation and update
+     * @param dto PatientCodeListDto to validate
+     * @return error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(PatientCodeListDto dto) {
+        StringBuilder missingFields = new StringBuilder();
+
+        if (dto.title == null || dto.title.trim().isEmpty()) {
+            missingFields.append("title, ");
+        }
+
+        if (dto.order == null) {
+            missingFields.append("order, ");
+        }
+
+        if (dto.codes == null || dto.codes.trim().isEmpty()) {
+            missingFields.append("codes, ");
+        }
+
+        if (!missingFields.isEmpty()) {
+            // Remove the trailing comma and space
+            missingFields.setLength(missingFields.length() - 2);
+            return "Missing mandatory fields: " + missingFields;
+        }
+
+        return null;
     }
 }

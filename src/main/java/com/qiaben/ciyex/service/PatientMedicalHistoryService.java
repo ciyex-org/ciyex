@@ -142,9 +142,7 @@ import org.springframework.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 
@@ -158,7 +156,6 @@ public class PatientMedicalHistoryService {
     }
 
     private final PatientMedicalHistoryRepository repo;
-    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
     public PatientMedicalHistoryDto create(Long patientId, Long encounterId, PatientMedicalHistoryDto dto) {
@@ -173,7 +170,9 @@ public class PatientMedicalHistoryService {
     // Read one
     public PatientMedicalHistoryDto getOne(Long patientId, Long encounterId, Long id) {
         PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Patient Medical History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         return toDto(e);
     }
 
@@ -186,7 +185,9 @@ public class PatientMedicalHistoryService {
     // Update (blocked if signed)
     public PatientMedicalHistoryDto update(Long patientId, Long encounterId, Long id, PatientMedicalHistoryDto dto) {
         PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Patient Medical History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed entries are read-only.");
 
         applyDto(e, dto);
@@ -197,7 +198,9 @@ public class PatientMedicalHistoryService {
     // Delete (blocked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
         PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Patient Medical History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed entries cannot be deleted.");
         repo.delete(e);
     }
@@ -205,7 +208,9 @@ public class PatientMedicalHistoryService {
     // eSign (idempotent)
     public PatientMedicalHistoryDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Patient Medical History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
         e.setESigned(true);
@@ -218,7 +223,9 @@ public class PatientMedicalHistoryService {
     // Print (PDF) — stamps printedAt
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Patient Medical History not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Patient Medical History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
         repo.save(e);

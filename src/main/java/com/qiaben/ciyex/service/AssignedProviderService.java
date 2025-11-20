@@ -168,7 +168,9 @@ public class AssignedProviderService {
     // Read
     public AssignedProviderDto getOne(Long patientId, Long encounterId, Long id) {
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Assigned Provider not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         return toDto(e);
     }
 
@@ -180,7 +182,9 @@ public class AssignedProviderService {
     // Update (LOCKED if eSigned)
     public AssignedProviderDto update(Long patientId, Long encounterId, Long id, AssignedProviderDto dto) {
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Assigned Provider not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed records are read-only.");
@@ -194,7 +198,9 @@ public class AssignedProviderService {
     // Delete (BLOCKED if eSigned)
     public void delete(Long patientId, Long encounterId, Long id) {
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Assigned Provider not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed records cannot be deleted.");
@@ -206,7 +212,9 @@ public class AssignedProviderService {
     // eSign (idempotent)
     public AssignedProviderDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Assigned Provider not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
             return toDto(e);
@@ -222,7 +230,9 @@ public class AssignedProviderService {
     // Print (PDF) — also stamps printedAt
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Assigned provider not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Assigned Provider not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
         repo.save(e);

@@ -341,13 +341,17 @@ public class SignoffService {
 
     public SignoffDto getOne(Long patientId, Long encounterId, Long id) {
         Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Sign-off not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Sign-off not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         return toDto(e);
     }
 
     public SignoffDto update(Long patientId, Long encounterId, Long id, SignoffDto dto) {
         Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Sign-off not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Sign-off not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (isLocked(e)) throw new IllegalStateException("Signed/locked sign-offs are read-only.");
         applyEditable(e, dto);
         e = repo.save(e);
@@ -356,7 +360,9 @@ public class SignoffService {
 
     public void delete(Long patientId, Long encounterId, Long id) {
         Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Sign-off not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Sign-off not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
         if (isLocked(e)) throw new IllegalStateException("Signed/locked sign-offs cannot be deleted.");
         repo.delete(e);
     }
@@ -365,7 +371,9 @@ public class SignoffService {
 
     public SignoffDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Sign-off not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Sign-off not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         if (isLocked(e)) return toDto(e); // idempotent
 
@@ -390,7 +398,9 @@ public class SignoffService {
 
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Sign-off not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Sign-off not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                ));
 
         // optional stamp
         try { e.setPrintedAt(LocalDateTime.now()); repo.save(e); } catch (Exception ignore) {}
