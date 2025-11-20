@@ -16,55 +16,59 @@ import java.sql.Statement;
 @Slf4j
 @Component
 public class JpaSchemaInterceptor implements Interceptor {
-    
+
     @Autowired
     private DataSource dataSource;
-    
+
     @Override
-    public boolean onSave(Object entity, Serializable id, Object[] state, String[] propertyNames, Type[] types) {
+    public boolean onSave(Object entity, Object id, Object[] state, String[] propertyNames, Type[] types) {
         setTenantSchema();
         return false;
     }
-    
+
     @Override
-    public boolean onLoad(Object entity, Serializable id, Object[] state, String[] propertyNames, Type[] types) {
+    public boolean onLoad(Object entity, Object id, Object[] state, String[] propertyNames, Type[] types) {
         setTenantSchema();
         return false;
     }
-    
+
     @Override
-    public boolean onFlushDirty(Object entity, Serializable id, Object[] currentState, Object[] previousState, String[] propertyNames, Type[] types) {
+    public boolean onFlushDirty(Object entity, Object id, Object[] currentState, Object[] previousState,
+            String[] propertyNames, Type[] types) {
         setTenantSchema();
         return false;
     }
-    
+
     @Override
-    public void onDelete(Object entity, Serializable id, Object[] state, String[] propertyNames, Type[] types) {
+    public void onDelete(Object entity, Object id, Object[] state, String[] propertyNames, Type[] types) {
         setTenantSchema();
     }
-    
+
     private void setTenantSchema() {
         RequestContext context = RequestContext.get();
         if (context != null) {
-            // Prefer schemaName from Keycloak group attribute, fallback to generated from tenantName
+            // Prefer schemaName from Keycloak group attribute, fallback to generated from
+            // tenantName
             String schemaName = context.getSchemaName();
             if (schemaName == null && context.getTenantName() != null) {
                 schemaName = sanitize(context.getTenantName());
             }
-            
+
             if (schemaName != null) {
                 try (Connection connection = dataSource.getConnection();
-                     Statement statement = connection.createStatement()) {
-                    
+                        Statement statement = connection.createStatement()) {
+
                     // Create schema if it doesn't exist
-                    statement.execute("CREATE SCHEMA IF NOT EXISTS " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
-                    
+                    statement.execute(
+                            "CREATE SCHEMA IF NOT EXISTS " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
+
                     // Set search path to use the tenant schema first
-                    statement.execute("SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public");
-                    
-                    log.debug("JPA Interceptor: Set search_path to: {}, public (from Keycloak: {})", 
-                             schemaName, context.getSchemaName() != null);
-                    
+                    statement.execute(
+                            "SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public");
+
+                    log.debug("JPA Interceptor: Set search_path to: {}, public (from Keycloak: {})",
+                            schemaName, context.getSchemaName() != null);
+
                 } catch (SQLException e) {
                     log.error("JPA Interceptor: Failed to set schema: {}", schemaName, e);
                 }
