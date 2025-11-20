@@ -60,7 +60,7 @@ jobs:
 
       - name: Update manifest image tags for deployment
         run: |
-          sed -i "s|IMAGE_URL:IMAGE_TAG|${{ env.ACR_NAME }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}|g" manifests/stage/ciyex-deployment-stage.yaml
+          sed -i "s|IMAGE_URL:IMAGE_TAG|${{ env.ACR_NAME }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}|g" k8s/base/deployment.yaml
 
       - name: Deploy to AKS
-        run: kubectl apply -f manifests/stage/
+        run: kubectl apply -k k8s/overlays/stage
