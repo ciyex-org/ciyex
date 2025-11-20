@@ -58,9 +58,10 @@ jobs:
           resource-group: ${{ env.RESOURCE_GROUP }}
           cluster-name: ${{ env.CLUSTER_NAME }}
 
-      - name: Update manifest image tags for deployment
+      - name: Update image in kustomization
         run: |
-          sed -i "s|IMAGE_URL:IMAGE_TAG|${{ env.ACR_NAME }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}|g" k8s/base/deployment.yaml
+          cd k8s/overlays/stage
+          kustomize edit set image IMAGE_URL:IMAGE_TAG=${{ env.ACR_NAME }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
 
       - name: Deploy to AKS
         run: kubectl apply -k k8s/overlays/stage
