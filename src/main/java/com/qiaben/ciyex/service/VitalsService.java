@@ -1,6 +1,3 @@
-
-
-
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.VitalsDto;
@@ -41,6 +38,8 @@ public class VitalsService {
         Vitals entity = toEntity(dto);
         entity.setPatientId(patientId);
         entity.setEncounterId(encounterId);
+        // Calculate BMI automatically
+        entity.setBmi(calculateBmi(dto.getWeightKg(), dto.getHeightCm()));
         Vitals saved = repository.save(entity);
         externalStorage.save(saved);
         return toDto(saved);
@@ -73,6 +72,7 @@ public class VitalsService {
             );
         }
         existing.setWeightKg(dto.getWeightKg());
+        existing.setHeightCm(dto.getHeightCm());
         existing.setBpSystolic(dto.getBpSystolic());
         existing.setBpDiastolic(dto.getBpDiastolic());
         existing.setPulse(dto.getPulse());
@@ -80,6 +80,8 @@ public class VitalsService {
         existing.setTemperatureC(dto.getTemperatureC());
         existing.setOxygenSaturation(dto.getOxygenSaturation());
         existing.setNotes(dto.getNotes());
+        // Calculate BMI automatically
+        existing.setBmi(calculateBmi(dto.getWeightKg(), dto.getHeightCm()));
         Vitals updated = repository.save(existing);
         externalStorage.save(updated);
         return toDto(updated);
@@ -216,7 +218,6 @@ public class VitalsService {
                 .temperatureC(dto.getTemperatureC())
                 .temperatureF(dto.getTemperatureF())
                 .oxygenSaturation(dto.getOxygenSaturation())
-                .bmi(dto.getBmi())
                 .notes(dto.getNotes())
                 .signed(dto.getSigned())
                 .recordedAt(dto.getRecordedAt())
@@ -246,5 +247,14 @@ public class VitalsService {
                 .createdDate(entity.getCreatedDate())
                 .lastModifiedDate(entity.getLastModifiedDate())
                 .build();
+    }
+
+    private Double calculateBmi(Double weightKg, Double heightCm) {
+        if (weightKg == null || heightCm == null || heightCm == 0) {
+            return null;
+        }
+        // BMI = weight (kg) / (height (m) * height (m))
+        double heightM = heightCm / 100.0;
+        return Math.round((weightKg / (heightM * heightM)) * 10.0) / 10.0;
     }
 }
