@@ -1,11 +1,8 @@
-
-
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.VitalsDto;
 import com.qiaben.ciyex.service.VitalsService;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -50,16 +47,24 @@ public class VitalsController {
     }
     private final VitalsService service;
 
+    // CREATE: validate mandatory vitals fields
     @PostMapping("/{patientId}/{encounterId}")
-    public ApiResponse<VitalsDto> create(
+    public ResponseEntity<ApiResponse<VitalsDto>> create(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody VitalsDto dto) {
-        return ApiResponse.<VitalsDto>builder()
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<VitalsDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
+        return ResponseEntity.ok(ApiResponse.<VitalsDto>builder()
                 .success(true)
                 .message("Vitals recorded")
                 .data(service.create(patientId, encounterId, dto))
-                .build();
+                .build());
     }
 
     @GetMapping("/{patientId}/{encounterId}/{id}")
@@ -119,17 +124,25 @@ public class VitalsController {
         }
     }
 
+    // UPDATE: validate mandatory vitals fields
     @PutMapping("/{patientId}/{encounterId}/{id}")
-    public ApiResponse<VitalsDto> update(
+    public ResponseEntity<ApiResponse<VitalsDto>> update(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id,
             @RequestBody VitalsDto dto) {
-        return ApiResponse.<VitalsDto>builder()
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<VitalsDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
+        return ResponseEntity.ok(ApiResponse.<VitalsDto>builder()
                 .success(true)
                 .message("Vitals updated")
                 .data(service.update(patientId, encounterId, id, dto))
-                .build();
+                .build());
     }
 
     @DeleteMapping("/{patientId}/{encounterId}/{id}")
@@ -254,11 +267,54 @@ public class VitalsController {
             @PathVariable Long patientId,
             @RequestParam Long encounterId,
             @RequestBody VitalsDto dto) {
+        // Validate mandatory fields for EHR create
+        String validationError = validateMandatoryFields(dto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<VitalsDto>builder()
+                    .success(false).message(validationError).build());
+        }
+
         VitalsDto saved = service.create(patientId, encounterId, dto);
         return ResponseEntity.ok(ApiResponse.<VitalsDto>builder()
                 .success(true)
                 .message("Vitals recorded for EHR")
                 .data(saved)
                 .build());
+    }
+
+    /**
+     * Validates mandatory fields for Vitals creation and update
+     * @param dto VitalsDto to validate
+     * @return error message if validation fails, null if validation passes
+     */
+    private String validateMandatoryFields(VitalsDto dto) {
+        StringBuilder missing = new StringBuilder();
+
+        if (dto == null) {
+            return "Missing request body";
+        }
+
+        // weightKg (number) - accept null or zero as missing depending on domain; require non-null
+        if (dto.getWeightKg() == null) {
+            missing.append("weightKg, ");
+        }
+        // heightCm
+        if (dto.getHeightCm() == null) {
+            missing.append("heightCm, ");
+        }
+        // pulse
+        if (dto.getPulse() == null) {
+            missing.append("pulse, ");
+        }
+        // respiration
+        if (dto.getRespiration() == null) {
+            missing.append("respiration, ");
+        }
+
+        if (missing.length() > 0) {
+            missing.setLength(missing.length() - 2); // remove trailing comma+space
+            return "Missing mandatory fields: " + missing.toString();
+        }
+        return null;
     }
 }

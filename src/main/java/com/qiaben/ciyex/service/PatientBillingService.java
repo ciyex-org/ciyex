@@ -123,6 +123,7 @@ public class PatientBillingService {
     private final CoverageRepository coverageRepo;
     private final InvoiceCourtesyCreditRepository invoiceCourtesyCreditRepo;
     private final AppointmentRepository appointmentRepo;
+    private final FacilityRepository facilityRepo;
 
 
 
@@ -1590,13 +1591,41 @@ public class PatientBillingService {
 
         PatientInvoicePrintDto dto = new PatientInvoicePrintDto();
 
-        // Practice Info
+        // Practice Info - Get from primary facility
         PatientInvoicePrintDto.PracticeInfo practice = new PatientInvoicePrintDto.PracticeInfo();
-        practice.practiceName = "Bright Smiles Family Dental";
-        practice.address = "123 West Main St., Rockaway, NJ 07866";
-        practice.phone = "+1 (973) 627-2186";
-        practice.email = "info@rockawaydentist.com";
-        practice.website = "https://www.rockawaydentist.com/";
+        Facility facility = getPrimaryFacility();
+        if (facility != null) {
+            practice.practiceName = facility.getName();
+            // Construct full address
+            StringBuilder addressBuilder = new StringBuilder();
+            if (facility.getPhysicalAddress() != null) {
+                addressBuilder.append(facility.getPhysicalAddress());
+            }
+            if (facility.getPhysicalCity() != null) {
+                if (addressBuilder.length() > 0) addressBuilder.append(", ");
+                addressBuilder.append(facility.getPhysicalCity());
+            }
+            if (facility.getPhysicalState() != null) {
+                if (addressBuilder.length() > 0) addressBuilder.append(", ");
+                addressBuilder.append(facility.getPhysicalState());
+            }
+            if (facility.getPhysicalZipCode() != null) {
+                if (addressBuilder.length() > 0) addressBuilder.append(" ");
+                addressBuilder.append(facility.getPhysicalZipCode());
+            }
+            practice.address = addressBuilder.toString();
+            practice.phone = facility.getPhone();
+            practice.email = facility.getEmail();
+            practice.website = facility.getWebsite();
+        } else {
+            // Fallback to default values if no facility found
+            log.warn("No active facility found, using default practice info");
+            practice.practiceName = "Practice Name Not Set";
+            practice.address = "";
+            practice.phone = "";
+            practice.email = "";
+            practice.website = "";
+        }
         dto.practice = practice;
 
         // Patient Info
@@ -1986,6 +2015,27 @@ public class PatientBillingService {
 
     public PatientClaim getClaimOrThrow(Long patientId, Long invoiceId) {
         return claimRepo.findByInvoiceIdAndPatientId(invoiceId, patientId).orElseThrow();
+    }
+
+    /**
+     * Get the primary facility or the first active facility.
+     * Returns null if no facility is found.
+     */
+    private Facility getPrimaryFacility() {
+        // Try to find primary business entity first
+        List<Facility> facilities = facilityRepo.findAllByIsActiveTrue();
+
+        // Find primary business entity
+        Optional<Facility> primary = facilities.stream()
+                .filter(f -> Boolean.TRUE.equals(f.getPrimaryBusinessEntity()))
+                .findFirst();
+
+        if (primary.isPresent()) {
+            return primary.get();
+        }
+
+        // If no primary, return first active facility
+        return facilities.isEmpty() ? null : facilities.get(0);
     }
 
     private BigDecimal nz(BigDecimal v) { return v == null ? BigDecimal.ZERO : v; }

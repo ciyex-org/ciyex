@@ -1,4 +1,3 @@
-
 //package com.qiaben.ciyex.service;
 //
 //import com.qiaben.ciyex.dto.ProviderSignatureDto;
@@ -26,7 +25,7 @@
 //
 //    public ProviderSignatureDto create(Long patientId, Long encounterId, ProviderSignatureDto in) {
 //        ProviderSignature e = ProviderSignature.builder()
-
+//
 //                .signedAt(in.getSignedAt())
 //                .signedBy(in.getSignedBy())
 //                .signerRole(in.getSignerRole())
@@ -173,7 +172,12 @@ public class ProviderSignatureService {
         if (StringUtils.hasText(e.getSignatureData())) {
             e.setSignatureHash(sha256(e.getSignatureData()));
         }
-        e.setStatus(StringUtils.hasText(dto.getStatus()) ? dto.getStatus() : "SIGNED");
+        // Only set status if provided, do not default to "SIGNED"
+        if (StringUtils.hasText(dto.getStatus())) {
+            e.setStatus(dto.getStatus());
+        } else {
+            e.setStatus(null);
+        }
         e = repo.save(e);
         return toDto(e);
     }
@@ -310,7 +314,12 @@ public class ProviderSignatureService {
         e.setSignatureType(d.getSignatureType());
         e.setSignatureFormat(d.getSignatureFormat());
         e.setSignatureData(d.getSignatureData());
-        e.setStatus(d.getStatus());
+        // Only set status if provided, do not default to "SIGNED"
+        if (StringUtils.hasText(d.getStatus())) {
+            e.setStatus(d.getStatus());
+        } else {
+            e.setStatus(null);
+        }
         e.setComments(d.getComments());
         // signatureHash computed automatically if data present
     }

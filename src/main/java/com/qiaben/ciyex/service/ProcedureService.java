@@ -42,7 +42,7 @@ public class ProcedureService {
             .modifier4(in.getModifier4())
             .note(in.getNote())
             .priceLevelTitle(in.getPriceLevelTitle())
-            .priceLevelId(in.getPriceLevelId())
+            .priceLevelId(in.getPriceLevelId()) // FIX: ensure priceLevelId is set
             .providername(in.getProvidername())
             .build();
 
@@ -99,6 +99,7 @@ public class ProcedureService {
         p.setModifier4(in.getModifier4());
         p.setNote(in.getNote());
         p.setPriceLevelTitle(in.getPriceLevelTitle());
+        p.setPriceLevelId(in.getPriceLevelId()); // FIX: ensure priceLevelId is set on update
         p.setProvidername(in.getProvidername());
         final Procedure updated = repo.save(p);
 
@@ -163,6 +164,7 @@ public class ProcedureService {
         dto.setModifier3(e.getModifier3());
         dto.setModifier4(e.getModifier4());
         dto.setNote(e.getNote());
+        dto.setPriceLevelId(e.getPriceLevelId());
         dto.setPriceLevelTitle(e.getPriceLevelTitle());
         dto.setProvidername(e.getProvidername());
         ProcedureDto.Audit a = new ProcedureDto.Audit();
