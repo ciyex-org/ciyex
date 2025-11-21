@@ -65,3 +65,108 @@ jobs:
 
       - name: Deploy to AKS
         run: kubectl apply -k k8s/overlays/stage
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/ciyex-app-stage --timeout=3m
+          kubectl get pods -l app=ciyex-app -o wide
+
+      - name: Notify deployment
+        if: always()
+        run: |
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ Ciyex Backend Stage deployment successful"
+          else
+            echo "❌ Ciyex Backend Stage deployment failed"
+          fi
+
+  notify:
+    name: Notify Team
+    if: always()
+    runs-on: ubuntu-latest
+    needs: [build-and-deploy]
+
+    steps:
+      - name: Determine deployment status
+        id: status
+        run: |
+          if [ "${{ needs.build-and-deploy.result }}" == "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "color=good" >> $GITHUB_OUTPUT
+            echo "emoji=✅" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "color=danger" >> $GITHUB_OUTPUT
+            echo "emoji=❌" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Microsoft Teams notification
+        run: |
+          TEAMS_WEBHOOK="${{ secrets.TEAMS_WEBHOOK_URL }}"
+          if [ -z "$TEAMS_WEBHOOK" ]; then
+            echo "⚠️ TEAMS_WEBHOOK_URL secret not configured, skipping notification"
+            exit 0
+          fi
+          
+          STATUS_COLOR="28a745"
+          if [ "${{ steps.status.outputs.status }}" == "failure" ]; then
+            STATUS_COLOR="dc3545"
+          fi
+          
+          curl -H "Content-Type: application/json" -d '{
+            "@type": "MessageCard",
+            "@context": "https://schema.org/extensions",
+            "themeColor": "'"$STATUS_COLOR"'",
+            "summary": "Ciyex Backend Stage Deployment ${{ steps.status.outputs.status }}",
+            "sections": [{
+              "activityTitle": "${{ steps.status.outputs.emoji }} Ciyex Backend Stage Deployment ${{ steps.status.outputs.status }}",
+              "activitySubtitle": "Version ${{ env.VERSION }}",
+              "facts": [
+                {
+                  "name": "Environment:",
+                  "value": "Stage"
+                },
+                {
+                  "name": "Version:",
+                  "value": "${{ env.VERSION }}"
+                },
+                {
+                  "name": "Image:",
+                  "value": "${{ env.ACR_NAME }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}"
+                },
+                {
+                  "name": "Cluster:",
+                  "value": "${{ env.CLUSTER_NAME }}"
+                },
+                {
+                  "name": "Deployed by:",
+                  "value": "${{ github.actor }}"
+                },
+                {
+                  "name": "Commit:",
+                  "value": "${{ github.sha }}"
+                },
+                {
+                  "name": "URL:",
+                  "value": "https://stg.ciyex.com/api"
+                }
+              ],
+              "markdown": true
+            }],
+            "potentialAction": [{
+              "@type": "OpenUri",
+              "name": "View Workflow",
+              "targets": [{
+                "os": "default",
+                "uri": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              }]
+            },
+            {
+              "@type": "OpenUri",
+              "name": "View API",
+              "targets": [{
+                "os": "default",
+                "uri": "https://stg.ciyex.com/api"
+              }]
+            }]
+          }' "$TEAMS_WEBHOOK"
