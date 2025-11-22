@@ -108,6 +108,12 @@ public class MedicationRequestService {
 
         // Initialize and set audit dates
         MedicationRequestDto.Audit audit = new MedicationRequestDto.Audit();
+        if (entity.getCreatedDate() != null) {
+            audit.setCreatedDate(entity.getCreatedDate().format(DATE_FORMATTER));
+        }
+        if (entity.getLastModifiedDate() != null) {
+            audit.setLastModifiedDate(entity.getLastModifiedDate().format(DATE_FORMATTER));
+        }
         dto.setAudit(audit);
 
         return dto;

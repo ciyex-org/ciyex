@@ -24,11 +24,14 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.time.LocalDate;
 import java.time.format.TextStyle;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
 @Slf4j
 public class InventoryService {
+
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final InventoryRepository repository;
     private final ExternalStorageResolver storageResolver;
@@ -75,6 +78,7 @@ public class InventoryService {
         Inventory entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found with id: " + id));
 
+        if (dto.getFhirId() != null) entity.setExternalId(dto.getFhirId());
         entity.setSupplier(dto.getSupplier());
         entity.setName(dto.getName());
         entity.setCategory(dto.getCategory());
@@ -220,6 +224,7 @@ public class InventoryService {
                 .minStock(dto.getMinStock())
                 .location(dto.getLocation())
                 .status(dto.getStatus())
+                .externalId(dto.getFhirId())
                 .build();
     }
 
@@ -240,6 +245,12 @@ public class InventoryService {
         dto.setFhirId(e.getExternalId());
 
         InventoryDto.Audit audit = new InventoryDto.Audit();
+        if (e.getCreatedDate() != null) {
+            audit.setCreatedDate(e.getCreatedDate().format(DATE_FORMATTER));
+        }
+        if (e.getLastModifiedDate() != null) {
+            audit.setLastModifiedDate(e.getLastModifiedDate().format(DATE_FORMATTER));
+        }
         dto.setAudit(audit);
 
         return dto;

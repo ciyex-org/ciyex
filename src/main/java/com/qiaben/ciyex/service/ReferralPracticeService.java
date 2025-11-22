@@ -136,6 +136,12 @@ public class ReferralPracticeService {
         dto.setFhirId(entity.getFhirId());
 
         ReferralPracticeDto.Audit audit = new ReferralPracticeDto.Audit();
+        if (entity.getCreatedDate() != null) {
+            audit.setCreatedDate(entity.getCreatedDate().format(DATE_FORMATTER));
+        }
+        if (entity.getLastModifiedDate() != null) {
+            audit.setLastModifiedDate(entity.getLastModifiedDate().format(DATE_FORMATTER));
+        }
         dto.setAudit(audit);
 
         return dto;
@@ -151,6 +157,7 @@ public class ReferralPracticeService {
                 .country(dto.getCountry())
                 .phoneNumber(dto.getPhoneNumber())
                 .email(dto.getEmail())
+                .fhirId(dto.getFhirId())
                 .build();
     }
 
@@ -163,6 +170,7 @@ public class ReferralPracticeService {
         if (dto.getCountry() != null) entity.setCountry(dto.getCountry());
         if (dto.getPhoneNumber() != null) entity.setPhoneNumber(dto.getPhoneNumber());
         if (dto.getEmail() != null) entity.setEmail(dto.getEmail());
+        if (dto.getFhirId() != null) entity.setFhirId(dto.getFhirId());
         return entity;
     }
 }
