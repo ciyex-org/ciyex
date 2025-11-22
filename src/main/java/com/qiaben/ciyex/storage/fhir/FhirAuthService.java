@@ -6,7 +6,6 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.qiaben.ciyex.dto.integration.FhirConfig;
 import com.qiaben.ciyex.dto.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.dto.FhirTokenResponse;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
@@ -40,16 +39,16 @@ public class FhirAuthService {
     }
 
     public String getCachedAccessToken()  {
-        String tenantName = RequestContext.get() != null ? RequestContext.get().getTenantName() : null;
-        if (tenantName == null) throw new IllegalStateException("No tenantName in request context");
+        // Use a constant key for single-tenant mode
+        String cacheKey = "single-tenant";
         FhirConfig config = integrationConfigProvider.getForCurrentTenant(IntegrationKey.FHIR);
 
-        TokenCache cache = tokenCacheMap.get(tenantName, k -> new TokenCache());
+        TokenCache cache = tokenCacheMap.get(cacheKey, k -> new TokenCache());
         synchronized (cache) {
             long now = System.currentTimeMillis();
             // Refresh if token is missing/expired/about to expire (30s buffer)
             if (cache.accessToken == null || now > (cache.expiryMillis - 30_000)) {
-                log.info("[Tenant:{}] FHIR cached token is missing/expired, requesting new token...", tenantName);
+                log.info("FHIR cached token is missing/expired, requesting new token...");
                 FhirTokenResponse tokenResponse = null;
                 try {
                     tokenResponse = getAccessToken(config);
@@ -59,9 +58,9 @@ public class FhirAuthService {
 
                 cache.accessToken = tokenResponse.getAccessToken();
                 cache.expiryMillis = now + tokenResponse.getExpiresIn() * 1000L;
-                log.info("[Tenant:{}] Cached new FHIR access token, expires in {} seconds", tenantName, tokenResponse.getExpiresIn());
+                log.info("Cached new FHIR access token, expires in {} seconds", tokenResponse.getExpiresIn());
             } else {
-                log.debug("[Tenant:{}] Returning cached FHIR access token", tenantName);
+                log.debug("Returning cached FHIR access token");
             }
             return cache.accessToken;
         }

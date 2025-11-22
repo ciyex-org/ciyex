@@ -8,7 +8,7 @@ import com.qiaben.ciyex.repository.portal.PortalUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -26,8 +26,11 @@ public class PortalDemographicsController {
      */
     private UUID getCurrentPatientUuid() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() instanceof UserDetails userDetails) {
-            String email = userDetails.getUsername();
+        if (auth != null && auth.getPrincipal() instanceof Jwt jwt) {
+            String email = jwt.getClaimAsString("email");
+            if (email == null || email.isEmpty()) {
+                throw new IllegalStateException("JWT token does not contain email claim");
+            }
             return portalUserRepository.findByEmail(email)
                     .orElseThrow(() -> new IllegalStateException("No portal user found with email: " + email))
                     .getUuid();

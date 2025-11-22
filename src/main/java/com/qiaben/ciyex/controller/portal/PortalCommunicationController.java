@@ -77,8 +77,21 @@ public class PortalCommunicationController {
             List<CommunicationDto> communications;
 
             if (isPatient) {
-                // Get communications for patient
-                communications = communicationService.getCommunicationsForPortalUser(userEmail);
+                // Map portal user email -> portal user -> linked EHR patient id
+                Optional<PortalUser> optPortalUser = portalUserRepository.findByEmail(userEmail);
+                if (optPortalUser.isEmpty()) {
+                    log.warn("Portal user not found for email: {}", userEmail);
+                    communications = Collections.emptyList();
+                } else {
+                    PortalUser portalUser = optPortalUser.get();
+                    if (portalUser.getPortalPatient() == null || portalUser.getPortalPatient().getEhrPatientId() == null) {
+                        log.warn("Portal user {} has no linked EHR patient", userEmail);
+                        communications = Collections.emptyList();
+                    } else {
+                        Long ehrPatientId = portalUser.getPortalPatient().getEhrPatientId();
+                        communications = communicationService.getByPatientId(ehrPatientId);
+                    }
+                }
             } else {
                 // For providers, return empty list for now (service layer doesn't support provider communications)
                 communications = Collections.emptyList();

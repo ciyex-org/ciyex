@@ -62,23 +62,27 @@ public class PatientController {
     public ResponseEntity<ApiResponse<PatientDto>> get(@PathVariable Long id) {
         try {
             PatientDto patient = service.getById(id);
-            if (patient == null) {
-                return ResponseEntity.ok(ApiResponse.<PatientDto>builder()
-                        .success(false)
-                        .message("Patient not found with id: " + id)
-                        .build());
-            }
             return ResponseEntity.ok(ApiResponse.<PatientDto>builder()
                     .success(true)
                     .message("Patient retrieved successfully")
                     .data(patient)
                     .build());
+        } catch (RuntimeException e) {
+            log.error("Patient not found with id {}", id);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<PatientDto>builder()
+                            .success(false)
+                            .message("No patient found with id: " + id)
+                            .data(null)
+                            .build());
         } catch (Exception e) {
             log.error("Failed to retrieve patient with id {}", id, e);
-            return ResponseEntity.ok(ApiResponse.<PatientDto>builder()
-                    .success(false)
-                    .message("Failed to retrieve patient: " + e.getMessage())
-                    .build());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<PatientDto>builder()
+                            .success(false)
+                            .message("Failed to retrieve patient: " + e.getMessage())
+                            .data(null)
+                            .build());
         }
     }
 
