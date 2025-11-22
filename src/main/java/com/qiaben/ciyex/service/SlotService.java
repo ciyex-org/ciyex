@@ -12,12 +12,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
 @Service
 @Slf4j
 public class SlotService {
+
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final SlotRepository repository;
     private final ExternalStorageResolver storageResolver;
@@ -181,6 +184,12 @@ public class SlotService {
         dto.setComment(entity.getComment());
 
         SlotDto.Audit audit = new SlotDto.Audit();
+        if (entity.getCreatedDate() != null) {
+            audit.setCreatedDate(entity.getCreatedDate().format(DATE_FORMATTER));
+        }
+        if (entity.getLastModifiedDate() != null) {
+            audit.setLastModifiedDate(entity.getLastModifiedDate().format(DATE_FORMATTER));
+        }
         dto.setAudit(audit);
 
         // Override with external data if available

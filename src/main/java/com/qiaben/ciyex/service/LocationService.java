@@ -10,10 +10,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.format.DateTimeFormatter;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class LocationService {
+
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final LocationRepository repository;
 
@@ -38,6 +42,7 @@ public class LocationService {
         Location location = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Location not found with id: " + id));
 
+        if (dto.getExternalId() != null) location.setExternalId(dto.getExternalId());
         if (dto.getName() != null) location.setName(dto.getName());
         if (dto.getAddress() != null) location.setAddress(dto.getAddress());
         if (dto.getCity() != null) location.setCity(dto.getCity());
@@ -75,6 +80,7 @@ public class LocationService {
 
     private Location mapToEntity(LocationDto dto) {
         return Location.builder()
+                .externalId(dto.getExternalId())
                 .name(dto.getName())
                 .address(dto.getAddress())
                 .city(dto.getCity())
@@ -87,12 +93,23 @@ public class LocationService {
     private LocationDto mapToDto(Location location) {
         LocationDto dto = new LocationDto();
         dto.setId(location.getId());
+        dto.setExternalId(location.getExternalId());
         dto.setName(location.getName());
         dto.setAddress(location.getAddress());
         dto.setCity(location.getCity());
         dto.setState(location.getState());
         dto.setPostalCode(location.getPostalCode());
         dto.setCountry(location.getCountry());
+
+        LocationDto.Audit audit = new LocationDto.Audit();
+        if (location.getCreatedDate() != null) {
+            audit.setCreatedDate(location.getCreatedDate().format(DATE_FORMATTER));
+        }
+        if (location.getLastModifiedDate() != null) {
+            audit.setLastModifiedDate(location.getLastModifiedDate().format(DATE_FORMATTER));
+        }
+        dto.setAudit(audit);
+
         return dto;
     }
 }

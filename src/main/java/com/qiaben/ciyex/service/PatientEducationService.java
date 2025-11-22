@@ -14,10 +14,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @Service
 @Slf4j
 public class PatientEducationService {
+
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final PatientEducationRepository repository;
     private final ExternalStorageResolver storageResolver;
@@ -39,11 +42,13 @@ public class PatientEducationService {
         PatientEducation entity = mapToEntity(dto);
 
 
-        String externalId = null;
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            ExternalStorage<PatientEducationDto> externalStorage = storageResolver.resolve(PatientEducationDto.class);
-            externalId = externalStorage.create(dto);
+        String externalId = dto.getFhirId();
+        if (externalId == null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            if (storageType != null) {
+                ExternalStorage<PatientEducationDto> externalStorage = storageResolver.resolve(PatientEducationDto.class);
+                externalId = externalStorage.create(dto);
+            }
         }
         entity.setExternalId(externalId);
 
@@ -94,6 +99,9 @@ public class PatientEducationService {
         entity.setLanguage(dto.getLanguage());
         entity.setReadingLevel(dto.getReadingLevel());
         entity.setContent(dto.getContent());
+        if (dto.getFhirId() != null) {
+            entity.setExternalId(dto.getFhirId());
+        }
 
 
         return mapToDto(repository.save(entity));
@@ -121,6 +129,7 @@ public class PatientEducationService {
                 .language(dto.getLanguage())
                 .readingLevel(dto.getReadingLevel())
                 .content(dto.getContent())
+                .externalId(dto.getFhirId())
                 .build();
     }
 
@@ -134,6 +143,15 @@ public class PatientEducationService {
         dto.setReadingLevel(entity.getReadingLevel());
         dto.setContent(entity.getContent());
         dto.setFhirId(entity.getExternalId());
+
+        PatientEducationDto.Audit audit = new PatientEducationDto.Audit();
+        if (entity.getCreatedDate() != null) {
+            audit.setCreatedDate(entity.getCreatedDate().format(DATE_FORMATTER));
+        }
+        if (entity.getLastModifiedDate() != null) {
+            audit.setLastModifiedDate(entity.getLastModifiedDate().format(DATE_FORMATTER));
+        }
+        dto.setAudit(audit);
 
         return dto;
     }
