@@ -48,7 +48,21 @@ public class PortalMessageAttachmentController {
                 ));
             }
 
-            String userEmail = authentication.getName();
+            // Prefer the JWT email claim (or preferred_username) when available; authentication.getName()
+            // can return the subject (UUID) which doesn't match portal user email records.
+            String tempEmail = null;
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof org.springframework.security.oauth2.jwt.Jwt) {
+                org.springframework.security.oauth2.jwt.Jwt jwt = (org.springframework.security.oauth2.jwt.Jwt) principal;
+                tempEmail = jwt.getClaimAsString("email");
+                if (tempEmail == null || tempEmail.isBlank()) {
+                    tempEmail = jwt.getClaimAsString("preferred_username");
+                }
+            }
+            if (tempEmail == null || tempEmail.isBlank()) {
+                tempEmail = authentication.getName();
+            }
+            final String userEmail = tempEmail;
             boolean isPatient = authentication.getAuthorities().stream()
                     .anyMatch(auth -> auth.getAuthority().equals("PATIENT") || auth.getAuthority().equals("ROLE_PATIENT"));
             boolean isProvider = authentication.getAuthorities().stream()
@@ -116,7 +130,21 @@ public class PortalMessageAttachmentController {
                 ));
             }
 
-            String userEmail = authentication.getName();
+            // Prefer the JWT email claim (or preferred_username) when available; authentication.getName()
+            // can return the subject (UUID) which doesn't match portal user email records.
+            String tempEmail = null;
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof org.springframework.security.oauth2.jwt.Jwt) {
+                org.springframework.security.oauth2.jwt.Jwt jwt = (org.springframework.security.oauth2.jwt.Jwt) principal;
+                tempEmail = jwt.getClaimAsString("email");
+                if (tempEmail == null || tempEmail.isBlank()) {
+                    tempEmail = jwt.getClaimAsString("preferred_username");
+                }
+            }
+            if (tempEmail == null || tempEmail.isBlank()) {
+                tempEmail = authentication.getName();
+            }
+            final String userEmail = tempEmail;
             boolean isPatient = authentication.getAuthorities().stream()
                     .anyMatch(auth -> auth.getAuthority().equals("PATIENT") || auth.getAuthority().equals("ROLE_PATIENT"));
             boolean isProvider = authentication.getAuthorities().stream()
@@ -198,7 +226,21 @@ public class PortalMessageAttachmentController {
                 return ResponseEntity.status(401).build();
             }
 
-            String userEmail = authentication.getName();
+            // Prefer the JWT email claim (or preferred_username) when available; authentication.getName()
+            // can return the subject (UUID) which doesn't match portal user email records.
+            String tempEmail = null;
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof org.springframework.security.oauth2.jwt.Jwt) {
+                org.springframework.security.oauth2.jwt.Jwt jwt = (org.springframework.security.oauth2.jwt.Jwt) principal;
+                tempEmail = jwt.getClaimAsString("email");
+                if (tempEmail == null || tempEmail.isBlank()) {
+                    tempEmail = jwt.getClaimAsString("preferred_username");
+                }
+            }
+            if (tempEmail == null || tempEmail.isBlank()) {
+                tempEmail = authentication.getName();
+            }
+            final String userEmail = tempEmail;
             boolean isPatient = authentication.getAuthorities().stream()
                     .anyMatch(auth -> auth.getAuthority().equals("PATIENT") || auth.getAuthority().equals("ROLE_PATIENT"));
             boolean isProvider = authentication.getAuthorities().stream()
@@ -259,7 +301,21 @@ public class PortalMessageAttachmentController {
                 ));
             }
 
-            String userEmail = authentication.getName();
+            // Prefer the JWT email claim (or preferred_username) when available; authentication.getName()
+            // can return the subject (UUID) which doesn't match portal user email records.
+            String tempEmail = null;
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof org.springframework.security.oauth2.jwt.Jwt) {
+                org.springframework.security.oauth2.jwt.Jwt jwt = (org.springframework.security.oauth2.jwt.Jwt) principal;
+                tempEmail = jwt.getClaimAsString("email");
+                if (tempEmail == null || tempEmail.isBlank()) {
+                    tempEmail = jwt.getClaimAsString("preferred_username");
+                }
+            }
+            if (tempEmail == null || tempEmail.isBlank()) {
+                tempEmail = authentication.getName();
+            }
+            final String userEmail = tempEmail;
             boolean isPatient = authentication.getAuthorities().stream()
                     .anyMatch(auth -> auth.getAuthority().equals("PATIENT") || auth.getAuthority().equals("ROLE_PATIENT"));
             boolean isProvider = authentication.getAuthorities().stream()

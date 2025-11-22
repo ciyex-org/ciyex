@@ -33,6 +33,38 @@ public class CoverageService {
 
         Coverage coverage = mapToEntity(dto);
 
+        // If patientId is not provided in DTO, try to get it from authenticated portal user
+        if (coverage.getPatientId() == null) {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.isAuthenticated()) {
+                try {
+                    // Extract email from JWT
+                    String email = null;
+                    Object principal = authentication.getPrincipal();
+                    if (principal instanceof org.springframework.security.oauth2.jwt.Jwt jwt) {
+                        email = jwt.getClaimAsString("email");
+                    }
+                    if (email == null) {
+                        String name = authentication.getName();
+                        if (name != null && name.contains("@")) {
+                            email = name;
+                        }
+                    }
+                    
+                    if (email != null) {
+                        log.info("No patientId in DTO, looking up EHR patient ID for portal user: {}", email);
+                        Long patientId = getEhrPatientIdFromPortalUserEmail(email);
+                        if (patientId != null) {
+                            log.info("Setting patientId {} from authenticated portal user {}", patientId, email);
+                            coverage.setPatientId(patientId);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not auto-populate patientId from authentication: {}", e.getMessage());
+                }
+            }
+        }
+
         // Attach insurance company only if the client provided it
         if (dto.getInsuranceCompany() != null && dto.getInsuranceCompany().getId() != null) {
             Long icId = dto.getInsuranceCompany().getId();
@@ -44,6 +76,7 @@ public class CoverageService {
         }
 
         Coverage saved = coverageRepository.save(coverage);
+        log.info("Created coverage {} for patient {}", saved.getId(), saved.getPatientId());
         return mapToDto(saved);
     }
 
