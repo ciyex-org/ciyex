@@ -137,6 +137,7 @@
 
 
 
+
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.CodeDto;
@@ -166,12 +167,16 @@ import java.util.List;
 public class CodeService {
 
     private final CodeRepository repo;
+    private final EncounterService encounterService;
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
     // CREATE
     public CodeDto create(Long patientId, Long encounterId, CodeDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Code e = new Code();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -201,6 +206,9 @@ public class CodeService {
 
     // UPDATE (blocked if signed)
     public CodeDto update(Long patientId, Long encounterId, Long id, CodeDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -213,6 +221,9 @@ public class CodeService {
 
     // DELETE (blocked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Code not found"));
         if (Boolean.TRUE.equals(e.getESigned())) {

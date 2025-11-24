@@ -105,6 +105,39 @@ public class EncounterService {
         return mapToDto(encounter);
     }
 
+    /**
+     * Checks if an encounter is signed and throws an exception if it is.
+     * This prevents modifications to signed encounters.
+     * @param encounterId the encounter ID to check
+     * @param patientId the patient ID for scoping
+     * @throws IllegalStateException if the encounter is signed
+     * @throws RuntimeException if the encounter is not found
+     */
+    @Transactional(readOnly = true)
+    public void validateEncounterNotSigned(Long encounterId, Long patientId) {
+        Encounter encounter = encounterRepository
+                .findByIdAndPatientId(encounterId, patientId)
+                .orElseThrow(() -> new RuntimeException("Encounter not found"));
+
+        if (encounter.getStatus() == EncounterStatus.SIGNED) {
+            throw new IllegalStateException("Cannot modify data for a signed encounter. Please unsign the encounter first.");
+        }
+    }
+
+    /**
+     * Gets the status of an encounter
+     * @param encounterId the encounter ID
+     * @param patientId the patient ID for scoping
+     * @return the encounter status
+     */
+    @Transactional(readOnly = true)
+    public EncounterStatus getEncounterStatus(Long encounterId, Long patientId) {
+        Encounter encounter = encounterRepository
+                .findByIdAndPatientId(encounterId, patientId)
+                .orElseThrow(() -> new RuntimeException("Encounter not found"));
+        return encounter.getStatus() != null ? encounter.getStatus() : EncounterStatus.UNSIGNED;
+    }
+
 
 
 

@@ -43,6 +43,7 @@ public class InvoiceService {
         inv.setDueDate(in.getDueDate());
         inv.setPayer(in.getPayer());
         inv.setNotes(in.getNotes());
+        inv.setExternalId(in.getExternalId());
 
         if (in.getLines()!=null) for (LineDto l: in.getLines()) {
             InvoiceLine il = InvoiceLine.builder()
@@ -78,10 +79,11 @@ public class InvoiceService {
         Invoice saved = repo.save(inv);
 
         external.ifPresent(ext -> {
-            final Invoice ref = saved;
-            String extId = ext.create(mapToDto(ref));
-            ref.setExternalId(extId);
-            repo.save(ref);
+            if (saved.getExternalId() == null) {
+                String extId = ext.create(mapToDto(saved));
+                saved.setExternalId(extId);
+                repo.save(saved);
+            }
         });
         return mapToDto(saved);
     }
@@ -100,6 +102,9 @@ public class InvoiceService {
         inv.setDueDate(in.getDueDate());
         inv.setPayer(in.getPayer());
         inv.setNotes(in.getNotes());
+        if (in.getExternalId() != null) {
+            inv.setExternalId(in.getExternalId());
+        }
 
         inv.getLines().clear();
         if (in.getLines()!=null) for (LineDto l: in.getLines()) {

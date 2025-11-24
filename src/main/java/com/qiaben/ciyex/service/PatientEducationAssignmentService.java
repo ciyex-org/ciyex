@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PatientEducationAssignmentService {
 
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
     private final PatientEducationRepository educationRepository;
     private final PatientEducationAssignmentRepository assignmentRepository;
     private final PatientRepository patientRepository;
@@ -47,8 +49,18 @@ public class PatientEducationAssignmentService {
             topic.setLanguage(edu.getLanguage());
             topic.setReadingLevel(edu.getReadingLevel());
             topic.setContent(edu.getContent());
+            topic.setFhirId(edu.getExternalId());
             dto.setTopic(topic);
         }
+
+        PatientEducationAssignmentDto.Audit audit = new PatientEducationAssignmentDto.Audit();
+        if (a.getCreatedDate() != null) {
+            audit.setCreatedDate(a.getCreatedDate().format(DATE_FORMATTER));
+        }
+        if (a.getLastModifiedDate() != null) {
+            audit.setLastModifiedDate(a.getLastModifiedDate().format(DATE_FORMATTER));
+        }
+        dto.setAudit(audit);
 
         return dto;
     }
@@ -56,6 +68,12 @@ public class PatientEducationAssignmentService {
     public PatientEducationAssignmentDto assign(Long educationId, PatientEducationAssignmentDto dto) {
         PatientEducation education = educationRepository.findById(educationId)
                 .orElseThrow(() -> new RuntimeException("Education not found"));
+
+        // If fhirId is provided in the request, update the education entity
+        if (dto.getFhirId() != null) {
+            education.setExternalId(dto.getFhirId());
+            educationRepository.save(education);
+        }
 
         // Fetch patient to get their name
         Patient patient = patientRepository.findById(dto.getPatientId())

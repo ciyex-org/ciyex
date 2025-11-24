@@ -141,7 +141,6 @@
 
 
 
-
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.DateTimeFinalizedDto;
@@ -174,10 +173,14 @@ public class DateTimeFinalizedService {
     }
 
     private final DateTimeFinalizedRepository repo;
+    private final EncounterService encounterService;
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
     public DateTimeFinalizedDto create(Long patientId, Long encounterId, DateTimeFinalizedDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         DateTimeFinalized e = new DateTimeFinalized();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -202,6 +205,9 @@ public class DateTimeFinalizedService {
 
     // Update (LOCKED if eSigned)
     public DateTimeFinalizedDto update(Long patientId, Long encounterId, Long id, DateTimeFinalizedDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Date/Time Finalized not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -218,6 +224,9 @@ public class DateTimeFinalizedService {
 
     // Delete (BLOCKED if eSigned)
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Date/Time Finalized not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)

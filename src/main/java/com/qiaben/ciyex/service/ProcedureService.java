@@ -1,5 +1,6 @@
 package com.qiaben.ciyex.service;
 
+
 import com.qiaben.ciyex.dto.ProcedureDto;
 import com.qiaben.ciyex.entity.Procedure;
 import com.qiaben.ciyex.repository.ProcedureRepository;
@@ -20,12 +21,17 @@ public class ProcedureService {
     // Removed duplicate getAllByPatient(Long) method
 
     private final ProcedureRepository repo;
+    private final EncounterService encounterService;
     private final Optional<ExternalProcedureStorage> external;
     private final PatientBillingService billingService;
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
+
     public ProcedureDto create(Long patientId, Long encounterId, ProcedureDto in) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Procedure p = Procedure.builder()
             .patientId(patientId)
             .encounterId(encounterId)
@@ -81,6 +87,9 @@ public class ProcedureService {
     }
 
     public ProcedureDto update(Long patientId, Long encounterId, Long id, ProcedureDto in) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Procedure not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -114,6 +123,9 @@ public class ProcedureService {
     }
 
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Procedure not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)

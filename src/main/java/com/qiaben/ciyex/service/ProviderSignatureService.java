@@ -127,6 +127,7 @@
 
 
 
+
 package com.qiaben.ciyex.service;
 
 
@@ -161,10 +162,14 @@ public class ProviderSignatureService {
     }
 
     private final ProviderSignatureRepository repo;
+    private final EncounterService encounterService;
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
     public ProviderSignatureDto create(Long patientId, Long encounterId, ProviderSignatureDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         ProviderSignature e = new ProviderSignature();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -201,6 +206,9 @@ public class ProviderSignatureService {
     }
 
     public ProviderSignatureDto update(Long patientId, Long encounterId, Long id, ProviderSignatureDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Provider Signature not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -214,6 +222,9 @@ public class ProviderSignatureService {
     }
 
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Provider Signature not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
