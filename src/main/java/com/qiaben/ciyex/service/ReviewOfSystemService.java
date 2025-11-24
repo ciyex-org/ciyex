@@ -148,10 +148,14 @@ public class ReviewOfSystemService {
     }
 
     private final ReviewOfSystemRepository repo;
+    private final EncounterService encounterService;
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // CREATE
     public ReviewOfSystemDto create(Long patientId, Long encounterId, ReviewOfSystemDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         ReviewOfSystem e = new ReviewOfSystem();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -177,6 +181,9 @@ public class ReviewOfSystemService {
 
     // UPDATE (locked if signed)
     public ReviewOfSystemDto update(Long patientId, Long encounterId, Long id, ReviewOfSystemDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Review of System not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -191,6 +198,9 @@ public class ReviewOfSystemService {
 
     // DELETE (locked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Review of System not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)

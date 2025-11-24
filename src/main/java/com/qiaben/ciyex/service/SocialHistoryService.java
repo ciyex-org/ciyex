@@ -183,10 +183,14 @@ public class SocialHistoryService {
     }
 
     private final SocialHistoryRepository repo;
+    private final EncounterService encounterService;
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // CREATE (container + entries)
     public SocialHistoryDto create(Long patientId, Long encounterId, SocialHistoryDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         SocialHistory e = new SocialHistory();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -216,6 +220,9 @@ public class SocialHistoryService {
 
     // UPDATE container (blocked if signed)
     public SocialHistoryDto update(Long patientId, Long encounterId, Long id, SocialHistoryDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -230,6 +237,9 @@ public class SocialHistoryService {
 
     // DELETE container (blocked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)

@@ -27,6 +27,7 @@ public class VitalsService {
             .stream().map(this::toDto).toList();
     }
     private final VitalsRepository repository;
+    private final EncounterService encounterService;
     private final PortalPatientRepository portalPatientRepository;
     private final ExternalVitalsStorage externalStorage;
 
@@ -35,6 +36,9 @@ public class VitalsService {
     private EntityManager entityManager;
 
     public VitalsDto create( Long patientId, Long encounterId, VitalsDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Vitals entity = toEntity(dto);
         entity.setPatientId(patientId);
         entity.setEncounterId(encounterId);
@@ -62,6 +66,9 @@ public class VitalsService {
     }
 
     public VitalsDto update(Long patientId, Long encounterId, Long id, VitalsDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Vitals existing = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -88,6 +95,9 @@ public class VitalsService {
     }
 
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Vitals existing = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)

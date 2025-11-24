@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
         
         name = "codess",
         indexes = {
-                @Index(name = "idx_codes_type_code", columnList = "code_type, code")
+                @Index(name = "idx_codess_type_code", columnList = "code_type, code")
         }
 )
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder

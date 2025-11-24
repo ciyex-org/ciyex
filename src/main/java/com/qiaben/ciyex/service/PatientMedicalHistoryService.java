@@ -156,9 +156,13 @@ public class PatientMedicalHistoryService {
     }
 
     private final PatientMedicalHistoryRepository repo;
+    private final EncounterService encounterService;
 
     // Create
     public PatientMedicalHistoryDto create(Long patientId, Long encounterId, PatientMedicalHistoryDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         PatientMedicalHistory e = new PatientMedicalHistory();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -184,6 +188,9 @@ public class PatientMedicalHistoryService {
 
     // Update (blocked if signed)
     public PatientMedicalHistoryDto update(Long patientId, Long encounterId, Long id, PatientMedicalHistoryDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Patient Medical History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -197,6 +204,9 @@ public class PatientMedicalHistoryService {
 
     // Delete (blocked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Patient Medical History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)

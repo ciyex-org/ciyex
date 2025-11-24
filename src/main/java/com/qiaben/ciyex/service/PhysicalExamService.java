@@ -194,10 +194,14 @@ import java.util.List;
 public class PhysicalExamService {
 
     private final PhysicalExamRepository repo;
+    private final EncounterService encounterService;
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
     public PhysicalExamDto create(Long patientId, Long encounterId, PhysicalExamDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         PhysicalExam e = new PhysicalExam();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -227,6 +231,9 @@ public class PhysicalExamService {
 
     // Update (LOCKED if signed)
     public PhysicalExamDto update(Long patientId, Long encounterId, Long id, PhysicalExamDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         PhysicalExam e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Physical Exam not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -241,6 +248,9 @@ public class PhysicalExamService {
 
     // Delete (BLOCKED if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         PhysicalExam e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Physical Exam not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)

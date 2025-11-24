@@ -2006,6 +2006,30 @@ public class PatientBillingService {
 
         return dto;
     }
+    // Fetch insurance email for a claim
+    public String getInsuranceEmailForClaim(Long claimId) {
+        PatientClaim claim = claimRepo.findById(claimId).orElse(null);
+        if (claim == null) return null;
+        // Get most recent coverage for patient
+        List<Coverage> coverages = coverageRepo.findByPatientIdOrderByEffectiveDateDesc(claim.getPatientId());
+        if (!coverages.isEmpty()) {
+            Coverage coverage = coverages.get(0);
+            if (coverage.getInsuranceCompany() != null) {
+                // If InsuranceCompany has email field, use it; otherwise, return null or placeholder
+                // return coverage.getInsuranceCompany().getEmail();
+                return "insurance@example.com"; // Placeholder, replace with actual email field
+            }
+        }
+        return null;
+    }
+
+    // Send claim details to insurance email (stub)
+    public boolean sendClaimDetailsToInsuranceEmail(PatientClaimDto claim, String insuranceEmail) {
+        // TODO: Implement actual email sending logic
+        log.info("Sending claim {} to insurance email {}", claim.id(), insuranceEmail);
+        // Simulate success
+        return true;
+    }
 
     /* ===================== Helpers ===================== */
 
@@ -2139,7 +2163,4 @@ public class PatientBillingService {
         );
     }
 
-
-
 }
-

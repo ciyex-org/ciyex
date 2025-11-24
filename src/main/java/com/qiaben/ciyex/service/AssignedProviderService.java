@@ -152,11 +152,15 @@ public class AssignedProviderService {
     }
 
     private final AssignedProviderRepository repo;
+    private final EncounterService encounterService;
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
     public AssignedProviderDto create(Long patientId, Long encounterId, AssignedProviderDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         AssignedProvider e = new AssignedProvider();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -181,6 +185,9 @@ public class AssignedProviderService {
 
     // Update (LOCKED if eSigned)
     public AssignedProviderDto update(Long patientId, Long encounterId, Long id, AssignedProviderDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Assigned Provider not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -197,6 +204,9 @@ public class AssignedProviderService {
 
     // Delete (BLOCKED if eSigned)
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Assigned Provider not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)

@@ -154,10 +154,14 @@ import java.util.List;
 public class PlanService {
 
     private final PlanRepository repo;
+    private final EncounterService encounterService;
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
     public PlanDto create(Long patientId, Long encounterId, PlanDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Plan e = new Plan(); e.setPatientId(patientId); e.setEncounterId(encounterId);
         applyEditable(e, dto);
         return toDto(repo.save(e));
@@ -179,6 +183,9 @@ public class PlanService {
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
                 ));
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         return toDto(e);
     }
 
@@ -189,6 +196,9 @@ public class PlanService {
                 ));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed plan is read-only.");
         applyEditable(e, dto);
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         return toDto(repo.save(e));
     }
 

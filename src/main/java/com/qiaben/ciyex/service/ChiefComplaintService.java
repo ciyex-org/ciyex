@@ -244,11 +244,15 @@ public class ChiefComplaintService {
     }
 
     private final ChiefComplaintRepository repo;
+    private final EncounterService encounterService;
 
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
     // CREATE
     public ChiefComplaintDto create(Long patientId, Long encounterId, ChiefComplaintDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         ChiefComplaint e = new ChiefComplaint();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -274,6 +278,9 @@ public class ChiefComplaintService {
 
     // UPDATE (blocked if signed)
     public ChiefComplaintDto update(Long patientId, Long encounterId, Long id, ChiefComplaintDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Chief Complaint not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -281,6 +288,9 @@ public class ChiefComplaintService {
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed chief complaint is read-only.");
         }
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         applyEditable(e, dto);
         e = repo.save(e);
         return toDto(e);

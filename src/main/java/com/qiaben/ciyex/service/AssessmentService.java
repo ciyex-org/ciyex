@@ -171,6 +171,7 @@ public class AssessmentService {
     }
 
     private final AssessmentRepository repo;
+    private final EncounterService encounterService;
 
     @Autowired(required = false)
     private ExternalAssessmentStorage external; // optional
@@ -179,6 +180,9 @@ public class AssessmentService {
 
     // ----- Create -----
     public AssessmentDto create(Long patientId, Long encounterId, AssessmentDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Assessment e = new Assessment();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -215,6 +219,9 @@ public class AssessmentService {
 
     // ----- Update (LOCK if signed) -----
     public AssessmentDto update(Long patientId, Long encounterId, Long id, AssessmentDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Assessment e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Assessment not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -233,6 +240,9 @@ public class AssessmentService {
             }
         } catch (Exception ex) {
             log.warn("External update failed: {}", ex.getMessage());
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         }
 
         return toDto(e);

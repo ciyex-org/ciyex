@@ -316,6 +316,7 @@ public class SignoffService {
     }
 
     private final SignoffRepository repo;
+    private final EncounterService encounterService;
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final String STATUS_DRAFT  = "Draft";
@@ -324,7 +325,11 @@ public class SignoffService {
 
     // ---- CRUD
 
+
     public SignoffDto create(Long patientId, Long encounterId, SignoffDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Signoff e = new Signoff();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -344,6 +349,9 @@ public class SignoffService {
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Sign-off not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
                 ));
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         return toDto(e);
     }
 
@@ -355,6 +363,9 @@ public class SignoffService {
         if (isLocked(e)) throw new IllegalStateException("Signed/locked sign-offs are read-only.");
         applyEditable(e, dto);
         e = repo.save(e);
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         return toDto(e);
     }
 

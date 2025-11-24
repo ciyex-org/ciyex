@@ -152,10 +152,14 @@ public class HistoryOfPresentIllnessService {
     }
 
     private final HistoryOfPresentIllnessRepository repo;
+    private final EncounterService encounterService;
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
     public HistoryOfPresentIllnessDto create(Long patientId, Long encounterId, HistoryOfPresentIllnessDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         HistoryOfPresentIllness e = new HistoryOfPresentIllness();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -181,6 +185,9 @@ public class HistoryOfPresentIllnessService {
 
     // Update (blocked if signed)
     public HistoryOfPresentIllnessDto update(Long patientId, Long encounterId, Long id, HistoryOfPresentIllnessDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -194,6 +201,9 @@ public class HistoryOfPresentIllnessService {
 
     // Delete (blocked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
