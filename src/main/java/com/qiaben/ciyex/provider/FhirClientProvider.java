@@ -86,24 +86,37 @@ public class FhirClientProvider {
     /**
      * Get FHIR client without requiring tenant context.
      * Works with single-tenant configuration from org_config table.
+     * No tenant name or org ID required - simplified for single tenant setup.
      */
     public IGenericClient getForCurrentTenant() {
-        log.info("Entering getForCurrentTenant (no tenant required)");
+        log.info("Creating FHIR client (single-tenant mode, no tenant/org validation required)");
 
         FhirConfig config = configProvider.getForCurrentTenant(IntegrationKey.FHIR);
         if (config == null) {
-            log.error("No FHIR configuration found in org_config table. Required keys: fhir_api_url, fhir_client_id, fhir_client_secret, fhir_token_url, fhir_scope");
-            throw new RuntimeException("No FHIR configuration found. Please configure FHIR in org_config table or disable storage_type.");
+            log.warn("No FHIR configuration found in org_config table. External storage sync will be skipped.");
+            log.info("To enable FHIR storage, configure these keys in org_config: fhir_api_url, fhir_client_id, fhir_client_secret, fhir_token_url, fhir_scope");
+            return null; // Return null instead of throwing exception
         }
 
-        String accessToken = fhirAuthService.getCachedAccessToken();
-
-        log.info("Creating FHIR client for apiUrl: {}", config.getApiUrl());
-        IGenericClient client = fhirContext.newRestfulGenericClient(config.getApiUrl());
-        client.registerInterceptor(new BearerTokenAuthInterceptor(accessToken));
-
-        log.info("FHIR client created successfully (no tenant tags)");
-        return client;
+        try {
+            String accessToken = fhirAuthService.getCachedAccessToken();
+            
+            log.info("Creating FHIR client for apiUrl: {}", config.getApiUrl());
+            IGenericClient client = fhirContext.newRestfulGenericClient(config.getApiUrl());
+            
+            if (accessToken != null && !accessToken.isBlank()) {
+                client.registerInterceptor(new BearerTokenAuthInterceptor(accessToken));
+                log.info("FHIR client created successfully with authentication");
+            } else {
+                log.warn("No access token available, creating FHIR client without authentication");
+            }
+            
+            return client;
+            
+        } catch (Exception e) {
+            log.error("Failed to create FHIR client: {}. External storage will be skipped.", e.getMessage());
+            return null; // Return null instead of throwing exception
+        }
     }
 }
 

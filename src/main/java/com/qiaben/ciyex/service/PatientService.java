@@ -75,29 +75,34 @@ public class PatientService {
 
         String externalId = null;
         String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("Storage type configured: {}", storageType);
+        log.info("Storage type configured: {} (single-tenant mode, no tenant/org validation required)", storageType);
         if (storageType != null) {
             try {
                 ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
                 externalId = externalStorage.create(dto);
-                log.info("Successfully created patient in external storage with externalId: {}", externalId);
+                log.info("Successfully created patient in external storage with externalId: {} (no tenant context required)", externalId);
             } catch (IllegalStateException e) {
-                log.warn("FHIR configuration error, proceeding without external storage sync: {}", e.getMessage());
-                // Continue without FHIR - don't fail the entire operation
+                log.warn("External storage configuration issue, proceeding without external sync: {}", e.getMessage());
+                // Continue without external storage - don't fail the entire operation
             } catch (RuntimeException e) {
-                if (e.getMessage() != null && e.getMessage().contains("No FHIR configuration")) {
-                    log.warn("FHIR not configured, proceeding without external storage sync: {}", e.getMessage());
-                    // Continue without FHIR - don't fail the entire operation
+                if (e.getMessage() != null && (e.getMessage().contains("No FHIR configuration") || 
+                    e.getMessage().contains("No tenantName") || e.getMessage().contains("No orgId"))) {
+                    log.warn("External storage not configured or tenant context missing, proceeding without external sync: {}", e.getMessage());
+                    // Continue without external storage - don't fail the entire operation
                 } else {
-                    log.error("Failed to create patient in external storage. Error type: {}, Message: {}", 
+                    log.error("Unexpected external storage error. Error type: {}, Message: {}", 
                         e.getClass().getSimpleName(), e.getMessage(), e);
-                    throw new RuntimeException("Failed to sync with external storage: " + e.getMessage(), e);
+                    log.warn("Proceeding without external sync due to unexpected error");
+                    // Continue without external storage rather than failing
                 }
             } catch (Exception e) {
-                log.error("Failed to create patient in external storage. Error type: {}, Message: {}", 
+                log.error("External storage sync failed but patient creation will continue. Error type: {}, Message: {}", 
                     e.getClass().getSimpleName(), e.getMessage(), e);
-                throw new RuntimeException("Failed to sync with external storage: " + e.getMessage(), e);
+                log.warn("Proceeding without external sync due to general error");
+                // Continue without external storage rather than failing
             }
+        } else {
+            log.info("No external storage configured, saving patient to local database only");
         }
 
         patient.setExternalId(externalId);
