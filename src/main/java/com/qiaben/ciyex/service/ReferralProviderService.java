@@ -44,11 +44,14 @@ public class ReferralProviderService {
         ReferralProvider entity = mapToEntity(dto);
 
         // 🔴 IMPORTANT: attach a MANAGED practice
-        if (dto.getPractice() == null || dto.getPractice().getId() == null) {
+        Long practiceId = dto.getPracticeId() != null ? dto.getPracticeId() 
+                : (dto.getPractice() != null ? dto.getPractice().getId() : null);
+        
+        if (practiceId == null) {
             throw new RuntimeException("Practice id is required");
         }
-        ReferralPractice practice = practiceRepo.findById(dto.getPractice().getId())
-                .orElseThrow(() -> new RuntimeException("Referral practice not found: " + dto.getPractice().getId()));
+        ReferralPractice practice = practiceRepo.findById(practiceId)
+                .orElseThrow(() -> new RuntimeException("Referral practice not found: " + practiceId));
         entity.setPractice(practice);
 
         String now = LocalDateTime.now().format(DATE_FORMATTER);
@@ -106,9 +109,12 @@ public class ReferralProviderService {
         entity = updateEntityFromDto(entity, dto);
 
         // If practice id provided, reattach managed entity
-        if (dto.getPractice() != null && dto.getPractice().getId() != null) {
-            ReferralPractice p = practiceRepo.findById(dto.getPractice().getId())
-                    .orElseThrow(() -> new RuntimeException("Referral practice not found: " + dto.getPractice().getId()));
+        Long practiceId = dto.getPracticeId() != null ? dto.getPracticeId() 
+                : (dto.getPractice() != null ? dto.getPractice().getId() : null);
+        
+        if (practiceId != null) {
+            ReferralPractice p = practiceRepo.findById(practiceId)
+                    .orElseThrow(() -> new RuntimeException("Referral practice not found: " + practiceId));
             entity.setPractice(p);
         }
 
@@ -178,6 +184,7 @@ public class ReferralProviderService {
         dto.setFhirId(entity.getFhirId());
 
         if (entity.getPractice() != null) {
+            dto.setPracticeId(entity.getPractice().getId());
             ReferralProviderDto.PracticeInfo pi = new ReferralProviderDto.PracticeInfo();
             pi.setId(entity.getPractice().getId());
             pi.setName(entity.getPractice().getName()); // now guaranteed non-null due to fetch-join or attached entity
@@ -185,6 +192,12 @@ public class ReferralProviderService {
         }
 
         ReferralProviderDto.Audit audit = new ReferralProviderDto.Audit();
+        if (entity.getCreatedDate() != null) {
+            audit.setCreatedDate(entity.getCreatedDate().format(DATE_FORMATTER));
+        }
+        if (entity.getLastModifiedDate() != null) {
+            audit.setLastModifiedDate(entity.getLastModifiedDate().format(DATE_FORMATTER));
+        }
         dto.setAudit(audit);
 
         return dto;
@@ -201,6 +214,7 @@ public class ReferralProviderService {
                 .country(dto.getCountry())
                 .phoneNumber(dto.getPhoneNumber())
                 .email(dto.getEmail())
+                .fhirId(dto.getFhirId())
                 // DO NOT set practice here; attach managed entity in create/update
                 .build();
     }
@@ -215,6 +229,7 @@ public class ReferralProviderService {
         if (dto.getCountry() != null) entity.setCountry(dto.getCountry());
         if (dto.getPhoneNumber() != null) entity.setPhoneNumber(dto.getPhoneNumber());
         if (dto.getEmail() != null) entity.setEmail(dto.getEmail());
+        if (dto.getFhirId() != null) entity.setFhirId(dto.getFhirId());
         return entity;
     }
 }

@@ -3,10 +3,10 @@ package com.qiaben.ciyex;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
-//@SpringBootTest
+@SpringBootTest
 class CiyexApplicationTests {
 
-	//@Test
+	@Test
 	void contextLoads() {
 	}
 

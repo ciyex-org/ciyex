@@ -12,7 +12,8 @@ import java.sql.Statement;
 
 /**
  * Single schema configuration for one practice per instance.
- * Sets the default schema at application startup based on CIYEX_SCHEMA_NAME environment variable.
+ * Sets the default schema at application startup based on CIYEX_SCHEMA_NAME
+ * environment variable.
  */
 @Slf4j
 @Configuration
@@ -25,24 +26,31 @@ public class SingleSchemaConfig {
     public CommandLineRunner initializeSchema(DataSource dataSource) {
         return args -> {
             log.info("Initializing single schema configuration: {}", schemaName);
-            
+
             try (Connection connection = dataSource.getConnection();
-                 Statement statement = connection.createStatement()) {
-                
+                    Statement statement = connection.createStatement()) {
+
                 // Create schema if it doesn't exist (for non-public schemas)
                 if (!"public".equals(schemaName)) {
-                    statement.execute("CREATE SCHEMA IF NOT EXISTS " + 
+                    statement.execute("CREATE SCHEMA IF NOT EXISTS " +
                             com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName));
                     log.info("Ensured schema exists: {}", schemaName);
                 }
-                
+
                 // Set default search path for this instance
-                statement.execute("ALTER DATABASE ciyexdb SET search_path TO " + 
-                        com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public");
-                
-                log.info("Successfully configured instance to use schema: {}", schemaName);
-                log.info("All database operations will use this schema by default");
-                
+                try {
+                    statement.execute("ALTER DATABASE ciyexdb SET search_path TO " +
+                            com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public");
+                    log.info("Successfully configured instance to use schema: {}", schemaName);
+                    log.info("All database operations will use this schema by default");
+                } catch (Exception e) {
+                    log.warn(
+                            "Failed to set default search path for database. This is expected if the user does not have superuser privileges. "
+                                    +
+                                    "The application will continue, but ensure the search_path is set correctly for the session or user. Error: {}",
+                            e.getMessage());
+                }
+
             } catch (Exception e) {
                 log.error("Failed to initialize schema configuration", e);
                 throw new RuntimeException("Failed to initialize single schema configuration", e);

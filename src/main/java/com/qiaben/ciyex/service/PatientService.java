@@ -46,12 +46,8 @@ public class PatientService {
             errors.append("Gender is required. ");
         if (dto.getDateOfBirth() == null || dto.getDateOfBirth().isBlank())
             errors.append("Date of birth is required. ");
-        if (dto.getMedicalRecordNumber() == null || dto.getMedicalRecordNumber().isBlank())
-            errors.append("Medical record number is required. ");
-        if (dto.getLicenseId() == null || dto.getLicenseId().isBlank())
-            errors.append("License ID is required. ");
-        if (dto.getEmergencyContact() == null || dto.getEmergencyContact().isBlank())
-            errors.append("Emergency contact is required. ");
+        if (dto.getPhoneNumber() == null || dto.getPhoneNumber().isBlank())
+            errors.append("Phone number is required. ");
 
         if (errors.length() > 0)
             throw new IllegalArgumentException(errors.toString().trim());
@@ -79,14 +75,28 @@ public class PatientService {
 
         String externalId = null;
         String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("Storage type configured: {}", storageType);
         if (storageType != null) {
             try {
                 ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
                 externalId = externalStorage.create(dto);
                 log.info("Successfully created patient in external storage with externalId: {}", externalId);
+            } catch (IllegalStateException e) {
+                log.warn("FHIR configuration error, proceeding without external storage sync: {}", e.getMessage());
+                // Continue without FHIR - don't fail the entire operation
+            } catch (RuntimeException e) {
+                if (e.getMessage() != null && e.getMessage().contains("No FHIR configuration")) {
+                    log.warn("FHIR not configured, proceeding without external storage sync: {}", e.getMessage());
+                    // Continue without FHIR - don't fail the entire operation
+                } else {
+                    log.error("Failed to create patient in external storage. Error type: {}, Message: {}", 
+                        e.getClass().getSimpleName(), e.getMessage(), e);
+                    throw new RuntimeException("Failed to sync with external storage: " + e.getMessage(), e);
+                }
             } catch (Exception e) {
-                log.error("Failed to create patient in external storage, error: {}", e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e);
+                log.error("Failed to create patient in external storage. Error type: {}, Message: {}", 
+                    e.getClass().getSimpleName(), e.getMessage(), e);
+                throw new RuntimeException("Failed to sync with external storage: " + e.getMessage(), e);
             }
         }
 

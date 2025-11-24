@@ -23,9 +23,7 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
-        configurer.favorPathExtension(false)
-                .favorParameter(false)
-                .ignoreAcceptHeader(false)
+        configurer.ignoreAcceptHeader(false)
                 .defaultContentType(MediaType.APPLICATION_JSON);
     }
 
@@ -34,4 +32,3 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(interceptor).addPathPatterns("/**");
     }
 }
-

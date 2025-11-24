@@ -13,4 +13,11 @@ public class LocationDto {
     private String state;
     private String postalCode;
     private String country;
+
+    @Data
+    public static class Audit {
+        private String createdDate;
+        private String lastModifiedDate;
+    }
+    private Audit audit;
 }

@@ -81,6 +81,8 @@ public class CommunicationService {
                 .inResponseTo(dto.getInResponseTo())
                 .patientId(dto.getPatientId())
                 .providerId(dto.getProviderId())
+                .sender(dto.getSender())
+                .recipients(dto.getRecipients() != null ? String.join(",", dto.getRecipients()) : null)
                 .attachmentIds(dto.getAttachmentIds())
                 .build();
 
@@ -431,35 +433,86 @@ public class CommunicationService {
             dto.setReadAt(r.getReadAt());
             dto.setReadBy(r.getReadBy());
 
-            // Determine message type based on provider_id
+            // Determine message type and sender based on the sender field
             String messageType = "unknown";
             String fromType = "patient"; // default
+            Long fromId = null;
+            String fromName = "Unknown Sender";
 
-            if (r.getProviderId() != null) {
-                // If provider_id is set, assume provider-to-patient
+            if (r.getSender() != null && r.getSender().startsWith("Provider/")) {
+                // Message sent by provider
                 messageType = "provider_to_patient";
                 fromType = "provider";
-            } else {
-                // Otherwise, assume patient-to-provider
-                messageType = "patient_to_provider";
-                fromType = "patient";
-            }
-            dto.setMessageType(messageType);
-            dto.setFromType(fromType);
-
-            // From (provider name)
-            if (r.getProviderId() != null) {
-                try {
-                    providerRepo.findById(r.getProviderId()).ifPresent(provider -> {
-                        String providerName = provider.getFirstName() + " " + provider.getLastName();
-                        dto.setFromId(r.getProviderId());
-                        dto.setFromName(providerName);
-                    });
-                } catch (Exception e) {
-                    log.warn("Could not find provider name for provider ID {}: {}", r.getProviderId(), e.getMessage());
+                fromId = r.getProviderId();
+                
+                // Get provider name
+                if (r.getProviderId() != null) {
+                    try {
+                        providerRepo.findById(r.getProviderId()).ifPresent(provider -> {
+                            dto.setFromName(provider.getFirstName() + " " + provider.getLastName());
+                        });
+                    } catch (Exception e) {
+                        log.warn("Could not find provider name for provider ID {}: {}", r.getProviderId(), e.getMessage());
+                        dto.setFromName("Unknown Provider");
+                    }
+                } else {
                     dto.setFromName("Unknown Provider");
                 }
+            } else if (r.getSender() != null && r.getSender().startsWith("Patient/")) {
+                // Message sent by patient
+                messageType = "patient_to_provider";
+                fromType = "patient";
+                fromId = r.getPatientId();
+                
+                // Get patient name
+                if (r.getPatientId() != null) {
+                    try {
+                        patientRepo.findById(r.getPatientId()).ifPresent(patient -> {
+                            dto.setFromName(patient.getFirstName() + " " + patient.getLastName());
+                        });
+                    } catch (Exception e) {
+                        log.warn("Could not find patient name for patient ID {}: {}", r.getPatientId(), e.getMessage());
+                        dto.setFromName("Unknown Patient");
+                    }
+                } else {
+                    dto.setFromName("Unknown Patient");
+                }
+            } else {
+                // Fallback: use old logic for backwards compatibility
+                if (r.getProviderId() != null) {
+                    messageType = "provider_to_patient";
+                    fromType = "provider";
+                    fromId = r.getProviderId();
+                    
+                    try {
+                        providerRepo.findById(r.getProviderId()).ifPresent(provider -> {
+                            dto.setFromName(provider.getFirstName() + " " + provider.getLastName());
+                        });
+                    } catch (Exception e) {
+                        log.warn("Could not find provider name for provider ID {}: {}", r.getProviderId(), e.getMessage());
+                        dto.setFromName("Unknown Provider");
+                    }
+                } else {
+                    messageType = "patient_to_provider";
+                    fromType = "patient";
+                    fromId = r.getPatientId();
+                    
+                    if (r.getPatientId() != null) {
+                        try {
+                            patientRepo.findById(r.getPatientId()).ifPresent(patient -> {
+                                dto.setFromName(patient.getFirstName() + " " + patient.getLastName());
+                            });
+                        } catch (Exception e) {
+                            log.warn("Could not find patient name for patient ID {}: {}", r.getPatientId(), e.getMessage());
+                            dto.setFromName("Unknown Patient");
+                        }
+                    }
+                }
             }
+            
+            dto.setMessageType(messageType);
+            dto.setFromType(fromType);
+            dto.setFromId(fromId);
 
             // To (patient names)
             List<String> toNames = new ArrayList<>();

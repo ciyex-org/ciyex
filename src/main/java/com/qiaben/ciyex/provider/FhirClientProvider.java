@@ -64,14 +64,10 @@ import ca.uhn.fhir.rest.client.api.IGenericClient;
 import ca.uhn.fhir.rest.client.interceptor.BearerTokenAuthInterceptor;
 import com.qiaben.ciyex.dto.integration.FhirConfig;
 import com.qiaben.ciyex.dto.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.integration.RequestContext;
-import com.qiaben.ciyex.interceptor.FhirTenantInterceptor;
 import com.qiaben.ciyex.storage.fhir.FhirAuthService;
 import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-
-import java.util.UUID;
 
 @Component
 @Slf4j
@@ -87,15 +83,18 @@ public class FhirClientProvider {
         this.fhirAuthService = fhirAuthService;
     }
 
-    /** Uses RequestContext's tenantName (must be populated upstream). */
+    /**
+     * Get FHIR client without requiring tenant context.
+     * Works with single-tenant configuration from org_config table.
+     */
     public IGenericClient getForCurrentTenant() {
-        RequestContext rc = RequestContext.get();
-        String tenantName = (rc != null) ? rc.getTenantName() : null;
-        log.info("Entering getForCurrentTenant for tenantName: {}", tenantName);
-        if (tenantName == null) throw new IllegalStateException("No tenantName in request context");
+        log.info("Entering getForCurrentTenant (no tenant required)");
 
         FhirConfig config = configProvider.getForCurrentTenant(IntegrationKey.FHIR);
-        if (config == null) throw new RuntimeException("No FHIR configuration for tenantName: " + tenantName);
+        if (config == null) {
+            log.error("No FHIR configuration found in org_config table. Required keys: fhir_api_url, fhir_client_id, fhir_client_secret, fhir_token_url, fhir_scope");
+            throw new RuntimeException("No FHIR configuration found. Please configure FHIR in org_config table or disable storage_type.");
+        }
 
         String accessToken = fhirAuthService.getCachedAccessToken();
 
@@ -103,32 +102,8 @@ public class FhirClientProvider {
         IGenericClient client = fhirContext.newRestfulGenericClient(config.getApiUrl());
         client.registerInterceptor(new BearerTokenAuthInterceptor(accessToken));
 
-        String interceptorId = UUID.randomUUID().toString();
-        client.registerInterceptor(new FhirTenantInterceptor(tenantName, client, interceptorId, fhirContext));
-        log.info("Exiting getForCurrentTenant with client hash {}", Integer.toHexString(client.hashCode()));
+        log.info("FHIR client created successfully (no tenant tags)");
         return client;
-    }
-
-    /**
-     * Build a client for the given tenantName (without requiring RequestContext to already have it).
-     * Temporarily sets rc.tenantName, delegates to getForCurrentTenant(), then restores the previous value.
-     */
-    public IGenericClient getForOrg(String tenantName) {
-        if (tenantName == null) throw new IllegalArgumentException("tenantName must not be null");
-
-        RequestContext rc = RequestContext.get();
-        if (rc == null) {
-            throw new IllegalStateException(
-                    "RequestContext not initialized; add a filter to initialize it or call getForCurrentTenant().");
-        }
-
-        String prev = rc.getTenantName();
-        try {
-            rc.setTenantName(tenantName);
-            return getForCurrentTenant();
-        } finally {
-            try { rc.setTenantName(prev); } catch (Exception ignored) {}
-        }
     }
 }
 
