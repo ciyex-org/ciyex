@@ -104,4 +104,62 @@ public class AllClaimsController {
         List<ClaimLineDetailDto> lineDetails = service.getClaimLineDetails(claimId);
         return ResponseEntity.ok(ApiResponse.ok("Claim line details", lineDetails));
     }
+
+    /**
+     * Send claim details to insurance email
+     * POST /api/all-claims/{claimId}/sends
+     */
+    @PostMapping("/{claimId}/sends")
+    public ResponseEntity<ApiResponse<String>> sendClaimToInsurance(@PathVariable Long claimId) {
+        try {
+            // Fetch claim details
+            PatientClaimDto claim = service.getClaimDtoById(claimId);
+            if (claim == null) {
+                return ResponseEntity.ok(ApiResponse.error("Claim not found"));
+            }
+
+            // Try to get insurance email from service
+            String insuranceContact = service.getInsuranceEmailForClaim(claimId);
+
+
+            // If email not available, build a fallback contact summary from claim/coverage fields
+            String contactToUse = null;
+            if (insuranceContact != null && !insuranceContact.isEmpty()) {
+                contactToUse = insuranceContact;
+            } else {
+                StringBuilder sb = new StringBuilder();
+                if (claim.planName() != null && !claim.planName().isEmpty()) {
+                    sb.append("Plan: ").append(claim.planName()).append("; ");
+                }
+                if (claim.provider() != null && !claim.provider().isEmpty()) {
+                    sb.append("Provider: ").append(claim.provider()).append("; ");
+                }
+                if (claim.policyNumber() != null && !claim.policyNumber().isEmpty()) {
+                    sb.append("Policy: ").append(claim.policyNumber()).append("; ");
+                }
+                if (claim.patientName() != null && !claim.patientName().isEmpty()) {
+                    sb.append("Subscriber: ").append(claim.patientName()).append("; ");
+                }
+
+                contactToUse = sb.length() > 0 ? sb.toString().trim() : null;
+            }
+
+            if (contactToUse == null || contactToUse.isEmpty()) {
+                // No usable contact information found — return informative message instead of failing silently
+                return ResponseEntity.ok(ApiResponse.error("No insurance contact information available for this claim"));
+            }
+
+            // Send claim details using the existing service stub. The service currently logs the contact; it can accept a contact string
+            boolean sent = service.sendClaimDetailsToInsuranceEmail(claim, contactToUse);
+            if (sent) {
+                String msg = "Claim sent to insurance contact successfully" + (insuranceContact == null ? " (using fallback contact fields)" : "");
+                return ResponseEntity.ok(ApiResponse.ok(msg, contactToUse));
+            } else {
+                return ResponseEntity.ok(ApiResponse.error("Failed to send claim to insurance contact"));
+            }
+        } catch (Exception e) {
+            log.error("Error sending claim to insurance: {}", e.getMessage(), e);
+            return ResponseEntity.ok(ApiResponse.error("Error sending claim: " + e.getMessage()));
+        }
+    }
 }

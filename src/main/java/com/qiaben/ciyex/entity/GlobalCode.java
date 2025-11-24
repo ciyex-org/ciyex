@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
 
+
                 name = "codess", indexes = {
                                 @Index(name = "idx_global_codes_type_code", columnList = "code_type, code")
                 })
@@ -18,6 +19,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+
 @EqualsAndHashCode(callSuper = true)
 public class GlobalCode extends AuditableEntity {
 

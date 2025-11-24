@@ -120,6 +120,7 @@
 
 
 
+
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.PastMedicalHistoryDto;
@@ -151,10 +152,14 @@ public class PastMedicalHistoryService {
     }
 
     private final PastMedicalHistoryRepository repo;
+    private final EncounterService encounterService;
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
     public PastMedicalHistoryDto create(Long patientId, Long encounterId, PastMedicalHistoryDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         PastMedicalHistory e = new PastMedicalHistory();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -179,6 +184,9 @@ public class PastMedicalHistoryService {
 
     // Update (blocked if signed)
     public PastMedicalHistoryDto update(Long patientId, Long encounterId, Long id, PastMedicalHistoryDto dto) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         PastMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Past Medical History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -192,6 +200,9 @@ public class PastMedicalHistoryService {
 
     // Delete (blocked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         PastMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Past Medical History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
