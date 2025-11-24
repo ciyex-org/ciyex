@@ -121,6 +121,7 @@ public class AllClaimsController {
             // Try to get insurance email from service
             String insuranceContact = service.getInsuranceEmailForClaim(claimId);
 
+
             // If email not available, build a fallback contact summary from claim/coverage fields
             String contactToUse = null;
             if (insuranceContact != null && !insuranceContact.isEmpty()) {
