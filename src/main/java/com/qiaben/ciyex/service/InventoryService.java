@@ -52,6 +52,9 @@ public class InventoryService {
 
     @Transactional
     public InventoryDto create(InventoryDto dto) {
+        // Validate mandatory fields
+        validateInventoryDto(dto);
+        
         Inventory entity = mapToEntity(dto);
 
 
@@ -256,7 +259,47 @@ public class InventoryService {
         return dto;
     }
 
+    private void validateInventoryDto(InventoryDto dto) {
+        List<String> errors = new ArrayList<>();
 
+        if (dto.getName() == null || dto.getName().trim().isEmpty()) {
+            errors.add("Name is mandatory");
+        }
+        if (dto.getCategory() == null || dto.getCategory().trim().isEmpty()) {
+            errors.add("Category is mandatory");
+        }
+        if (dto.getLot() == null || dto.getLot().trim().isEmpty()) {
+            errors.add("Lot is mandatory");
+        }
+        if (dto.getSku() == null || dto.getSku().trim().isEmpty()) {
+            errors.add("SKU is mandatory");
+        }
+        if (dto.getStock() == null) {
+            errors.add("Stock is mandatory");
+        } else if (dto.getStock() < 0) {
+            errors.add("Stock cannot be negative");
+        }
+        if (dto.getUnit() == null || dto.getUnit().trim().isEmpty()) {
+            errors.add("Unit is mandatory");
+        }
+        if (dto.getMinStock() == null) {
+            errors.add("Min stock is mandatory");
+        } else if (dto.getMinStock() < 0) {
+            errors.add("Min stock cannot be negative");
+        }
+        if (dto.getLocation() == null || dto.getLocation().trim().isEmpty()) {
+            errors.add("Location is mandatory");
+        }
+        if (dto.getSupplier() == null || dto.getSupplier().trim().isEmpty()) {
+            errors.add("Supplier is mandatory");
+        }
+
+        if (!errors.isEmpty()) {
+            String errorMessage = "Validation failed: " + String.join(", ", errors);
+            log.error("Inventory validation failed: {}", errorMessage);
+            throw new IllegalArgumentException(errorMessage);
+        }
+    }
 
     private String now() {
         return LocalDateTime.now().toString();
