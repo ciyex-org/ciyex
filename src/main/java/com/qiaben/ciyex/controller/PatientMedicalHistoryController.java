@@ -185,9 +185,26 @@ public class PatientMedicalHistoryController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody PatientMedicalHistoryDto dto) {
-        var saved = service.create(patientId, encounterId, dto);
-        return ResponseEntity.ok(ApiResponse.<PatientMedicalHistoryDto>builder()
-                .success(true).message("History created").data(saved).build());
+        try {
+            var saved = service.create(patientId, encounterId, dto);
+            return ResponseEntity.ok(ApiResponse.<PatientMedicalHistoryDto>builder()
+                    .success(true).message("History created").data(saved).build());
+        } catch (IllegalArgumentException ex) {
+            log.error("Validation error during Patient Medical History creation: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<PatientMedicalHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalStateException ex) {
+            log.error("Business rule violation during Patient Medical History creation: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.LOCKED)
+                    .body(ApiResponse.<PatientMedicalHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error creating Patient Medical History for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<PatientMedicalHistoryDto>builder()
+                            .success(false)
+                            .message("Error creating Patient Medical History: " + ex.getMessage())
+                            .build());
+        }
     }
 
     // UPDATE (423 if signed)
@@ -201,12 +218,21 @@ public class PatientMedicalHistoryController {
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<PatientMedicalHistoryDto>builder()
                     .success(true).message("History updated").data(saved).build());
-        } catch (IllegalStateException ex) {
-            return ResponseEntity.status(423)
-                    .body(ApiResponse.<PatientMedicalHistoryDto>builder().success(false).message(ex.getMessage()).build());
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            log.error("Validation error during Patient Medical History update: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<PatientMedicalHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalStateException ex) {
+            log.error("Business rule violation during Patient Medical History update: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.LOCKED) // 423 LOCKED
+                    .body(ApiResponse.<PatientMedicalHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error updating Patient Medical History for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<PatientMedicalHistoryDto>builder()
+                            .success(false)
+                            .message("Error updating Patient Medical History: " + ex.getMessage())
+                            .build());
         }
     }
 

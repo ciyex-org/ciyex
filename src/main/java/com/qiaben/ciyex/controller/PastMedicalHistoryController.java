@@ -190,9 +190,26 @@ public class PastMedicalHistoryController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody PastMedicalHistoryDto dto) {
-        var saved = service.create(patientId, encounterId, dto);
-        return ResponseEntity.ok(ApiResponse.<PastMedicalHistoryDto>builder()
-                .success(true).message("PMH created").data(saved).build());
+        try {
+            var saved = service.create(patientId, encounterId, dto);
+            return ResponseEntity.ok(ApiResponse.<PastMedicalHistoryDto>builder()
+                    .success(true).message("PMH created").data(saved).build());
+        } catch (IllegalArgumentException ex) {
+            log.error("Validation error during PMH creation: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<PastMedicalHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalStateException ex) {
+            log.error("Business rule violation during PMH creation: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.LOCKED)
+                    .body(ApiResponse.<PastMedicalHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error creating PMH for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<PastMedicalHistoryDto>builder()
+                            .success(false)
+                            .message("Error creating PMH: " + ex.getMessage())
+                            .build());
+        }
     }
 
     // UPDATE (423 if signed)
@@ -206,12 +223,21 @@ public class PastMedicalHistoryController {
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<PastMedicalHistoryDto>builder()
                     .success(true).message("PMH updated").data(saved).build());
-        } catch (IllegalStateException ex) {
-            return ResponseEntity.status(423)
-                    .body(ApiResponse.<PastMedicalHistoryDto>builder().success(false).message(ex.getMessage()).build());
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            log.error("Validation error during PMH update: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<PastMedicalHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalStateException ex) {
+            log.error("Business rule violation during PMH update: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.LOCKED) // 423 LOCKED
+                    .body(ApiResponse.<PastMedicalHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error updating PMH for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<PastMedicalHistoryDto>builder()
+                            .success(false)
+                            .message("Error updating PMH: " + ex.getMessage())
+                            .build());
         }
     }
 

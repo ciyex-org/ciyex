@@ -154,13 +154,33 @@ public class HistoryOfPresentIllnessService {
 
     private final HistoryOfPresentIllnessRepository repo;
     private final EncounterService encounterService;
+    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
+    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
+
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
     public HistoryOfPresentIllnessDto create(Long patientId, Long encounterId, HistoryOfPresentIllnessDto dto) {
-        // Check if encounter is signed - prevent modification
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
+        // Step 3: Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 
+        // Step 4: Create the history of present illness
         HistoryOfPresentIllness e = new HistoryOfPresentIllness();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -173,7 +193,8 @@ public class HistoryOfPresentIllnessService {
     public HistoryOfPresentIllnessDto getOne(Long patientId, Long encounterId, Long id) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("History of Present Illness not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
         return toDto(e);
     }
@@ -186,15 +207,38 @@ public class HistoryOfPresentIllnessService {
 
     // Update (blocked if signed)
     public HistoryOfPresentIllnessDto update(Long patientId, Long encounterId, Long id, HistoryOfPresentIllnessDto dto) {
-        // Check if encounter is signed - prevent modification
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
+        // Step 3: Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 
+        // Step 4: Find the history of present illness
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("History of Present Illness not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
-        if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed HPI entries are read-only.");
 
+        // Step 5: Check if HPI itself is signed
+        if (Boolean.TRUE.equals(e.getESigned())) {
+            throw new IllegalStateException("Signed HPI entries are read-only.");
+        }
+
+        // Step 6: Update the HPI
         applyDto(e, dto);
         e = repo.save(e);
         return toDto(e);
@@ -202,14 +246,21 @@ public class HistoryOfPresentIllnessService {
 
     // Delete (blocked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
-        // Check if encounter is signed - prevent modification
+        // Step 1: Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 
+        // Step 2: Find the history of present illness
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("History of Present Illness not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
-        if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed HPI entries cannot be deleted.");
+
+        // Step 3: Check if HPI itself is signed
+        if (Boolean.TRUE.equals(e.getESigned())) {
+            throw new IllegalStateException("Signed HPI entries cannot be deleted.");
+        }
+
         repo.delete(e);
     }
 
@@ -217,7 +268,8 @@ public class HistoryOfPresentIllnessService {
     public HistoryOfPresentIllnessDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("History of Present Illness not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
@@ -232,7 +284,8 @@ public class HistoryOfPresentIllnessService {
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("History of Present Illness not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));

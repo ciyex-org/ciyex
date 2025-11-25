@@ -186,9 +186,22 @@ public class SocialHistoryController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody SocialHistoryDto dto) {
-        var saved = service.create(patientId, encounterId, dto);
-        return ResponseEntity.ok(ApiResponse.<SocialHistoryDto>builder()
-                .success(true).message("Social History created").data(saved).build());
+        try {
+            var saved = service.create(patientId, encounterId, dto);
+            return ResponseEntity.ok(ApiResponse.<SocialHistoryDto>builder()
+                    .success(true).message("Social History created").data(saved).build());
+        } catch (IllegalArgumentException ex) {
+            log.error("Validation error during SocialHistory creation: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<SocialHistoryDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error creating SocialHistory for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<SocialHistoryDto>builder()
+                            .success(false)
+                            .message("Error creating SocialHistory: " + ex.getMessage())
+                            .build());
+        }
     }
 
     // UPDATE container (423 if signed)

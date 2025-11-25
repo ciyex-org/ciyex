@@ -60,11 +60,26 @@ public class VitalsController {
                     .success(false).message(validationError).build());
         }
 
-        return ResponseEntity.ok(ApiResponse.<VitalsDto>builder()
-                .success(true)
-                .message("Vitals recorded")
-                .data(service.create(patientId, encounterId, dto))
-                .build());
+        try {
+            return ResponseEntity.ok(ApiResponse.<VitalsDto>builder()
+                    .success(true)
+                    .message("Vitals recorded")
+                    .data(service.create(patientId, encounterId, dto))
+                    .build());
+        } catch (IllegalArgumentException ex) {
+            log.error("Error creating Vitals for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.badRequest().body(ApiResponse.<VitalsDto>builder()
+                    .success(false)
+                    .message(ex.getMessage())
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error creating Vitals for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<VitalsDto>builder()
+                            .success(false)
+                            .message("Error creating Vitals: " + ex.getMessage())
+                            .build());
+        }
     }
 
     @GetMapping("/{patientId}/{encounterId}/{id}")

@@ -206,9 +206,26 @@ public class AssessmentController {
                     .success(false).message(validationError).build());
         }
 
-        var saved = service.create(patientId, encounterId, dto);
-        return ResponseEntity.ok(ApiResponse.<AssessmentDto>builder()
-                .success(true).message("Assessment created").data(saved).build());
+        try {
+            var saved = service.create(patientId, encounterId, dto);
+            return ResponseEntity.ok(ApiResponse.<AssessmentDto>builder()
+                    .success(true).message("Assessment created").data(saved).build());
+        } catch (IllegalArgumentException ex) {
+            log.error("Validation error during Assessment creation: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<AssessmentDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalStateException ex) {
+            log.error("Business rule violation during Assessment creation: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.LOCKED)
+                    .body(ApiResponse.<AssessmentDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error creating Assessment for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<AssessmentDto>builder()
+                            .success(false)
+                            .message("Error creating Assessment: " + ex.getMessage())
+                            .build());
+        }
     }
 
     // UPDATE (423 if signed)
@@ -229,12 +246,21 @@ public class AssessmentController {
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<AssessmentDto>builder()
                     .success(true).message("Assessment updated").data(saved).build());
-        } catch (IllegalStateException ex) {
-            return ResponseEntity.status(423) // LOCKED
-                    .body(ApiResponse.<AssessmentDto>builder().success(false).message(ex.getMessage()).build());
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            log.error("Validation error during Assessment update: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<AssessmentDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalStateException ex) {
+            log.error("Business rule violation during Assessment update: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.LOCKED) // 423 LOCKED
+                    .body(ApiResponse.<AssessmentDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error updating Assessment for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<AssessmentDto>builder()
+                            .success(false)
+                            .message("Error updating Assessment: " + ex.getMessage())
+                            .build());
         }
     }
 

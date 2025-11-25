@@ -5,6 +5,8 @@ import com.qiaben.ciyex.dto.ProcedureDto;
 import com.qiaben.ciyex.entity.Procedure;
 import com.qiaben.ciyex.repository.ProcedureRepository;
 import com.qiaben.ciyex.storage.ExternalProcedureStorage;
+import com.qiaben.ciyex.repository.PatientRepository;
+import com.qiaben.ciyex.repository.EncounterRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,17 +20,27 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Slf4j
 public class ProcedureService {
-    // Removed duplicate getAllByPatient(Long) method
-
     private final ProcedureRepository repo;
     private final EncounterService encounterService;
     private final Optional<ExternalProcedureStorage> external;
     private final PatientBillingService billingService;
+    private final PatientRepository patientRepository;
+    private final EncounterRepository encounterRepository;
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
 
     public ProcedureDto create(Long patientId, Long encounterId, ProcedureDto in) {
+        // Validate patient and encounter existence
+        boolean patientExists = patientRepository.existsById(patientId);
+        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
+        if (!patientExists && !encounterExists) {
+            throw new IllegalArgumentException("Patient and Encounter not found");
+        } else if (!patientExists) {
+            throw new IllegalArgumentException("Patient not found");
+        } else if (!encounterExists) {
+            throw new IllegalArgumentException("Encounter not found");
+        }
         // Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 
@@ -87,6 +99,16 @@ public class ProcedureService {
     }
 
     public ProcedureDto update(Long patientId, Long encounterId, Long id, ProcedureDto in) {
+        // Validate patient and encounter existence
+        boolean patientExists = patientRepository.existsById(patientId);
+        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
+        if (!patientExists && !encounterExists) {
+            throw new IllegalArgumentException("Patient and Encounter not found");
+        } else if (!patientExists) {
+            throw new IllegalArgumentException("Patient not found");
+        } else if (!encounterExists) {
+            throw new IllegalArgumentException("Encounter not found");
+        }
         // Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 
@@ -123,6 +145,16 @@ public class ProcedureService {
     }
 
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Validate patient and encounter existence
+        boolean patientExists = patientRepository.existsById(patientId);
+        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
+        if (!patientExists && !encounterExists) {
+            throw new IllegalArgumentException("Patient and Encounter not found");
+        } else if (!patientExists) {
+            throw new IllegalArgumentException("Patient not found");
+        } else if (!encounterExists) {
+            throw new IllegalArgumentException("Encounter not found");
+        }
         // Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 

@@ -193,9 +193,26 @@ public class HistoryOfPresentIllnessController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody HistoryOfPresentIllnessDto dto) {
-        var saved = service.create(patientId, encounterId, dto);
-        return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
-                .success(true).message("HPI created").data(saved).build());
+        try {
+            var saved = service.create(patientId, encounterId, dto);
+            return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
+                    .success(true).message("HPI created").data(saved).build());
+        } catch (IllegalArgumentException ex) {
+            log.error("Validation error during HPI creation: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<HistoryOfPresentIllnessDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalStateException ex) {
+            log.error("Business rule violation during HPI creation: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.LOCKED)
+                    .body(ApiResponse.<HistoryOfPresentIllnessDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error creating HPI for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<HistoryOfPresentIllnessDto>builder()
+                            .success(false)
+                            .message("Error creating HPI: " + ex.getMessage())
+                            .build());
+        }
     }
 
     // UPDATE (423 if signed)
@@ -209,12 +226,21 @@ public class HistoryOfPresentIllnessController {
             var saved = service.update(patientId, encounterId, id, dto);
             return ResponseEntity.ok(ApiResponse.<HistoryOfPresentIllnessDto>builder()
                     .success(true).message("HPI updated").data(saved).build());
-        } catch (IllegalStateException ex) {
-            return ResponseEntity.status(423)
-                    .body(ApiResponse.<HistoryOfPresentIllnessDto>builder().success(false).message(ex.getMessage()).build());
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            log.error("Validation error during HPI update: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<HistoryOfPresentIllnessDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalStateException ex) {
+            log.error("Business rule violation during HPI update: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.LOCKED) // 423 LOCKED
+                    .body(ApiResponse.<HistoryOfPresentIllnessDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error updating HPI for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<HistoryOfPresentIllnessDto>builder()
+                            .success(false)
+                            .message("Error updating HPI: " + ex.getMessage())
+                            .build());
         }
     }
 

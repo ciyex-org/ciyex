@@ -13,9 +13,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import com.qiaben.ciyex.repository.PatientRepository;
+import com.qiaben.ciyex.repository.EncounterRepository;
 
 
 
@@ -31,13 +35,29 @@ public class VitalsService {
     private final EncounterService encounterService;
     private final PortalPatientRepository portalPatientRepository;
     private final ExternalVitalsStorage externalStorage;
+    private final PatientRepository patientRepository;
+    private final EncounterRepository encounterRepository;
 
-    
+
     @PersistenceContext
     private EntityManager entityManager;
 
     public VitalsDto create( Long patientId, Long encounterId, VitalsDto dto) {
-        // Check if encounter is signed - prevent modification
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+        // Step 3: Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 
         Vitals entity = toEntity(dto);
@@ -67,16 +87,42 @@ public class VitalsService {
     }
 
     public VitalsDto update(Long patientId, Long encounterId, Long id, VitalsDto dto) {
-        // Check if encounter is signed - prevent modification
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            log.error("Patient not found with ID: {}. Please provide a valid Patient ID.", patientId);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            log.error("Encounter not found with ID: {} for Patient ID: {}. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.", encounterId, patientId);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+        // Step 3: Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 
         Vitals existing = repository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (!existing.getPatientId().equals(patientId) || !existing.getEncounterId().equals(encounterId)) {
-            throw new IllegalArgumentException(
-                String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                .orElseThrow(() -> {
+                    log.error("Vitals not found for Patient ID: {}, Encounter ID: {}, ID: {}", patientId, encounterId, id);
+                    return new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d. Please verify both Patient ID and Encounter ID are correct and that the record belongs to this patient.", patientId, encounterId, id)
+                    );
+                });
+        if (!existing.getPatientId().equals(patientId)) {
+            log.error("Vitals record ID: {} does not belong to Patient ID: {}.", id, patientId);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                String.format("Vitals record with ID: %d does not belong to Patient ID: %d.", id, patientId)
+            );
+        }
+        if (!existing.getEncounterId().equals(encounterId)) {
+            log.error("Vitals record ID: {} does not belong to Encounter ID: {}.", id, encounterId);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                String.format("Vitals record with ID: %d does not belong to Encounter ID: %d.", id, encounterId)
             );
         }
         existing.setWeightKg(dto.getWeightKg());
@@ -96,16 +142,42 @@ public class VitalsService {
     }
 
     public void delete(Long patientId, Long encounterId, Long id) {
-        // Check if encounter is signed - prevent modification
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            log.error("Patient not found with ID: {}. Please provide a valid Patient ID.", patientId);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            log.error("Encounter not found with ID: {} for Patient ID: {}. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.", encounterId, patientId);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+        // Step 3: Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 
         Vitals existing = repository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (!existing.getPatientId().equals(patientId) || !existing.getEncounterId().equals(encounterId)) {
-            throw new IllegalArgumentException(
-                String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                .orElseThrow(() -> {
+                    log.error("Vitals not found for Patient ID: {}, Encounter ID: {}, ID: {}", patientId, encounterId, id);
+                    return new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d. Please verify both Patient ID and Encounter ID are correct and that the record belongs to this patient.", patientId, encounterId, id)
+                    );
+                });
+        if (!existing.getPatientId().equals(patientId)) {
+            log.error("Vitals record ID: {} does not belong to Patient ID: {}.", id, patientId);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                String.format("Vitals record with ID: %d does not belong to Patient ID: %d.", id, patientId)
+            );
+        }
+        if (!existing.getEncounterId().equals(encounterId)) {
+            log.error("Vitals record ID: {} does not belong to Encounter ID: {}.", id, encounterId);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                String.format("Vitals record with ID: %d does not belong to Encounter ID: %d.", id, encounterId)
             );
         }
         repository.delete(existing);
@@ -113,13 +185,40 @@ public class VitalsService {
     }
 
     public VitalsDto eSign(Long patientId, Long encounterId, Long id) {
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            log.error("Patient not found with ID: {}. Please provide a valid Patient ID.", patientId);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            log.error("Encounter not found with ID: {} for Patient ID: {}. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.", encounterId, patientId);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
         Vitals vitals = repository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (!vitals.getPatientId().equals(patientId) || !vitals.getEncounterId().equals(encounterId)) {
-            throw new IllegalArgumentException(
-                String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                .orElseThrow(() -> {
+                    log.error("Vitals not found for Patient ID: {}, Encounter ID: {}, ID: {}", patientId, encounterId, id);
+                    return new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        String.format("Vitals not found for Patient ID: %d, Encounter ID: %d, ID: %d. Please verify both Patient ID and Encounter ID are correct and that the record belongs to this patient.", patientId, encounterId, id)
+                    );
+                });
+        if (!vitals.getPatientId().equals(patientId)) {
+            log.error("Vitals record ID: {} does not belong to Patient ID: {}.", id, patientId);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                String.format("Vitals record with ID: %d does not belong to Patient ID: %d.", id, patientId)
+            );
+        }
+        if (!vitals.getEncounterId().equals(encounterId)) {
+            log.error("Vitals record ID: {} does not belong to Encounter ID: {}.", id, encounterId);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                String.format("Vitals record with ID: %d does not belong to Encounter ID: %d.", id, encounterId)
             );
         }
         vitals.setSigned(true);
@@ -166,7 +265,7 @@ public class VitalsService {
             return portalPatientRepository.findAll().stream()
                     .filter(pp -> pp.getPortalUser() != null && email.equals(pp.getPortalUser().getEmail()))
                     .findFirst()
-                    .map(portalPatient -> portalPatient.getEhrPatientId())
+                    .map(pp -> pp.getEhrPatientId())
                     .orElse(null);
         } catch (Exception e) {
             log.error("Error looking up EHR patient ID for email {}: {}", email, e.getMessage());
