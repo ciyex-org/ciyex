@@ -215,14 +215,27 @@ public class PhysicalExamController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody PhysicalExamDto dto) {
+        // Validate mandatory fields
         try {
             validateMandatoryFields(dto);
             var saved = service.create(patientId, encounterId, dto);
             return ResponseEntity.ok(ApiResponse.<PhysicalExamDto>builder()
                     .success(true).message("Physical exam created").data(saved).build());
         } catch (IllegalArgumentException ex) {
+            log.error("Validation error during Physical Exam creation: " + ex.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<PhysicalExamDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalStateException ex) {
+            log.error("Business rule violation during Physical Exam creation: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.LOCKED)
+                    .body(ApiResponse.<PhysicalExamDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error creating Physical Exam for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<PhysicalExamDto>builder()
+                            .success(false)
+                            .message("Error creating Physical Exam: " + ex.getMessage())
+                            .build());
         }
     }
 

@@ -168,15 +168,34 @@ public class CodeService {
 
     private final CodeRepository repo;
     private final EncounterService encounterService;
+    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
+    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
     // CREATE
     public CodeDto create(Long patientId, Long encounterId, CodeDto dto) {
-        // Check if encounter is signed - prevent modification
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
+        // Step 3: Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 
+        // Step 4: Create the code
         Code e = new Code();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -200,20 +219,47 @@ public class CodeService {
     // GET ONE
     public CodeDto getOne(Long patientId, Long encounterId, Long id) {
         Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Code not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Code not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
+                ));
         return toDto(e);
     }
 
     // UPDATE (blocked if signed)
     public CodeDto update(Long patientId, Long encounterId, Long id, CodeDto dto) {
-        // Check if encounter is signed - prevent modification
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
+        // Step 3: Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 
+        // Step 4: Find the code
         Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Code not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Code not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
+                ));
+
+        // Step 5: Check if code itself is signed
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed codes are read-only.");
         }
+
+        // Step 6: Update the code
         applyDto(e, dto);
         e = repo.save(e);
         return toDto(e);
@@ -221,21 +267,32 @@ public class CodeService {
 
     // DELETE (blocked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
-        // Check if encounter is signed - prevent modification
+        // Step 1: Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 
+        // Step 2: Find the code
         Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Code not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Code not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
+                ));
+
+        // Step 3: Check if code itself is signed
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed codes cannot be deleted.");
         }
+
         repo.delete(e);
     }
 
     // ESIGN (idempotent, no request body)
     public CodeDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Code not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Code not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
+                ));
+
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
         e.setESigned(true);
@@ -248,7 +305,10 @@ public class CodeService {
     // PRINT (PDF) — stamps printedAt
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Code not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Code not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
+                ));
 
         e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));
         repo.save(e);

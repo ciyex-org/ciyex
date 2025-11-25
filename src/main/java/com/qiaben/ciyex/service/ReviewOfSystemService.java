@@ -26,7 +26,7 @@
 //    // CREATE
 //    public ReviewOfSystemDto create(Long patientId, Long encounterId, ReviewOfSystemDto in) {
 //        ReviewOfSystem e = ReviewOfSystem.builder()
-
+//
 //                .systemName(in.getSystemName())
 //                .isNegative(in.getIsNegative())
 //                .notes(in.getNotes())
@@ -149,14 +149,30 @@ public class ReviewOfSystemService {
     }
 
     private final ReviewOfSystemRepository repo;
+    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
+    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
     private final EncounterService encounterService;
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // CREATE
     public ReviewOfSystemDto create(Long patientId, Long encounterId, ReviewOfSystemDto dto) {
-        // Check if encounter is signed - prevent modification
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+        // Step 3: Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
-
+        // Step 4: Create the review of system
         ReviewOfSystem e = new ReviewOfSystem();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
@@ -182,9 +198,23 @@ public class ReviewOfSystemService {
 
     // UPDATE (locked if signed)
     public ReviewOfSystemDto update(Long patientId, Long encounterId, Long id, ReviewOfSystemDto dto) {
-        // Check if encounter is signed - prevent modification
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+        // Step 3: Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
-
+        // Step 4: Find the review of system
         ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Review of System not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -199,9 +229,23 @@ public class ReviewOfSystemService {
 
     // DELETE (locked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
-        // Check if encounter is signed - prevent modification
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+        // Step 3: Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
-
+        // Step 4: Find the review of system
         ReviewOfSystem e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Review of System not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)

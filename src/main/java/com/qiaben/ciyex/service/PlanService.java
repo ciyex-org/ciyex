@@ -135,6 +135,8 @@ package com.qiaben.ciyex.service;
 import com.qiaben.ciyex.dto.PlanDto;
 import com.qiaben.ciyex.entity.Plan;
 import com.qiaben.ciyex.repository.PlanRepository;
+import com.qiaben.ciyex.repository.PatientRepository;
+import com.qiaben.ciyex.repository.EncounterRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -156,13 +158,24 @@ public class PlanService {
 
     private final PlanRepository repo;
     private final EncounterService encounterService;
+    private final PatientRepository patientRepository;
+    private final EncounterRepository encounterRepository;
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
     public PlanDto create(Long patientId, Long encounterId, PlanDto dto) {
+        // Validate patient existence
+        boolean patientExists = patientRepository.existsById(patientId);
+        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
+        if (!patientExists && !encounterExists) {
+            throw new IllegalArgumentException("Patient and Encounter not found");
+        } else if (!patientExists) {
+            throw new IllegalArgumentException("Patient not found");
+        } else if (!encounterExists) {
+            throw new IllegalArgumentException("Encounter not found");
+        }
         // Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
-
         Plan e = new Plan(); e.setPatientId(patientId); e.setEncounterId(encounterId);
         applyEditable(e, dto);
         return toDto(repo.save(e));
@@ -191,6 +204,16 @@ public class PlanService {
     }
 
     public PlanDto update(Long patientId, Long encounterId, Long id, PlanDto dto) {
+        // Validate patient existence
+        boolean patientExists = patientRepository.existsById(patientId);
+        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
+        if (!patientExists && !encounterExists) {
+            throw new IllegalArgumentException("Patient and Encounter not found");
+        } else if (!patientExists) {
+            throw new IllegalArgumentException("Patient not found");
+        } else if (!encounterExists) {
+            throw new IllegalArgumentException("Encounter not found");
+        }
         Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -199,7 +222,6 @@ public class PlanService {
         applyEditable(e, dto);
         // Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
-
         return toDto(repo.save(e));
     }
 
