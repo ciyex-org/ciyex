@@ -45,16 +45,25 @@ public class SlotService {
         // Validate mandatory fields
         validateMandatoryFields(dto);
 
-        String externalId = null;
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            try {
+        String externalId = dto.getExternalId(); // Check if externalId provided in request
+        
+        // Try to create in external storage only if configured
+        try {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            if (storageType != null && externalId == null) {
                 ExternalSlotStorage external =
                         (ExternalSlotStorage) storageResolver.resolve(SlotDto.class);
                 externalId = external.createSlot(dto);
-            } catch (Exception e) {
-                log.warn("Failed to create in external storage: {}", e.getMessage());
+                log.info("Created slot in external storage with externalId: {}", externalId);
             }
+        } catch (Exception e) {
+            log.warn("Failed to create in external storage, will auto-generate externalId: {}", e.getMessage());
+        }
+
+        // Auto-generate externalId if still null (similar to other APIs)
+        if (externalId == null || externalId.trim().isEmpty()) {
+            externalId = "slot-" + java.util.UUID.randomUUID().toString();
+            log.info("Auto-generated externalId: {}", externalId);
         }
 
         Slot entity = Slot.builder()
@@ -67,7 +76,7 @@ public class SlotService {
                 .build();
         entity = repository.save(entity);
 
-        return mergeLocalAndExternal(entity, fetchExternal(externalId));
+        return mergeLocalAndExternal(entity, null); // Don't fetch external if not configured
     }
 
     private void validateMandatoryFields(SlotDto dto) {
@@ -90,7 +99,7 @@ public class SlotService {
         Slot entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Slot not found: " + id));
 
-        return mergeLocalAndExternal(entity, fetchExternal(entity.getExternalId()));
+        return mergeLocalAndExternal(entity, null); // Don't fetch external if not configured
     }
 
     @Transactional(readOnly = true)
@@ -98,7 +107,7 @@ public class SlotService {
         List<Slot> entities = repository.findAll();
         List<SlotDto> out = new ArrayList<>();
         for (Slot s : entities) {
-            out.add(mergeLocalAndExternal(s, fetchExternal(s.getExternalId())));
+            out.add(mergeLocalAndExternal(s, null)); // Don't fetch external if not configured
         }
         return ApiResponse.<List<SlotDto>>builder()
                 .success(true)
@@ -130,23 +139,32 @@ public class SlotService {
             entity.setComment(dto.getComment());
         }
 
-        dto.setExternalId(entity.getExternalId());
+        // Update externalId if provided in the request
+        if (dto.getExternalId() != null) {
+            entity.setExternalId(dto.getExternalId());
+        }
+
+        // Auto-generate externalId if still null
+        if (entity.getExternalId() == null || entity.getExternalId().trim().isEmpty()) {
+            entity.setExternalId("slot-" + java.util.UUID.randomUUID().toString());
+            log.info("Auto-generated externalId on update: {}", entity.getExternalId());
+        }
 
         // Only update external storage if configured
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && entity.getExternalId() != null) {
-            try {
+        try {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            if (storageType != null && entity.getExternalId() != null) {
                 ExternalSlotStorage external =
                         (ExternalSlotStorage) storageResolver.resolve(SlotDto.class);
                 external.updateSlot(dto, entity.getExternalId());
-            } catch (Exception e) {
-                log.warn("Failed to update external storage: {}", e.getMessage());
             }
+        } catch (Exception e) {
+            log.warn("Failed to update external storage: {}", e.getMessage());
         }
 
         repository.save(entity);
 
-        return mergeLocalAndExternal(entity, fetchExternal(entity.getExternalId()));
+        return mergeLocalAndExternal(entity, null); // Don't fetch external if not configured
     }
 
     @Transactional
@@ -157,15 +175,15 @@ public class SlotService {
 
 
         if (entity.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
-                try {
+            try {
+                String storageType = configProvider.getStorageTypeForCurrentOrg();
+                if (storageType != null) {
                     ExternalSlotStorage external =
                             (ExternalSlotStorage) storageResolver.resolve(SlotDto.class);
                     external.deleteSlot(entity.getExternalId());
-                } catch (Exception e) {
-                    log.warn("Failed to delete from external storage: {}", e.getMessage());
                 }
+            } catch (Exception e) {
+                log.warn("Failed to delete from external storage: {}", e.getMessage());
             }
         }
         repository.delete(entity);
@@ -176,6 +194,7 @@ public class SlotService {
         dto.setId(entity.getId());
         dto.setProviderId(entity.getProviderId());
         dto.setExternalId(entity.getExternalId());
+        dto.setFhirId(entity.getExternalId()); // fhirId is same as externalId
 
         // Use local data first
         dto.setStart(entity.getStart());
