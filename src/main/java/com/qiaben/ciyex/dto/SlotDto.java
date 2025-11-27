@@ -8,6 +8,7 @@ public class SlotDto {
     private String tenantName;       // tenant/org
     private Long providerId;  // practitioner
     private String externalId;// FHIR Slot id
+    private String fhirId;    // FHIR ID (same as externalId)
 
     private String start;     // ISO-8601 datetime
     private String end;       // ISO-8601 datetime
