@@ -11,12 +11,15 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class Immunization extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "fhir_id")
+    private String fhirId;
 
     @Column(name = "external_id")
     private String externalId;
@@ -24,7 +27,7 @@ public class Immunization extends AuditableEntity {
     @Column(name = "patient_id", nullable = false)
     private Long patientId;
 
-    
+
 
     private String cvxCode;
     private String dateTimeAdministered;

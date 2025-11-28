@@ -28,17 +28,23 @@ public class MedicationRequestService {
     public MedicationRequestDto create(MedicationRequestDto dto) {
         // Validate mandatory fields
         validateMandatoryFields(dto);
-        
+
         MedicationRequest entity = mapToEntity(dto);
-        String currentDate = LocalDateTime.now().format(DATE_FORMATTER);
+
+        // Auto-generate externalId if not provided
+        if (entity.getFhirId() == null) {
+            String generatedId = "MED-" + System.currentTimeMillis();
+            entity.setFhirId(generatedId);
+            entity.setExternalId(generatedId);
+        }
 
         MedicationRequest savedEntity = repository.save(entity);
         return mapToDto(savedEntity);
     }
-    
+
     private void validateMandatoryFields(MedicationRequestDto dto) {
         StringBuilder errors = new StringBuilder();
-        
+
         if (dto.getPatientId() == null) {
             errors.append("patientId, ");
         }
@@ -48,7 +54,7 @@ public class MedicationRequestService {
         if (dto.getMedicationName() == null || dto.getMedicationName().trim().isEmpty()) {
             errors.append("medicationName, ");
         }
-        
+
         if (errors.length() > 0) {
             // Remove trailing comma and space
             String missingFields = errors.substring(0, errors.length() - 2);
@@ -97,6 +103,8 @@ public class MedicationRequestService {
     private MedicationRequestDto mapToDto(MedicationRequest entity) {
         MedicationRequestDto dto = new MedicationRequestDto();
         dto.setId(entity.getId());
+        dto.setFhirId(entity.getFhirId());
+        dto.setExternalId(entity.getFhirId()); // externalId is an alias for fhirId
         dto.setPatientId(entity.getPatientId());
         dto.setEncounterId(entity.getEncounterId());
         dto.setMedicationName(entity.getMedicationName());
@@ -109,10 +117,17 @@ public class MedicationRequestService {
         // Initialize and set audit dates
         MedicationRequestDto.Audit audit = new MedicationRequestDto.Audit();
         if (entity.getCreatedDate() != null) {
+
+            audit.setCreatedDate(entity.getCreatedDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        }
+        if (entity.getLastModifiedDate() != null) {
+            audit.setLastModifiedDate(entity.getLastModifiedDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+
             audit.setCreatedDate(entity.getCreatedDate().format(DATE_FORMATTER));
         }
         if (entity.getLastModifiedDate() != null) {
             audit.setLastModifiedDate(entity.getLastModifiedDate().format(DATE_FORMATTER));
+
         }
         dto.setAudit(audit);
 
@@ -121,6 +136,12 @@ public class MedicationRequestService {
 
     private MedicationRequest mapToEntity(MedicationRequestDto dto) {
         MedicationRequest entity = new MedicationRequest();
+
+        // Use externalId if provided, otherwise use fhirId
+        String fhirIdValue = dto.getExternalId() != null ? dto.getExternalId() : dto.getFhirId();
+        entity.setFhirId(fhirIdValue);
+        entity.setExternalId(fhirIdValue);
+
         entity.setPatientId(dto.getPatientId());
         entity.setEncounterId(dto.getEncounterId());
         entity.setMedicationName(dto.getMedicationName());
@@ -133,6 +154,13 @@ public class MedicationRequestService {
     }
 
     private MedicationRequest updateEntityFromDto(MedicationRequest entity, MedicationRequestDto dto) {
+        // Update fhirId if externalId or fhirId is provided
+        String fhirIdValue = dto.getExternalId() != null ? dto.getExternalId() : dto.getFhirId();
+        if (fhirIdValue != null) {
+            entity.setFhirId(fhirIdValue);
+            entity.setExternalId(fhirIdValue);
+        }
+
         if (dto.getMedicationName() != null) entity.setMedicationName(dto.getMedicationName());
         if (dto.getDosage() != null) entity.setDosage(dto.getDosage());
         if (dto.getInstructions() != null) entity.setInstructions(dto.getInstructions());
