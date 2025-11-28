@@ -31,7 +31,18 @@ public class PortalVitalsDto {
 
     // When it was recorded
     private LocalDateTime recordedAt;
-    private LocalDateTime createdDate;
+
+    // audit
+    private Audit audit;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class Audit {
+        private String createdDate;      // yyyy-MM-dd
+        private String lastModifiedDate; // yyyy-MM-dd
+    }
 
     // Helper method to format blood pressure
     public String getFormattedBloodPressure() {
