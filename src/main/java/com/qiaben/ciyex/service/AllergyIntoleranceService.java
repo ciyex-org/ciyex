@@ -1,5 +1,5 @@
 package com.qiaben.ciyex.service;
-    
+
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.AllergyIntoleranceDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
@@ -64,16 +64,29 @@ public class AllergyIntoleranceService {
 
         // Optional external sync
         String storageType = configProvider.getStorageTypeForCurrentOrg();
+        String externalId = null;
         if (storageType != null && !rows.isEmpty()) {
             ExternalStorage<AllergyIntoleranceDto> ext = storageResolver.resolve(AllergyIntoleranceDto.class);
 
             AllergyIntoleranceDto snapshot = toDto(dto.getPatientId(), rows, true);
-            String externalId = ext.create(snapshot);
+            externalId = ext.create(snapshot);
 
             for (AllergyIntolerance r : rows) {
+                r.setFhirId(externalId);
                 r.setExternalId(externalId);
                 repo.save(r);
             }
+        }
+
+        // Auto-generate externalId if not provided by external storage
+        if (externalId == null) {
+            externalId = "ALG-" + System.currentTimeMillis();
+            for (AllergyIntolerance r : rows) {
+                r.setFhirId(externalId);
+                r.setExternalId(externalId);
+                repo.save(r);
+            }
+            log.info("Auto-generated externalId: {}", externalId);
         }
 
         // API response: omit top-level patientId
@@ -146,16 +159,16 @@ public class AllergyIntoleranceService {
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Allergy not found id=" + intoleranceId));
 
-    if (patch.getAllergyName() != null) row.setAllergyName(patch.getAllergyName());
-    if (patch.getReaction() != null)    row.setReaction(patch.getReaction());
+        if (patch.getAllergyName() != null) row.setAllergyName(patch.getAllergyName());
+        if (patch.getReaction() != null)    row.setReaction(patch.getReaction());
         if (patch.getSeverity() != null)    row.setSeverity(patch.getSeverity());
         if (patch.getStatus() != null)      row.setStatus(patch.getStatus());
         if (patch.getStartDate() != null)   row.setStartDate(patch.getStartDate());
         if (patch.getEndDate() != null)     row.setEndDate(patch.getEndDate());
         if (patch.getComments() != null)    row.setComments(patch.getComments()); // NEW
-    // Ensure mandatory fields are present after applying the patch
-    validateMandatoryFields(row);
-    validateDates(row.getStartDate(), row.getEndDate());
+        // Ensure mandatory fields are present after applying the patch
+        validateMandatoryFields(row);
+        validateDates(row.getStartDate(), row.getEndDate());
         repo.save(row);
 
         if (row.getExternalId() != null) {
@@ -218,7 +231,18 @@ public class AllergyIntoleranceService {
             dto.setPatientId(patientId);
         }
         if (!rows.isEmpty()) {
-            dto.setExternalId(rows.get(0).getExternalId());
+            dto.setFhirId(rows.get(0).getFhirId());
+            dto.setExternalId(rows.get(0).getFhirId()); // externalId is an alias for fhirId
+
+            // Set audit information from the first row
+            AllergyIntoleranceDto.Audit audit = new AllergyIntoleranceDto.Audit();
+            if (rows.get(0).getCreatedDate() != null) {
+                audit.setCreatedDate(rows.get(0).getCreatedDate().toString());
+            }
+            if (rows.get(0).getLastModifiedDate() != null) {
+                audit.setLastModifiedDate(rows.get(0).getLastModifiedDate().toString());
+            }
+            dto.setAudit(audit);
         }
         dto.setAllergiesList(rows.stream().map(this::toItem).collect(Collectors.toList()));
         return dto;
@@ -227,6 +251,8 @@ public class AllergyIntoleranceService {
     private AllergyIntoleranceDto.AllergyItem toItem(AllergyIntolerance r) {
         AllergyIntoleranceDto.AllergyItem it = new AllergyIntoleranceDto.AllergyItem();
         it.setId(r.getId());
+        it.setFhirId(r.getFhirId());
+        it.setExternalId(r.getFhirId()); // externalId is an alias for fhirId
         it.setAllergyName(r.getAllergyName());
         it.setReaction(r.getReaction());
         it.setSeverity(r.getSeverity());

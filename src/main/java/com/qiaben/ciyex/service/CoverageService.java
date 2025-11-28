@@ -13,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -33,6 +34,17 @@ public class CoverageService {
 
         Coverage coverage = mapToEntity(dto);
 
+        // Auto-generate externalId if not provided
+        if (coverage.getExternalId() == null) {
+            String generatedId = "COV-" + System.currentTimeMillis();
+            coverage.setFhirId(generatedId);
+            coverage.setExternalId(generatedId);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            // Set fhirId from externalId
+            coverage.setFhirId(coverage.getExternalId());
+        }
+
         // If patientId is not provided in DTO, try to get it from authenticated portal user
         if (coverage.getPatientId() == null) {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -50,7 +62,7 @@ public class CoverageService {
                             email = name;
                         }
                     }
-                    
+
                     if (email != null) {
                         log.info("No patientId in DTO, looking up EHR patient ID for portal user: {}", email);
                         Long patientId = getEhrPatientIdFromPortalUserEmail(email);
@@ -63,6 +75,7 @@ public class CoverageService {
                     log.warn("Could not auto-populate patientId from authentication: {}", e.getMessage());
                 }
             }
+
         }
 
         // Attach insurance company only if the client provided it
@@ -94,10 +107,10 @@ public class CoverageService {
                 .findById(id)
                 .orElseThrow(() -> new RuntimeException("Coverage not found with id: " + id));
 
-    updateEntityFromDto(coverage, dto);
+        updateEntityFromDto(coverage, dto);
 
-    // Validate mandatory fields after update
-    validateMandatoryFields(coverage);
+        // Validate mandatory fields after update
+        validateMandatoryFields(coverage);
 
         // If payload mentions insurance company, reflect that; if null object provided, detach
         if (dto.getInsuranceCompany() != null) {
@@ -133,32 +146,32 @@ public class CoverageService {
     @Transactional(readOnly = true)
     public List<CoverageDto> getCoveragesByPatient(Long patientId) {
         log.info("Getting coverages for patient {}", patientId);
-        
-            List<Coverage> coverages = coverageRepository.findByPatientIdOrderByEffectiveDateDesc(patientId);
-            log.info("Found {} coverage records for patient {}", coverages.size(), patientId);
-            return coverages.stream()
-                    .map(this::mapToDto)
-                    .collect(Collectors.toList());
+
+        List<Coverage> coverages = coverageRepository.findByPatientIdOrderByEffectiveDateDesc(patientId);
+        log.info("Found {} coverage records for patient {}", coverages.size(), patientId);
+        return coverages.stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
     }
 
     // 👩‍⚕️ Portal Method - Map portal user email to EHR patient ID
     @Transactional(readOnly = true)
     public Long getEhrPatientIdFromPortalUserEmail(String email) {
         log.info("Looking up EHR patient ID for portal user {}", email);
-        
+
         if (email == null || email.trim().isEmpty()) {
             return null;
         }
-        
+
         try {
             // Query the portal_patients table in public schema to find the EHR patient ID
             Long patientId = coverageRepository.findEhrPatientIdByPortalUserEmail(email);
-            
+
             if (patientId != null) {
                 log.info("Found EHR patient ID {} for portal user {}", patientId, email);
                 return patientId;
             }
-            
+
             log.error("No EHR patient ID found for portal user {}", email);
             throw new RuntimeException("No patient mapping found for user: " + email);
         } catch (Exception e) {
@@ -170,7 +183,7 @@ public class CoverageService {
     /**
      * Get coverages for current portal user based on Keycloak authentication
      */
-    @Transactional(readOnly = true) 
+    @Transactional(readOnly = true)
     public List<CoverageDto> getCoveragesForPortalUser(String token) {
         // Backwards-compatible method kept for callers that pass token string
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -255,10 +268,10 @@ public class CoverageService {
                 .findById(id)
                 .orElseThrow(() -> new RuntimeException("Coverage not found for id=" + id + ", patientId=" + patientId));
 
-    updateEntityFromDto(coverage, dto);
+        updateEntityFromDto(coverage, dto);
 
-    // Validate mandatory fields after update
-    validateMandatoryFields(coverage);
+        // Validate mandatory fields after update
+        validateMandatoryFields(coverage);
 
         if (dto.getInsuranceCompany() != null) {
             if (dto.getInsuranceCompany().getId() != null) {
@@ -285,8 +298,12 @@ public class CoverageService {
 
     // ---- helpers ----
     private Coverage mapToEntity(CoverageDto dto) {
-    return Coverage.builder()
-                .externalId(dto.getExternalId())
+        // Use externalId if provided, otherwise use fhirId
+        String fhirIdValue = dto.getExternalId() != null ? dto.getExternalId() : dto.getFhirId();
+
+        return Coverage.builder()
+                .fhirId(fhirIdValue)
+                .externalId(fhirIdValue)
                 .coverageType(dto.getCoverageType())
                 .planName(dto.getPlanName())
                 .policyNumber(dto.getPolicyNumber())
@@ -321,14 +338,15 @@ public class CoverageService {
     private CoverageDto mapToDto(Coverage coverage) {
         CoverageDto dto = new CoverageDto();
         dto.setId(coverage.getId());
-        dto.setExternalId(coverage.getExternalId());
+        dto.setFhirId(coverage.getFhirId());
+        dto.setExternalId(coverage.getFhirId()); // externalId is an alias for fhirId
         dto.setCoverageType(coverage.getCoverageType());
         dto.setPlanName(coverage.getPlanName());
         dto.setPolicyNumber(coverage.getPolicyNumber());
         dto.setCoverageStartDate(coverage.getCoverageStartDate());
         dto.setCoverageEndDate(coverage.getCoverageEndDate());
         dto.setPatientId(coverage.getPatientId());
-    
+
         dto.setProvider(coverage.getProvider());
         dto.setEffectiveDate(coverage.getEffectiveDate());
         dto.setEffectiveDateEnd(coverage.getEffectiveDateEnd());
@@ -363,10 +381,33 @@ public class CoverageService {
             insuranceCompanyDto.setPostalCode(ic.getPostalCode());
             insuranceCompanyDto.setCountry(ic.getCountry());
             insuranceCompanyDto.setFhirId(ic.getFhirId());
+            insuranceCompanyDto.setExternalId(ic.getFhirId()); // externalId is an alias for fhirId
+            insuranceCompanyDto.setPayerId(ic.getPayerId());
+            if (ic.getStatus() != null) {
+                insuranceCompanyDto.setStatus(ic.getStatus().name());
+            }
+
             InsuranceCompanyDto.Audit audit = new InsuranceCompanyDto.Audit();
+            if (ic.getCreatedDate() != null) {
+                audit.setCreatedDate(ic.getCreatedDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            }
+            if (ic.getLastModifiedDate() != null) {
+                audit.setLastModifiedDate(ic.getLastModifiedDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            }
             insuranceCompanyDto.setAudit(audit);
             dto.setInsuranceCompany(insuranceCompanyDto);
         }
+
+        // Map audit information for coverage
+        CoverageDto.Audit coverageAudit = new CoverageDto.Audit();
+        if (coverage.getCreatedDate() != null) {
+            coverageAudit.setCreatedDate(coverage.getCreatedDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        }
+        if (coverage.getLastModifiedDate() != null) {
+            coverageAudit.setLastModifiedDate(coverage.getLastModifiedDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        }
+        dto.setAudit(coverageAudit);
+
         return dto;
     }
 
@@ -377,7 +418,7 @@ public class CoverageService {
         if (dto.getCoverageStartDate() != null) coverage.setCoverageStartDate(dto.getCoverageStartDate());
         if (dto.getCoverageEndDate() != null) coverage.setCoverageEndDate(dto.getCoverageEndDate());
         if (dto.getPatientId() != null) coverage.setPatientId(dto.getPatientId());
-    
+
         if (dto.getProvider() != null) coverage.setProvider(dto.getProvider());
         if (dto.getEffectiveDate() != null) coverage.setEffectiveDate(dto.getEffectiveDate());
         if (dto.getEffectiveDateEnd() != null) coverage.setEffectiveDateEnd(dto.getEffectiveDateEnd());
