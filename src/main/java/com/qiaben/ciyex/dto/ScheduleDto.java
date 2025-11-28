@@ -12,7 +12,8 @@ public class ScheduleDto {
     // Locally stored identifiers
     private Long id; // DB id // tenant (from RequestContext typically)
     private Long providerId; // internal provider/practitioner id
-    private String externalId; // FHIR Schedule id
+    private String fhirId; // FHIR Schedule id
+    private String externalId; // Alias for fhirId
 
     // one-time window
     private String start; // ISO-8601

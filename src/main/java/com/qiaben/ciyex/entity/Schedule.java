@@ -20,6 +20,9 @@ public class Schedule extends AuditableEntity {
     @Column(name = "provider_id", nullable = false)
     private Long providerId;
 
+    @Column(name = "fhir_id")
+    private String fhirId;
+
     @Column(name = "external_id")
     private String externalId;
 

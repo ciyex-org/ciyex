@@ -20,13 +20,16 @@ public class Patient extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "fhir_id")
+    private String fhirId;
+
     @Column(name = "external_id")
     private String externalId;
 
     @Column(name = "status")
     private String status;
 
-     // Tenant identifier
+    // Tenant identifier
 
     @Column(name = "first_name")
     private String firstName;

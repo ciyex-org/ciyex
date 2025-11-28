@@ -40,13 +40,13 @@ public class ScheduleService {
 
     @Transactional(readOnly = true)
     public long countSchedulesForCurrentOrg() {
-        
+
         return repository.count();
     }
 
     @Transactional
     public ScheduleDto create(ScheduleDto dto) {
-        
+
         if (dto.getProviderId() == null) {
             throw new IllegalArgumentException("providerId is required");
         }
@@ -54,19 +54,30 @@ public class ScheduleService {
 
 
 // Create in external storage and capture externalId
-        String externalId = dto.getExternalId(); // Use provided externalId if available
+        String externalId = null;
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null) {
             ExternalScheduleStorage external =
                     (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
             externalId = external.createSchedule(dto);
+        }
 
+        // Use externalId from DTO if not created by external storage
+        if (externalId == null && dto.getExternalId() != null) {
+            externalId = dto.getExternalId();
+        }
+
+        // Auto-generate externalId if not provided
+        if (externalId == null) {
+            externalId = "SCH-" + System.currentTimeMillis();
+            log.info("Auto-generated externalId: {}", externalId);
         }
 
 
 // Persist minimal linkage locally
         Schedule entity = Schedule.builder()
                 .providerId(dto.getProviderId())
+                .fhirId(externalId)
                 .externalId(externalId)
                 .start(dto.getStart())
                 .end(dto.getEnd())
@@ -78,7 +89,7 @@ public class ScheduleService {
                 .comment(dto.getComment())
                 .actorReferences(dto.getActorReferences() != null ? String.join(",", dto.getActorReferences()) : null)
                 .build();
-        
+
         // Map recurrence if present
         if (dto.getRecurrence() != null) {
             ScheduleDto.Recurrence r = dto.getRecurrence();
@@ -92,7 +103,7 @@ public class ScheduleService {
             entity.setRecurrenceMaxOccurrences(r.getMaxOccurrences());
             entity.setRecurrenceLocationId(r.getLocationId());
         }
-        
+
         entity = repository.save(entity);
 
 
@@ -102,7 +113,7 @@ public class ScheduleService {
 
     @Transactional(readOnly = true)
     public ScheduleDto getById(Long id) {
-        
+
         Schedule entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
         return mergeLocalAndExternal(entity, fetchExternal(entity.getExternalId()));
@@ -110,7 +121,7 @@ public class ScheduleService {
 
     @Transactional(readOnly = true)
     public ApiResponse<List<ScheduleDto>> getAllSchedules() {
-        
+
         List<Schedule> entities = repository.findAll();
 
         // collect all externalIds
@@ -120,13 +131,18 @@ public class ScheduleService {
                 .toList();
 
         // fetch external schedules in bulk
-        ExternalScheduleStorage external =
-                (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
         Map<String, ScheduleDto> externalMap = new HashMap<>();
-        if (!externalIds.isEmpty()) {
-            List<ScheduleDto> extDtos = external.getSchedulesByIds(externalIds);
-            for (ScheduleDto ext : extDtos) {
-                externalMap.put(ext.getExternalId(), ext);
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        if (storageType != null && !externalIds.isEmpty()) {
+            try {
+                ExternalScheduleStorage external =
+                        (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
+                List<ScheduleDto> extDtos = external.getSchedulesByIds(externalIds);
+                for (ScheduleDto ext : extDtos) {
+                    externalMap.put(ext.getExternalId(), ext);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to fetch external schedules in bulk: {}", e.getMessage());
             }
         }
 
@@ -158,7 +174,7 @@ public class ScheduleService {
 
     @Transactional
     public ScheduleDto update(Long id, ScheduleDto dto) {
-        
+
         Schedule entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
 
@@ -174,7 +190,7 @@ public class ScheduleService {
         if (dto.getStatus() != null) entity.setStatus(dto.getStatus());
         if (dto.getComment() != null) entity.setComment(dto.getComment());
         if (dto.getActorReferences() != null) entity.setActorReferences(String.join(",", dto.getActorReferences()));
-        
+
         // Update recurrence if present
         if (dto.getRecurrence() != null) {
             ScheduleDto.Recurrence r = dto.getRecurrence();
@@ -221,8 +237,9 @@ public class ScheduleService {
         ScheduleDto dto = new ScheduleDto();
         dto.setId(entity.getId());
         dto.setProviderId(entity.getProviderId());
-        dto.setExternalId(entity.getExternalId());
-        
+        dto.setFhirId(entity.getFhirId());
+        dto.setExternalId(entity.getFhirId()); // externalId is an alias for fhirId
+
         // Use entity values first, fall back to external
         dto.setStart(entity.getStart() != null ? entity.getStart() : (externalDto != null ? externalDto.getStart() : null));
         dto.setEnd(entity.getEnd() != null ? entity.getEnd() : (externalDto != null ? externalDto.getEnd() : null));
@@ -232,14 +249,14 @@ public class ScheduleService {
         dto.setSpecialty(entity.getSpecialty() != null ? entity.getSpecialty() : (externalDto != null ? externalDto.getSpecialty() : null));
         dto.setStatus(entity.getStatus() != null ? entity.getStatus() : (externalDto != null ? externalDto.getStatus() : null));
         dto.setComment(entity.getComment() != null ? entity.getComment() : (externalDto != null ? externalDto.getComment() : null));
-        
+
         // Parse actor references from comma-separated string
         if (entity.getActorReferences() != null) {
             dto.setActorReferences(List.of(entity.getActorReferences().split(",")));
         } else if (externalDto != null && externalDto.getActorReferences() != null) {
             dto.setActorReferences(externalDto.getActorReferences());
         }
-        
+
         // Map recurrence from entity
         if (entity.getRecurrenceFrequency() != null) {
             ScheduleDto.Recurrence recurrence = new ScheduleDto.Recurrence();
@@ -258,7 +275,7 @@ public class ScheduleService {
         } else if (externalDto != null && externalDto.getRecurrence() != null) {
             dto.setRecurrence(externalDto.getRecurrence());
         }
-        
+
         // Map audit information from entity
         ScheduleDto.Audit audit = new ScheduleDto.Audit();
         if (entity.getCreatedDate() != null) {
@@ -268,20 +285,27 @@ public class ScheduleService {
             audit.setLastModifiedDate(entity.getLastModifiedDate().toString());
         }
         dto.setAudit(audit);
-        
+
         return dto;
     }
 
 
     private ScheduleDto fetchExternal(String externalId) {
         if (externalId == null) return null;
-        ExternalScheduleStorage external =
-                (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
-        return external.getSchedule(externalId);
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        if (storageType == null) return null;
+        try {
+            ExternalScheduleStorage external =
+                    (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
+            return external.getSchedule(externalId);
+        } catch (Exception e) {
+            log.warn("Failed to fetch external schedule: {}", e.getMessage());
+            return null;
+        }
     }
 
 
-    
+
     private void validateScheduleDto(ScheduleDto dto) {
         if (dto.getRecurrence() == null) {
             // One-time schedule
