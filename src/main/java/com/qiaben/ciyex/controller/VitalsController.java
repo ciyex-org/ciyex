@@ -153,23 +153,53 @@ public class VitalsController {
                     .success(false).message(validationError).build());
         }
 
-        return ResponseEntity.ok(ApiResponse.<VitalsDto>builder()
-                .success(true)
-                .message("Vitals updated")
-                .data(service.update(patientId, encounterId, id, dto))
-                .build());
+        try {
+            return ResponseEntity.ok(ApiResponse.<VitalsDto>builder()
+                    .success(true)
+                    .message("Vitals updated")
+                    .data(service.update(patientId, encounterId, id, dto))
+                    .build());
+        } catch (IllegalStateException ex) {
+            log.error("Error updating Vitals: {}", ex.getMessage());
+            return ResponseEntity.badRequest().body(ApiResponse.<VitalsDto>builder()
+                    .success(false)
+                    .message(ex.getMessage())
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error updating Vitals for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<VitalsDto>builder()
+                            .success(false)
+                            .message("Error updating Vitals: " + ex.getMessage())
+                            .build());
+        }
     }
 
     @DeleteMapping("/{patientId}/{encounterId}/{id}")
-    public ApiResponse<Void> delete(
+    public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id) {
-        service.delete(patientId, encounterId, id);
-        return ApiResponse.<Void>builder()
-                .success(true)
-                .message("Vitals deleted")
-                .build();
+        try {
+            service.delete(patientId, encounterId, id);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(true)
+                    .message("Vitals deleted")
+                    .build());
+        } catch (IllegalStateException ex) {
+            log.error("Error deleting Vitals: {}", ex.getMessage());
+            return ResponseEntity.badRequest().body(ApiResponse.<Void>builder()
+                    .success(false)
+                    .message(ex.getMessage())
+                    .build());
+        } catch (Exception ex) {
+            log.error("Error deleting Vitals for Patient ID: " + patientId + ", Encounter ID: " + encounterId + ", ID: " + id, ex);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<Void>builder()
+                            .success(false)
+                            .message("Error deleting Vitals: " + ex.getMessage())
+                            .build());
+        }
     }
 
     @PostMapping("/{patientId}/{encounterId}/{id}/esign")

@@ -17,6 +17,12 @@ public class Vitals extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "external_id", length = 255)
+    private String externalId;
+
+    @Column(name = "fhir_id", length = 255)
+    private String fhirId;
+
     private Long patientId;
     private Long encounterId;
 
