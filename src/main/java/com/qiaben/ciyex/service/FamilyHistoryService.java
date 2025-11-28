@@ -174,6 +174,10 @@ import com.qiaben.ciyex.dto.FamilyHistoryDto;
 import com.qiaben.ciyex.entity.FamilyHistory;
 import com.qiaben.ciyex.entity.FamilyHistoryEntry;
 import com.qiaben.ciyex.repository.FamilyHistoryRepository;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.fhir.FhirExternalFamilyHistoryStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -182,11 +186,14 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -203,6 +210,13 @@ public class FamilyHistoryService {
     private final EncounterService encounterService;
     private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
     private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
+    private final ExternalStorageResolver storageResolver;
+    private final OrgIntegrationConfigProvider configProvider;
+
+    @Autowired(required = false)
+    private FhirExternalFamilyHistoryStorage fhirStorage;
+
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create container (and optional entries)
     public FamilyHistoryDto create(Long patientId, Long encounterId, FamilyHistoryDto dto) {
@@ -231,6 +245,61 @@ public class FamilyHistoryService {
         fh.setEncounterId(encounterId);
         applyEntries(fh, dto.getEntries());
         fh = repo.save(fh);
+        
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("FamilyHistory create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for FamilyHistory ID: {}", fh.getId());
+                ExternalStorage<FamilyHistoryDto> ext = storageResolver.resolve(FamilyHistoryDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                FamilyHistoryDto snapshot = toDto(fh);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    fh.setExternalId(externalId);
+                    fh = repo.save(fh);
+                    log.info("Created FHIR resource for FamilyHistory ID: {} with externalId: {}", fh.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for FamilyHistory ID: {}", fh.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync FamilyHistory to external storage", ex);
+            }
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for FamilyHistory ID: {}", fh.getId());
+                FamilyHistoryDto snapshot = toDto(fh);
+                String externalId = fhirStorage.create(snapshot);
+                log.info("FHIR fallback create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    fh.setExternalId(externalId);
+                    fh = repo.save(fh);
+                    log.info("Created FHIR resource (fallback) for FamilyHistory ID: {} with externalId: {}", fh.getId(), externalId);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync FamilyHistory to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for FamilyHistory ID: {}", fh.getId());
+        }
+
+        if (fh.getExternalId() == null) {
+            String generatedId = "FH-" + System.currentTimeMillis();
+            fh.setExternalId(generatedId);
+            fh.setFhirId(generatedId);
+            fh = repo.save(fh);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            fh.setFhirId(fh.getExternalId());
+            fh = repo.save(fh);
+        }
+
         return toDto(fh);
     }
 
@@ -287,6 +356,38 @@ public class FamilyHistoryService {
         fh.getEntries().clear();
         applyEntries(fh, dto.getEntries());
         fh = repo.save(fh);
+        
+        // Step 7: Optional external sync
+        if (fh.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("FamilyHistory update - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR sync for FamilyHistory ID: {}", fh.getId());
+                    ExternalStorage<FamilyHistoryDto> ext = storageResolver.resolve(FamilyHistoryDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    FamilyHistoryDto snapshot = toDto(fh);
+                    ext.update(snapshot, fh.getExternalId());
+                    log.info("Updated FHIR resource for FamilyHistory ID: {} with externalId: {}", fh.getId(), fh.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync FamilyHistory update to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for FamilyHistory ID: {}", fh.getId());
+                    FamilyHistoryDto snapshot = toDto(fh);
+                    fhirStorage.update(snapshot, fh.getExternalId());
+                    log.info("Updated FHIR resource (fallback) for FamilyHistory ID: {} with externalId: {}", fh.getId(), fh.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync FamilyHistory update to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for FamilyHistory ID: {}", fh.getId());
+            }
+        }
+
         return toDto(fh);
     }
 
@@ -306,6 +407,36 @@ public class FamilyHistoryService {
         if (Boolean.TRUE.equals(fh.getESigned())) {
             throw new IllegalStateException("Signed family history cannot be deleted.");
         }
+        
+        // Step 4: Optional external delete
+        if (fh.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("FamilyHistory delete - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR delete for FamilyHistory ID: {}", fh.getId());
+                    ExternalStorage<FamilyHistoryDto> ext = storageResolver.resolve(FamilyHistoryDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    ext.delete(fh.getExternalId());
+                    log.info("Deleted FHIR resource for FamilyHistory ID: {} with externalId: {}", fh.getId(), fh.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync FamilyHistory delete to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for FamilyHistory ID: {}", fh.getId());
+                    fhirStorage.delete(fh.getExternalId());
+                    log.info("Deleted FHIR resource (fallback) for FamilyHistory ID: {} with externalId: {}", fh.getId(), fh.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync FamilyHistory delete to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for FamilyHistory ID: {}", fh.getId());
+            }
+        }
+
         repo.delete(fh);
     }
 
@@ -405,6 +536,7 @@ public class FamilyHistoryService {
         FamilyHistoryDto d = new FamilyHistoryDto();
         d.setId(fh.getId());
         d.setExternalId(fh.getExternalId());
+        d.setFhirId(fh.getFhirId());
         d.setPatientId(fh.getPatientId());
         d.setEncounterId(fh.getEncounterId());
 
@@ -429,8 +561,11 @@ public class FamilyHistoryService {
         }
         d.setEntries(list);
 
-        d.setCreatedAt(fh.getCreatedAt());
-        d.setUpdatedAt(fh.getUpdatedAt());
+        FamilyHistoryDto.Audit a = new FamilyHistoryDto.Audit();
+        if (fh.getCreatedAt() != null) a.setCreatedDate(DAY.format(fh.getCreatedAt().atZone(ZoneId.systemDefault())));
+        if (fh.getUpdatedAt() != null) a.setLastModifiedDate(DAY.format(fh.getUpdatedAt().atZone(ZoneId.systemDefault())));
+        d.setAudit(a);
+
         return d;
     }
 

@@ -47,6 +47,12 @@ private LocalDateTime encounterDate;
 //@OneToMany(mappedBy = "encounter", cascade = CascadeType.ALL, orphanRemoval = true)
 //private List<Immunization> immunizations;
 
+    @Column(name = "external_id")
+    private String externalId;
+
+    @Column(name = "fhir_id")
+    private String fhirId;
+
 }
 
 //package com.qiaben.ciyex.entity;

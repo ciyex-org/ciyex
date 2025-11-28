@@ -121,6 +121,9 @@ package com.qiaben.ciyex.service;
 import com.qiaben.ciyex.dto.ReviewOfSystemDto;
 import com.qiaben.ciyex.entity.ReviewOfSystem;
 import com.qiaben.ciyex.repository.ReviewOfSystemRepository;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -128,6 +131,7 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -152,6 +156,12 @@ public class ReviewOfSystemService {
     private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
     private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
     private final EncounterService encounterService;
+    private final ExternalStorageResolver storageResolver;
+    private final OrgIntegrationConfigProvider configProvider;
+
+    @Autowired(required = false)
+    private com.qiaben.ciyex.storage.fhir.FhirExternalReviewOfSystemStorage fhirStorage;
+
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // CREATE
@@ -178,6 +188,59 @@ public class ReviewOfSystemService {
         e.setEncounterId(encounterId);
         applyDto(e, dto);
         e = repo.save(e);
+        
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("ReviewOfSystem create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for ReviewOfSystem ID: {}", e.getId());
+                ExternalStorage<ReviewOfSystemDto> ext = storageResolver.resolve(ReviewOfSystemDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                ReviewOfSystemDto snapshot = toDto(e);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource for ReviewOfSystem ID: {} with externalId: {}", e.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for ReviewOfSystem ID: {}", e.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync ReviewOfSystem to external storage", ex);
+            }
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for ReviewOfSystem ID: {}", e.getId());
+                ReviewOfSystemDto snapshot = toDto(e);
+                String externalId = fhirStorage.create(snapshot);
+                log.info("FHIR fallback create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource (fallback) for ReviewOfSystem ID: {} with externalId: {}", e.getId(), externalId);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync ReviewOfSystem to external storage (fallback)", ex);
+            }
+        }
+        
+        if (e.getExternalId() == null) {
+            String generatedId = "ROS-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
+        }
+        
         return toDto(e);
     }
 
@@ -224,6 +287,36 @@ public class ReviewOfSystemService {
         }
         applyDto(e, dto);
         e = repo.save(e);
+
+        // Step 7: Optional external FHIR sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("ReviewOfSystem update - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR sync for ReviewOfSystem ID: {}", e.getId());
+                    ExternalStorage<ReviewOfSystemDto> ext = storageResolver.resolve(ReviewOfSystemDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    ReviewOfSystemDto snapshot = toDto(e);
+                    ext.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource for ReviewOfSystem ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync ReviewOfSystem update to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for ReviewOfSystem ID: {}", e.getId());
+                    ReviewOfSystemDto snapshot = toDto(e);
+                    fhirStorage.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource (fallback) for ReviewOfSystem ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync ReviewOfSystem update to external storage (fallback)", ex);
+                }
+            }
+        }
+
         return toDto(e);
     }
 
@@ -253,6 +346,34 @@ public class ReviewOfSystemService {
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed ROS entries cannot be deleted.");
         }
+
+        // Step 5: Optional external FHIR sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("ReviewOfSystem delete - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR sync for ReviewOfSystem ID: {}", e.getId());
+                    ExternalStorage<ReviewOfSystemDto> ext = storageResolver.resolve(ReviewOfSystemDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    ext.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource for ReviewOfSystem ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync ReviewOfSystem delete to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for ReviewOfSystem ID: {}", e.getId());
+                    fhirStorage.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource (fallback) for ReviewOfSystem ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync ReviewOfSystem delete to external storage (fallback)", ex);
+                }
+            }
+        }
+
         repo.delete(e);
     }
 
@@ -348,6 +469,8 @@ public class ReviewOfSystemService {
     private ReviewOfSystemDto toDto(ReviewOfSystem e) {
         ReviewOfSystemDto d = new ReviewOfSystemDto();
         d.setId(e.getId());
+        d.setExternalId(e.getExternalId());
+        d.setFhirId(e.getFhirId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
         d.setSystemName(e.getSystemName());

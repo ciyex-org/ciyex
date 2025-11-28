@@ -1,52 +1,222 @@
 package com.qiaben.ciyex.storage.fhir;
 
+import ca.uhn.fhir.rest.client.api.IGenericClient;
+import ca.uhn.fhir.rest.client.exceptions.FhirClientConnectionException;
 import com.qiaben.ciyex.dto.CodeDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.provider.FhirClientProvider;
-import com.qiaben.ciyex.storage.ExternalCodeStorage;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.StorageType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.instance.model.api.IBaseBundle;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 
-@Component
+@StorageType("fhir")
+@Component("fhirExternalCodeStorage")
 @RequiredArgsConstructor
 @Slf4j
-public class FhirExternalCodeStorage implements ExternalCodeStorage {
+public class FhirExternalCodeStorage implements ExternalStorage<CodeDto> {
 
     private final FhirClientProvider fhirClientProvider;
 
+    private static final String TENANT_TAG_SYSTEM = "http://ciyex.com/tenant";
+
     @Override
     public String create(CodeDto dto) {
-        log.info("FHIR Code create: org={}, type={}, code={}",
-                RequestContext.get().getTenantName(), dto.getCodeType(), dto.getCode());
-        return null;
+        String tenantName = tenantName();
+        log.info("FHIR create Code for tenantName={} patientId={} encounterId={}",
+                tenantName, dto.getPatientId(), dto.getEncounterId());
+
+        return executeWithRetry(() -> {
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            if (client == null) {
+                log.warn("FHIR client is null - FHIR not configured. Skipping external storage sync.");
+                return null;
+            }
+
+            ChargeItem chargeItem = mapToFhir(dto, tenantName);
+            String externalId = client.create().resource(chargeItem).execute().getId().getIdPart();
+            log.info("FHIR create success externalId={} tenantName={}", externalId, tenantName);
+            return externalId;
+        });
     }
 
     @Override
-    public void update(String externalId, CodeDto dto) {
-        log.info("FHIR Code update: id={}, org={}, type={}, code={}",
-                externalId, RequestContext.get().getTenantName(), dto.getCodeType(), dto.getCode());
+    public void update(CodeDto dto, String externalId) {
+        String tenantName = tenantName();
+        log.info("FHIR update Code externalId={} tenantName={}", externalId, tenantName);
+
+        executeWithRetry(() -> {
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            if (client == null) {
+                log.warn("FHIR client is null - FHIR not configured. Skipping external storage sync.");
+                return null;
+            }
+
+            ChargeItem chargeItem = mapToFhir(dto, tenantName);
+            chargeItem.setId(externalId);
+            client.update().resource(chargeItem).execute();
+            log.info("FHIR update success externalId={} tenantName={}", externalId, tenantName);
+            return null;
+        });
     }
 
     @Override
-    public Optional<CodeDto> get(String externalId) {
-        log.info("FHIR Code get: id={}", externalId);
-        return Optional.empty();
+    public CodeDto get(String externalId) {
+        String tenantName = tenantName();
+        log.info("FHIR get Code externalId={} tenantName={}", externalId, tenantName);
+
+        return executeWithRetry(() -> {
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            if (client == null) {
+                log.warn("FHIR client is null - FHIR not configured. Skipping external storage sync.");
+                return null;
+            }
+
+            ChargeItem chargeItem = client.read().resource(ChargeItem.class).withId(externalId).execute();
+            if (chargeItem == null) {
+                log.warn("FHIR resource not found externalId={} tenantName={}", externalId, tenantName);
+                return null;
+            }
+
+            CodeDto dto = mapFromFhir(chargeItem);
+            log.info("FHIR get success externalId={} tenantName={}", externalId, tenantName);
+            return dto;
+        });
     }
 
     @Override
     public void delete(String externalId) {
-        log.info("FHIR Code delete: id={}", externalId);
+        String tenantName = tenantName();
+        log.info("FHIR delete Code externalId={} tenantName={}", externalId, tenantName);
+
+        executeWithRetry(() -> {
+            IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            if (client == null) {
+                log.warn("FHIR client is null - FHIR not configured. Skipping external storage sync.");
+                return null;
+            }
+
+            client.delete().resourceById("ChargeItem", externalId).execute();
+            log.info("FHIR delete success externalId={} tenantName={}", externalId, tenantName);
+            return null;
+        });
     }
 
-    // ✅ Match the interface signature exactly
     @Override
-    public List<CodeDto> searchAll(Long patientId, Long encounterId,
-                                   String codeType, Boolean active, String q) {
-        log.info("FHIR Code search: org={}, patient={}, encounter={}, type={}, active={}, q={}",
-                RequestContext.get().getTenantName(), patientId, encounterId, codeType, active, q);
+    public List<CodeDto> searchAll() {
+        // Not implemented for now
         return Collections.emptyList();
+    }
+
+    @Override
+    public boolean supports(Class<?> entityType) {
+        return CodeDto.class.isAssignableFrom(entityType);
+    }
+
+    private ChargeItem mapToFhir(CodeDto dto, String tenantName) {
+        ChargeItem chargeItem = new ChargeItem();
+
+        // Set tenant tag
+        chargeItem.getMeta().addTag(TENANT_TAG_SYSTEM, tenantName, "Tenant");
+
+        // Set subject (patient)
+        chargeItem.setSubject(new Reference("Patient/" + dto.getPatientId()));
+
+        // Set context (encounter)
+        if (dto.getEncounterId() != null) {
+            chargeItem.setContext(new Reference("Encounter/" + dto.getEncounterId()));
+        }
+
+        // Set code
+        if (dto.getCode() != null) {
+            CodeableConcept code = new CodeableConcept();
+            code.setText(dto.getCode());
+            chargeItem.setCode(code);
+        }
+
+        // Set status
+        if (dto.getActive() != null && dto.getActive()) {
+            chargeItem.setStatus(ChargeItem.ChargeItemStatus.BILLED);
+        }
+
+        // Set quantity (for fee)
+        if (dto.getFeeStandard() != null) {
+            chargeItem.setQuantity(new org.hl7.fhir.r4.model.Quantity().setValue(dto.getFeeStandard()));
+        }
+
+        return chargeItem;
+    }
+
+    private CodeDto mapFromFhir(ChargeItem chargeItem) {
+        CodeDto dto = new CodeDto();
+
+        // Extract patient ID
+        if (chargeItem.getSubject() != null && chargeItem.getSubject().getReference() != null) {
+            String patientRef = chargeItem.getSubject().getReference();
+            if (patientRef.startsWith("Patient/")) {
+                dto.setPatientId(Long.parseLong(patientRef.substring(8)));
+            }
+        }
+
+        // Extract encounter ID
+        if (chargeItem.getContext() != null && chargeItem.getContext().getReference() != null) {
+            String encounterRef = chargeItem.getContext().getReference();
+            if (encounterRef.startsWith("Encounter/")) {
+                dto.setEncounterId(Long.parseLong(encounterRef.substring(10)));
+            }
+        }
+
+        // Extract code
+        if (chargeItem.getCode() != null) {
+            dto.setCode(chargeItem.getCode().getText());
+        }
+
+        // Extract active status
+        dto.setActive(chargeItem.getStatus() == ChargeItem.ChargeItemStatus.BILLED);
+
+        // Extract fee
+        if (chargeItem.getQuantity() != null) {
+            dto.setFeeStandard(chargeItem.getQuantity().getValue().doubleValue());
+        }
+
+        return dto;
+    }
+
+    private String tenantName() {
+        return RequestContext.get().getTenantName();
+    }
+
+    private <T> T executeWithRetry(Callable<T> operation) {
+        int maxRetries = 3;
+        int attempt = 0;
+        while (attempt < maxRetries) {
+            try {
+                return operation.call();
+            } catch (FhirClientConnectionException e) {
+                attempt++;
+                if (attempt >= maxRetries) {
+                    log.error("Failed to execute FHIR operation after {} attempts", maxRetries, e);
+                    throw new RuntimeException("FHIR operation failed after retries", e);
+                }
+                log.warn("FHIR operation failed, retrying... attempt {}/{}", attempt, maxRetries, e);
+                try {
+                    Thread.sleep(1000 * attempt); // Exponential backoff
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Interrupted during retry", ie);
+                }
+            } catch (Exception e) {
+                log.error("Unexpected error during FHIR operation", e);
+                throw new RuntimeException("Unexpected error during FHIR operation", e);
+            }
+        }
+        return null;
     }
 }

@@ -100,6 +100,7 @@ import java.time.OffsetDateTime;
 public class HistoryOfPresentIllnessDto {
     private Long id;
     private String externalId;
+    private String fhirId;
     private Long patientId;
     private Long encounterId;
 

@@ -36,7 +36,6 @@ package com.qiaben.ciyex.dto;
 
 import lombok.Data;
 
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -44,6 +43,7 @@ import java.util.List;
 public class FamilyHistoryDto {
     private Long id;
     private String externalId;
+    private String fhirId;
     private Long patientId;
     private Long encounterId;
 
@@ -59,6 +59,11 @@ public class FamilyHistoryDto {
     private List<EntryDto> entries;
 
     // audit
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private Audit audit;
+
+    @Data
+    public static class Audit {
+        private String createdDate;      // yyyy-MM-dd
+        private String lastModifiedDate; // yyyy-MM-dd
+    }
 }

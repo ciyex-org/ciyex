@@ -11,23 +11,36 @@ import com.qiaben.ciyex.dto.EncounterDto;
 import com.qiaben.ciyex.entity.Encounter;
 import com.qiaben.ciyex.entity.EncounterStatus;
 import com.qiaben.ciyex.repository.EncounterRepository;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class EncounterService {
 
     
    
     private final EncounterRepository encounterRepository;
+    private final ExternalStorageResolver externalStorageResolver;
+    private final OrgIntegrationConfigProvider orgIntegrationConfigProvider;
+
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     @Autowired
-    public EncounterService(EncounterRepository encounterRepository) {
+    public EncounterService(EncounterRepository encounterRepository, ExternalStorageResolver externalStorageResolver, OrgIntegrationConfigProvider orgIntegrationConfigProvider) {
         this.encounterRepository = encounterRepository;
+        this.externalStorageResolver = externalStorageResolver;
+        this.orgIntegrationConfigProvider = orgIntegrationConfigProvider;
     }
 
     @Transactional
@@ -39,6 +52,42 @@ public class EncounterService {
         encounter.setEncounterDate(dto.getEncounterDate());
 
         encounter = encounterRepository.save(encounter);
+
+        // External sync
+        String storageType = orgIntegrationConfigProvider.getStorageType();
+        if (!"none".equals(storageType)) {
+            try {
+                log.info("Attempting FHIR sync for Encounter ID: {}", encounter.getId());
+                ExternalStorage<EncounterDto> ext = externalStorageResolver.resolve(EncounterDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                EncounterDto snapshot = mapToDto(encounter);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    encounter.setExternalId(externalId);
+                    encounter = encounterRepository.save(encounter);
+                    log.info("Created FHIR resource for Encounter ID: {} with externalId: {}", encounter.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for Encounter ID: {}", encounter.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync Encounter to external storage", ex);
+            }
+        }
+
+        if (encounter.getExternalId() == null) {
+            String generatedId = "ENC-" + System.currentTimeMillis();
+            encounter.setExternalId(generatedId);
+            encounter.setFhirId(generatedId);
+            encounter = encounterRepository.save(encounter);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            encounter.setFhirId(encounter.getExternalId());
+            encounter = encounterRepository.save(encounter);
+        }
+
         return mapToDto(encounter);
     }
 
@@ -62,6 +111,8 @@ public class EncounterService {
                 .findByIdAndPatientId(id, patientId)
                 .orElseThrow(() -> new RuntimeException("Encounter not found"));
 
+        // Check if encounter is signed - prevent modification
+        validateEncounterNotSigned(id, patientId);
         
         encounter.setVisitCategory(dto.getVisitCategory());
         encounter.setEncounterProvider(dto.getEncounterProvider());
@@ -71,15 +122,45 @@ public class EncounterService {
         encounter.setReasonForVisit(dto.getReasonForVisit());
         encounter.setEncounterDate(dto.getEncounterDate());
         encounter = encounterRepository.save(encounter);
+
+        // External sync
+        String storageType = orgIntegrationConfigProvider.getStorageType();
+        if (!"none".equals(storageType)) {
+            ExternalStorage<EncounterDto> ext = externalStorageResolver.resolve(EncounterDto.class);
+            EncounterDto snapshot = mapToDto(encounter);
+            if (encounter.getExternalId() != null) {
+                ext.update(snapshot, encounter.getExternalId());
+            }
+        }
+
+        if (encounter.getExternalId() == null) {
+            String generatedId = "ENC-" + System.currentTimeMillis();
+            encounter.setExternalId(generatedId);
+            encounter.setFhirId(generatedId);
+            encounter = encounterRepository.save(encounter);
+            log.info("Auto-generated externalId for update: {}", generatedId);
+        }
+
         return mapToDto(encounter);
     }
 
     @Transactional
     public void deleteEncounter(Long id, Long patientId) {
-        long deleted = encounterRepository.deleteByIdAndPatientId(id, patientId);
-        if (deleted == 0) {
-            throw new RuntimeException("Encounter not found");
+        Encounter encounter = encounterRepository
+                .findByIdAndPatientId(id, patientId)
+                .orElseThrow(() -> new RuntimeException("Encounter not found"));
+
+        // Check if encounter is signed - prevent modification
+        validateEncounterNotSigned(id, patientId);
+
+        // External sync
+        String storageType = orgIntegrationConfigProvider.getStorageType();
+        if (!"none".equals(storageType) && encounter.getExternalId() != null) {
+            ExternalStorage<EncounterDto> ext = externalStorageResolver.resolve(EncounterDto.class);
+            ext.delete(encounter.getExternalId());
         }
+
+        encounterRepository.deleteByIdAndPatientId(id, patientId);
     }
     @Transactional
     public EncounterDto signEncounter(Long id, Long patientId) {
@@ -102,6 +183,21 @@ public class EncounterService {
                 .orElseThrow(() -> new RuntimeException("Encounter not found"));
         encounter.setStatus(status);
         encounter = encounterRepository.save(encounter);
+
+        // External sync if externalId exists
+        if (encounter.getExternalId() != null) {
+            String storageType = orgIntegrationConfigProvider.getStorageType();
+            if (!"none".equals(storageType)) {
+                try {
+                    ExternalStorage<EncounterDto> ext = externalStorageResolver.resolve(EncounterDto.class);
+                    EncounterDto snapshot = mapToDto(encounter);
+                    ext.update(snapshot, encounter.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync status update to external storage", ex);
+                }
+            }
+        }
+
         return mapToDto(encounter);
     }
 
@@ -158,6 +254,8 @@ public class EncounterService {
         e.setReasonForVisit(dto.getReasonForVisit());
         e.setEncounterDate(dto.getEncounterDate());
         e.setStatus(dto.getStatus());
+        e.setExternalId(dto.getExternalId());
+        e.setFhirId(dto.getFhirId());
         return e;
     }
 
@@ -174,6 +272,15 @@ public class EncounterService {
         dto.setEncounterDate(e.getEncounterDate());
 
         dto.setStatus(e.getStatus());
+        String idValue = e.getFhirId() != null ? e.getFhirId() : ("ENC-" + e.getId());
+        dto.setExternalId(idValue);
+        dto.setFhirId(idValue);
+
+        EncounterDto.Audit a = new EncounterDto.Audit();
+        if (e.getCreatedDate() != null) a.setCreatedDate(DAY.format(e.getCreatedDate().atZone(ZoneId.systemDefault())));
+        if (e.getLastModifiedDate() != null) a.setLastModifiedDate(DAY.format(e.getLastModifiedDate().atZone(ZoneId.systemDefault())));
+        dto.setAudit(a);
+
         return dto;
     }
 }

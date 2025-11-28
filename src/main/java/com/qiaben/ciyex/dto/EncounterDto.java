@@ -19,11 +19,20 @@ public class EncounterDto {
     private String sensitivity;
     private String dischargeDisposition;
     private String reasonForVisit;
-    private Long createdAt;
-    private Long updatedAt;
     private Boolean inCollection;
-  private LocalDateTime encounterDate;
+    private LocalDateTime encounterDate;
 
     private EncounterStatus status;
+    private String externalId;
+    private String fhirId;
+
+    // audit
+    private Audit audit;
+
+    @Data
+    public static class Audit {
+        private String createdDate;      // yyyy-MM-dd
+        private String lastModifiedDate; // yyyy-MM-dd
+    }
 
 }
