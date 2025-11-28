@@ -47,8 +47,16 @@ public class AppointmentService {
     public AppointmentDTO create(AppointmentDTO dto) {
         // Validate mandatory fields
         validateMandatoryFields(dto);
-        
+
         Appointment entity = mapToEntity(dto);
+
+        // Auto-generate externalId if not provided
+        if (entity.getFhirId() == null) {
+            String generatedId = "APT-" + System.currentTimeMillis();
+            entity.setFhirId(generatedId);
+            entity.setExternalId(generatedId);
+            log.info("Auto-generated externalId: {}", generatedId);
+        }
 
         entity = repository.save(entity);
         syncExternalCreate(entity);
@@ -127,7 +135,7 @@ public class AppointmentService {
             slots.addAll(generateSlotsForDate(providerId, date, limit - slots.size()));
         }
         return slots.stream().limit(limit).toList();
-        
+
     }
 
     // -------- Available Slots: Single Date --------
@@ -162,7 +170,7 @@ public class AppointmentService {
                 boolean booked = existing.stream().anyMatch(appt -> {
                     try {
                         return date.equals(LocalDate.parse(appt.getAppointmentStartDate())) &&
-                               slotStart.equals(LocalTime.parse(appt.getAppointmentStartTime()));
+                                slotStart.equals(LocalTime.parse(appt.getAppointmentStartTime()));
                     } catch (Exception e) {
                         return false;
                     }
@@ -209,6 +217,11 @@ public class AppointmentService {
         entity.setLocationId(dto.getLocationId());
         entity.setStatus(dto.getStatus());
         entity.setReason(dto.getReason());
+
+        // Use externalId if provided, otherwise use fhirId
+        String fhirIdValue = dto.getExternalId() != null ? dto.getExternalId() : dto.getFhirId();
+        entity.setFhirId(fhirIdValue);
+        entity.setExternalId(fhirIdValue);
         // entity.setMeetingUrl(dto.getMeetingUrl());
 
 
@@ -229,6 +242,8 @@ public class AppointmentService {
         dto.setLocationId(entity.getLocationId());
         dto.setStatus(entity.getStatus());
         dto.setReason(entity.getReason());
+        dto.setFhirId(entity.getFhirId());
+        dto.setExternalId(entity.getFhirId()); // externalId is an alias for fhirId
         // dto.setMeetingUrl(entity.getMeetingUrl());
 
         AppointmentDTO.Audit audit = new AppointmentDTO.Audit();
@@ -259,6 +274,13 @@ public class AppointmentService {
         if (dto.getLocationId() != null) entity.setLocationId(dto.getLocationId());
         if (dto.getStatus() != null) entity.setStatus(dto.getStatus());
         if (dto.getReason() != null) entity.setReason(dto.getReason());
+
+        // Update fhirId if externalId or fhirId is provided
+        String fhirIdValue = dto.getExternalId() != null ? dto.getExternalId() : dto.getFhirId();
+        if (fhirIdValue != null) {
+            entity.setFhirId(fhirIdValue);
+            entity.setExternalId(fhirIdValue);
+        }
         // if (dto.getMeetingUrl() != null) entity.setMeetingUrl(dto.getMeetingUrl());
     }
 
@@ -344,6 +366,10 @@ public class AppointmentService {
     // ---- Validation helpers ----
     private void validateMandatoryFields(AppointmentDTO dto) {
         if (dto == null) throw new IllegalArgumentException("appointment payload is required");
+        if (dto.getAppointmentStartDate() == null) throw new IllegalArgumentException("appointmentStartDate is required");
+        if (dto.getAppointmentStartTime() == null) throw new IllegalArgumentException("appointmentStartTime is required");
+        if (dto.getAppointmentEndDate() == null) throw new IllegalArgumentException("appointmentEndDate is required");
+        if (dto.getAppointmentEndTime() == null) throw new IllegalArgumentException("appointmentEndTime is required");
         if (isBlank(dto.getPriority())) throw new IllegalArgumentException("priority is required");
         if (dto.getLocationId() == null) throw new IllegalArgumentException("locationId is required");
         if (isBlank(dto.getStatus())) throw new IllegalArgumentException("status is required");
@@ -351,6 +377,10 @@ public class AppointmentService {
 
     private void validateMandatoryFields(Appointment entity) {
         if (entity == null) throw new IllegalArgumentException("appointment is required");
+        if (isBlank(entity.getAppointmentStartDate())) throw new IllegalArgumentException("appointmentStartDate is required");
+        if (isBlank(entity.getAppointmentStartTime())) throw new IllegalArgumentException("appointmentStartTime is required");
+        if (isBlank(entity.getAppointmentEndDate())) throw new IllegalArgumentException("appointmentEndDate is required");
+        if (isBlank(entity.getAppointmentEndTime())) throw new IllegalArgumentException("appointmentEndTime is required");
         if (isBlank(entity.getPriority())) throw new IllegalArgumentException("priority is required");
         if (entity.getLocationId() == null) throw new IllegalArgumentException("locationId is required");
         if (isBlank(entity.getStatus())) throw new IllegalArgumentException("status is required");

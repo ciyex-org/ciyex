@@ -119,6 +119,7 @@ public class FhirExternalPatientStorage implements ExternalStorage<PatientDto> {
                     dto.setAddress(patient.getAddressFirstRep().getLine().stream().findFirst().map(StringType::getValue).orElse(null));
                     dto.setMedicalRecordNumber(patient.getIdentifierFirstRep().getValue());
 
+
                     // Mapping demographics (extensions)
                     patient.getExtension().forEach(extension -> {
                         switch (extension.getUrl()) {
@@ -299,7 +300,7 @@ public class FhirExternalPatientStorage implements ExternalStorage<PatientDto> {
                 .findFirst().map(org.hl7.fhir.r4.model.ContactPoint::getValue).orElse(null));
         dto.setAddress(fhirPatient.getAddressFirstRep().getLine().stream().findFirst().map(StringType::getValue).orElse(null));
         dto.setMedicalRecordNumber(fhirPatient.getIdentifierFirstRep().getValue());
-        
+
 
         // Map demographics fields (extensions)
         fhirPatient.getExtension().forEach(extension -> {

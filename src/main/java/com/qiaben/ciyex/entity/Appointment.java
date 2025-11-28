@@ -19,7 +19,7 @@ public class Appointment extends AuditableEntity {
     private Long id;
 
     // Org reference
-    
+
 
     // Visit details
     @Column(name = "visit_type", nullable = false)
@@ -56,6 +56,12 @@ public class Appointment extends AuditableEntity {
 
     @Column(length = 2000)
     private String reason;
+
+    @Column(name = "fhir_id")
+    private String fhirId;
+
+    @Column(name = "external_id")
+    private String externalId;
 
     // Telehealth
     // @Column(name = "meeting_url")
