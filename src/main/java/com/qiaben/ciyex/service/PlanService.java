@@ -137,6 +137,10 @@ import com.qiaben.ciyex.entity.Plan;
 import com.qiaben.ciyex.repository.PlanRepository;
 import com.qiaben.ciyex.repository.PatientRepository;
 import com.qiaben.ciyex.repository.EncounterRepository;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.fhir.FhirExternalPlanStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -144,6 +148,7 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -160,6 +165,12 @@ public class PlanService {
     private final EncounterService encounterService;
     private final PatientRepository patientRepository;
     private final EncounterRepository encounterRepository;
+    private final ExternalStorageResolver storageResolver;
+    private final OrgIntegrationConfigProvider configProvider;
+
+    @Autowired(required = false)
+    private FhirExternalPlanStorage fhirStorage;
+
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
@@ -178,7 +189,63 @@ public class PlanService {
         encounterService.validateEncounterNotSigned(encounterId, patientId);
         Plan e = new Plan(); e.setPatientId(patientId); e.setEncounterId(encounterId);
         applyEditable(e, dto);
-        return toDto(repo.save(e));
+        e = repo.save(e);
+        
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("Plan create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for Plan ID: {}", e.getId());
+                ExternalStorage<PlanDto> ext = storageResolver.resolve(PlanDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                PlanDto snapshot = toDto(e);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource for Plan ID: {} with externalId: {}", e.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for Plan ID: {}", e.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync Plan to external storage", ex);
+            }
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for Plan ID: {}", e.getId());
+                PlanDto snapshot = toDto(e);
+                String externalId = fhirStorage.create(snapshot);
+                log.info("FHIR fallback create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource (fallback) for Plan ID: {} with externalId: {}", e.getId(), externalId);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync Plan to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Plan ID: {}", e.getId());
+        }
+
+        if (e.getExternalId() == null) {
+            String generatedId = "PL-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
+        }
+
+        return toDto(e);
     }
 
     public List<PlanDto> list(Long patientId, Long encounterId) {
@@ -220,9 +287,42 @@ public class PlanService {
                 ));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed plan is read-only.");
         applyEditable(e, dto);
+        e = repo.save(e);
+
+        // Step 7: Optional external FHIR sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("Plan update - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR sync for Plan ID: {}", e.getId());
+                    ExternalStorage<PlanDto> ext = storageResolver.resolve(PlanDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    PlanDto snapshot = toDto(e);
+                    ext.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource for Plan ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync Plan update to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for Plan ID: {}", e.getId());
+                    PlanDto snapshot = toDto(e);
+                    fhirStorage.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource (fallback) for Plan ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync Plan update to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Plan ID: {}", e.getId());
+            }
+        }
+
         // Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
-        return toDto(repo.save(e));
+        return toDto(e);
     }
 
     public void delete(Long patientId, Long encounterId, Long id) {
@@ -231,6 +331,36 @@ public class PlanService {
                     String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
                 ));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed plan cannot be deleted.");
+
+        // Optional external FHIR sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("Plan delete - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR delete for Plan ID: {}", e.getId());
+                    ExternalStorage<PlanDto> ext = storageResolver.resolve(PlanDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    ext.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource for Plan ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync Plan delete to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for Plan ID: {}", e.getId());
+                    fhirStorage.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource (fallback) for Plan ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync Plan delete to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Plan ID: {}", e.getId());
+            }
+        }
+
         repo.delete(e);
     }
 
@@ -315,7 +445,10 @@ public class PlanService {
 
     private PlanDto toDto(Plan e) {
         PlanDto d = new PlanDto();
-        d.setId(e.getId()); d.setPatientId(e.getPatientId()); d.setEncounterId(e.getEncounterId());
+        d.setId(e.getId());
+        d.setExternalId(e.getExternalId());
+        d.setFhirId(e.getFhirId());
+        d.setPatientId(e.getPatientId()); d.setEncounterId(e.getEncounterId());
         d.setDiagnosticPlan(e.getDiagnosticPlan()); d.setPlan(e.getPlan()); d.setNotes(e.getNotes());
         d.setFollowUpVisit(e.getFollowUpVisit()); d.setReturnWorkSchool(e.getReturnWorkSchool());
         d.setSectionsJson(e.getSectionsJson());

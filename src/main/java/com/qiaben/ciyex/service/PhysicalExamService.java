@@ -171,6 +171,10 @@ import com.qiaben.ciyex.dto.PhysicalExamSectionDto;
 import com.qiaben.ciyex.entity.PhysicalExam;
 import com.qiaben.ciyex.entity.PhysicalExamSection;
 import com.qiaben.ciyex.repository.PhysicalExamRepository;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.fhir.FhirExternalPhysicalExamStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -178,6 +182,7 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -198,6 +203,12 @@ public class PhysicalExamService {
     private final EncounterService encounterService;
     private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
     private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
+    private final ExternalStorageResolver storageResolver;
+    private final OrgIntegrationConfigProvider configProvider;
+
+    @Autowired(required = false)
+    private FhirExternalPhysicalExamStorage fhirStorage;
+
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
@@ -227,6 +238,61 @@ public class PhysicalExamService {
         e.setEncounterId(encounterId);
         applySections(e, dto.getSections());
         e = repo.save(e);
+        
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("PhysicalExam create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for PhysicalExam ID: {}", e.getId());
+                ExternalStorage<PhysicalExamDto> ext = storageResolver.resolve(PhysicalExamDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                PhysicalExamDto snapshot = toDto(e);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource for PhysicalExam ID: {} with externalId: {}", e.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for PhysicalExam ID: {}", e.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync PhysicalExam to external storage", ex);
+            }
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for PhysicalExam ID: {}", e.getId());
+                PhysicalExamDto snapshot = toDto(e);
+                String externalId = fhirStorage.create(snapshot);
+                log.info("FHIR fallback create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource (fallback) for PhysicalExam ID: {} with externalId: {}", e.getId(), externalId);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync PhysicalExam to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for PhysicalExam ID: {}", e.getId());
+        }
+
+        if (e.getExternalId() == null) {
+            String generatedId = "PE-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
+        }
+
         return toDto(e);
     }
 
@@ -319,6 +385,38 @@ public class PhysicalExamService {
         e.getSections().clear();
         applySections(e, dto.getSections());
         e = repo.save(e);
+
+        // Step 7: Optional external FHIR sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("PhysicalExam update - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR sync for PhysicalExam ID: {}", e.getId());
+                    ExternalStorage<PhysicalExamDto> ext = storageResolver.resolve(PhysicalExamDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    PhysicalExamDto snapshot = toDto(e);
+                    ext.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource for PhysicalExam ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync PhysicalExam update to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for PhysicalExam ID: {}", e.getId());
+                    PhysicalExamDto snapshot = toDto(e);
+                    fhirStorage.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource (fallback) for PhysicalExam ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync PhysicalExam update to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for PhysicalExam ID: {}", e.getId());
+            }
+        }
+
         return toDto(e);
     }
 
@@ -350,6 +448,36 @@ public class PhysicalExamService {
                         id, patientId, encounterId)
                 ));
         if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed physical exams cannot be deleted.");
+
+        // Optional external FHIR sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("PhysicalExam delete - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR delete for PhysicalExam ID: {}", e.getId());
+                    ExternalStorage<PhysicalExamDto> ext = storageResolver.resolve(PhysicalExamDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    ext.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource for PhysicalExam ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync PhysicalExam delete to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for PhysicalExam ID: {}", e.getId());
+                    fhirStorage.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource (fallback) for PhysicalExam ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync PhysicalExam delete to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for PhysicalExam ID: {}", e.getId());
+            }
+        }
+
         repo.delete(e);
     }
 
@@ -478,6 +606,7 @@ public class PhysicalExamService {
         PhysicalExamDto d = new PhysicalExamDto();
         d.setId(e.getId());
         d.setExternalId(e.getExternalId());
+        d.setFhirId(e.getFhirId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
 

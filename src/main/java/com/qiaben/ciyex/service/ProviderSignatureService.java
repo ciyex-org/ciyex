@@ -144,6 +144,12 @@ import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.fhir.FhirExternalProviderSignatureStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -165,6 +171,11 @@ public class ProviderSignatureService {
     private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
     private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
     private final EncounterService encounterService;
+    private final ExternalStorageResolver storageResolver;
+    private final OrgIntegrationConfigProvider configProvider;
+
+    @Autowired(required = false)
+    private FhirExternalProviderSignatureStorage fhirStorage;
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
@@ -199,6 +210,61 @@ public class ProviderSignatureService {
             e.setStatus(null);
         }
         e = repo.save(e);
+        
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("ProviderSignature create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for ProviderSignature ID: {}", e.getId());
+                ExternalStorage<ProviderSignatureDto> ext = storageResolver.resolve(ProviderSignatureDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                ProviderSignatureDto snapshot = toDto(e);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource for ProviderSignature ID: {} with externalId: {}", e.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for ProviderSignature ID: {}", e.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync ProviderSignature to external storage", ex);
+            }
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for ProviderSignature ID: {}", e.getId());
+                ProviderSignatureDto snapshot = toDto(e);
+                String externalId = fhirStorage.create(snapshot);
+                log.info("FHIR fallback create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource (fallback) for ProviderSignature ID: {} with externalId: {}", e.getId(), externalId);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync ProviderSignature to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ProviderSignature ID: {}", e.getId());
+        }
+
+        if (e.getExternalId() == null) {
+            String generatedId = "PS-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
+        }
+
         return toDto(e);
     }
 
@@ -247,6 +313,38 @@ public class ProviderSignatureService {
             e.setSignatureHash(sha256(e.getSignatureData()));
         }
         e = repo.save(e);
+
+        // Optional external FHIR sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("ProviderSignature update - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR sync for ProviderSignature ID: {}", e.getId());
+                    ExternalStorage<ProviderSignatureDto> ext = storageResolver.resolve(ProviderSignatureDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    ProviderSignatureDto snapshot = toDto(e);
+                    ext.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource for ProviderSignature ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync ProviderSignature update to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for ProviderSignature ID: {}", e.getId());
+                    ProviderSignatureDto snapshot = toDto(e);
+                    fhirStorage.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource (fallback) for ProviderSignature ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync ProviderSignature update to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ProviderSignature ID: {}", e.getId());
+            }
+        }
+
         return toDto(e);
     }
 
@@ -272,6 +370,36 @@ public class ProviderSignatureService {
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Provider Signature not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
                 ));
+
+        // Optional external FHIR sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("ProviderSignature delete - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR delete for ProviderSignature ID: {}", e.getId());
+                    ExternalStorage<ProviderSignatureDto> ext = storageResolver.resolve(ProviderSignatureDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    ext.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource for ProviderSignature ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync ProviderSignature delete to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for ProviderSignature ID: {}", e.getId());
+                    fhirStorage.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource (fallback) for ProviderSignature ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync ProviderSignature delete to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ProviderSignature ID: {}", e.getId());
+            }
+        }
+
         repo.delete(e);
     }
 
@@ -341,6 +469,7 @@ public class ProviderSignatureService {
         ProviderSignatureDto d = new ProviderSignatureDto();
         d.setId(e.getId());
         d.setExternalId(e.getExternalId());
+        d.setFhirId(e.getFhirId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
         d.setSignedAt(e.getSignedAt());

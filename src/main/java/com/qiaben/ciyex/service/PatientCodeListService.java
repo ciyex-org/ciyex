@@ -3,12 +3,18 @@ package com.qiaben.ciyex.service;
 import com.qiaben.ciyex.dto.PatientCodeListDto;
 import com.qiaben.ciyex.entity.PatientCodeList;
 import com.qiaben.ciyex.repository.PatientCodeListRepository;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -16,9 +22,14 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PatientCodeListService {
 
     private final PatientCodeListRepository repo;
+    private final ExternalStorageResolver externalStorageResolver;
+    private final OrgIntegrationConfigProvider orgIntegrationConfigProvider;
+
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     @PersistenceContext
     private EntityManager em;
@@ -42,6 +53,42 @@ public class PatientCodeListService {
         if (saved.isDefault()) {
             repo.clearDefaultsExcept(saved.getId());
         }
+
+        // External sync
+        String storageType = orgIntegrationConfigProvider.getStorageType();
+        if (!"none".equals(storageType)) {
+            try {
+                log.info("Attempting FHIR sync for PatientCodeList ID: {}", saved.getId());
+                ExternalStorage<PatientCodeListDto> ext = externalStorageResolver.resolve(PatientCodeListDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                PatientCodeListDto snapshot = toDto(saved);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    saved.setExternalId(externalId);
+                    saved = repo.save(saved);
+                    log.info("Created FHIR resource for PatientCodeList ID: {} with externalId: {}", saved.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for PatientCodeList ID: {}", saved.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync PatientCodeList to external storage", ex);
+            }
+        }
+
+        if (saved.getExternalId() == null) {
+            String generatedId = "CL-" + System.currentTimeMillis();
+            saved.setExternalId(generatedId);
+            saved.setFhirId(generatedId);
+            saved = repo.save(saved);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            saved.setFhirId(saved.getExternalId());
+            saved = repo.save(saved);
+        }
+
         return toDto(saved);
     }
 
@@ -55,6 +102,25 @@ public class PatientCodeListService {
         if (saved.isDefault()) {
             repo.clearDefaultsExcept(saved.getId());
         }
+
+        // External sync
+        String storageType = orgIntegrationConfigProvider.getStorageType();
+        if (!"none".equals(storageType)) {
+            ExternalStorage<PatientCodeListDto> ext = externalStorageResolver.resolve(PatientCodeListDto.class);
+            PatientCodeListDto snapshot = toDto(saved);
+            if (saved.getExternalId() != null) {
+                ext.update(snapshot, saved.getExternalId());
+            }
+        }
+
+        if (saved.getExternalId() == null) {
+            String generatedId = "CL-" + System.currentTimeMillis();
+            saved.setExternalId(generatedId);
+            saved.setFhirId(generatedId);
+            saved = repo.save(saved);
+            log.info("Auto-generated externalId for update: {}", generatedId);
+        }
+
         return toDto(saved);
     }
 
@@ -62,6 +128,14 @@ public class PatientCodeListService {
     public boolean delete(Long id) {
         PatientCodeList entity = repo.findById(id).orElse(null);
         if (entity == null) return false;
+
+        // External sync
+        String storageType = orgIntegrationConfigProvider.getStorageType();
+        if (!"none".equals(storageType) && entity.getExternalId() != null) {
+            ExternalStorage<PatientCodeListDto> ext = externalStorageResolver.resolve(PatientCodeListDto.class);
+            ext.delete(entity.getExternalId());
+        }
+
         repo.deleteById(id);
         return true;
     }
@@ -117,6 +191,8 @@ public class PatientCodeListService {
         e.setActive(dto.active);
         e.setNotes(dto.notes);
         e.setCodes(dto.codes);
+        e.setExternalId(dto.externalId);
+        e.setFhirId(dto.fhirId);
         return e;
     }
 
@@ -129,6 +205,15 @@ public class PatientCodeListService {
         d.active = e.isActive();
         d.notes = e.getNotes();
         d.codes = e.getCodes();
+        String idValue = e.getFhirId() != null ? e.getFhirId() : ("CL-" + e.getId());
+        d.externalId = idValue;
+        d.fhirId = idValue;
+
+        PatientCodeListDto.Audit a = new PatientCodeListDto.Audit();
+        if (e.getCreatedDate() != null) a.createdDate = DAY.format(e.getCreatedDate().atZone(ZoneId.systemDefault()));
+        if (e.getLastModifiedDate() != null) a.lastModifiedDate = DAY.format(e.getLastModifiedDate().atZone(ZoneId.systemDefault()));
+        d.audit = a;
+
         return d;
     }
 }

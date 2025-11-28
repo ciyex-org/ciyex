@@ -65,6 +65,7 @@ import java.time.OffsetDateTime;
 public class AssessmentDto {
     private Long id;
     private String externalId;
+    private String fhirId;  // FHIR resource ID
     private Long patientId;
     private Long encounterId;
 

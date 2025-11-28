@@ -8,6 +8,7 @@ import lombok.Data;
 public class ProcedureDto {
     private Long id;
     private String externalId;           // optional FHIR id
+    private String fhirId;               // FHIR resource id
     private Long patientId;
     private Long encounterId;
 

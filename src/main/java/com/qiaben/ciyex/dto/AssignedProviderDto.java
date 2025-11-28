@@ -8,6 +8,7 @@ import java.time.OffsetDateTime;
 public class AssignedProviderDto {
     private Long id;
     private String externalId;
+    private String fhirId;  // FHIR CareTeam resource ID (same as externalId)
     private Long patientId;
     private Long encounterId;
 

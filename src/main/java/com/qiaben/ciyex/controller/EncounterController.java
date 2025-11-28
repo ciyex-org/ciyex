@@ -130,6 +130,11 @@ public class EncounterController {
                     .message("Encounter updated")
                     .data(updated)
                     .build());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.<EncounterDto>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
         } catch (Exception e) {
             return ResponseEntity.status(404).body(ApiResponse.<EncounterDto>builder()
                     .success(false)
@@ -148,6 +153,11 @@ public class EncounterController {
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)
                     .message("Encounter deleted")
+                    .build());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.<Void>builder()
+                    .success(false)
+                    .message(e.getMessage())
                     .build());
         } catch (Exception e) {
             return ResponseEntity.status(404).body(ApiResponse.<Void>builder()

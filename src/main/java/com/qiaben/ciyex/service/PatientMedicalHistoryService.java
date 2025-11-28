@@ -131,6 +131,11 @@ package com.qiaben.ciyex.service;
 import com.qiaben.ciyex.dto.PatientMedicalHistoryDto;
 import com.qiaben.ciyex.entity.PatientMedicalHistory;
 import com.qiaben.ciyex.repository.PatientMedicalHistoryRepository;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.StorageType;
+import com.qiaben.ciyex.storage.fhir.FhirExternalPatientMedicalHistoryStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -138,12 +143,14 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 
@@ -160,6 +167,17 @@ public class PatientMedicalHistoryService {
     private final EncounterService encounterService;
     private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
     private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
+
+    @Autowired
+    private ExternalStorageResolver storageResolver;
+
+    @Autowired
+    private OrgIntegrationConfigProvider configProvider;
+
+    @Autowired(required = false)
+    private FhirExternalPatientMedicalHistoryStorage fhirExternalPatientMedicalHistoryStorage;
+
+    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
     public PatientMedicalHistoryDto create(Long patientId, Long encounterId, PatientMedicalHistoryDto dto) {
@@ -188,6 +206,60 @@ public class PatientMedicalHistoryService {
         e.setEncounterId(encounterId);
         applyDto(e, dto);
         e = repo.save(e);
+
+        // Step 5: External sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("PatientMedicalHistory create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                if ("fhir".equals(storageType)) {
+                    String externalId = fhirExternalPatientMedicalHistoryStorage.create(toDto(e));
+                    if (externalId != null) {
+                        e.setExternalId(externalId);
+                        e.setFhirId(externalId);
+                        e = repo.save(e);
+                    }
+                } else {
+                    ExternalStorage<PatientMedicalHistoryDto> storage = storageResolver.resolve(PatientMedicalHistoryDto.class);
+                    if (storage != null) {
+                        String externalId = storage.create(toDto(e));
+                        if (externalId != null) {
+                            e.setExternalId(externalId);
+                            e.setFhirId(externalId);
+                            e = repo.save(e);
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("Failed to sync PMH to external storage", ex);
+            }
+        } else if (fhirExternalPatientMedicalHistoryStorage != null) {
+            try {
+                String externalId = fhirExternalPatientMedicalHistoryStorage.create(toDto(e));
+                if (externalId != null) {
+                    e.setExternalId(externalId);
+                    e.setFhirId(externalId);
+                    e = repo.save(e);
+                }
+            } catch (Exception ex) {
+                log.warn("Failed to sync PMH to FHIR", ex);
+            }
+        } else {
+            log.info("No external storage configured for PMH");
+        }
+
+        if (e.getExternalId() == null) {
+            String generatedId = "PMH-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
+        }
+
         return toDto(e);
     }
 
@@ -243,6 +315,24 @@ public class PatientMedicalHistoryService {
         // Step 6: Update the entry
         applyDto(e, dto);
         e = repo.save(e);
+
+        // Step 7: External sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            try {
+                if ("fhir".equals(storageType)) {
+                    fhirExternalPatientMedicalHistoryStorage.update(toDto(e), e.getExternalId());
+                } else {
+                    ExternalStorage<PatientMedicalHistoryDto> storage = storageResolver.resolve(PatientMedicalHistoryDto.class);
+                    if (storage != null) {
+                        storage.update(toDto(e), e.getExternalId());
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("Failed to sync PMH update to external storage", ex);
+            }
+        }
+
         return toDto(e);
     }
 
@@ -261,6 +351,23 @@ public class PatientMedicalHistoryService {
         // Step 3: Check if entry itself is signed
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed entries cannot be deleted.");
+        }
+
+        // Step 4: External sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            try {
+                if ("fhir".equals(storageType)) {
+                    fhirExternalPatientMedicalHistoryStorage.delete(e.getExternalId());
+                } else {
+                    ExternalStorage<PatientMedicalHistoryDto> storage = storageResolver.resolve(PatientMedicalHistoryDto.class);
+                    if (storage != null) {
+                        storage.delete(e.getExternalId());
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("Failed to sync PMH delete to external storage", ex);
+            }
         }
 
         repo.delete(e);
@@ -350,6 +457,7 @@ public class PatientMedicalHistoryService {
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
         d.setExternalId(e.getExternalId());
+        d.setFhirId(e.getFhirId());
 
         d.setMedicalCondition(e.getMedicalCondition());
         d.setConditionName(e.getConditionName());
@@ -370,13 +478,20 @@ public class PatientMedicalHistoryService {
         d.setSignedBy(e.getSignedBy());
         d.setPrintedAt(e.getPrintedAt());
 
-        var a = new PatientMedicalHistoryDto.Audit();
+        PatientMedicalHistoryDto.Audit a = new PatientMedicalHistoryDto.Audit();
+        if (e.getCreatedDate() != null) {
+            a.setCreatedDate(DTF.format(e.getCreatedDate().atZone(java.time.ZoneId.systemDefault())));
+        }
+        if (e.getLastModifiedDate() != null) {
+            a.setLastModifiedDate(DTF.format(e.getLastModifiedDate().atZone(java.time.ZoneId.systemDefault())));
+        }
         d.setAudit(a);
         return d;
     }
 
     private void applyDto(PatientMedicalHistory e, PatientMedicalHistoryDto d) {
         e.setExternalId(d.getExternalId());
+        e.setFhirId(d.getFhirId());
         e.setMedicalCondition(d.getMedicalCondition());
         e.setConditionName(d.getConditionName());
         e.setStatus(d.getStatus());

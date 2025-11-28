@@ -44,6 +44,7 @@ import lombok.Data;
 public class CodeDto {
     private Long id;
     private String externalId;
+    private String fhirId;
     private Long patientId;
     private Long encounterId;
 

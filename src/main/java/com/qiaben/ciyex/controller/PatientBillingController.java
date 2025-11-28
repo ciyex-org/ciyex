@@ -420,7 +420,7 @@ public class PatientBillingController {
             @RequestBody PatientBillingService.TransferCreditRequest body) {
 
         var data = service.transferInsuranceCreditToPatient(patientId, invoiceId, remitId, body);
-        return ResponseEntity.ok(ApiResponse.ok("Insurance credit transferred to patient credit", data));
+        return ResponseEntity.ok(ApiResponse.ok("Insurance overpayment adjusted", data));
     }
 
     /** Get detailed insurance payment information */
@@ -520,7 +520,7 @@ public class PatientBillingController {
     }
 
     /** Transfer patient credit between patients */
-    @PostMapping("/patients/{fromPatientId}/transfer-credit/{toPatientId}")
+    @PostMapping("/patients/{fromPatientId}/{toPatientId}/transfer-credit")
     public ResponseEntity<ApiResponse<PatientAccountCreditDto[]>> transferPatientCreditToPatient(
 
             @PathVariable Long fromPatientId,

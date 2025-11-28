@@ -141,7 +141,10 @@ package com.qiaben.ciyex.service;
 import com.qiaben.ciyex.dto.AssessmentDto;
 import com.qiaben.ciyex.entity.Assessment;
 import com.qiaben.ciyex.repository.AssessmentRepository;
-import com.qiaben.ciyex.storage.ExternalAssessmentStorage;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.fhir.FhirExternalAssessmentStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -173,9 +176,11 @@ public class AssessmentService {
     private final EncounterService encounterService;
     private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
     private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
+    private final ExternalStorageResolver storageResolver;
+    private final OrgIntegrationConfigProvider configProvider;
 
     @Autowired(required = false)
-    private ExternalAssessmentStorage external; // optional
+    private FhirExternalAssessmentStorage fhirStorage;
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -207,15 +212,58 @@ public class AssessmentService {
         applyDto(e, dto);
         e = repo.save(e);
 
-        // optional external
-        try {
-            if (external != null) {
-                String extId = external.create(toDto(e));
-                e.setExternalId(extId);
-                e = repo.save(e);
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("Assessment create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for Assessment ID: {}", e.getId());
+                ExternalStorage<AssessmentDto> ext = storageResolver.resolve(AssessmentDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                AssessmentDto snapshot = toDto(e);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource for Assessment ID: {} with externalId: {}", e.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for Assessment ID: {}", e.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync Assessment to external storage", ex);
             }
-        } catch (Exception ex) {
-            log.warn("External create failed: {}", ex.getMessage());
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for Assessment ID: {}", e.getId());
+                AssessmentDto snapshot = toDto(e);
+                String externalId = fhirStorage.create(snapshot);
+                log.info("FHIR fallback create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource (fallback) for Assessment ID: {} with externalId: {}", e.getId(), externalId);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync Assessment to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Assessment ID: {}", e.getId());
+        }
+
+        if (e.getExternalId() == null) {
+            String generatedId = "AS-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
         }
 
         return toDto(e);
@@ -273,13 +321,38 @@ public class AssessmentService {
         applyDto(e, dto);
         e = repo.save(e);
 
-        try {
-            if (external != null && StringUtils.hasText(e.getExternalId())) {
-                external.update(e.getExternalId(), toDto(e));
+        // Step 7: Optional external FHIR sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            if (storageType != null) {
+                try {
+                    ExternalStorage<AssessmentDto> ext = storageResolver.resolve(AssessmentDto.class);
+                    AssessmentDto snapshot = toDto(e);
+                    ext.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource for Assessment ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.warn("Failed to sync Assessment update to external storage: {}", ex.getMessage());
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    AssessmentDto snapshot = toDto(e);
+                    fhirStorage.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource (fallback) for Assessment ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.warn("Failed to sync Assessment update to external storage (fallback): {}", ex.getMessage());
+                }
             }
-        } catch (Exception ex) {
-            log.warn("External update failed: {}", ex.getMessage());
+        }
 
+        if (e.getExternalId() == null) {
+            String generatedId = "AS-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
         }
 
         return toDto(e);
@@ -297,12 +370,25 @@ public class AssessmentService {
             throw new IllegalStateException("Signed assessments cannot be deleted.");
         }
 
-        try {
-            if (external != null && StringUtils.hasText(e.getExternalId())) {
-                external.delete(e.getExternalId());
+        // Optional external FHIR sync - delete before local delete
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            if (storageType != null) {
+                try {
+                    ExternalStorage<AssessmentDto> ext = storageResolver.resolve(AssessmentDto.class);
+                    ext.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource for Assessment ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.warn("Failed to delete Assessment from external storage: {}", ex.getMessage());
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    fhirStorage.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource (fallback) for Assessment ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.warn("Failed to delete Assessment from external storage (fallback): {}", ex.getMessage());
+                }
             }
-        } catch (Exception ex) {
-            log.warn("External delete failed: {}", ex.getMessage());
         }
 
         repo.delete(e);
@@ -388,6 +474,7 @@ public class AssessmentService {
         AssessmentDto d = new AssessmentDto();
         d.setId(e.getId());
         d.setExternalId(e.getExternalId());
+        d.setFhirId(e.getFhirId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
 
@@ -412,6 +499,7 @@ public class AssessmentService {
 
     private void applyDto(Assessment e, AssessmentDto d) {
         e.setExternalId(d.getExternalId());
+        e.setFhirId(d.getFhirId());
         e.setDiagnosisCode(d.getDiagnosisCode());
         e.setDiagnosisName(d.getDiagnosisName());
         e.setStatus(d.getStatus());

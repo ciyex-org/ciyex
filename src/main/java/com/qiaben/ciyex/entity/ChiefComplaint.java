@@ -38,6 +38,12 @@ public class ChiefComplaint extends AuditableEntity {
     @Column(name = "encounter_id")
     private Long encounterId;
 
+    @Column(name = "external_id", length = 255)
+    private String externalId;
+
+    @Column(name = "fhir_id", length = 255)
+    private String fhirId;
+
     // eSign / Print
     @Builder.Default
     @Column(name = "e_signed")

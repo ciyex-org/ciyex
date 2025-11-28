@@ -1,283 +1,3 @@
-////package com.qiaben.ciyex.service;
-////
-////import com.qiaben.ciyex.dto.SignoffDto;
-////import com.qiaben.ciyex.entity.Signoff;
-////import com.qiaben.ciyex.repository.SignoffRepository;
-////import com.qiaben.ciyex.storage.ExternalSignoffStorage;
-////import org.springframework.transaction.annotation.Transactional;
-////import lombok.RequiredArgsConstructor;
-////import lombok.extern.slf4j.Slf4j;
-////import org.springframework.stereotype.Service;
-////
-////import java.time.ZoneId;
-////import java.time.format.DateTimeFormatter;
-////import java.util.List;
-////import java.util.Optional;
-////
-////@Service
-////@RequiredArgsConstructor
-////@Slf4j
-////public class SignoffService {
-////
-////    private final SignoffRepository repo;
-////    private final Optional<ExternalSignoffStorage> external;
-////
-////    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-////
-////    public SignoffDto create(Long patientId, Long encounterId, SignoffDto in) {
-////        Signoff e = Signoff.builder()
-
-////                .targetType(in.getTargetType())
-////                .targetId(in.getTargetId())
-////                .targetVersion(in.getTargetVersion())
-////                .status(in.getStatus())
-////                .signedBy(in.getSignedBy())
-////                .signerRole(in.getSignerRole())
-////                .signedAt(in.getSignedAt())
-////                .signatureType(in.getSignatureType())
-////                .signatureData(in.getSignatureData())
-////                .contentHash(in.getContentHash())
-////                .attestationText(in.getAttestationText())
-////                .comments(in.getComments())
-////                .build();
-////
-////        final Signoff saved = repo.save(e);
-////
-////        external.ifPresent(ext -> {
-////            final Signoff ref = saved;
-////            String extId = ext.create(mapToDto(ref));
-////            ref.setExternalId(extId);
-////            repo.save(ref);
-////        });
-////        return mapToDto(saved);
-////    }
-////
-////    public SignoffDto update(Long patientId, Long encounterId, Long id, SignoffDto in) {
-////        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-////                .orElseThrow(() -> new IllegalArgumentException("Signoff not found"));
-////
-////        e.setTargetType(in.getTargetType());
-////        e.setTargetId(in.getTargetId());
-////        e.setTargetVersion(in.getTargetVersion());
-////        e.setStatus(in.getStatus());
-////        e.setSignedBy(in.getSignedBy());
-////        e.setSignerRole(in.getSignerRole());
-////        e.setSignedAt(in.getSignedAt());
-////        e.setSignatureType(in.getSignatureType());
-////        e.setSignatureData(in.getSignatureData());
-////        e.setContentHash(in.getContentHash());
-////        e.setAttestationText(in.getAttestationText());
-////        e.setComments(in.getComments());
-////
-////        final Signoff updated = repo.save(e);
-////
-////        external.ifPresent(ext -> {
-////            final Signoff ref = updated;
-////            if (ref.getExternalId() != null) ext.update(ref.getExternalId(), mapToDto(ref));
-////        });
-////        return mapToDto(updated);
-////    }
-////
-////    public void delete(Long patientId, Long encounterId, Long id) {
-////        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-////                .orElseThrow(() -> new IllegalArgumentException("Signoff not found"));
-////        external.ifPresent(ext -> {
-////            if (e.getExternalId() != null) ext.delete(e.getExternalId());
-////        });
-////        repo.delete(e);
-////    }
-////
-////    public SignoffDto getOne(Long patientId, Long encounterId, Long id) {
-////        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-////                .orElseThrow(() -> new IllegalArgumentException("Signoff not found"));
-////        return mapToDto(e);
-////    }
-////
-////    public List<SignoffDto> getAllByPatient(Long patientId) {
-////        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
-////    }
-////
-////    public List<SignoffDto> getAllByEncounter(Long patientId, Long encounterId) {
-////        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
-////    }
-////
-////    private SignoffDto mapToDto(Signoff e) {
-////        SignoffDto dto = new SignoffDto();
-////        dto.setId(e.getId());
-////        dto.setExternalId(e.getExternalId());
-////        dto.setOrgId(e.getOrgId());
-////        dto.setPatientId(e.getPatientId());
-////        dto.setEncounterId(e.getEncounterId());
-////        dto.setTargetType(e.getTargetType());
-////        dto.setTargetId(e.getTargetId());
-////        dto.setTargetVersion(e.getTargetVersion());
-////        dto.setStatus(e.getStatus());
-////        dto.setSignedBy(e.getSignedBy());
-////        dto.setSignerRole(e.getSignerRole());
-////        dto.setSignedAt(e.getSignedAt());
-////        dto.setSignatureType(e.getSignatureType());
-////        dto.setSignatureData(e.getSignatureData());
-////        dto.setContentHash(e.getContentHash());
-////        dto.setAttestationText(e.getAttestationText());
-////        dto.setComments(e.getComments());
-////
-////        SignoffDto.Audit a = new SignoffDto.Audit();
-////        if (e.getCreatedAt()!=null) a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-////        if (e.getUpdatedAt()!=null) a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
-////        dto.setAudit(a);
-////        return dto;
-////    }
-////
-////}
-//
-//package com.qiaben.ciyex.service;
-//
-//import com.qiaben.ciyex.dto.SignoffDto;
-//import com.qiaben.ciyex.entity.Signoff;
-//import com.qiaben.ciyex.repository.SignoffRepository;
-//import com.qiaben.ciyex.storage.ExternalSignoffStorage;
-//import lombok.RequiredArgsConstructor;
-//import lombok.extern.slf4j.Slf4j;
-//import org.springframework.stereotype.Service;
-//import org.springframework.transaction.annotation.Transactional;
-//
-//import java.time.ZoneId;
-//import java.time.format.DateTimeFormatter;
-//import java.util.List;
-//import java.util.Optional;
-//
-//@Service
-//@RequiredArgsConstructor
-//@Slf4j
-//public class SignoffService {
-//
-//    private final SignoffRepository repo;
-//    private final Optional<ExternalSignoffStorage> external;
-//
-//    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-//
-//    @Transactional
-//    public SignoffDto create(Long patientId, Long encounterId, SignoffDto in) {
-//        Signoff e = Signoff.builder()
-
-//                .targetType(in.getTargetType())
-//                .targetId(in.getTargetId())
-//                .targetVersion(in.getTargetVersion())
-//                .status(in.getStatus())
-//                .signedBy(in.getSignedBy())
-//                .signerRole(in.getSignerRole())
-//                .signedAt(in.getSignedAt())
-//                .signatureType(in.getSignatureType())
-//                .signatureData(in.getSignatureData())
-//                .contentHash(in.getContentHash())
-//                .attestationText(in.getAttestationText())
-//                .comments(in.getComments())
-//                .build();
-//
-//        final Signoff saved = repo.save(e);
-//
-//        external.ifPresent(ext -> {
-//            String extId = ext.create(mapToDto(saved));
-//            saved.setExternalId(extId);
-//            repo.save(saved);
-//        });
-//
-//        return mapToDto(saved);
-//    }
-//
-//    @Transactional
-//    public SignoffDto update(Long patientId, Long encounterId, Long id, SignoffDto in) {
-//        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Signoff not found"));
-//
-//        e.setTargetType(in.getTargetType());
-//        e.setTargetId(in.getTargetId());
-//        e.setTargetVersion(in.getTargetVersion());
-//        e.setStatus(in.getStatus());
-//        e.setSignedBy(in.getSignedBy());
-//        e.setSignerRole(in.getSignerRole());
-//        e.setSignedAt(in.getSignedAt());
-//        e.setSignatureType(in.getSignatureType());
-//        e.setSignatureData(in.getSignatureData());
-//        e.setContentHash(in.getContentHash());
-//        e.setAttestationText(in.getAttestationText());
-//        e.setComments(in.getComments());
-//
-//        final Signoff updated = repo.save(e);
-//
-//        external.ifPresent(ext -> {
-//            if (updated.getExternalId() != null) {
-//                ext.update(updated.getExternalId(), mapToDto(updated));
-//            }
-//        });
-//
-//        return mapToDto(updated);
-//    }
-//
-//    @Transactional
-//    public void delete(Long patientId, Long encounterId, Long id) {
-//        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Signoff not found"));
-//
-//        external.ifPresent(ext -> {
-//            if (e.getExternalId() != null) {
-//                ext.delete(e.getExternalId());
-//            }
-//        });
-//
-//        repo.delete(e);
-//    }
-//
-//    @Transactional(readOnly = true)
-//    public SignoffDto getOne(Long patientId, Long encounterId, Long id) {
-//        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Signoff not found"));
-//        return mapToDto(e);
-//    }
-//
-//    @Transactional(readOnly = true)
-//    public List<SignoffDto> getAllByPatient(Long patientId) {
-//        return repo.findByPatientId(patientId)
-//                .stream().map(this::mapToDto).toList();
-//    }
-//
-//    @Transactional(readOnly = true)
-//    public List<SignoffDto> getAllByEncounter(Long patientId, Long encounterId) {
-//        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
-//                .stream().map(this::mapToDto).toList();
-//    }
-//
-//    private SignoffDto mapToDto(Signoff e) {
-//        SignoffDto dto = new SignoffDto();
-//        dto.setId(e.getId());
-//        dto.setExternalId(e.getExternalId());
-//        dto.setOrgId(e.getOrgId());
-//        dto.setPatientId(e.getPatientId());
-//        dto.setEncounterId(e.getEncounterId());
-//        dto.setTargetType(e.getTargetType());
-//        dto.setTargetId(e.getTargetId());
-//        dto.setTargetVersion(e.getTargetVersion());
-//        dto.setStatus(e.getStatus());
-//        dto.setSignedBy(e.getSignedBy());
-//        dto.setSignerRole(e.getSignerRole());
-//        dto.setSignedAt(e.getSignedAt());
-//        dto.setSignatureType(e.getSignatureType());
-//        dto.setSignatureData(e.getSignatureData());
-//        dto.setContentHash(e.getContentHash());
-//        dto.setAttestationText(e.getAttestationText());
-//        dto.setComments(e.getComments());
-//
-//        SignoffDto.Audit a = new SignoffDto.Audit();
-//        if (e.getCreatedAt() != null) {
-//            a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-//        }
-//        if (e.getUpdatedAt() != null) {
-//            a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
-//        }
-//        dto.setAudit(a);
-//        return dto;
-//    }
-//}
 
 
 
@@ -288,13 +8,16 @@ package com.qiaben.ciyex.service;
 import com.qiaben.ciyex.dto.SignoffDto;
 import com.qiaben.ciyex.entity.Signoff;
 import com.qiaben.ciyex.repository.SignoffRepository;
-import lombok.RequiredArgsConstructor;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
@@ -308,16 +31,28 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class SignoffService {
     public List<SignoffDto> getAllByPatient(Long patientId) {
         return repo.findByPatientId(patientId)
-            .stream().map(this::toDto).toList();
+                .stream().map(this::toDto).toList();
     }
-
     private final SignoffRepository repo;
     private final EncounterService encounterService;
+    private final ExternalStorageResolver storageResolver;
+    private final OrgIntegrationConfigProvider configProvider;
+
+    @Autowired(required = false)
+    private com.qiaben.ciyex.storage.fhir.FhirExternalSignoffStorage fhirStorage;
+
+    @Autowired
+    public SignoffService(SignoffRepository repo, EncounterService encounterService, 
+                          ExternalStorageResolver storageResolver, OrgIntegrationConfigProvider configProvider) {
+        this.repo = repo;
+        this.encounterService = encounterService;
+        this.storageResolver = storageResolver;
+        this.configProvider = configProvider;
+    }
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final String STATUS_DRAFT  = "Draft";
@@ -337,6 +72,59 @@ public class SignoffService {
         e.setStatus(STATUS_DRAFT);
         applyEditable(e, dto);
         e = repo.save(e);
+        
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("Signoff create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for Signoff ID: {}", e.getId());
+                ExternalStorage<SignoffDto> ext = storageResolver.resolve(SignoffDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                SignoffDto snapshot = toDto(e);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource for Signoff ID: {} with externalId: {}", e.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for Signoff ID: {}", e.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync Signoff to external storage", ex);
+            }
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for Signoff ID: {}", e.getId());
+                SignoffDto snapshot = toDto(e);
+                String externalId = fhirStorage.create(snapshot);
+                log.info("FHIR fallback create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource (fallback) for Signoff ID: {} with externalId: {}", e.getId(), externalId);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync Signoff to external storage (fallback)", ex);
+            }
+        }
+        
+        if (e.getExternalId() == null) {
+            String generatedId = "SO-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
+        }
+        
         return toDto(e);
     }
 
@@ -364,6 +152,38 @@ public class SignoffService {
         if (isLocked(e)) throw new IllegalStateException("Signed/locked sign-offs are read-only.");
         applyEditable(e, dto);
         e = repo.save(e);
+
+        // Step 7: Optional external FHIR sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("Signoff update - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR sync for Signoff ID: {}", e.getId());
+                    ExternalStorage<SignoffDto> ext = storageResolver.resolve(SignoffDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    SignoffDto snapshot = toDto(e);
+                    ext.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource for Signoff ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync Signoff update to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for Signoff ID: {}", e.getId());
+                    SignoffDto snapshot = toDto(e);
+                    fhirStorage.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource (fallback) for Signoff ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync Signoff update to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Signoff ID: {}", e.getId());
+            }
+        }
+
         // Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 
@@ -376,6 +196,36 @@ public class SignoffService {
                     String.format("Sign-off not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
                 ));
         if (isLocked(e)) throw new IllegalStateException("Signed/locked sign-offs cannot be deleted.");
+
+        // Optional external FHIR sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("Signoff delete - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR delete for Signoff ID: {}", e.getId());
+                    ExternalStorage<SignoffDto> ext = storageResolver.resolve(SignoffDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    ext.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource for Signoff ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync Signoff delete to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for Signoff ID: {}", e.getId());
+                    fhirStorage.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource (fallback) for Signoff ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync Signoff delete to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Signoff ID: {}", e.getId());
+            }
+        }
+
         repo.delete(e);
     }
 
@@ -507,7 +357,8 @@ public class SignoffService {
     private SignoffDto toDto(Signoff e) {
         SignoffDto d = new SignoffDto();
         d.setId(e.getId());
-        d.setExternalId(e.getExternalId());
+        d.setExternalId(e.getFhirId());
+        d.setFhirId(e.getFhirId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
         d.setTargetType(e.getTargetType());

@@ -85,6 +85,9 @@ public class ReviewOfSystem extends AuditableEntity {
     @Column(name = "external_id", length = 255)
     private String externalId;
 
+    @Column(name = "fhir_id", length = 255)
+    private String fhirId;
+
     
 
     @Column(name = "patient_id", nullable = false)

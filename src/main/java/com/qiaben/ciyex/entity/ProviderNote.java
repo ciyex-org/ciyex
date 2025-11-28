@@ -127,7 +127,8 @@ public class ProviderNote extends AuditableEntity {
     @Column(name = "external_id", length = 255)
     private String externalId;
 
-    // eSign / Print
+    @Column(name = "fhir_id", length = 255)
+    private String fhirId;
     @Builder.Default
     @Column(name = "e_signed")
     private Boolean eSigned = Boolean.FALSE;

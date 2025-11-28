@@ -35,6 +35,7 @@ public class PatientMedicalHistoryDto {
     private Long patientId;
     private Long encounterId;
     private String externalId;
+    private String fhirId;
 
     private String medicalCondition;
     private String conditionName;

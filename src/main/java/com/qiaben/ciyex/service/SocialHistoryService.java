@@ -157,6 +157,10 @@ import com.qiaben.ciyex.dto.SocialHistoryEntryDto;
 import com.qiaben.ciyex.entity.SocialHistory;
 import com.qiaben.ciyex.entity.SocialHistoryEntry;
 import com.qiaben.ciyex.repository.SocialHistoryRepository;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.fhir.FhirExternalSocialHistoryStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -165,6 +169,7 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
@@ -186,7 +191,14 @@ public class SocialHistoryService {
     private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
     private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
     private final EncounterService encounterService;
+    private final ExternalStorageResolver storageResolver;
+    private final OrgIntegrationConfigProvider configProvider;
+
+    @Autowired(required = false)
+    private FhirExternalSocialHistoryStorage fhirStorage;
+
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
     // CREATE (container + entries)
     public SocialHistoryDto create(Long patientId, Long encounterId, SocialHistoryDto dto) {
@@ -212,6 +224,61 @@ public class SocialHistoryService {
         e.setEncounterId(encounterId);
         applyEntries(e, dto.getEntries());
         e = repo.save(e);
+        
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("SocialHistory create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for SocialHistory ID: {}", e.getId());
+                ExternalStorage<SocialHistoryDto> ext = storageResolver.resolve(SocialHistoryDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                SocialHistoryDto snapshot = toDto(e);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource for SocialHistory ID: {} with externalId: {}", e.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for SocialHistory ID: {}", e.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync SocialHistory to external storage", ex);
+            }
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for SocialHistory ID: {}", e.getId());
+                SocialHistoryDto snapshot = toDto(e);
+                String externalId = fhirStorage.create(snapshot);
+                log.info("FHIR fallback create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource (fallback) for SocialHistory ID: {} with externalId: {}", e.getId(), externalId);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync SocialHistory to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for SocialHistory ID: {}", e.getId());
+        }
+
+        if (e.getExternalId() == null) {
+            String generatedId = "SH-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
+        }
+
         return toDto(e);
     }
 
@@ -262,6 +329,36 @@ public class SocialHistoryService {
         }
         applyEntries(e, dto.getEntries());
         e = repo.save(e);
+        
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("SocialHistory update - storageType for current org: {}", storageType);
+
+        if (storageType != null && e.getExternalId() != null) {
+            try {
+                log.info("Attempting FHIR sync for SocialHistory ID: {}", e.getId());
+                ExternalStorage<SocialHistoryDto> ext = storageResolver.resolve(SocialHistoryDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                SocialHistoryDto snapshot = toDto(e);
+                ext.update(snapshot, e.getExternalId());
+                log.info("Updated FHIR resource for SocialHistory ID: {} with externalId: {}", e.getId(), e.getExternalId());
+            } catch (Exception ex) {
+                log.error("Failed to sync SocialHistory to external storage", ex);
+            }
+        } else if (fhirStorage != null && e.getExternalId() != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for SocialHistory ID: {}", e.getId());
+                SocialHistoryDto snapshot = toDto(e);
+                fhirStorage.update(snapshot, e.getExternalId());
+                log.info("Updated FHIR resource (fallback) for SocialHistory ID: {} with externalId: {}", e.getId(), e.getExternalId());
+            } catch (Exception ex) {
+                log.error("Failed to sync SocialHistory to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured or no externalId for current org - skipping FHIR sync for SocialHistory ID: {}", e.getId());
+        }
+
         return toDto(e);
     }
 
@@ -291,6 +388,34 @@ public class SocialHistoryService {
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed Social History cannot be deleted.");
         }
+        
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("SocialHistory delete - storageType for current org: {}", storageType);
+
+        if (storageType != null && e.getExternalId() != null) {
+            try {
+                log.info("Attempting FHIR sync for SocialHistory ID: {}", e.getId());
+                ExternalStorage<SocialHistoryDto> ext = storageResolver.resolve(SocialHistoryDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                ext.delete(e.getExternalId());
+                log.info("Deleted FHIR resource for SocialHistory ID: {} with externalId: {}", e.getId(), e.getExternalId());
+            } catch (Exception ex) {
+                log.error("Failed to sync SocialHistory to external storage", ex);
+            }
+        } else if (fhirStorage != null && e.getExternalId() != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for SocialHistory ID: {}", e.getId());
+                fhirStorage.delete(e.getExternalId());
+                log.info("Deleted FHIR resource (fallback) for SocialHistory ID: {} with externalId: {}", e.getId(), e.getExternalId());
+            } catch (Exception ex) {
+                log.error("Failed to sync SocialHistory to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured or no externalId for current org - skipping FHIR sync for SocialHistory ID: {}", e.getId());
+        }
+
         repo.delete(e);
     }
 
@@ -382,7 +507,8 @@ public class SocialHistoryService {
     private SocialHistoryDto toDto(SocialHistory e) {
         SocialHistoryDto d = new SocialHistoryDto();
         d.setId(e.getId());
-        d.setExternalId(e.getExternalId());
+        d.setExternalId(e.getFhirId());
+        d.setFhirId(e.getFhirId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
 
