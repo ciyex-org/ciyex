@@ -12,7 +12,8 @@ public class ImmunizationDto {
     @Data
     public static class ImmunizationItem {
         private Long id;
-        private String externalId;
+        private String fhirId;
+        private String externalId;  // Alias for fhirId for external integrations
         private Long patientId; // now inside item
         private String cvxCode;
         private String dateTimeAdministered;

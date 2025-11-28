@@ -5,6 +5,8 @@ import lombok.Data;
 @Data
 public class MedicationRequestDto {
     private Long id;
+    private String fhirId;
+    private String externalId;  // Alias for fhirId for external integrations
     private Long patientId;
     private Long encounterId;
     private String medicationName;

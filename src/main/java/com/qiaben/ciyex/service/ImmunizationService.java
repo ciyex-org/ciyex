@@ -35,6 +35,14 @@ public class ImmunizationService {
         validateMandatoryFields(item);
         Immunization entity = mapToEntity(dto.getPatientId(), item);
 
+        // Auto-generate externalId if not provided
+        if (entity.getFhirId() == null) {
+            String generatedId = "IMM-" + System.currentTimeMillis();
+            entity.setFhirId(generatedId);
+            entity.setExternalId(generatedId);
+            log.info("Auto-generated externalId: {}", generatedId);
+        }
+
         entity = repository.save(entity);
         item.setId(entity.getId());
         item.setExternalId(entity.getExternalId());
@@ -61,6 +69,9 @@ public class ImmunizationService {
         ImmunizationDto.ImmunizationItem patch = dto.getImmunizations().get(0);
 
         Immunization entity = repository.findOneByIdAndPatientId(patch.getId(), patientId);
+        if (entity == null) {
+            throw new RuntimeException("Immunization not found with id: " + patch.getId() + " for patientId: " + patientId);
+        }
 
         applyPatch(entity, patch);
         // Ensure mandatory fields remain present after patch
@@ -81,6 +92,9 @@ public class ImmunizationService {
     @Transactional(readOnly = true)
     public ImmunizationDto.ImmunizationItem getItem(Long patientId, Long immunizationId) {
         Immunization entity = repository.findOneByIdAndPatientId(immunizationId, patientId);
+        if (entity == null) {
+            throw new RuntimeException("Immunization not found with id: " + immunizationId + " for patientId: " + patientId);
+        }
         return mapToItem(entity);
     }
 
@@ -88,6 +102,9 @@ public class ImmunizationService {
     public ImmunizationDto.ImmunizationItem updateItem(Long patientId, Long immunizationId, ImmunizationDto.ImmunizationItem patch) {
 
         Immunization entity = repository.findOneByIdAndPatientId(immunizationId, patientId);
+        if (entity == null) {
+            throw new RuntimeException("Immunization not found with id: " + immunizationId + " for patientId: " + patientId);
+        }
 
         applyPatch(entity, patch);
         // Validate mandatory fields after applying patch
@@ -99,6 +116,9 @@ public class ImmunizationService {
     @Transactional
     public void deleteItem(Long patientId, Long immunizationId) {
         Immunization entity = repository.findOneByIdAndPatientId(immunizationId, patientId);
+        if (entity == null) {
+            throw new RuntimeException("Immunization not found with id: " + immunizationId + " for patientId: " + patientId);
+        }
         repository.delete(entity);
     }
 
@@ -126,9 +146,13 @@ public class ImmunizationService {
     // ---------- Helpers ----------
 
     private Immunization mapToEntity(Long patientId, ImmunizationDto.ImmunizationItem item) {
+        // Use externalId if provided, otherwise use fhirId
+        String fhirIdValue = item.getExternalId() != null ? item.getExternalId() : item.getFhirId();
+
         return Immunization.builder()
                 .patientId(patientId)
-                .externalId(item.getExternalId())
+                .fhirId(fhirIdValue)
+                .externalId(fhirIdValue)
                 .cvxCode(item.getCvxCode())
                 .dateTimeAdministered(item.getDateTimeAdministered())
                 .amountAdministered(item.getAmountAdministered())
@@ -153,7 +177,8 @@ public class ImmunizationService {
     private ImmunizationDto.ImmunizationItem mapToItem(Immunization entity) {
         ImmunizationDto.ImmunizationItem item = new ImmunizationDto.ImmunizationItem();
         item.setId(entity.getId());
-        item.setExternalId(entity.getExternalId());
+        item.setFhirId(entity.getFhirId());
+        item.setExternalId(entity.getFhirId()); // externalId is an alias for fhirId
         item.setPatientId(entity.getPatientId());
         item.setCvxCode(entity.getCvxCode());
         item.setDateTimeAdministered(entity.getDateTimeAdministered());
@@ -177,7 +202,12 @@ public class ImmunizationService {
     }
 
     private void applyPatch(Immunization entity, ImmunizationDto.ImmunizationItem patch) {
-        if (patch.getExternalId() != null) entity.setExternalId(patch.getExternalId());
+        // Update fhirId if externalId or fhirId is provided
+        String fhirIdValue = patch.getExternalId() != null ? patch.getExternalId() : patch.getFhirId();
+        if (fhirIdValue != null) {
+            entity.setFhirId(fhirIdValue);
+            entity.setExternalId(fhirIdValue);
+        }
         if (patch.getCvxCode() != null) entity.setCvxCode(patch.getCvxCode());
         if (patch.getDateTimeAdministered() != null) entity.setDateTimeAdministered(patch.getDateTimeAdministered());
         if (patch.getAmountAdministered() != null) entity.setAmountAdministered(patch.getAmountAdministered());
