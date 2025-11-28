@@ -29,6 +29,7 @@ public class InsuranceCompanyDto {
     private String country;
 
     private String fhirId;
+    private String externalId; // Alias for fhirId for external integrations
     private String status;  // ACTIVE or ARCHIVED
 
     @Data

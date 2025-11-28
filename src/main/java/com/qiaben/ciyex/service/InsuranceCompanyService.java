@@ -37,14 +37,17 @@ public class InsuranceCompanyService {
 
     @Transactional
     public InsuranceCompanyDto create(InsuranceCompanyDto dto) {
-        String externalId = null;
+        // Validate mandatory fields
+        validateMandatoryFields(dto);
+
         InsuranceCompany insuranceCompany = mapToEntity(dto);
 
+        String externalId = dto.getExternalId(); // Start with DTO's externalId
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null) {
             try {
                 ExternalStorage<InsuranceCompanyDto> externalStorage = storageResolver.resolve(InsuranceCompanyDto.class);
-                externalId = externalStorage.create(dto);
+                externalId = externalStorage.create(dto); // Override with external storage ID if available
                 log.info("Successfully created insurance company in external storage with externalId: {}", externalId);
             } catch (Exception e) {
                 log.error("Failed to create insurance company in external storage: {}", e.getMessage());
@@ -52,12 +55,15 @@ public class InsuranceCompanyService {
             }
         }
 
-        insuranceCompany = repository.save(insuranceCompany);
-        if (externalId != null) {
-            insuranceCompany.setFhirId(externalId);
-            insuranceCompany = repository.save(insuranceCompany);  // Update with externalId
-            log.info("Created insurance company with id: {} and externalId: {}", insuranceCompany.getId(), externalId);
+        // Auto-generate externalId if not provided and no external storage
+        if (externalId == null) {
+            externalId = "INS-" + System.currentTimeMillis();
+            log.info("Auto-generated externalId: {}", externalId);
         }
+
+        insuranceCompany.setFhirId(externalId);
+        insuranceCompany = repository.save(insuranceCompany);
+        log.info("Created insurance company with id: {} and fhirId: {}", insuranceCompany.getId(), insuranceCompany.getFhirId());
 
         return mapToDto(insuranceCompany);
     }
@@ -123,11 +129,18 @@ public class InsuranceCompanyService {
         dto.setPostalCode(entity.getPostalCode());
         dto.setCountry(entity.getCountry());
         dto.setFhirId(entity.getFhirId());
+        dto.setExternalId(entity.getFhirId()); // externalId is an alias for fhirId
         dto.setPayerId(entity.getPayerId());
         dto.setStatus(entity.getStatus().name());
 
         // Initialize and set audit dates
         InsuranceCompanyDto.Audit audit = new InsuranceCompanyDto.Audit();
+        if (entity.getCreatedDate() != null) {
+            audit.setCreatedDate(entity.getCreatedDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        }
+        if (entity.getLastModifiedDate() != null) {
+            audit.setLastModifiedDate(entity.getLastModifiedDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        }
         dto.setAudit(audit);
 
         return dto;
@@ -155,5 +168,35 @@ public class InsuranceCompanyService {
         if (dto.getCountry() != null) entity.setCountry(dto.getCountry());
         if (dto.getPayerId() != null) entity.setPayerId(dto.getPayerId()); //
         return entity;
+    }
+
+    private void validateMandatoryFields(InsuranceCompanyDto dto) {
+        StringBuilder errors = new StringBuilder();
+
+        if (dto.getName() == null || dto.getName().trim().isEmpty()) {
+            errors.append("Name is mandatory. ");
+        }
+        if (dto.getAddress() == null || dto.getAddress().trim().isEmpty()) {
+            errors.append("Address is mandatory. ");
+        }
+        if (dto.getCity() == null || dto.getCity().trim().isEmpty()) {
+            errors.append("City is mandatory. ");
+        }
+        if (dto.getState() == null || dto.getState().trim().isEmpty()) {
+            errors.append("State is mandatory. ");
+        }
+        if (dto.getPostalCode() == null || dto.getPostalCode().trim().isEmpty()) {
+            errors.append("Postal code is mandatory. ");
+        }
+        if (dto.getPayerId() == null || dto.getPayerId().trim().isEmpty()) {
+            errors.append("Payer ID is mandatory. ");
+        }
+        if (dto.getCountry() == null || dto.getCountry().trim().isEmpty()) {
+            errors.append("Country is mandatory. ");
+        }
+
+        if (errors.length() > 0) {
+            throw new IllegalArgumentException(errors.toString().trim());
+        }
     }
 }

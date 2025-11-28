@@ -80,8 +80,6 @@ public class FhirExternalCoverageStorage implements ExternalStorage<CoverageDto>
             }
 
             CoverageDto coverageDto = mapFromFhirCoverage(fhirCoverage);
-            // carry tenantName from RequestContext; you can also set it from tag if you prefer
-            coverageDto.setTenantName(tenantName);
             log.info("Retrieved CoverageDto with externalId: {} for tenantName: {}", externalId, tenantName);
             return coverageDto;
         });
@@ -125,7 +123,7 @@ public class FhirExternalCoverageStorage implements ExternalStorage<CoverageDto>
                 .map(cov -> {
                     CoverageDto dto = mapFromFhirCoverage(cov);
                     dto.setExternalId(cov.getIdElement().getIdPart());
-                    dto.setTenantName(tenantName); // from RequestContext
+
                     return dto;
                 })
                 .collect(Collectors.toList());
