@@ -60,8 +60,18 @@ public class ProviderService {
             }
         }
 
-        // Ensure externalId is set
-        provider.setExternalId(externalId);
+        // Ensure externalId is set - use from external storage, incoming DTO, or generate fallback
+        if (externalId != null) {
+            provider.setExternalId(externalId);
+        } else if (provider.getExternalId() == null || provider.getExternalId().trim().isEmpty()) {
+            // Generate fallback fhirId if none provided and external storage failed
+            provider.setExternalId("Pd-" + java.util.UUID.randomUUID().toString());
+        }
+
+        // Set audit timestamps for new provider
+        String currentTimestamp = java.time.LocalDateTime.now().toString();
+        provider.setCreatedDate(currentTimestamp);
+        provider.setLastModifiedDate(currentTimestamp);
 
         // Save to database
         provider = repository.save(provider);
@@ -262,7 +272,18 @@ public class ProviderService {
             provider.setPhoneNumber(dto.getContact().getPhoneNumber());
             provider.setMobileNumber(dto.getContact().getMobileNumber());
             provider.setFaxNumber(dto.getContact().getFaxNumber());
-            provider.setAddress(dto.getContact().getAddress() != null ? dto.getContact().getAddress().toString() : null);
+            
+            // Serialize address object to JSON string for storage
+            if (dto.getContact().getAddress() != null) {
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    provider.setAddress(mapper.writeValueAsString(dto.getContact().getAddress()));
+                } catch (Exception e) {
+                    provider.setAddress(null);
+                }
+            } else {
+                provider.setAddress(null);
+            }
         }
         if (dto.getProfessionalDetails() != null) {
             provider.setSpecialty(dto.getProfessionalDetails().getSpecialty());
@@ -271,6 +292,12 @@ public class ProviderService {
             provider.setLicenseState(dto.getProfessionalDetails().getLicenseState());
             provider.setLicenseExpiry(dto.getProfessionalDetails().getLicenseExpiry());
         }
+        
+        // Handle incoming fhirId
+        if (dto.getFhirId() != null && !dto.getFhirId().trim().isEmpty()) {
+            provider.setExternalId(dto.getFhirId());
+        }
+        
         return provider;
     }
 
@@ -291,21 +318,42 @@ public class ProviderService {
         identification.setPhoto(provider.getPhoto());
         dto.setIdentification(identification);
 
-        // ✅ Contact
-        if (provider.getEmail() != null || provider.getPhoneNumber() != null) {
-            ProviderDto.Contact contact = new ProviderDto.Contact();
-            contact.setEmail(provider.getEmail());
-            contact.setPhoneNumber(provider.getPhoneNumber());
-            contact.setMobileNumber(provider.getMobileNumber());
-            contact.setFaxNumber(provider.getFaxNumber());
+        // ✅ Contact - Always create contact object to avoid null
+        ProviderDto.Contact contact = new ProviderDto.Contact();
+        contact.setEmail(provider.getEmail());
+        contact.setPhoneNumber(provider.getPhoneNumber());
+        contact.setMobileNumber(provider.getMobileNumber());
+        contact.setFaxNumber(provider.getFaxNumber());
 
-            if (provider.getAddress() != null) {
-                ProviderDto.Contact.Address address = new ProviderDto.Contact.Address();
-                // map address fields if available
-                contact.setAddress(address);
+        // Deserialize address JSON back to individual fields
+        ProviderDto.Contact.Address address = new ProviderDto.Contact.Address();
+        if (provider.getAddress() != null && !provider.getAddress().isEmpty()) {
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                ProviderDto.Contact.Address savedAddress = mapper.readValue(provider.getAddress(), ProviderDto.Contact.Address.class);
+                address.setStreet(savedAddress.getStreet());
+                address.setCity(savedAddress.getCity());
+                address.setState(savedAddress.getState());
+                address.setPostalCode(savedAddress.getPostalCode());
+                address.setCountry(savedAddress.getCountry());
+            } catch (Exception e) {
+                // If JSON parsing fails, set all fields to null
+                address.setStreet(null);
+                address.setCity(null);
+                address.setState(null);
+                address.setPostalCode(null);
+                address.setCountry(null);
             }
-            dto.setContact(contact);
+        } else {
+            address.setStreet(null);
+            address.setCity(null);
+            address.setState(null);
+            address.setPostalCode(null);
+            address.setCountry(null);
         }
+        contact.setAddress(address);
+        
+        dto.setContact(contact);
 
         // ✅ Professional Details
         if (provider.getSpecialty() != null || provider.getLicenseNumber() != null) {
@@ -318,16 +366,14 @@ public class ProviderService {
             dto.setProfessionalDetails(professionalDetails);
         }
 
-        // ✅ FHIR/External ID
+        // ✅ FHIR/External ID - Always set, even if null
         dto.setFhirId(provider.getExternalId());
 
-        // ✅ Audit
-        if (provider.getCreatedDate() != null || provider.getLastModifiedDate() != null) {
-            ProviderDto.Audit audit = new ProviderDto.Audit();
-            audit.setCreatedDate(provider.getCreatedDate() != null ? provider.getCreatedDate().toString() : null);
-            audit.setLastModifiedDate(provider.getLastModifiedDate() != null ? provider.getLastModifiedDate().toString() : null);
-            dto.setAudit(audit);
-        }
+        // ✅ Audit - Always create audit object to avoid null
+        ProviderDto.Audit audit = new ProviderDto.Audit();
+        audit.setCreatedDate(provider.getCreatedDate());
+        audit.setLastModifiedDate(provider.getLastModifiedDate());
+        dto.setAudit(audit);
 
         // ✅ System Access
         ProviderDto.SystemAccess systemAccess = new ProviderDto.SystemAccess();
@@ -347,6 +393,7 @@ public class ProviderService {
     }
 
     @Transactional
+
     public ProviderDto updateStatus(Long id, ProviderStatus status) {
         Provider provider = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
@@ -385,12 +432,9 @@ public class ProviderService {
     private void validateMandatoryFields(ProviderDto dto) {
         StringBuilder errors = new StringBuilder();
 
-        if (dto.getNpi() == null || dto.getNpi().trim().isEmpty()) {
-            errors.append("npi, ");
-        }
-
+        // Check identification fields
         if (dto.getIdentification() == null) {
-            errors.append("identification, ");
+            errors.append("firstName, lastName, gender, dateOfBirth, ");
         } else {
             if (dto.getIdentification().getFirstName() == null || dto.getIdentification().getFirstName().trim().isEmpty()) {
                 errors.append("firstName, ");
@@ -398,13 +442,41 @@ public class ProviderService {
             if (dto.getIdentification().getLastName() == null || dto.getIdentification().getLastName().trim().isEmpty()) {
                 errors.append("lastName, ");
             }
+            if (dto.getIdentification().getGender() == null || dto.getIdentification().getGender().trim().isEmpty()) {
+                errors.append("gender, ");
+            }
+            if (dto.getIdentification().getDateOfBirth() == null) {
+                errors.append("dateOfBirth, ");
+            }
         }
 
-        if (dto.getProfessionalDetails() == null) {
-            errors.append("professionalDetails, ");
+        // Check contact fields
+        if (dto.getContact() == null) {
+            errors.append("mobileNumber, ");
         } else {
-            if (dto.getProfessionalDetails().getLicenseNumber() == null || dto.getProfessionalDetails().getLicenseNumber().trim().isEmpty()) {
-                errors.append("licenseNumber, ");
+            if (dto.getContact().getMobileNumber() == null || dto.getContact().getMobileNumber().trim().isEmpty()) {
+                errors.append("mobileNumber, ");
+            }
+        }
+
+        // Check system access fields
+        if (dto.getSystemAccess() == null) {
+            errors.append("status, ");
+        } else {
+            if (dto.getSystemAccess().getStatus() == null) {
+                errors.append("status, ");
+            }
+        }
+
+        // Check professional details fields
+        if (dto.getProfessionalDetails() == null) {
+            errors.append("specialty, providertype, ");
+        } else {
+            if (dto.getProfessionalDetails().getSpecialty() == null || dto.getProfessionalDetails().getSpecialty().trim().isEmpty()) {
+                errors.append("specialty, ");
+            }
+            if (dto.getProfessionalDetails().getProviderType() == null || dto.getProfessionalDetails().getProviderType().trim().isEmpty()) {
+                errors.append("providertype, ");
             }
         }
 

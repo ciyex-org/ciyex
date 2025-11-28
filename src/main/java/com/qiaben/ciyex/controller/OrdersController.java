@@ -3,6 +3,7 @@ package com.qiaben.ciyex.controller;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.OrderDto;
 import com.qiaben.ciyex.service.OrderService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -13,6 +14,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/orders")
+@Slf4j
 public class OrdersController {
 
     private final OrderService service;
@@ -39,6 +41,7 @@ public class OrdersController {
                     .data(service.create(dto))
                     .build());
         } catch (Exception e) {
+            log.error("Failed to create Order: {}", e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
                     .success(false)
                     .message("Failed to create order: " + e.getMessage())
@@ -47,16 +50,24 @@ public class OrdersController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<OrderDto>> get(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
-                .success(true)
-                .message("Order retrieved successfully")
-                .data(service.getById(id))
-                .build());
+    public ResponseEntity<ApiResponse<OrderDto>> get(@PathVariable("id") Long id) {
+        try {
+            return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
+                    .success(true)
+                    .message("Order retrieved successfully")
+                    .data(service.getById(id))
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve Order with id {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
+                    .success(false)
+                    .message("Failed to retrieve order: " + e.getMessage())
+                    .build());
+        }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<OrderDto>> update(@PathVariable Long id, @RequestBody OrderDto dto) {
+    public ResponseEntity<ApiResponse<OrderDto>> update(@PathVariable("id") Long id, @RequestBody OrderDto dto) {
         try {
             // Validate mandatory fields
             String validationError = validateMandatoryFields(dto);
@@ -73,6 +84,7 @@ public class OrdersController {
                     .data(service.update(id, dto))
                     .build());
         } catch (Exception e) {
+            log.error("Failed to update Order with id {}: {}", id, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
                     .success(false)
                     .message("Failed to update order: " + e.getMessage())
@@ -81,13 +93,21 @@ public class OrdersController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
-        service.delete(id);
-        return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .success(true)
-                .message("Order deleted successfully")
-                .data(null)
-                .build());
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
+        try {
+            service.delete(id);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(true)
+                    .message("Order deleted successfully")
+                    .data(null)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to delete Order with id {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(false)
+                    .message("Failed to delete order: " + e.getMessage())
+                    .build());
+        }
     }
 
     @GetMapping
@@ -110,15 +130,23 @@ public class OrdersController {
 
     @PutMapping("/{orderId}/receive")
     public ResponseEntity<ApiResponse<OrderDto>> receiveOrder(
-            @PathVariable Long orderId,
+            @PathVariable("orderId") Long orderId,
             @RequestBody(required = false) OrderDto dto
     ) {
-        OrderDto order = service.receiveOrder(orderId, dto);
-        return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
-                .success(true)
-                .message("Order marked as received and inventory updated")
-                .data(order)
-                .build());
+        try {
+            OrderDto order = service.receiveOrder(orderId, dto);
+            return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
+                    .success(true)
+                    .message("Order marked as received and inventory updated")
+                    .data(order)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to receive Order with id {}: {}", orderId, e.getMessage(), e);
+            return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
+                    .success(false)
+                    .message("Failed to receive order: " + e.getMessage())
+                    .build());
+        }
     }
 
     @GetMapping("/pending/count")

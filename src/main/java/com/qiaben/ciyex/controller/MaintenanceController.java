@@ -23,6 +23,7 @@ public class MaintenanceController {
     @PostMapping
     public ResponseEntity<ApiResponse<MaintenanceDto>> create(@RequestBody MaintenanceDto dto) {
         try {
+            log.debug("Create maintenance request received: externalId={} dto={}", dto.getExternalId(), dto);
             // Validate mandatory fields
             String validationError = validateMandatoryFields(dto);
             if (validationError != null) {
@@ -33,6 +34,7 @@ public class MaintenanceController {
             }
 
             MaintenanceDto created = service.create(dto);
+            log.debug("Created maintenance DTO to return: {}", created);
             return ResponseEntity.ok(ApiResponse.<MaintenanceDto>builder()
                     .success(true)
                     .message("Maintenance created successfully")
@@ -49,7 +51,7 @@ public class MaintenanceController {
 
     // ✅ Retrieve maintenance by ID
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<MaintenanceDto>> get(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<MaintenanceDto>> get(@PathVariable("id") Long id) {
         try {
             MaintenanceDto maintenance = service.getById(id);
             if (maintenance == null) {
@@ -74,7 +76,7 @@ public class MaintenanceController {
 
     // ✅ Update maintenance record
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<MaintenanceDto>> update(@PathVariable Long id, @RequestBody MaintenanceDto dto) {
+    public ResponseEntity<ApiResponse<MaintenanceDto>> update(@PathVariable("id") Long id, @RequestBody MaintenanceDto dto) {
         try {
             // Validate mandatory fields
             String validationError = validateMandatoryFields(dto);
@@ -108,7 +110,7 @@ public class MaintenanceController {
 
     // ✅ Delete maintenance by ID
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -148,7 +150,7 @@ public class MaintenanceController {
     // ✅ Update maintenance status (e.g., "pending", "completed")
     @PutMapping("/{id}/status")
     public ResponseEntity<ApiResponse<MaintenanceDto>> updateStatus(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestParam String status
     ) {
         try {

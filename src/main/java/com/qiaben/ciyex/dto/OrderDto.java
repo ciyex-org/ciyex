@@ -15,6 +15,7 @@ public class OrderDto {
     private String category;
 
     private Audit audit;
+    private String externalId;
     private String fhirId;
 
     @Data
