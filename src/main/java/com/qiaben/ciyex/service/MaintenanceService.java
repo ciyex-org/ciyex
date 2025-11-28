@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.MaintenanceDto;
+import com.qiaben.ciyex.exception.ResourceNotFoundException;
 import com.qiaben.ciyex.entity.Maintenance;
 import com.qiaben.ciyex.repository.MaintenanceRepository;
 import com.qiaben.ciyex.storage.ExternalStorage;
@@ -37,27 +38,60 @@ public class MaintenanceService {
     public MaintenanceDto create(MaintenanceDto dto) {
         Maintenance maintenance = mapToEntity(dto);
         String externalId = null;
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            ExternalStorage<MaintenanceDto> externalStorage = storageResolver.resolve(MaintenanceDto.class);
-            externalId = externalStorage.create(dto);
-        }
-        maintenance.setExternalId(externalId);
 
-        return mapToDto(repository.save(maintenance));
+        log.debug("Incoming DTO externalId={}", dto.getExternalId());
+
+        try {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("Storage type for current org: {}", storageType);
+
+            if (storageType != null && !storageType.isBlank()) {
+                ExternalStorage<MaintenanceDto> externalStorage = storageResolver.resolve(MaintenanceDto.class);
+                if (externalStorage != null) {
+                    externalId = externalStorage.create(dto);
+                    log.info("Generated external ID from external storage: {}", externalId);
+                } else {
+                    log.warn("No external storage found for MaintenanceDto");
+                }
+            } else {
+                log.info("No storage type configured, skipping external storage");
+            }
+        } catch (Exception e) {
+            log.error("Error creating external storage record", e);
+        }
+
+        // Set externalId priority: 1) External storage, 2) Client provided, 3) Auto-generate
+        if (externalId != null) {
+            maintenance.setExternalId(externalId);
+        } else if (dto.getExternalId() != null && !dto.getExternalId().isBlank()) {
+            maintenance.setExternalId(dto.getExternalId());
+        } else {
+            // Auto-generate if no external storage and no client-provided ID
+            maintenance.setExternalId("MT-" + java.util.UUID.randomUUID().toString());
+            log.info("Auto-generated external ID: {}", maintenance.getExternalId());
+        }
+
+        log.debug("Entity before save externalId={}, createdDate={}, lastModifiedDate={}", maintenance.getExternalId(), maintenance.getCreatedDate(), maintenance.getLastModifiedDate());
+
+        Maintenance saved = repository.save(maintenance);
+
+        log.info("Saved maintenance with ID: {} and external ID: {}", saved.getId(), saved.getExternalId());
+        log.debug("Saved entity audit: createdDate={}, lastModifiedDate={}", saved.getCreatedDate(), saved.getLastModifiedDate());
+
+        return mapToDto(saved);
     }
 
     @Transactional(readOnly = true)
     public MaintenanceDto getById(Long id) {
         Maintenance maintenance = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Maintenance not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Maintenance", "id", (Object) id));
         return mapToDto(maintenance);
     }
 
     @Transactional
     public MaintenanceDto update(Long id, MaintenanceDto dto) {
         Maintenance maintenance = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Maintenance not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Maintenance", "id", (Object) id));
 
         maintenance.setEquipment(dto.getEquipment());
         maintenance.setCategory(dto.getCategory());
@@ -95,7 +129,7 @@ public class MaintenanceService {
     @Transactional
     public MaintenanceDto updateStatus(Long id, String status) {
         Maintenance entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Maintenance task not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Maintenance", "id", (Object) id));
         entity.setStatus(status);
         return mapToDto(repository.save(entity));
     }
@@ -114,6 +148,7 @@ public class MaintenanceService {
                 .priority(dto.getPriority())
                 .status(dto.getStatus())
                 .notes(dto.getNotes())
+                .externalId(dto.getExternalId())
                 .build();
     }
 
@@ -130,7 +165,13 @@ public class MaintenanceService {
         dto.setPriority(maintenance.getPriority());
         dto.setStatus(maintenance.getStatus());
         dto.setNotes(maintenance.getNotes());
+        dto.setExternalId(maintenance.getExternalId());
         dto.setFhirId(maintenance.getExternalId());
+        // Map audit information
+        MaintenanceDto.Audit audit = new MaintenanceDto.Audit();
+        audit.setCreatedDate(maintenance.getCreatedDate()!=null ? maintenance.getCreatedDate().toString() : null);
+        audit.setLastModifiedDate(maintenance.getLastModifiedDate()!=null ? maintenance.getLastModifiedDate().toString() : null);
+        dto.setAudit(audit);
         return dto;
     }
 }

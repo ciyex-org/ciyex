@@ -20,6 +20,7 @@ public class MaintenanceDto {
     private String notes;
 
     private Audit audit;
+    private String externalId;
     private String fhirId;
 
     @Data

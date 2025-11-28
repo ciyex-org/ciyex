@@ -52,7 +52,7 @@ public class MedicalProblemController {
 
     @GetMapping("/{patientId}")
     public ResponseEntity<ApiResponse<MedicalProblemDto>> getByPatient(
-            @PathVariable Long patientId) {
+            @PathVariable("patientId") Long patientId) {
         try {
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated upstream.
@@ -62,7 +62,7 @@ public class MedicalProblemController {
             return ResponseEntity.ok(ApiResponse.<MedicalProblemDto>builder()
                     .success(true).message("Medical Problem retrieved successfully").data(dto).build());
         } catch (Exception e) {
-            log.error("Failed to retrieve Medical Problem: {}", e.getMessage(), e);
+            log.error("Failed to retrieve Medical Problem for patientId {}: {}", patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<MedicalProblemDto>builder()
                     .success(false).message("Failed to retrieve Medical Problem: " + e.getMessage()).build());
         } finally {
@@ -72,7 +72,7 @@ public class MedicalProblemController {
 
     @PutMapping("/{patientId}")
     public ResponseEntity<ApiResponse<MedicalProblemDto>> updateByPatient(
-            @PathVariable Long patientId,
+            @PathVariable("patientId") Long patientId,
             @RequestBody MedicalProblemDto dto) {
         try {
             // ✅ Validate mandatory fields before processing
@@ -92,7 +92,7 @@ public class MedicalProblemController {
             return ResponseEntity.ok(ApiResponse.<MedicalProblemDto>builder()
                     .success(true).message("Medical Problem updated successfully").data(updated).build());
         } catch (Exception e) {
-            log.error("Failed to update Medical Problem: {}", e.getMessage(), e);
+            log.error("Failed to update Medical Problem for patientId {}: {}", patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<MedicalProblemDto>builder()
                     .success(false).message("Failed to update Medical Problem: " + e.getMessage()).build());
         } finally {
@@ -102,7 +102,7 @@ public class MedicalProblemController {
 
     @DeleteMapping("/{patientId}")
     public ResponseEntity<ApiResponse<Void>> deleteByPatient(
-            @PathVariable Long patientId) {
+            @PathVariable("patientId") Long patientId) {
         try {
             RequestContext ctx = new RequestContext();
             // orgId deprecated; tenantName populated upstream.
@@ -112,7 +112,7 @@ public class MedicalProblemController {
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true).message("Medical Problem deleted successfully").build());
         } catch (Exception e) {
-            log.error("Failed to delete Medical Problem: {}", e.getMessage(), e);
+            log.error("Failed to delete Medical Problem for patientId {}: {}", patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(false).message("Failed to delete Medical Problem: " + e.getMessage()).build());
         } finally {
@@ -123,14 +123,14 @@ public class MedicalProblemController {
     // Item endpoints
     @GetMapping("/{patientId}/{problemId}")
     public ResponseEntity<ApiResponse<MedicalProblemDto.MedicalProblemItem>> getItem(
-            @PathVariable Long patientId, @PathVariable Long problemId) {
+            @PathVariable("patientId") Long patientId, @PathVariable("problemId") Long problemId) {
         try {
             RequestContext ctx = new RequestContext(); /* orgId deprecated */ RequestContext.set(ctx);
             var item = service.getItem(patientId, problemId);
             return ResponseEntity.ok(ApiResponse.<MedicalProblemDto.MedicalProblemItem>builder()
                     .success(true).message("Medical Problem retrieved successfully").data(item).build());
         } catch (Exception e) {
-            log.error("Failed to retrieve item: {}", e.getMessage(), e);
+            log.error("Failed to retrieve Medical Problem item {} for patientId {}: {}", problemId, patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<MedicalProblemDto.MedicalProblemItem>builder()
                     .success(false).message("Failed to retrieve medical problem: " + e.getMessage()).build());
         } finally { RequestContext.clear(); }
@@ -138,7 +138,7 @@ public class MedicalProblemController {
 
     @PutMapping("/{patientId}/{problemId}")
     public ResponseEntity<ApiResponse<MedicalProblemDto.MedicalProblemItem>> updateItem(
-            @PathVariable Long patientId, @PathVariable Long problemId,
+            @PathVariable("patientId") Long patientId, @PathVariable("problemId") Long problemId,
             @RequestBody MedicalProblemDto.MedicalProblemItem patch) {
         try {
             // ✅ Validate mandatory fields for the individual item
@@ -155,7 +155,7 @@ public class MedicalProblemController {
             return ResponseEntity.ok(ApiResponse.<MedicalProblemDto.MedicalProblemItem>builder()
                     .success(true).message("Medical Problem updated successfully").data(updated).build());
         } catch (Exception e) {
-            log.error("Failed to update item: {}", e.getMessage(), e);
+            log.error("Failed to update Medical Problem item {} for patientId {}: {}", problemId, patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<MedicalProblemDto.MedicalProblemItem>builder()
                     .success(false).message("Failed to update medical problem: " + e.getMessage()).build());
         } finally { RequestContext.clear(); }
@@ -163,14 +163,14 @@ public class MedicalProblemController {
 
     @DeleteMapping("/{patientId}/{problemId}")
     public ResponseEntity<ApiResponse<Void>> deleteItem(
-            @PathVariable Long patientId, @PathVariable Long problemId) {
+            @PathVariable("patientId") Long patientId, @PathVariable("problemId") Long problemId) {
         try {
             RequestContext ctx = new RequestContext(); /* orgId deprecated */ RequestContext.set(ctx);
             service.deleteItem(patientId, problemId);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true).message("Medical Problem deleted successfully").build());
         } catch (Exception e) {
-            log.error("Failed to delete item: {}", e.getMessage(), e);
+            log.error("Failed to delete Medical Problem item {} for patientId {}: {}", problemId, patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(false).message("Failed to delete medical problem: " + e.getMessage()).build());
         } finally { RequestContext.clear(); }

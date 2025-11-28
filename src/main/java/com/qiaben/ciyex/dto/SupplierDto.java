@@ -9,9 +9,8 @@ public class SupplierDto {
     private String contact;
     private String phone;
     private String email;
-    private String createdDate;
-    private String lastModifiedDate;
     private String externalId;
+    private String fhirId;
 
     private Audit audit;
 

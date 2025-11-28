@@ -113,7 +113,6 @@ public class ProviderDto {
     public static class Audit {
         private String createdDate; // Yes
         private String lastModifiedDate; // Yes
-        private String createdBy; // Optional
-        private String updatedBy; // Optional
+    
     }
 }

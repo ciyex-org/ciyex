@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.SupplierDto;
+import com.qiaben.ciyex.exception.ResourceNotFoundException;
 import com.qiaben.ciyex.entity.Supplier;
 import com.qiaben.ciyex.repository.SupplierRepository;
 import com.qiaben.ciyex.storage.ExternalStorage;
@@ -37,14 +38,29 @@ public class SupplierService {
     public SupplierDto create(SupplierDto dto) {
         Supplier supplier = mapToEntity(dto);
 
-
         String externalId = null;
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            ExternalStorage<SupplierDto> externalStorage = storageResolver.resolve(SupplierDto.class);
-            externalId = externalStorage.create(dto);
+        try {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            if (storageType != null && !storageType.isBlank()) {
+                ExternalStorage<SupplierDto> externalStorage = storageResolver.resolve(SupplierDto.class);
+                if (externalStorage != null) {
+                    externalId = externalStorage.create(dto);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error creating external storage record for Supplier", e);
         }
-        supplier.setExternalId(externalId);
+
+        // Set externalId priority: 1) External storage, 2) Client provided, 3) Auto-generate
+        if (externalId != null) {
+            supplier.setExternalId(externalId);
+        } else if (dto.getExternalId() != null && !dto.getExternalId().isBlank()) {
+            supplier.setExternalId(dto.getExternalId());
+        } else {
+            // Auto-generate if no external storage and no client-provided ID
+            supplier.setExternalId("SP-" + java.util.UUID.randomUUID().toString());
+            log.info("Auto-generated external ID for supplier: {}", supplier.getExternalId());
+        }
 
         return mapToDto(repository.save(supplier));
     }
@@ -52,14 +68,14 @@ public class SupplierService {
     @Transactional(readOnly = true)
     public SupplierDto getById(Long id) {
         Supplier supplier = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Supplier not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Supplier", "id", (Object) id));
         return mapToDto(supplier);
     }
 
     @Transactional
     public SupplierDto update(Long id, SupplierDto dto) {
         Supplier supplier = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Supplier not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Supplier", "id", (Object) id));
 
         supplier.setName(dto.getName());
         supplier.setContact(dto.getContact());
@@ -114,6 +130,12 @@ public class SupplierService {
         dto.setPhone(supplier.getPhone());
         dto.setEmail(supplier.getEmail());
         dto.setExternalId(supplier.getExternalId());
+        dto.setFhirId(supplier.getExternalId());
+
+        SupplierDto.Audit audit = new SupplierDto.Audit();
+        audit.setCreatedDate(supplier.getCreatedDate() != null ? supplier.getCreatedDate().toString() : null);
+        audit.setLastModifiedDate(supplier.getLastModifiedDate() != null ? supplier.getLastModifiedDate().toString() : null);
+        dto.setAudit(audit);
         return dto;
     }
 }

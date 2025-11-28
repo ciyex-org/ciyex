@@ -3,6 +3,7 @@ package com.qiaben.ciyex.controller;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.HealthcareServiceDto;
 import com.qiaben.ciyex.service.HealthcareServiceService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -11,6 +12,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/healthcare-services")
+@Slf4j
 public class HealthcareServiceController {
 
     private final HealthcareServiceService service;
@@ -41,6 +43,7 @@ public class HealthcareServiceController {
                     .build();
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            log.error("Failed to create Healthcare Service: {}", e.getMessage(), e);
             ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
                     .success(false)
                     .message("Failed to create healthcare service: " + e.getMessage())
@@ -53,13 +56,42 @@ public class HealthcareServiceController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<HealthcareServiceDto>>> get() {
-        List<HealthcareServiceDto> services = service.getAll();
-        ApiResponse<List<HealthcareServiceDto>> response = new ApiResponse.Builder<List<HealthcareServiceDto>>()
-                .success(true)
-                .message("Healthcare Services fetched successfully")
-                .data(services)
-                .build();
-        return ResponseEntity.ok(response);
+        try {
+            List<HealthcareServiceDto> services = service.getAll();
+            ApiResponse<List<HealthcareServiceDto>> response = new ApiResponse.Builder<List<HealthcareServiceDto>>()
+                    .success(true)
+                    .message("Healthcare Services fetched successfully")
+                    .data(services)
+                    .build();
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Failed to retrieve Healthcare Services: {}", e.getMessage(), e);
+            ApiResponse<List<HealthcareServiceDto>> response = new ApiResponse.Builder<List<HealthcareServiceDto>>()
+                    .success(false)
+                    .message("Failed to retrieve healthcare services: " + e.getMessage())
+                    .build();
+            return ResponseEntity.ok(response);
+        }
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<HealthcareServiceDto>> getById(@PathVariable("id") Long id) {
+        try {
+            HealthcareServiceDto service = this.service.getById(id);
+            ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
+                    .success(true)
+                    .message("Healthcare Service retrieved successfully")
+                    .data(service)
+                    .build();
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Failed to retrieve Healthcare Service with id {}: {}", id, e.getMessage(), e);
+            ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
+                    .success(false)
+                    .message("Failed to retrieve healthcare service: " + e.getMessage())
+                    .build();
+            return ResponseEntity.ok(response);
+        }
     }
 
 
@@ -67,7 +99,7 @@ public class HealthcareServiceController {
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<HealthcareServiceDto>> update(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestBody HealthcareServiceDto dto
     ) {
         try {
@@ -89,6 +121,7 @@ public class HealthcareServiceController {
                     .build();
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            log.error("Failed to update Healthcare Service with id {}: {}", id, e.getMessage(), e);
             ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
                     .success(false)
                     .message("Failed to update healthcare service: " + e.getMessage())
@@ -98,13 +131,22 @@ public class HealthcareServiceController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id ) {
-        service.delete(id);
-        ApiResponse<Void> response = new ApiResponse.Builder<Void>()
-                .success(true)
-                .message("Healthcare Service deleted successfully")
-                .build();
-        return ResponseEntity.ok(response);
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
+        try {
+            service.delete(id);
+            ApiResponse<Void> response = new ApiResponse.Builder<Void>()
+                    .success(true)
+                    .message("Healthcare Service deleted successfully")
+                    .build();
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Failed to delete Healthcare Service with id {}: {}", id, e.getMessage(), e);
+            ApiResponse<Void> response = new ApiResponse.Builder<Void>()
+                    .success(false)
+                    .message("Failed to delete healthcare service: " + e.getMessage())
+                    .build();
+            return ResponseEntity.ok(response);
+        }
     }
 
     /**

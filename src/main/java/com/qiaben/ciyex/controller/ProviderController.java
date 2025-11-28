@@ -16,9 +16,11 @@ import java.util.List;
 
 // NEW import
 import com.qiaben.ciyex.dto.ProviderPasswordResetRequest;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api/providers")
+@Slf4j
 public class ProviderController {
 
     private final ProviderService service;
@@ -39,6 +41,7 @@ public class ProviderController {
                             .build()
             );
         } catch (IllegalArgumentException e) {
+            log.error("Failed to create Provider: {}", e.getMessage(), e);
             return ResponseEntity.ok(
                     ApiResponse.<ProviderDto>builder()
                             .success(false)
@@ -46,6 +49,7 @@ public class ProviderController {
                             .data(null)
                             .build());
         } catch (Exception e) {
+            log.error("Failed to create Provider: {}", e.getMessage(), e);
             return ResponseEntity.ok(
                     ApiResponse.<ProviderDto>builder()
                             .success(false)
@@ -56,7 +60,7 @@ public class ProviderController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<ProviderDto>> get(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<ProviderDto>> get(@PathVariable("id") Long id) {
         try {
             ProviderDto provider = service.getById(id);
             return ResponseEntity.ok(
@@ -67,6 +71,7 @@ public class ProviderController {
                             .build()
             );
         } catch (RuntimeException e) {
+            log.error("Failed to retrieve Provider with id {}: {}", id, e.getMessage(), e);
             return ResponseEntity.ok(
                     ApiResponse.<ProviderDto>builder()
                             .success(false)
@@ -74,6 +79,7 @@ public class ProviderController {
                             .data(null)
                             .build());
         } catch (Exception e) {
+            log.error("Failed to retrieve Provider with id {}: {}", id, e.getMessage(), e);
             return ResponseEntity.ok(
                     ApiResponse.<ProviderDto>builder()
                             .success(false)
@@ -84,7 +90,7 @@ public class ProviderController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<ProviderDto>> update(@PathVariable Long id, @RequestBody ProviderDto dto) {
+    public ResponseEntity<ApiResponse<ProviderDto>> update(@PathVariable("id") Long id, @RequestBody ProviderDto dto) {
         try {
             ProviderDto updatedProvider = service.update(id, dto);
             return ResponseEntity.ok(
@@ -95,6 +101,7 @@ public class ProviderController {
                             .build()
             );
         } catch (RuntimeException e) {
+            log.error("Failed to update Provider with id {}: {}", id, e.getMessage(), e);
             return ResponseEntity.ok(
                     ApiResponse.<ProviderDto>builder()
                             .success(false)
@@ -102,6 +109,7 @@ public class ProviderController {
                             .data(null)
                             .build());
         } catch (Exception e) {
+            log.error("Failed to update Provider with id {}: {}", id, e.getMessage(), e);
             return ResponseEntity.ok(
                     ApiResponse.<ProviderDto>builder()
                             .success(false)
@@ -112,7 +120,7 @@ public class ProviderController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(
@@ -123,6 +131,7 @@ public class ProviderController {
                             .build()
             );
         } catch (RuntimeException e) {
+            log.error("Failed to delete Provider with id {}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.<Void>builder()
                             .success(false)
@@ -130,6 +139,7 @@ public class ProviderController {
                             .data(null)
                             .build());
         } catch (Exception e) {
+            log.error("Failed to delete Provider with id {}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.<Void>builder()
                             .success(false)
@@ -177,7 +187,7 @@ public class ProviderController {
 
     @PutMapping("/{id}/status")
     public ResponseEntity<ApiResponse<ProviderDto>> updateStatus(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestBody StatusUpdateRequest request
     ) {
         try {
@@ -190,6 +200,7 @@ public class ProviderController {
                             .build()
             );
         } catch (RuntimeException e) {
+            log.error("Failed to update Provider status with id {}: {}", id, e.getMessage(), e);
             return ResponseEntity.ok(
                     ApiResponse.<ProviderDto>builder()
                             .success(false)
@@ -197,6 +208,7 @@ public class ProviderController {
                             .data(null)
                             .build());
         } catch (Exception e) {
+            log.error("Failed to update Provider status with id {}: {}", id, e.getMessage(), e);
             return ResponseEntity.ok(
                     ApiResponse.<ProviderDto>builder()
                             .success(false)
@@ -209,7 +221,7 @@ public class ProviderController {
     // === NEW: reset provider password by provider id ===
     @PostMapping("/{id}/reset-password")
     public ResponseEntity<ApiResponse<Void>> resetProviderPassword(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestBody ProviderPasswordResetRequest request
     ) {
         try {
