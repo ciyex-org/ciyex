@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -17,6 +19,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class PortalVitalsService {
+
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final VitalsRepository vitalsRepository;
     private final PortalUserRepository userRepository;
@@ -132,6 +136,10 @@ public class PortalVitalsService {
      * Convert Vitals entity to PortalVitalsDto
      */
     private PortalVitalsDto toPortalVitalsDto(com.qiaben.ciyex.entity.Vitals vitals) {
+        PortalVitalsDto.Audit a = new PortalVitalsDto.Audit();
+        if (vitals.getCreatedDate() != null) a.setCreatedDate(DAY.format(vitals.getCreatedDate().atZone(ZoneId.systemDefault())));
+        if (vitals.getLastModifiedDate() != null) a.setLastModifiedDate(DAY.format(vitals.getLastModifiedDate().atZone(ZoneId.systemDefault())));
+
         return PortalVitalsDto.builder()
                 .id(vitals.getId())
                 .patientId(vitals.getPatientId())
@@ -148,7 +156,7 @@ public class PortalVitalsService {
                 .bmi(vitals.getBmi())
                 .notes(vitals.getNotes())
                 .recordedAt(vitals.getRecordedAt())
-                .createdDate(vitals.getCreatedDate())
+                .audit(a)
                 .build();
     }
 }

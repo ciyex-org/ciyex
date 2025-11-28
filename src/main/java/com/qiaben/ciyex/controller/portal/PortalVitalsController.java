@@ -120,7 +120,10 @@ public class PortalVitalsController {
                         .bmi(vital.getBmi())
                         .notes(vital.getNotes())
                         .recordedAt(vital.getRecordedAt())
-                        .createdDate(vital.getCreatedDate())
+                        .audit(PortalVitalsDto.Audit.builder()
+                                .createdDate(vital.getAudit().getCreatedDate())
+                                .lastModifiedDate(vital.getAudit().getLastModifiedDate())
+                                .build())
                         .build())
                 .collect(java.util.stream.Collectors.toList());
 
