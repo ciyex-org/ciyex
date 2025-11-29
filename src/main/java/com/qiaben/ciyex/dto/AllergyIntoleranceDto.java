@@ -9,14 +9,17 @@ import java.util.List;
 @Data
 public class AllergyIntoleranceDto {
 
-    private String externalId;           // tenant
-    private Long patientId;       // EHR patient id (omitted in API responses)
+    private String fhirId;           // FHIR resource ID
+    private String externalId;       // Alias for fhirId
+    private Long patientId;          // EHR patient id (omitted in API responses)
     private List<AllergyItem> allergiesList;
     private Audit audit;
 
     @Data
     public static class AllergyItem {
         private Long id;          // primary key row id
+        private String fhirId;    // FHIR resource ID
+        private String externalId; // Alias for fhirId
         private String allergyName;
         private String reaction;
         private String severity;

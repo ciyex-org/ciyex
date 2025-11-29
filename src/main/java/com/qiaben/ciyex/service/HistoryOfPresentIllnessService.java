@@ -119,11 +119,16 @@
 
 
 
+
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.HistoryOfPresentIllnessDto;
 import com.qiaben.ciyex.entity.HistoryOfPresentIllness;
 import com.qiaben.ciyex.repository.HistoryOfPresentIllnessRepository;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.fhir.FhirExternalHistoryOfPresentIllnessStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -131,6 +136,7 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -146,21 +152,106 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class HistoryOfPresentIllnessService {
+
+    private final HistoryOfPresentIllnessRepository repo;
+    private final EncounterService encounterService;
+    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
+    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
+    private final ExternalStorageResolver storageResolver;
+    private final OrgIntegrationConfigProvider configProvider;
+
+    @Autowired(required = false)
+    private FhirExternalHistoryOfPresentIllnessStorage fhirStorage;
+
+    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
     public List<HistoryOfPresentIllnessDto> getAllByPatient(Long patientId) {
         return repo.findByPatientId(patientId)
             .stream().map(this::toDto).toList();
     }
 
-    private final HistoryOfPresentIllnessRepository repo;
-    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-
     // Create
     public HistoryOfPresentIllnessDto create(Long patientId, Long encounterId, HistoryOfPresentIllnessDto dto) {
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
+        // Step 3: Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        // Step 4: Create the history of present illness
         HistoryOfPresentIllness e = new HistoryOfPresentIllness();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
         applyDto(e, dto);
         e = repo.save(e);
+        
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("HistoryOfPresentIllness create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for HistoryOfPresentIllness ID: {}", e.getId());
+                ExternalStorage<HistoryOfPresentIllnessDto> ext = storageResolver.resolve(HistoryOfPresentIllnessDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                HistoryOfPresentIllnessDto snapshot = toDto(e);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource for HistoryOfPresentIllness ID: {} with externalId: {}", e.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for HistoryOfPresentIllness ID: {}", e.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync HistoryOfPresentIllness to external storage", ex);
+            }
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for HistoryOfPresentIllness ID: {}", e.getId());
+                HistoryOfPresentIllnessDto snapshot = toDto(e);
+                String externalId = fhirStorage.create(snapshot);
+                log.info("FHIR fallback create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource (fallback) for HistoryOfPresentIllness ID: {} with externalId: {}", e.getId(), externalId);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync HistoryOfPresentIllness to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for HistoryOfPresentIllness ID: {}", e.getId());
+        }
+
+        if (e.getExternalId() == null) {
+            String generatedId = "HPI-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
+        }
+
         return toDto(e);
     }
 
@@ -168,7 +259,8 @@ public class HistoryOfPresentIllnessService {
     public HistoryOfPresentIllnessDto getOne(Long patientId, Long encounterId, Long id) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("History of Present Illness not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
         return toDto(e);
     }
@@ -181,24 +273,121 @@ public class HistoryOfPresentIllnessService {
 
     // Update (blocked if signed)
     public HistoryOfPresentIllnessDto update(Long patientId, Long encounterId, Long id, HistoryOfPresentIllnessDto dto) {
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
+        // Step 3: Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        // Step 4: Find the history of present illness
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("History of Present Illness not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
-        if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed HPI entries are read-only.");
 
+        // Step 5: Check if HPI itself is signed
+        if (Boolean.TRUE.equals(e.getESigned())) {
+            throw new IllegalStateException("Signed HPI entries are read-only.");
+        }
+
+        // Step 6: Update the HPI
         applyDto(e, dto);
         e = repo.save(e);
+        
+        // Step 7: Optional external sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("HistoryOfPresentIllness update - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR sync for HistoryOfPresentIllness ID: {}", e.getId());
+                    ExternalStorage<HistoryOfPresentIllnessDto> ext = storageResolver.resolve(HistoryOfPresentIllnessDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    HistoryOfPresentIllnessDto snapshot = toDto(e);
+                    ext.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource for HistoryOfPresentIllness ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync HistoryOfPresentIllness update to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for HistoryOfPresentIllness ID: {}", e.getId());
+                    HistoryOfPresentIllnessDto snapshot = toDto(e);
+                    fhirStorage.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource (fallback) for HistoryOfPresentIllness ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync HistoryOfPresentIllness update to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for HistoryOfPresentIllness ID: {}", e.getId());
+            }
+        }
+
         return toDto(e);
     }
 
     // Delete (blocked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Step 1: Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        // Step 2: Find the history of present illness
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("History of Present Illness not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
-        if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed HPI entries cannot be deleted.");
+
+        // Step 3: Check if HPI itself is signed
+        if (Boolean.TRUE.equals(e.getESigned())) {
+            throw new IllegalStateException("Signed HPI entries cannot be deleted.");
+        }
+        
+        // Step 4: Optional external delete
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("HistoryOfPresentIllness delete - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR delete for HistoryOfPresentIllness ID: {}", e.getId());
+                    ExternalStorage<HistoryOfPresentIllnessDto> ext = storageResolver.resolve(HistoryOfPresentIllnessDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    ext.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource for HistoryOfPresentIllness ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync HistoryOfPresentIllness delete to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for HistoryOfPresentIllness ID: {}", e.getId());
+                    fhirStorage.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource (fallback) for HistoryOfPresentIllness ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync HistoryOfPresentIllness delete to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for HistoryOfPresentIllness ID: {}", e.getId());
+            }
+        }
+
         repo.delete(e);
     }
 
@@ -206,7 +395,8 @@ public class HistoryOfPresentIllnessService {
     public HistoryOfPresentIllnessDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("History of Present Illness not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
@@ -221,7 +411,8 @@ public class HistoryOfPresentIllnessService {
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         HistoryOfPresentIllness e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("History of Present Illness not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("History of Present Illness not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
@@ -289,6 +480,7 @@ public class HistoryOfPresentIllnessService {
         HistoryOfPresentIllnessDto d = new HistoryOfPresentIllnessDto();
         d.setId(e.getId());
         d.setExternalId(e.getExternalId());
+        d.setFhirId(e.getFhirId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
         d.setDescription(e.getDescription());

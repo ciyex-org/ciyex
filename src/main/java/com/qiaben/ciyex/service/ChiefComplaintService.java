@@ -213,11 +213,16 @@
 
 
 
+
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.ChiefComplaintDto;
 import com.qiaben.ciyex.entity.ChiefComplaint;
 import com.qiaben.ciyex.repository.ChiefComplaintRepository;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.fhir.FhirExternalChiefComplaintStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -225,6 +230,7 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -244,16 +250,100 @@ public class ChiefComplaintService {
     }
 
     private final ChiefComplaintRepository repo;
+    private final EncounterService encounterService;
+    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
+    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
+    private final ExternalStorageResolver storageResolver;
+    private final OrgIntegrationConfigProvider configProvider;
 
+    @Autowired(required = false)
+    private FhirExternalChiefComplaintStorage fhirStorage;
+
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
     // CREATE
     public ChiefComplaintDto create(Long patientId, Long encounterId, ChiefComplaintDto dto) {
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
+        // Step 3: Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        // Step 4: Create the chief complaint
         ChiefComplaint e = new ChiefComplaint();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
         applyEditable(e, dto);
         e = repo.save(e);
+        
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("ChiefComplaint create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for ChiefComplaint ID: {}", e.getId());
+                ExternalStorage<ChiefComplaintDto> ext = storageResolver.resolve(ChiefComplaintDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                ChiefComplaintDto snapshot = toDto(e);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource for ChiefComplaint ID: {} with externalId: {}", e.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for ChiefComplaint ID: {}", e.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync ChiefComplaint to external storage", ex);
+            }
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for ChiefComplaint ID: {}", e.getId());
+                ChiefComplaintDto snapshot = toDto(e);
+                String externalId = fhirStorage.create(snapshot);
+                log.info("FHIR fallback create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource (fallback) for ChiefComplaint ID: {} with externalId: {}", e.getId(), externalId);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync ChiefComplaint to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ChiefComplaint ID: {}", e.getId());
+        }
+
+        if (e.getExternalId() == null) {
+            String generatedId = "CC-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
+        }
+
         return toDto(e);
     }
 
@@ -267,22 +357,80 @@ public class ChiefComplaintService {
     public ChiefComplaintDto getOne(Long patientId, Long encounterId, Long id) {
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Chief Complaint not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Chief Complaint not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
         return toDto(e);
     }
 
     // UPDATE (blocked if signed)
     public ChiefComplaintDto update(Long patientId, Long encounterId, Long id, ChiefComplaintDto dto) {
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
+        // Step 3: Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        // Step 4: Find the chief complaint
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Chief Complaint not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Chief Complaint not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
+
+        // Step 5: Check if chief complaint itself is signed
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed chief complaint is read-only.");
         }
+
+        // Step 6: Update the chief complaint
         applyEditable(e, dto);
         e = repo.save(e);
+
+        // Step 7: Optional external FHIR sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("ChiefComplaint update - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR sync for ChiefComplaint ID: {}", e.getId());
+                    ExternalStorage<ChiefComplaintDto> ext = storageResolver.resolve(ChiefComplaintDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    ChiefComplaintDto snapshot = toDto(e);
+                    ext.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource for ChiefComplaint ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync ChiefComplaint update to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for ChiefComplaint ID: {}", e.getId());
+                    ChiefComplaintDto snapshot = toDto(e);
+                    fhirStorage.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource (fallback) for ChiefComplaint ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync ChiefComplaint update to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ChiefComplaint ID: {}", e.getId());
+            }
+        }
+
         return toDto(e);
     }
 
@@ -290,11 +438,42 @@ public class ChiefComplaintService {
     public void delete(Long patientId, Long encounterId, Long id) {
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Chief Complaint not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Chief Complaint not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed chief complaint cannot be deleted.");
         }
+
+        // Optional external FHIR sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("ChiefComplaint delete - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR delete for ChiefComplaint ID: {}", e.getId());
+                    ExternalStorage<ChiefComplaintDto> ext = storageResolver.resolve(ChiefComplaintDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    ext.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource for ChiefComplaint ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync ChiefComplaint delete to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for ChiefComplaint ID: {}", e.getId());
+                    fhirStorage.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource (fallback) for ChiefComplaint ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync ChiefComplaint delete to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ChiefComplaint ID: {}", e.getId());
+            }
+        }
+
         repo.delete(e);
     }
 
@@ -317,7 +496,8 @@ public class ChiefComplaintService {
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Chief Complaint not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Chief Complaint not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
 
         e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));
@@ -380,6 +560,8 @@ public class ChiefComplaintService {
     private ChiefComplaintDto toDto(ChiefComplaint e) {
         ChiefComplaintDto d = new ChiefComplaintDto();
         d.setId(e.getId());
+        d.setExternalId(e.getExternalId());
+        d.setFhirId(e.getFhirId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
         d.setComplaint(e.getComplaint());
@@ -390,8 +572,12 @@ public class ChiefComplaintService {
         d.setSignedAt(e.getSignedAt() != null ? e.getSignedAt().format(ISO) : null);
         d.setSignedBy(e.getSignedBy());
         d.setPrintedAt(e.getPrintedAt() != null ? e.getPrintedAt().format(ISO) : null);
-        d.setCreatedAt(e.getCreatedAt() != null ? e.getCreatedAt().toString() : null);
-        d.setUpdatedAt(e.getUpdatedAt() != null ? e.getUpdatedAt().toString() : null);
+
+        ChiefComplaintDto.Audit a = new ChiefComplaintDto.Audit();
+        if (e.getCreatedAt() != null) a.setCreatedDate(DAY.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
+        if (e.getUpdatedAt() != null) a.setLastModifiedDate(DAY.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
+        d.setAudit(a);
+
         return d;
     }
 

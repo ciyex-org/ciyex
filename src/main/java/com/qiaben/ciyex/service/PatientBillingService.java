@@ -760,6 +760,7 @@ public class PatientBillingService {
     }
 
     /** TRANSFER insurance balance → patient account credit */
+    /** Adjust for insurance overpayment */
     public PatientInvoiceDto transferInsuranceCreditToPatient(Long patientId, Long invoiceId, Long remitId, TransferCreditRequest req) {
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
         BigDecimal amount = Optional.ofNullable(req).map(TransferCreditRequest::amount)
@@ -767,7 +768,7 @@ public class PatientBillingService {
         if (amount.signum() <= 0) throw new IllegalArgumentException("Transfer amount must be > 0");
 
         if (invoice.getLines() == null || invoice.getLines().isEmpty()) {
-            throw new IllegalStateException("No invoice lines to transfer from");
+            throw new IllegalStateException("No invoice lines to adjust");
         }
 
         // Calculate total insurance balance across all lines
@@ -775,12 +776,12 @@ public class PatientBillingService {
                 .map(line -> nz(line.getInsPortion()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Validate that transfer amount doesn't exceed total insurance balance
+        // Validate that adjustment amount doesn't exceed total insurance balance
         if (amount.compareTo(totalInsPortion) > 0) {
-            throw new IllegalArgumentException("Transfer exceeds insurance balance. Requested: " + amount + ", Available: " + totalInsPortion);
+            throw new IllegalArgumentException("Adjustment exceeds insurance balance. Requested: " + amount + ", Available: " + totalInsPortion);
         }
 
-        // Distribute the transfer across lines proportionally
+        // Distribute the adjustment across lines proportionally
         BigDecimal remaining = amount;
         PatientInvoiceLine firstLineWithBalance = null;
 
@@ -792,24 +793,24 @@ public class PatientBillingService {
                 firstLineWithBalance = line;
             }
 
-            BigDecimal toTransfer = lineInsPortion.min(remaining);
-            if (toTransfer.compareTo(BigDecimal.ZERO) > 0) {
-                line.setInsPortion(lineInsPortion.subtract(toTransfer));
-                remaining = remaining.subtract(toTransfer);
+            BigDecimal toAdjust = lineInsPortion.min(remaining);
+            if (toAdjust.compareTo(BigDecimal.ZERO) > 0) {
+                line.setInsPortion(lineInsPortion.subtract(toAdjust));
+                line.setInsWriteOff(nz(line.getInsWriteOff()).add(toAdjust));
+                line.setPatientPortion(nz(line.getPatientPortion()).add(toAdjust));
+                remaining = remaining.subtract(toAdjust);
                 lineRepo.save(line);
             }
         }
 
-        // credit patient account
-        addCredit(patientId, amount);
-
-        // audit: create remit row with negative insPay to mirror the transfer out of invoice
+        // audit: create remit row to record the overpayment adjustment
         // Use the first line that had a balance for reference
         PatientInsuranceRemitLine adj = new PatientInsuranceRemitLine();
         adj.setPatientId(patientId);
         adj.setInvoiceId(invoiceId);
         adj.setInvoiceLineId(firstLineWithBalance != null ? firstLineWithBalance.getId() : invoice.getLines().get(0).getId());
-        adj.setInsPay(amount.negate());
+        adj.setInsPay(BigDecimal.ZERO);
+        adj.setInsWriteOff(amount);
         remitRepo.save(adj);
 
         invoice.recalcTotals();
@@ -2006,6 +2007,30 @@ public class PatientBillingService {
 
         return dto;
     }
+    // Fetch insurance email for a claim
+    public String getInsuranceEmailForClaim(Long claimId) {
+        PatientClaim claim = claimRepo.findById(claimId).orElse(null);
+        if (claim == null) return null;
+        // Get most recent coverage for patient
+        List<Coverage> coverages = coverageRepo.findByPatientIdOrderByEffectiveDateDesc(claim.getPatientId());
+        if (!coverages.isEmpty()) {
+            Coverage coverage = coverages.get(0);
+            if (coverage.getInsuranceCompany() != null) {
+                // If InsuranceCompany has email field, use it; otherwise, return null or placeholder
+                // return coverage.getInsuranceCompany().getEmail();
+                return "insurance@example.com"; // Placeholder, replace with actual email field
+            }
+        }
+        return null;
+    }
+
+    // Send claim details to insurance email (stub)
+    public boolean sendClaimDetailsToInsuranceEmail(PatientClaimDto claim, String insuranceEmail) {
+        // TODO: Implement actual email sending logic
+        log.info("Sending claim {} to insurance email {}", claim.id(), insuranceEmail);
+        // Simulate success
+        return true;
+    }
 
     /* ===================== Helpers ===================== */
 
@@ -2139,7 +2164,4 @@ public class PatientBillingService {
         );
     }
 
-
-
 }
-

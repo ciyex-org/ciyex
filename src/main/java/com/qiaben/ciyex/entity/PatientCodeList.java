@@ -35,6 +35,12 @@ public class PatientCodeList extends AuditableEntity {
     @Column(columnDefinition = "text")
     private String codes;
 
+    @Column(name = "external_id")
+    private String externalId;
+
+    @Column(name = "fhir_id")
+    private String fhirId;
+
     // audit fields provided by AuditableEntity (stored as LocalDateTime)
 
     // Maintain public API as OffsetDateTime for compatibility by delegating to AuditableEntity
@@ -79,6 +85,12 @@ public class PatientCodeList extends AuditableEntity {
 
     public String getCodes() { return codes; }
     public void setCodes(String codes) { this.codes = codes; }
+
+    public String getExternalId() { return externalId; }
+    public void setExternalId(String externalId) { this.externalId = externalId; }
+
+    public String getFhirId() { return fhirId; }
+    public void setFhirId(String fhirId) { this.fhirId = fhirId; }
 
     
 }

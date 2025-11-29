@@ -1,5 +1,6 @@
 
 
+
 package com.qiaben.ciyex.dto;
 
 import lombok.*;
@@ -11,6 +12,8 @@ import java.time.LocalDateTime;
 @Builder
 public class VitalsDto {
     private Long id;
+    private String externalId;
+    private String fhirId;
     private Long patientId;
     private Long encounterId;
 
@@ -31,6 +34,16 @@ public class VitalsDto {
     private Boolean signed;
 
     private LocalDateTime recordedAt;
-    private LocalDateTime createdDate;
-    private LocalDateTime lastModifiedDate;
+
+    // audit
+    private Audit audit;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class Audit {
+        private String createdDate;      // yyyy-MM-dd
+        private String lastModifiedDate; // yyyy-MM-dd
+    }
 }

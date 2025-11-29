@@ -120,11 +120,17 @@
 
 
 
+
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.PastMedicalHistoryDto;
 import com.qiaben.ciyex.entity.PastMedicalHistory;
 import com.qiaben.ciyex.repository.PastMedicalHistoryRepository;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.StorageType;
+import com.qiaben.ciyex.storage.fhir.FhirExternalPastMedicalHistoryStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -132,6 +138,7 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -151,15 +158,99 @@ public class PastMedicalHistoryService {
     }
 
     private final PastMedicalHistoryRepository repo;
+    private final EncounterService encounterService;
+    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
+    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
+    private final ExternalStorageResolver storageResolver;
+    private final OrgIntegrationConfigProvider configProvider;
+
+    @Autowired(required = false)
+    private FhirExternalPastMedicalHistoryStorage fhirExternalPastMedicalHistoryStorage;
+
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
     public PastMedicalHistoryDto create(Long patientId, Long encounterId, PastMedicalHistoryDto dto) {
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
+        // Step 3: Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        // Step 4: Create the past medical history
         PastMedicalHistory e = new PastMedicalHistory();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
         applyDto(e, dto);
         e = repo.save(e);
+
+        // Step 5: External sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("PMH create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for PMH ID: {}", e.getId());
+                ExternalStorage<PastMedicalHistoryDto> ext = storageResolver.resolve(PastMedicalHistoryDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                PastMedicalHistoryDto snapshot = toDto(e);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource for PMH ID: {} with externalId: {}", e.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for PMH ID: {}", e.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync PMH to external storage", ex);
+            }
+        } else if (fhirExternalPastMedicalHistoryStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for PMH ID: {}", e.getId());
+                PastMedicalHistoryDto snapshot = toDto(e);
+                String externalId = fhirExternalPastMedicalHistoryStorage.create(snapshot);
+                log.info("FHIR fallback create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource (fallback) for PMH ID: {} with externalId: {}", e.getId(), externalId);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync PMH to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for PMH ID: {}", e.getId());
+        }
+
+        if (e.getExternalId() == null) {
+            String generatedId = "PMH-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
+        }
+
         return toDto(e);
     }
 
@@ -167,7 +258,8 @@ public class PastMedicalHistoryService {
     public PastMedicalHistoryDto getOne(Long patientId, Long encounterId, Long id) {
         PastMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Past Medical History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Past Medical History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
         return toDto(e);
     }
@@ -179,24 +271,98 @@ public class PastMedicalHistoryService {
 
     // Update (blocked if signed)
     public PastMedicalHistoryDto update(Long patientId, Long encounterId, Long id, PastMedicalHistoryDto dto) {
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
+        // Step 3: Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        // Step 4: Find the past medical history
         PastMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Past Medical History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Past Medical History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
-        if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed PMH entries are read-only.");
 
+        // Step 5: Check if PMH itself is signed
+        if (Boolean.TRUE.equals(e.getESigned())) {
+            throw new IllegalStateException("Signed PMH entries are read-only.");
+        }
+
+        // Step 6: Update the PMH
         applyDto(e, dto);
         e = repo.save(e);
+
+        // Step 7: External sync
+        try {
+            if (e.getExternalId() != null) {
+                String storageType = configProvider.getStorageTypeForCurrentOrg();
+                if (storageType != null) {
+                    ExternalStorage<PastMedicalHistoryDto> ext = storageResolver.resolve(PastMedicalHistoryDto.class);
+                    if (ext != null) {
+                        ext.update(toDto(e), e.getExternalId());
+                        log.info("Updated FHIR resource for PMH ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                    }
+                } else if (fhirExternalPastMedicalHistoryStorage != null) {
+                    fhirExternalPastMedicalHistoryStorage.update(toDto(e), e.getExternalId());
+                    log.info("Updated FHIR resource (fallback) for PMH ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to sync PMH update to external storage", ex);
+        }
+
         return toDto(e);
     }
 
     // Delete (blocked if signed)
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Step 1: Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        // Step 2: Find the past medical history
         PastMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Past Medical History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Past Medical History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
-        if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed PMH entries cannot be deleted.");
+
+        // Step 3: Check if PMH itself is signed
+        if (Boolean.TRUE.equals(e.getESigned())) {
+            throw new IllegalStateException("Signed PMH entries cannot be deleted.");
+        }
+
+        // Step 4: External sync
+        try {
+            if (e.getExternalId() != null) {
+                String storageType = configProvider.getStorageTypeForCurrentOrg();
+                if (storageType != null) {
+                    ExternalStorage<PastMedicalHistoryDto> ext = storageResolver.resolve(PastMedicalHistoryDto.class);
+                    if (ext != null) {
+                        ext.delete(e.getExternalId());
+                        log.info("Deleted FHIR resource for PMH ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                    }
+                } else if (fhirExternalPastMedicalHistoryStorage != null) {
+                    fhirExternalPastMedicalHistoryStorage.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource (fallback) for PMH ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to sync PMH delete to external storage", ex);
+        }
 
         repo.delete(e);
     }
@@ -205,7 +371,8 @@ public class PastMedicalHistoryService {
     public PastMedicalHistoryDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         PastMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Past Medical History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Past Medical History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
         if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
 
@@ -220,7 +387,8 @@ public class PastMedicalHistoryService {
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         PastMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Past Medical History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Past Medical History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
@@ -288,6 +456,7 @@ public class PastMedicalHistoryService {
         PastMedicalHistoryDto d = new PastMedicalHistoryDto();
         d.setId(e.getId());
         d.setExternalId(e.getExternalId());
+        d.setFhirId(e.getFhirId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
         d.setDescription(e.getDescription());
@@ -307,6 +476,7 @@ public class PastMedicalHistoryService {
 
     private void applyDto(PastMedicalHistory e, PastMedicalHistoryDto d) {
         e.setExternalId(d.getExternalId());
+        e.setFhirId(d.getFhirId());
         e.setDescription(d.getDescription());
         // eSign fields are managed via eSign()
     }

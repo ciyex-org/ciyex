@@ -119,12 +119,15 @@
 
 
 
-
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.AssignedProviderDto;
 import com.qiaben.ciyex.entity.AssignedProvider;
 import com.qiaben.ciyex.repository.AssignedProviderRepository;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.fhir.FhirExternalAssignedProviderStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -132,6 +135,7 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -152,16 +156,99 @@ public class AssignedProviderService {
     }
 
     private final AssignedProviderRepository repo;
+    private final EncounterService encounterService;
+    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
+    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
+    private final ExternalStorageResolver storageResolver;
+    private final OrgIntegrationConfigProvider configProvider;
+
+    @Autowired(required = false)
+    private FhirExternalAssignedProviderStorage fhirStorage;
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
     public AssignedProviderDto create(Long patientId, Long encounterId, AssignedProviderDto dto) {
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
+        // Step 3: Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        // Step 4: Create the assigned provider
         AssignedProvider e = new AssignedProvider();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
         applyDto(e, dto);
         e = repo.save(e);
+        
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("AssignedProvider create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for AssignedProvider ID: {}", e.getId());
+                ExternalStorage<AssignedProviderDto> ext = storageResolver.resolve(AssignedProviderDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                AssignedProviderDto snapshot = toDto(e);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource for AssignedProvider ID: {} with externalId: {}", e.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for AssignedProvider ID: {}", e.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync AssignedProvider to external storage", ex);
+            }
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for AssignedProvider ID: {}", e.getId());
+                AssignedProviderDto snapshot = toDto(e);
+                String externalId = fhirStorage.create(snapshot);
+                log.info("FHIR fallback create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource (fallback) for AssignedProvider ID: {} with externalId: {}", e.getId(), externalId);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync AssignedProvider to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for AssignedProvider ID: {}", e.getId());
+        }
+
+        if (e.getExternalId() == null) {
+            String generatedId = "AP-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
+        }
+
         return toDto(e);
     }
 
@@ -169,7 +256,8 @@ public class AssignedProviderService {
     public AssignedProviderDto getOne(Long patientId, Long encounterId, Long id) {
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Assigned Provider not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Assigned Provider not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
         return toDto(e);
     }
@@ -181,17 +269,75 @@ public class AssignedProviderService {
 
     // Update (LOCKED if eSigned)
     public AssignedProviderDto update(Long patientId, Long encounterId, Long id, AssignedProviderDto dto) {
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
+        // Step 3: Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        // Step 4: Find the assigned provider
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Assigned Provider not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Assigned Provider not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
 
+        // Step 5: Check if assigned provider itself is signed
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed records are read-only.");
         }
 
+        // Step 6: Update the assigned provider
         applyDto(e, dto);
         e = repo.save(e);
+        
+        // Step 7: Optional external FHIR sync
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            if (storageType != null) {
+                try {
+                    ExternalStorage<AssignedProviderDto> ext = storageResolver.resolve(AssignedProviderDto.class);
+                    AssignedProviderDto snapshot = toDto(e);
+                    ext.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource for AssignedProvider ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.warn("Failed to sync AssignedProvider update to external storage: {}", ex.getMessage());
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    AssignedProviderDto snapshot = toDto(e);
+                    fhirStorage.update(snapshot, e.getExternalId());
+                    log.info("Updated FHIR resource (fallback) for AssignedProvider ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.warn("Failed to sync AssignedProvider update to external storage (fallback): {}", ex.getMessage());
+                }
+            }
+        }
+
+        if (e.getExternalId() == null) {
+            String generatedId = "AP-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
+        }
+
         return toDto(e);
     }
 
@@ -199,11 +345,33 @@ public class AssignedProviderService {
     public void delete(Long patientId, Long encounterId, Long id) {
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Assigned Provider not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Assigned Provider not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed records cannot be deleted.");
+        }
+        
+        // Optional external FHIR sync - delete before local delete
+        if (e.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            if (storageType != null) {
+                try {
+                    ExternalStorage<AssignedProviderDto> ext = storageResolver.resolve(AssignedProviderDto.class);
+                    ext.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource for AssignedProvider ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.warn("Failed to delete AssignedProvider from external storage: {}", ex.getMessage());
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    fhirStorage.delete(e.getExternalId());
+                    log.info("Deleted FHIR resource (fallback) for AssignedProvider ID: {} with externalId: {}", e.getId(), e.getExternalId());
+                } catch (Exception ex) {
+                    log.warn("Failed to delete AssignedProvider from external storage (fallback): {}", ex.getMessage());
+                }
+            }
         }
 
         repo.delete(e);
@@ -213,7 +381,8 @@ public class AssignedProviderService {
     public AssignedProviderDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Assigned Provider not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Assigned Provider not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -231,7 +400,8 @@ public class AssignedProviderService {
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         AssignedProvider e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Assigned Provider not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Assigned Provider not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
@@ -290,6 +460,7 @@ public class AssignedProviderService {
         AssignedProviderDto d = new AssignedProviderDto();
         d.setId(e.getId());
         d.setExternalId(e.getExternalId());
+        d.setFhirId(e.getFhirId());  // fhirId is same as externalId (FHIR CareTeam ID)
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
         d.setProviderId(e.getProviderId());
@@ -314,6 +485,7 @@ public class AssignedProviderService {
 
     private void applyDto(AssignedProvider e, AssignedProviderDto d) {
         e.setExternalId(d.getExternalId());
+        e.setFhirId(d.getFhirId());
         e.setProviderId(d.getProviderId());
         e.setRole(d.getRole());
         e.setStartDate(d.getStartDate());

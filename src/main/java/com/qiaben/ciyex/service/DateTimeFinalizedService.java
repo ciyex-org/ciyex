@@ -141,12 +141,15 @@
 
 
 
-
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.DateTimeFinalizedDto;
 import com.qiaben.ciyex.entity.DateTimeFinalized;
 import com.qiaben.ciyex.repository.DateTimeFinalizedRepository;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.fhir.FhirExternalDateTimeFinalizedStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -154,6 +157,7 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -174,15 +178,99 @@ public class DateTimeFinalizedService {
     }
 
     private final DateTimeFinalizedRepository repo;
+    private final EncounterService encounterService;
+    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
+    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
+    private final ExternalStorageResolver storageResolver;
+    private final OrgIntegrationConfigProvider configProvider;
+
+    @Autowired(required = false)
+    private FhirExternalDateTimeFinalizedStorage fhirStorage;
+
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Create
     public DateTimeFinalizedDto create(Long patientId, Long encounterId, DateTimeFinalizedDto dto) {
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
+        // Step 3: Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        // Step 4: Create the date/time finalized record
         DateTimeFinalized e = new DateTimeFinalized();
         e.setPatientId(patientId);
         e.setEncounterId(encounterId);
         applyDto(e, dto);
         e = repo.save(e);
+        
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("DateTimeFinalized create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for DateTimeFinalized ID: {}", e.getId());
+                ExternalStorage<DateTimeFinalizedDto> ext = storageResolver.resolve(DateTimeFinalizedDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                DateTimeFinalizedDto snapshot = toDto(e);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource for DateTimeFinalized ID: {} with externalId: {}", e.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for DateTimeFinalized ID: {}", e.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync DateTimeFinalized to external storage", ex);
+            }
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for DateTimeFinalized ID: {}", e.getId());
+                DateTimeFinalizedDto snapshot = toDto(e);
+                String externalId = fhirStorage.create(snapshot);
+                log.info("FHIR fallback create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    e.setExternalId(externalId);
+                    e = repo.save(e);
+                    log.info("Created FHIR resource (fallback) for DateTimeFinalized ID: {} with externalId: {}", e.getId(), externalId);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync DateTimeFinalized to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for DateTimeFinalized ID: {}", e.getId());
+        }
+
+        if (e.getExternalId() == null) {
+            String generatedId = "DTF-" + System.currentTimeMillis();
+            e.setExternalId(generatedId);
+            e.setFhirId(generatedId);
+            e = repo.save(e);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            e.setFhirId(e.getExternalId());
+            e = repo.save(e);
+        }
+
         return toDto(e);
     }
 
@@ -190,7 +278,8 @@ public class DateTimeFinalizedService {
     public DateTimeFinalizedDto getOne(Long patientId, Long encounterId, Long id) {
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Date/Time Finalized not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Date/Time Finalized not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
         return toDto(e);
     }
@@ -202,30 +291,119 @@ public class DateTimeFinalizedService {
 
     // Update (LOCKED if eSigned)
     public DateTimeFinalizedDto update(Long patientId, Long encounterId, Long id, DateTimeFinalizedDto dto) {
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Validate Encounter exists and belongs to the Patient
+        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
+        if (encounterOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
+                    encounterId, patientId)
+            );
+        }
+
+        // Step 3: Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        // Step 4: Find the date/time finalized record
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Date/Time Finalized not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Date/Time Finalized not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
 
+        // Step 5: Check if date/time finalized itself is signed
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed finalizations are read-only.");
         }
 
+        // Step 6: Update the date/time finalized record
         applyDto(e, dto);
         e = repo.save(e);
+        
+        // Step 7: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("DateTimeFinalized update - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for DateTimeFinalized ID: {}", e.getId());
+                ExternalStorage<DateTimeFinalizedDto> ext = storageResolver.resolve(DateTimeFinalizedDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                DateTimeFinalizedDto snapshot = toDto(e);
+                ext.update(snapshot, e.getExternalId());
+                log.info("Updated FHIR resource for DateTimeFinalized ID: {}", e.getId());
+            } catch (Exception ex) {
+                log.error("Failed to sync DateTimeFinalized to external storage", ex);
+            }
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for DateTimeFinalized ID: {}", e.getId());
+                DateTimeFinalizedDto snapshot = toDto(e);
+                fhirStorage.update(snapshot, e.getExternalId());
+                log.info("Updated FHIR resource (fallback) for DateTimeFinalized ID: {}", e.getId());
+            } catch (Exception ex) {
+                log.error("Failed to sync DateTimeFinalized to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for DateTimeFinalized ID: {}", e.getId());
+        }
+
         return toDto(e);
     }
 
     // Delete (BLOCKED if eSigned)
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Step 1: Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        // Step 2: Find the date/time finalized record
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Date/Time Finalized not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Date/Time Finalized not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
 
+        // Step 3: Check if date/time finalized itself is signed
         if (Boolean.TRUE.equals(e.getESigned())) {
             throw new IllegalStateException("Signed finalizations cannot be deleted.");
         }
+
+        // Step 4: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("DateTimeFinalized delete - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR delete for DateTimeFinalized ID: {}", e.getId());
+                ExternalStorage<DateTimeFinalizedDto> ext = storageResolver.resolve(DateTimeFinalizedDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                DateTimeFinalizedDto snapshot = toDto(e);
+                ext.delete(e.getExternalId());
+                log.info("Deleted FHIR resource for DateTimeFinalized ID: {}", e.getId());
+            } catch (Exception ex) {
+                log.error("Failed to delete DateTimeFinalized from external storage", ex);
+            }
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for DateTimeFinalized ID: {}", e.getId());
+                DateTimeFinalizedDto snapshot = toDto(e);
+                fhirStorage.delete(e.getExternalId());
+                log.info("Deleted FHIR resource (fallback) for DateTimeFinalized ID: {}", e.getId());
+            } catch (Exception ex) {
+                log.error("Failed to delete DateTimeFinalized from external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR delete for DateTimeFinalized ID: {}", e.getId());
+        }
+
         repo.delete(e);
     }
 
@@ -233,7 +411,8 @@ public class DateTimeFinalizedService {
     public DateTimeFinalizedDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Date/Time Finalized not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Date/Time Finalized not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
 
         if (Boolean.TRUE.equals(e.getESigned())) {
@@ -255,7 +434,8 @@ public class DateTimeFinalizedService {
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
         DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Date/Time Finalized not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
+                    String.format("Date/Time Finalized not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
+                        id, patientId, encounterId)
                 ));
 
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
@@ -321,6 +501,7 @@ public class DateTimeFinalizedService {
         DateTimeFinalizedDto d = new DateTimeFinalizedDto();
         d.setId(e.getId());
         d.setExternalId(e.getExternalId());
+        d.setFhirId(e.getFhirId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
         d.setTargetType(e.getTargetType());
@@ -350,6 +531,7 @@ public class DateTimeFinalizedService {
 
     private void applyDto(DateTimeFinalized e, DateTimeFinalizedDto d) {
         e.setExternalId(d.getExternalId());
+        e.setFhirId(d.getFhirId());
         e.setTargetType(d.getTargetType());
         e.setTargetId(d.getTargetId());
         e.setTargetVersion(d.getTargetVersion());

@@ -54,11 +54,28 @@ public class OrderService {
         }
 
         // Now call external storage with a populated orderNumber
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            ExternalStorage<OrderDto> storage = storageResolver.resolve(OrderDto.class);
-            String externalId = storage.create(mapToDto(entity));
+        String externalId = null;
+        try {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            if (storageType != null && !storageType.isBlank()) {
+                ExternalStorage<OrderDto> storage = storageResolver.resolve(OrderDto.class);
+                if (storage != null) {
+                    externalId = storage.create(mapToDto(entity));
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error creating external storage record for Order", e);
+        }
+
+        // Set externalId priority: 1) External storage, 2) Client provided, 3) Auto-generate
+        if (externalId != null) {
             entity.setExternalId(externalId);
+        } else if (dto.getExternalId() != null && !dto.getExternalId().isBlank()) {
+            entity.setExternalId(dto.getExternalId());
+        } else {
+            // Auto-generate if no external storage and no client-provided ID
+            entity.setExternalId("Ord-" + java.util.UUID.randomUUID().toString());
+            log.info("Auto-generated external ID for order: {}", entity.getExternalId());
         }
 
         return mapToDto(repository.save(entity));
@@ -68,14 +85,14 @@ public class OrderService {
     @Transactional(readOnly = true)
     public OrderDto getById(Long id) {
         Order entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+                .orElseThrow(() -> new com.qiaben.ciyex.exception.ResourceNotFoundException("Order", "id", (Object) id));
         return mapToDto(entity);
     }
 
     @Transactional
     public OrderDto update(Long id, OrderDto dto) {
         Order entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+                .orElseThrow(() -> new com.qiaben.ciyex.exception.ResourceNotFoundException("Order", "id", (Object) id));
 
         entity.setOrderNumber(dto.getOrderNumber());
         entity.setSupplier(dto.getSupplier());
@@ -95,7 +112,7 @@ public class OrderService {
     @Transactional
     public void delete(Long id) {
         Order entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+                .orElseThrow(() -> new com.qiaben.ciyex.exception.ResourceNotFoundException("Order", "id", (Object) id));
 
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null && entity.getExternalId() != null) {
@@ -123,7 +140,7 @@ public class OrderService {
     @Transactional
     public OrderDto receiveOrder(Long orderId, OrderDto dto) {
         Order order = repository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+                .orElseThrow(() -> new com.qiaben.ciyex.exception.ResourceNotFoundException("Order", "id", (Object) orderId));
 
         if (!"Pending".equals(order.getStatus()) && !"Received".equals(order.getStatus())) {
             throw new RuntimeException("Only pending orders can be received");
@@ -229,9 +246,12 @@ public class OrderService {
                 e.getInventory() != null ? e.getInventory().getCategory() : e.getCategory()
         );
         dto.setAmount(e.getAmount());
+        dto.setExternalId(e.getExternalId());
         dto.setFhirId(e.getExternalId());
 
         OrderDto.Audit audit = new OrderDto.Audit();
+        audit.setCreatedDate(e.getCreatedDate() != null ? e.getCreatedDate().toString() : null);
+        audit.setLastModifiedDate(e.getLastModifiedDate() != null ? e.getLastModifiedDate().toString() : null);
         dto.setAudit(audit);
 
         return dto;

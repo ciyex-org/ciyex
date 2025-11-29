@@ -128,6 +128,9 @@ public class Plan extends AuditableEntity {
     @Column(name = "return_work_school", length = 255)           private String returnWorkSchool;
     @Column(name = "sections_json",   columnDefinition = "text") private String sectionsJson;
 
+    @Column(name = "external_id", length = 255) private String externalId;
+    @Column(name = "fhir_id", length = 255) private String fhirId;
+
     // eSign / Print
     @Builder.Default
     @Column(name = "e_signed")         private Boolean eSigned = Boolean.FALSE;

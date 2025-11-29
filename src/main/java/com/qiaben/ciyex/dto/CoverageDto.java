@@ -5,14 +5,14 @@ import lombok.Data;
 @Data
 public class CoverageDto {
     private Long id;
-    private String externalId;
+    private String fhirId;
+    private String externalId;  // Alias for fhirId
     private String coverageType;
     private String planName;
     private String policyNumber;
     private String coverageStartDate;
     private String coverageEndDate;
     private Long patientId;
-    private String tenantName;
 
     // Additional fields from the screenshot
     private String provider;
@@ -44,4 +44,11 @@ public class CoverageDto {
 
     private String cardFrontUrl;
     private String cardBackUrl;
+    @Data
+    public static class Audit {
+        private String createdDate;
+        private String lastModifiedDate;
+    }
+    private Audit audit;
+
 }

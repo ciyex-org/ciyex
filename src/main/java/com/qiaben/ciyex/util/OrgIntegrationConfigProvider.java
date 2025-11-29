@@ -35,7 +35,7 @@ public class OrgIntegrationConfigProvider {
         if (explicit != null && !explicit.isBlank()) return explicit;
         if (all.keySet().stream().anyMatch(k -> k.startsWith("fhir_"))) return "fhir";
         if (all.keySet().stream().anyMatch(k -> k.startsWith("practice_db_"))) return "practice_db";
-        return null;
+        return "fhir"; // default to fhir
     }
 
     @Transactional(readOnly = true)

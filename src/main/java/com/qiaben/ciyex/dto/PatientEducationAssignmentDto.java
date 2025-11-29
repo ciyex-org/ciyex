@@ -10,8 +10,16 @@ public class PatientEducationAssignmentDto {
     private boolean delivered;
     private String assignedDate;
     private String patientName; // ✅ add this
+    private String fhirId; // FHIR ID at assignment level
 
     private TopicDto topic; // ✅ Nested topic object
+
+    @Data
+    public static class Audit {
+        private String createdDate;
+        private String lastModifiedDate;
+    }
+    private Audit audit;
 
     @Data
     public static class TopicDto {

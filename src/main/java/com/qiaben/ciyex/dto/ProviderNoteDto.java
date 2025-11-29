@@ -51,8 +51,7 @@ public class ProviderNoteDto {
     private String narrative;
 
     private String externalId;
-
-    // server-managed eSign/print state
+    private String fhirId;
     private Boolean eSigned;
     private String  signedAt;            // ISO string
     private String  signedBy;

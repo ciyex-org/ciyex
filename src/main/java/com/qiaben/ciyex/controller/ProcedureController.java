@@ -1,7 +1,3 @@
-
-
-
-
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
@@ -113,17 +109,27 @@ public class ProcedureController {
     @PostMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<ProcedureDto>> create(
             @PathVariable Long patientId, @PathVariable Long encounterId, @RequestBody ProcedureDto dto) {
-        // Validate mandatory fields
-        String validationError = validateMandatoryFields(dto);
-        if (validationError != null) {
-            return ResponseEntity.badRequest().body(ApiResponse.<ProcedureDto>builder()
-                    .success(false).message(validationError).build());
+        try {
+            // Validate mandatory fields
+            String validationError = validateMandatoryFields(dto);
+            if (validationError != null) {
+                return ResponseEntity.badRequest().body(ApiResponse.<ProcedureDto>builder()
+                        .success(false).message(validationError).build());
+            }
+            var created = service.create(patientId, encounterId, dto);
+            return ResponseEntity.ok(ApiResponse.<ProcedureDto>builder()
+                    .success(true).message("Procedure created").data(created).build());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<ProcedureDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalStateException ex) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.LOCKED)
+                    .body(ApiResponse.<ProcedureDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error creating Procedure for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<ProcedureDto>builder().success(false).message("Error creating Procedure: " + ex.getMessage()).build());
         }
-
-        var created = service.create(patientId, encounterId, dto);
-
-        return ResponseEntity.ok(ApiResponse.<ProcedureDto>builder()
-                .success(true).message("Procedure created").data(created).build());
     }
 
     @PutMapping("/{patientId}/{encounterId}/{id}")

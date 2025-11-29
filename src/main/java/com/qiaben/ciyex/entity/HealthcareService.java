@@ -20,6 +20,7 @@ public class HealthcareService extends AuditableEntity {
     private String location;
     private String type; // Organization ID for multi-tenancy
     private String hoursOfOperation; // Working hours
+    private String externalId; // External/FHIR ID
 
     // Other necessary fields
 }

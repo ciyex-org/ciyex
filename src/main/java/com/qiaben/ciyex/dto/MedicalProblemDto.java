@@ -15,6 +15,7 @@ public class MedicalProblemDto {
 
     private Long id;
     private String externalId;
+    private String fhirId;
     private String tenantName;
     private Long patientId;
     private List<MedicalProblemItem> problemsList;
@@ -25,6 +26,8 @@ public class MedicalProblemDto {
     @Data
     public static class MedicalProblemItem {
         private Long id;
+        private String externalId;
+        private String fhirId;
 
         private String title;
         private String outcome;

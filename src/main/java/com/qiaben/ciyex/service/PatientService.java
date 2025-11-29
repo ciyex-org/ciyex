@@ -14,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -73,31 +74,36 @@ public class PatientService {
 
         Patient patient = mapToEntity(dto);
 
-        String externalId = null;
+        String externalId = dto.getExternalId(); // Start with DTO's externalId
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         log.info("Storage type configured: {} (single-tenant mode, no tenant/org validation required)", storageType);
         if (storageType != null) {
             try {
                 ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
+
+                externalId = externalStorage.create(dto); // Override with external storage ID if available
+                log.info("Successfully created patient in external storage with externalId: {}", externalId);
+
                 externalId = externalStorage.create(dto);
                 log.info("Successfully created patient in external storage with externalId: {} (no tenant context required)", externalId);
             } catch (IllegalStateException e) {
                 log.warn("External storage configuration issue, proceeding without external sync: {}", e.getMessage());
                 // Continue without external storage - don't fail the entire operation
             } catch (RuntimeException e) {
-                if (e.getMessage() != null && (e.getMessage().contains("No FHIR configuration") || 
-                    e.getMessage().contains("No tenantName") || e.getMessage().contains("No orgId"))) {
+                if (e.getMessage() != null && (e.getMessage().contains("No FHIR configuration") ||
+                        e.getMessage().contains("No tenantName") || e.getMessage().contains("No orgId"))) {
                     log.warn("External storage not configured or tenant context missing, proceeding without external sync: {}", e.getMessage());
                     // Continue without external storage - don't fail the entire operation
                 } else {
-                    log.error("Unexpected external storage error. Error type: {}, Message: {}", 
-                        e.getClass().getSimpleName(), e.getMessage(), e);
+                    log.error("Unexpected external storage error. Error type: {}, Message: {}",
+                            e.getClass().getSimpleName(), e.getMessage(), e);
                     log.warn("Proceeding without external sync due to unexpected error");
                     // Continue without external storage rather than failing
                 }
+
             } catch (Exception e) {
-                log.error("External storage sync failed but patient creation will continue. Error type: {}, Message: {}", 
-                    e.getClass().getSimpleName(), e.getMessage(), e);
+                log.error("External storage sync failed but patient creation will continue. Error type: {}, Message: {}",
+                        e.getClass().getSimpleName(), e.getMessage(), e);
                 log.warn("Proceeding without external sync due to general error");
                 // Continue without external storage rather than failing
             }
@@ -105,6 +111,13 @@ public class PatientService {
             log.info("No external storage configured, saving patient to local database only");
         }
 
+        // Auto-generate externalId if not provided
+        if (externalId == null) {
+            externalId = "PAT-" + System.currentTimeMillis();
+            log.info("Auto-generated externalId: {}", externalId);
+        }
+
+        patient.setFhirId(externalId);
         patient.setExternalId(externalId);
         patient = repository.save(patient);
 
@@ -115,7 +128,9 @@ public class PatientService {
 
         log.info("Created patient with id: {} and externalId: {}", patient.getId(), externalId);
 
+
         // Map the saved entity to DTO to include audit fields
+
         return mapToDto(patient);
     }
 
@@ -238,6 +253,12 @@ public class PatientService {
     // --- Mapping helpers ---
     private Patient mapToEntity(PatientDto dto) {
         Patient patient = new Patient();
+
+        // Use externalId if provided, otherwise use fhirId
+        String fhirIdValue = dto.getExternalId() != null ? dto.getExternalId() : dto.getFhirId();
+        patient.setFhirId(fhirIdValue);
+        patient.setExternalId(fhirIdValue);
+
         patient.setFirstName(dto.getFirstName());
         patient.setLastName(dto.getLastName());
         patient.setMiddleName(dto.getMiddleName());
@@ -254,7 +275,8 @@ public class PatientService {
     private PatientDto mapToDto(Patient patient) {
         PatientDto dto = new PatientDto();
         dto.setId(patient.getId());
-        dto.setExternalId(patient.getExternalId());
+        dto.setFhirId(patient.getFhirId());
+        dto.setExternalId(patient.getFhirId()); // externalId is an alias for fhirId
         dto.setFirstName(patient.getFirstName());
         dto.setLastName(patient.getLastName());
         dto.setMiddleName(patient.getMiddleName());
@@ -278,6 +300,19 @@ public class PatientService {
             dto.setAudit(audit);
         }
         
+
+
+        // Set audit information
+        PatientDto.Audit audit = new PatientDto.Audit();
+        if (patient.getCreatedDate() != null) {
+            audit.setCreatedDate(patient.getCreatedDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        }
+        if (patient.getLastModifiedDate() != null) {
+            audit.setLastModifiedDate(patient.getLastModifiedDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        }
+        dto.setAudit(audit);
+
+
         return dto;
     }
 

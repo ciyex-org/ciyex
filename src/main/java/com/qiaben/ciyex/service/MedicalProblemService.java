@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.ApiResponse;
+import com.qiaben.ciyex.exception.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.MedicalProblemDto;
 import com.qiaben.ciyex.entity.MedicalProblem;
 import com.qiaben.ciyex.repository.MedicalProblemRepository;
@@ -33,6 +34,12 @@ public class MedicalProblemService {
 
         if (dto.getProblemsList() != null) {
             for (var it : dto.getProblemsList()) {
+                // Auto-generate external ID if not provided
+                String externalId = it.getExternalId();
+                if (externalId == null || externalId.isBlank()) {
+                    externalId = "MP-" + java.util.UUID.randomUUID().toString();
+                }
+                
                 MedicalProblem row = MedicalProblem.builder()
                         .patientId(dto.getPatientId())
                         .title(it.getTitle())
@@ -40,6 +47,7 @@ public class MedicalProblemService {
                         .verificationStatus(it.getVerificationStatus())
                         .occurrence(it.getOccurrence())
                         .note(it.getNote())
+                        .externalId(externalId)
                         .build();
                 rows.add(repo.save(row));
             }
@@ -141,8 +149,20 @@ public class MedicalProblemService {
         if (includeTopLevelPatientId) dto.setPatientId(patientId);
 
         if (!rows.isEmpty()) {
-            dto.setId(rows.get(0).getId());
+            MedicalProblem firstRow = rows.get(0);
+            dto.setExternalId(firstRow.getExternalId());
+            dto.setFhirId(firstRow.getExternalId());
+            
+            // Always create audit object and populate with timestamps
             MedicalProblemDto.Audit audit = new MedicalProblemDto.Audit();
+            audit.setCreatedDate(firstRow.getCreatedDate());
+            audit.setLastModifiedDate(firstRow.getLastModifiedDate());
+            dto.setAudit(audit);
+        } else {
+            // Even if no rows, create empty audit object to avoid null
+            MedicalProblemDto.Audit audit = new MedicalProblemDto.Audit();
+            audit.setCreatedDate(null);
+            audit.setLastModifiedDate(null);
             dto.setAudit(audit);
         }
 
@@ -159,6 +179,8 @@ public class MedicalProblemService {
         it.setOccurrence(r.getOccurrence());
         it.setNote(r.getNote());
         it.setPatientId(r.getPatientId());
+        it.setExternalId(r.getExternalId());
+        it.setFhirId(r.getExternalId());
         return it;
     }
 }

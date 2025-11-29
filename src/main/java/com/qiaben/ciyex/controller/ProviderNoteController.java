@@ -208,8 +208,20 @@ public class ProviderNoteController {
             return ResponseEntity.ok(ApiResponse.<ProviderNoteDto>builder()
                     .success(true).message("Provider note created").data(saved).build());
         } catch (IllegalArgumentException ex) {
+            log.error("Validation error during ProviderNote creation: " + ex.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<ProviderNoteDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (IllegalStateException ex) {
+            log.error("Business rule violation during ProviderNote creation: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.LOCKED)
+                    .body(ApiResponse.<ProviderNoteDto>builder().success(false).message(ex.getMessage()).build());
+        } catch (Exception ex) {
+            log.error("Error creating ProviderNote for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<ProviderNoteDto>builder()
+                            .success(false)
+                            .message("Error creating ProviderNote: " + ex.getMessage())
+                            .build());
         }
     }
 

@@ -20,6 +20,9 @@ public class Coverage extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "fhir_id")
+    private String fhirId;
+
     @Column(name = "external_id")  // Added externalId
     private String externalId;
 
@@ -41,7 +44,7 @@ public class Coverage extends AuditableEntity {
     @Column(name = "patient_id")
     private Long patientId;
 
-    
+
 
     @ManyToOne
     @JoinColumn(name = "insurance_company_id")

@@ -8,4 +8,14 @@ public class PatientCodeListDto {
     public boolean active;
     public String notes;
     public String codes;
+    public String externalId;
+    public String fhirId;
+
+    // audit
+    public Audit audit;
+
+    public static class Audit {
+        public String createdDate;      // yyyy-MM-dd
+        public String lastModifiedDate; // yyyy-MM-dd
+    }
 }

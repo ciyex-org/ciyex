@@ -3,6 +3,7 @@ package com.qiaben.ciyex.controller;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.SupplierDto;
 import com.qiaben.ciyex.service.SupplierService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -13,6 +14,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/suppliers")
+@Slf4j
 public class SupplierController {
 
     private final SupplierService service;
@@ -39,6 +41,7 @@ public class SupplierController {
                     .data(service.create(dto))
                     .build());
         } catch (Exception e) {
+            log.error("Failed to create Supplier: {}", e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
                     .success(false)
                     .message("Failed to create supplier: " + e.getMessage())
@@ -47,16 +50,24 @@ public class SupplierController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<SupplierDto>> get(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
-                .success(true)
-                .message("Supplier retrieved successfully")
-                .data(service.getById(id))
-                .build());
+    public ResponseEntity<ApiResponse<SupplierDto>> get(@PathVariable("id") Long id) {
+        try {
+            return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
+                    .success(true)
+                    .message("Supplier retrieved successfully")
+                    .data(service.getById(id))
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve Supplier with id {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
+                    .success(false)
+                    .message("Failed to retrieve supplier: " + e.getMessage())
+                    .build());
+        }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<SupplierDto>> update(@PathVariable Long id, @RequestBody SupplierDto dto) {
+    public ResponseEntity<ApiResponse<SupplierDto>> update(@PathVariable("id") Long id, @RequestBody SupplierDto dto) {
         try {
             // Validate mandatory fields
             String validationError = validateMandatoryFields(dto);
@@ -73,6 +84,7 @@ public class SupplierController {
                     .data(service.update(id, dto))
                     .build());
         } catch (Exception e) {
+            log.error("Failed to update Supplier with id {}: {}", id, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
                     .success(false)
                     .message("Failed to update supplier: " + e.getMessage())
@@ -81,13 +93,21 @@ public class SupplierController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
-        service.delete(id);
-        return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .success(true)
-                .message("Supplier deleted successfully")
-                .data(null)
-                .build());
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
+        try {
+            service.delete(id);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(true)
+                    .message("Supplier deleted successfully")
+                    .data(null)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to delete Supplier with id {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(false)
+                    .message("Failed to delete supplier: " + e.getMessage())
+                    .build());
+        }
     }
 
     @GetMapping

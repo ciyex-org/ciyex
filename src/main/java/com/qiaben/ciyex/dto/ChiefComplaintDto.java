@@ -162,6 +162,8 @@ import lombok.Data;
 @Data
 public class ChiefComplaintDto {
     private Long id;
+    private String externalId;
+    private String fhirId;
     private Long patientId;
     private Long encounterId;
 
@@ -176,7 +178,12 @@ public class ChiefComplaintDto {
     private String  signedBy;
     private String  printedAt;  // ISO string
 
-    // audit (ISO or yyyy-MM-ddTHH:mm)
-    private String createdAt;
-    private String updatedAt;
+    // audit
+    private Audit audit;
+
+    @Data
+    public static class Audit {
+        private String createdDate;      // yyyy-MM-dd
+        private String lastModifiedDate; // yyyy-MM-dd
+    }
 }

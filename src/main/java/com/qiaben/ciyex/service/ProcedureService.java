@@ -1,11 +1,18 @@
 package com.qiaben.ciyex.service;
 
+
 import com.qiaben.ciyex.dto.ProcedureDto;
 import com.qiaben.ciyex.entity.Procedure;
 import com.qiaben.ciyex.repository.ProcedureRepository;
-import com.qiaben.ciyex.storage.ExternalProcedureStorage;
+import com.qiaben.ciyex.storage.ExternalStorage;
+import com.qiaben.ciyex.storage.ExternalStorageResolver;
+import com.qiaben.ciyex.storage.fhir.FhirExternalProcedureStorage;
+import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.repository.PatientRepository;
+import com.qiaben.ciyex.repository.EncounterRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.ZoneId;
@@ -17,15 +24,34 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Slf4j
 public class ProcedureService {
-    // Removed duplicate getAllByPatient(Long) method
-
     private final ProcedureRepository repo;
-    private final Optional<ExternalProcedureStorage> external;
+    private final EncounterService encounterService;
     private final PatientBillingService billingService;
+    private final PatientRepository patientRepository;
+    private final EncounterRepository encounterRepository;
+    private final ExternalStorageResolver storageResolver;
+    private final OrgIntegrationConfigProvider configProvider;
+
+    @Autowired(required = false)
+    private FhirExternalProcedureStorage fhirStorage;
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
+
     public ProcedureDto create(Long patientId, Long encounterId, ProcedureDto in) {
+        // Validate patient and encounter existence
+        boolean patientExists = patientRepository.existsById(patientId);
+        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
+        if (!patientExists && !encounterExists) {
+            throw new IllegalArgumentException("Patient and Encounter not found");
+        } else if (!patientExists) {
+            throw new IllegalArgumentException("Patient not found");
+        } else if (!encounterExists) {
+            throw new IllegalArgumentException("Encounter not found");
+        }
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Procedure p = Procedure.builder()
             .patientId(patientId)
             .encounterId(encounterId)
@@ -48,12 +74,60 @@ public class ProcedureService {
 
         final Procedure saved = repo.save(p);
 
-        external.ifPresent(ext -> {
-            final Procedure ref = saved;
-            String externalId = ext.create(mapToDto(ref));
-            ref.setExternalId(externalId);
-            repo.save(ref);
-        });
+        // Step 5: Optional external FHIR sync
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        log.info("Procedure create - storageType for current org: {}", storageType);
+
+        if (storageType != null) {
+            try {
+                log.info("Attempting FHIR sync for Procedure ID: {}", saved.getId());
+                ExternalStorage<ProcedureDto> ext = storageResolver.resolve(ProcedureDto.class);
+                log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                ProcedureDto snapshot = mapToDto(saved);
+                String externalId = ext.create(snapshot);
+                log.info("FHIR create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    saved.setExternalId(externalId);
+                    repo.save(saved);
+                    log.info("Created FHIR resource for Procedure ID: {} with externalId: {}", saved.getId(), externalId);
+                } else {
+                    log.warn("FHIR create returned null or empty externalId for Procedure ID: {}", saved.getId());
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync Procedure to external storage", ex);
+            }
+        } else if (fhirStorage != null) {
+            try {
+                log.info("No storage type configured, falling back to direct FHIR storage for Procedure ID: {}", saved.getId());
+                ProcedureDto snapshot = mapToDto(saved);
+                String externalId = fhirStorage.create(snapshot);
+                log.info("FHIR fallback create returned externalId: {}", externalId);
+
+                if (externalId != null && !externalId.isEmpty()) {
+                    saved.setExternalId(externalId);
+                    repo.save(saved);
+                    log.info("Created FHIR resource (fallback) for Procedure ID: {} with externalId: {}", saved.getId(), externalId);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to sync Procedure to external storage (fallback)", ex);
+            }
+        } else {
+            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Procedure ID: {}", saved.getId());
+        }
+
+        if (saved.getExternalId() == null) {
+            String generatedId = "P-" + System.currentTimeMillis();
+            saved.setExternalId(generatedId);
+            saved.setFhirId(generatedId);
+            repo.save(saved);
+            log.info("Auto-generated externalId: {}", generatedId);
+        } else {
+            saved.setFhirId(saved.getExternalId());
+            repo.save(saved);
+        }
+
         // Automatically create invoice for the new procedure
         try {
             java.math.BigDecimal rateValue;
@@ -81,6 +155,19 @@ public class ProcedureService {
     }
 
     public ProcedureDto update(Long patientId, Long encounterId, Long id, ProcedureDto in) {
+        // Validate patient and encounter existence
+        boolean patientExists = patientRepository.existsById(patientId);
+        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
+        if (!patientExists && !encounterExists) {
+            throw new IllegalArgumentException("Patient and Encounter not found");
+        } else if (!patientExists) {
+            throw new IllegalArgumentException("Patient not found");
+        } else if (!encounterExists) {
+            throw new IllegalArgumentException("Encounter not found");
+        }
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Procedure not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
@@ -103,28 +190,88 @@ public class ProcedureService {
         p.setProvidername(in.getProvidername());
         final Procedure updated = repo.save(p);
 
-        external.ifPresent(ext -> {
-            final Procedure ref = updated;
-            if (ref.getExternalId() != null) {
-                ext.update(ref.getExternalId(), mapToDto(ref));
+        // Step 7: Optional external FHIR sync
+        if (updated.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("Procedure update - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR sync for Procedure ID: {}", updated.getId());
+                    ExternalStorage<ProcedureDto> ext = storageResolver.resolve(ProcedureDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    ProcedureDto snapshot = mapToDto(updated);
+                    ext.update(snapshot, updated.getExternalId());
+                    log.info("Updated FHIR resource for Procedure ID: {} with externalId: {}", updated.getId(), updated.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync Procedure update to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for Procedure ID: {}", updated.getId());
+                    ProcedureDto snapshot = mapToDto(updated);
+                    fhirStorage.update(snapshot, updated.getExternalId());
+                    log.info("Updated FHIR resource (fallback) for Procedure ID: {} with externalId: {}", updated.getId(), updated.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync Procedure update to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Procedure ID: {}", updated.getId());
             }
-        });
+        }
 
         return mapToDto(updated);
     }
 
     public void delete(Long patientId, Long encounterId, Long id) {
+        // Validate patient and encounter existence
+        boolean patientExists = patientRepository.existsById(patientId);
+        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
+        if (!patientExists && !encounterExists) {
+            throw new IllegalArgumentException("Patient and Encounter not found");
+        } else if (!patientExists) {
+            throw new IllegalArgumentException("Patient not found");
+        } else if (!encounterExists) {
+            throw new IllegalArgumentException("Encounter not found");
+        }
+        // Check if encounter is signed - prevent modification
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
         Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
                 .orElseThrow(() -> new IllegalArgumentException(
                     String.format("Procedure not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
                 ));
 
         final Procedure toDelete = p;
-        external.ifPresent(ext -> {
-            if (toDelete.getExternalId() != null) {
-                ext.delete(toDelete.getExternalId());
+        // Step 7: Optional external FHIR sync
+        if (toDelete.getExternalId() != null) {
+            String storageType = configProvider.getStorageTypeForCurrentOrg();
+            log.info("Procedure delete - storageType for current org: {}", storageType);
+
+            if (storageType != null) {
+                try {
+                    log.info("Attempting FHIR sync for Procedure ID: {}", toDelete.getId());
+                    ExternalStorage<ProcedureDto> ext = storageResolver.resolve(ProcedureDto.class);
+                    log.info("Resolved external storage: {}", ext.getClass().getName());
+
+                    ext.delete(toDelete.getExternalId());
+                    log.info("Deleted FHIR resource for Procedure ID: {} with externalId: {}", toDelete.getId(), toDelete.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync Procedure delete to external storage", ex);
+                }
+            } else if (fhirStorage != null) {
+                try {
+                    log.info("No storage type configured, falling back to direct FHIR storage for Procedure ID: {}", toDelete.getId());
+                    fhirStorage.delete(toDelete.getExternalId());
+                    log.info("Deleted FHIR resource (fallback) for Procedure ID: {} with externalId: {}", toDelete.getId(), toDelete.getExternalId());
+                } catch (Exception ex) {
+                    log.error("Failed to sync Procedure delete to external storage (fallback)", ex);
+                }
+            } else {
+                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Procedure ID: {}", toDelete.getId());
             }
-        });
+        }
 
         repo.delete(toDelete);
     }
@@ -149,6 +296,7 @@ public class ProcedureService {
         ProcedureDto dto = new ProcedureDto();
         dto.setId(e.getId());
         dto.setExternalId(e.getExternalId());
+        dto.setFhirId(e.getFhirId());
         dto.setPatientId(e.getPatientId());
         dto.setEncounterId(e.getEncounterId());
 

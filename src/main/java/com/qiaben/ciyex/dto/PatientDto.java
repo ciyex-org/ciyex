@@ -8,7 +8,9 @@ import lombok.Data;
 public class PatientDto {
 
     private Long id; // Database ID
-    private String externalId; // ID from external storage (e.g., FHIR Patient ID)
+
+    private String fhirId; // FHIR resource ID
+    private String externalId; // Alias for fhirId (ID from external storage)
 
     // 🔹 Mandatory fields with validation annotations
     @NotBlank(message = "First name is required")
