@@ -195,7 +195,7 @@ public class VitalsController {
 
     // 🏥 EHR Endpoint - Staff can query any patient's vitals
     @GetMapping("/by-patient/{patientId}")
-    @PreAuthorize("hasRole('PRACTITIONER') or hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_PRACTITIONER') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<List<VitalsDto>>> getVitalsForEhr(
             @RequestHeader("orgId") Long orgId,
             @PathVariable Long patientId) {
@@ -209,7 +209,7 @@ public class VitalsController {
 
     // 👩‍⚕️ Patient Portal Endpoint - Only logged-in patient can see their vitals
     @GetMapping("/my")
-    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public ApiResponse<List<VitalsDto>> getMyVitals(Authentication authentication) {
         try {
             if (authentication == null || !authentication.isAuthenticated()) {
@@ -261,7 +261,7 @@ public class VitalsController {
 
     // 🏥 EHR Endpoint - Staff can add vitals for any patient
     @PostMapping("/by-patient/{patientId}")
-    @PreAuthorize("hasRole('PRACTITIONER') or hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_PRACTITIONER') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<VitalsDto>> addVitalsForEhr(
             @RequestHeader("orgId") Long orgId,
             @PathVariable Long patientId,
@@ -318,3 +318,5 @@ public class VitalsController {
         return null;
     }
 }
+
+

@@ -37,7 +37,7 @@ public class PortalReportsController {
      * Endpoint: GET /api/portal/reports/recent
      */
     @GetMapping("/recent")
-    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public ApiResponse<List<DocumentDto>> getRecentReports(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return ApiResponse.<List<DocumentDto>>builder()
@@ -63,7 +63,7 @@ public class PortalReportsController {
      * Endpoint: GET /api/portal/reports
      */
     @GetMapping
-    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public ApiResponse<List<DocumentDto>> getAllReports(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return ApiResponse.<List<DocumentDto>>builder()
@@ -100,7 +100,7 @@ public class PortalReportsController {
      * Endpoint: GET /api/portal/reports/my
      */
     @GetMapping("/my")
-    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public ApiResponse<List<DocumentDto>> getMyReports(
             Authentication authentication) {
 

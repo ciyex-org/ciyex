@@ -28,6 +28,7 @@ public class CoverageDto {
     private String subscriberCountry;
     private String subscriberPhone;
 
+
     private InsuranceCompanyDto insuranceCompany;  // Added InsuranceCompany DTO
 
     private String byholderName;
@@ -41,4 +42,6 @@ public class CoverageDto {
     private String byholderPhone;
     private Double copayAmount;
 
+    private String cardFrontUrl;
+    private String cardBackUrl;
 }

@@ -4,11 +4,13 @@ import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.CoverageDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.service.CoverageService;
+import com.qiaben.ciyex.service.InsuranceCardUploadService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -18,9 +20,11 @@ import java.util.List;
 public class CoverageController {
 
     private final CoverageService service;
+    private final InsuranceCardUploadService cardUploadService;
 
-    public CoverageController(CoverageService service) {
+    public CoverageController(CoverageService service, InsuranceCardUploadService cardUploadService) {
         this.service = service;
+        this.cardUploadService = cardUploadService;
     }
 
     @PostMapping
@@ -253,6 +257,66 @@ public class CoverageController {
                     .message("Error retrieving insurance coverage: " + e.getMessage())
                     .data(null)
                     .build();
+        }
+    }
+
+    /**
+     * Upload insurance card front image
+     */
+    @PostMapping("/{id}/card/front")
+    public ResponseEntity<ApiResponse<String>> uploadCardFront(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file) {
+        try {
+            RequestContext ctx = new RequestContext();
+            RequestContext.set(ctx);
+
+            String url = cardUploadService.uploadCard(file, id, "front");
+            service.updateCardUrl(id, url, true);
+
+            return ResponseEntity.ok(ApiResponse.<String>builder()
+                    .success(true)
+                    .message("Card front uploaded successfully")
+                    .data(url)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to upload card front for coverage {}: {}", id, e.getMessage());
+            return ResponseEntity.ok(ApiResponse.<String>builder()
+                    .success(false)
+                    .message("Failed to upload card: " + e.getMessage())
+                    .build());
+        } finally {
+            RequestContext.clear();
+        }
+    }
+
+    /**
+     * Upload insurance card back image
+     */
+    @PostMapping("/{id}/card/back")
+    public ResponseEntity<ApiResponse<String>> uploadCardBack(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file) {
+        try {
+            RequestContext ctx = new RequestContext();
+            RequestContext.set(ctx);
+
+            String url = cardUploadService.uploadCard(file, id, "back");
+            service.updateCardUrl(id, url, false);
+
+            return ResponseEntity.ok(ApiResponse.<String>builder()
+                    .success(true)
+                    .message("Card back uploaded successfully")
+                    .data(url)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to upload card back for coverage {}: {}", id, e.getMessage());
+            return ResponseEntity.ok(ApiResponse.<String>builder()
+                    .success(false)
+                    .message("Failed to upload card: " + e.getMessage())
+                    .build());
+        } finally {
+            RequestContext.clear();
         }
     }
 

@@ -113,11 +113,10 @@ public class PatientService {
             throw new RuntimeException("Failed to generate id for new patient");
         }
 
-        dto.setId(patient.getId());
-        dto.setExternalId(externalId);
         log.info("Created patient with id: {} and externalId: {}", patient.getId(), externalId);
 
-        return dto;
+        // Map the saved entity to DTO to include audit fields
+        return mapToDto(patient);
     }
 
     // ✅ Retrieve patient by ID
@@ -266,6 +265,19 @@ public class PatientService {
         dto.setAddress(patient.getAddress());
         dto.setStatus(patient.getStatus());
         dto.setMedicalRecordNumber(patient.getMedicalRecordNumber());
+        
+        // Map audit fields
+        if (patient.getCreatedDate() != null || patient.getLastModifiedDate() != null) {
+            PatientDto.Audit audit = new PatientDto.Audit();
+            if (patient.getCreatedDate() != null) {
+                audit.setCreatedDate(patient.getCreatedDate().toString());
+            }
+            if (patient.getLastModifiedDate() != null) {
+                audit.setLastModifiedDate(patient.getLastModifiedDate().toString());
+            }
+            dto.setAudit(audit);
+        }
+        
         return dto;
     }
 

@@ -81,7 +81,7 @@ public class PortalHealthController {
     }
 
     // ------------------- ALLERGIES -------------------
-    @PreAuthorize("hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     @GetMapping("/allergies")
     public ResponseEntity<ApiResponse<List<PortalAllergyDto.AllergyItem>>> getMyAllergies(Authentication authentication, HttpServletRequest request) {
         try {
@@ -96,7 +96,7 @@ public class PortalHealthController {
     }
 
     // ------------------- MEDICAL HISTORY -------------------
-    @PreAuthorize("hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     @GetMapping("/history")
     public ResponseEntity<ApiResponse<List<PortalHistoryDto.HistoryItem>>> getMyHistory(Authentication authentication, HttpServletRequest request) {
         try {

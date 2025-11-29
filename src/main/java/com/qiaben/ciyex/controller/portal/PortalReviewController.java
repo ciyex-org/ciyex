@@ -65,7 +65,7 @@ public class PortalReviewController {
     /**
      * POST /api/portal/review/submit - Patient submits any type of update for review
      */
-    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     @PostMapping("/submit")
     public ApiResponse<String> submitUpdate(
             HttpServletRequest request,
@@ -92,7 +92,7 @@ public class PortalReviewController {
     /**
      * GET /api/portal/review/status - Patient checks status of their pending updates
      */
-    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     @GetMapping("/status")
     public ApiResponse<List<PortalPendingUpdateDto>> getMyUpdateStatus(HttpServletRequest request) {
         try {
@@ -120,7 +120,7 @@ public class PortalReviewController {
     /**
      * GET /api/portal/review/pending - EHR staff gets all pending updates
      */
-    @PreAuthorize("hasRole('EHR_STAFF') or hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_EHR_STAFF') or hasAuthority('ROLE_ADMIN')")
     @GetMapping("/pending")
     public ResponseEntity<ApiResponse<List<PortalPendingUpdateDto>>> getPendingReviews() {
         try {
@@ -144,7 +144,7 @@ public class PortalReviewController {
     /**
      * PUT /api/portal/review/approve/{id} - EHR staff approves an update
      */
-    @PreAuthorize("hasRole('EHR_STAFF') or hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_EHR_STAFF') or hasAuthority('ROLE_ADMIN')")
     @PutMapping("/approve/{id}")
     public ResponseEntity<ApiResponse<String>> approveUpdate(
             @PathVariable Long id,
@@ -175,7 +175,7 @@ public class PortalReviewController {
     /**
      * PUT /api/portal/review/reject/{id} - EHR staff rejects an update
      */
-    @PreAuthorize("hasRole('EHR_STAFF') or hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_EHR_STAFF') or hasAuthority('ROLE_ADMIN')")
     @PutMapping("/reject/{id}")
     public ResponseEntity<ApiResponse<String>> rejectUpdate(
             @PathVariable Long id,
@@ -203,3 +203,4 @@ public class PortalReviewController {
         }
     }
 }
+

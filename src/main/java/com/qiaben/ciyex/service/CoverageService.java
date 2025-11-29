@@ -315,6 +315,8 @@ public class CoverageService {
                 .byholderCountry(dto.getByholderCountry())
                 .byholderPhone(dto.getByholderPhone())
                 .copayAmount(dto.getCopayAmount())
+                .cardFrontUrl(dto.getCardFrontUrl())
+                .cardBackUrl(dto.getCardBackUrl())
                 .build();
     }
 
@@ -351,6 +353,8 @@ public class CoverageService {
         dto.setByholderCountry(coverage.getByholderCountry());
         dto.setByholderPhone(coverage.getByholderPhone());
         dto.setCopayAmount(coverage.getCopayAmount());
+        dto.setCardFrontUrl(coverage.getCardFrontUrl());
+        dto.setCardBackUrl(coverage.getCardBackUrl());
 
         if (coverage.getInsuranceCompany() != null) {
             InsuranceCompany ic = coverage.getInsuranceCompany();
@@ -400,6 +404,26 @@ public class CoverageService {
         if (dto.getByholderCountry() != null) coverage.setByholderCountry(dto.getByholderCountry());
         if (dto.getByholderPhone() != null) coverage.setByholderPhone(dto.getByholderPhone());
         if (dto.getCopayAmount() != null) coverage.setCopayAmount(dto.getCopayAmount());
+        if (dto.getCardFrontUrl() != null) coverage.setCardFrontUrl(dto.getCardFrontUrl());
+        if (dto.getCardBackUrl() != null) coverage.setCardBackUrl(dto.getCardBackUrl());
+    }
+
+    /**
+     * Update card URL for insurance card
+     */
+    @Transactional
+    public void updateCardUrl(Long coverageId, String url, boolean isFront) {
+        Coverage coverage = coverageRepository.findById(coverageId)
+                .orElseThrow(() -> new RuntimeException("Coverage not found with id: " + coverageId));
+        
+        if (isFront) {
+            coverage.setCardFrontUrl(url);
+        } else {
+            coverage.setCardBackUrl(url);
+        }
+        
+        coverageRepository.save(coverage);
+        log.info("Updated {} card URL for coverage {}", isFront ? "front" : "back", coverageId);
     }
 
     // ---- Validation helpers ----

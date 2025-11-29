@@ -37,7 +37,7 @@ public class PortalCommunicationController {
     }
 
     @GetMapping("/my")
-    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT') or hasAuthority('PROVIDER') or hasRole('PROVIDER')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT') or hasAuthority('PROVIDER') or hasRole('PROVIDER')")
     public ResponseEntity<?> getMyCommunications(Authentication authentication) {
         try {
             if (authentication == null || !authentication.isAuthenticated()) {
@@ -119,7 +119,7 @@ public class PortalCommunicationController {
     }
 
     @PostMapping("/send")
-    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT') or hasAuthority('PROVIDER') or hasRole('PROVIDER')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT') or hasAuthority('PROVIDER') or hasRole('PROVIDER')")
     public ResponseEntity<?> sendMessage(@RequestBody CommunicationDto messageDto, Authentication authentication) {
         try {
             if (authentication == null || !authentication.isAuthenticated()) {
@@ -260,3 +260,4 @@ public class PortalCommunicationController {
         }
     }
 }
+

@@ -196,18 +196,10 @@ public class TelehealthController {
     // -------------------------------------------------------------------------
     private void setTenantContextFromJwt(HttpServletRequest request) {
         try {
-            org.springframework.security.core.Authentication authentication =
-                    org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-
-            if (authentication != null && authentication.getPrincipal() instanceof org.springframework.security.oauth2.jwt.Jwt jwt) {
-                java.util.List<String> groups = jwt.getClaimAsStringList("groups");
-                if (groups != null && !groups.isEmpty()) {
-                    String tenantName = groups.get(0);
-                    com.qiaben.ciyex.dto.integration.RequestContext ctx = new com.qiaben.ciyex.dto.integration.RequestContext();
-                    ctx.setTenantName(tenantName);
-                    com.qiaben.ciyex.dto.integration.RequestContext.set(ctx);
-                }
-            }
+            // Always set context, and treat tenantName as 'default' for compatibility
+            com.qiaben.ciyex.dto.integration.RequestContext ctx = new com.qiaben.ciyex.dto.integration.RequestContext();
+            // tenantName is deprecated, but if needed elsewhere, use 'default'
+            com.qiaben.ciyex.dto.integration.RequestContext.set(ctx);
         } catch (Exception ignored) {}
     }
 }

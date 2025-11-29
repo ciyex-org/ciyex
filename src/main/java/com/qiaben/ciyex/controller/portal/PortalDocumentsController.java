@@ -42,7 +42,7 @@ public class PortalDocumentsController {
      * Endpoint: GET /api/fhir/portal/documents/my
      */
     @GetMapping("/my")
-    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public ApiResponse<List<DocumentDto>> getMyDocuments(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return ApiResponse.<List<DocumentDto>>builder()
@@ -97,7 +97,7 @@ public class PortalDocumentsController {
      * Endpoint: GET /api/fhir/portal/documents/{documentId}/download
      */
     @GetMapping("/{documentId}/download")
-    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public ResponseEntity<InputStreamResource> downloadDocument(
             @PathVariable Long documentId,
             Authentication authentication) {
