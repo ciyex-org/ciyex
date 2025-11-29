@@ -33,7 +33,7 @@ public class PortalVitalsController {
      * Endpoint: GET /api/portal/vitals/recent
      */
     @GetMapping("/recent")
-    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public ApiResponse<List<PortalVitalsDto>> getRecentVitals(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return ApiResponse.<List<PortalVitalsDto>>builder()
@@ -59,7 +59,7 @@ public class PortalVitalsController {
      * Endpoint: GET /api/portal/vitals
      */
     @GetMapping
-    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public ApiResponse<List<PortalVitalsDto>> getAllVitals(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return ApiResponse.<List<PortalVitalsDto>>builder()
@@ -86,7 +86,7 @@ public class PortalVitalsController {
      * Endpoint: GET /api/portal/vitals/my
      */
     @GetMapping("/my")
-    @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public ApiResponse<List<PortalVitalsDto>> getMyVitals(Authentication authentication) {
 
         // Get Keycloak user UUID from authentication

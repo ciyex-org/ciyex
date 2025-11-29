@@ -117,4 +117,10 @@ public class Coverage extends AuditableEntity {
 
     @Column(name = "copay_amount")
     private Double copayAmount;
+
+    @Column(name = "card_front_url")
+    private String cardFrontUrl;
+
+    @Column(name = "card_back_url")
+    private String cardBackUrl;
 }

@@ -287,6 +287,19 @@ public class PatientService {
         dto.setAddress(patient.getAddress());
         dto.setStatus(patient.getStatus());
         dto.setMedicalRecordNumber(patient.getMedicalRecordNumber());
+        
+        // Map audit fields
+        if (patient.getCreatedDate() != null || patient.getLastModifiedDate() != null) {
+            PatientDto.Audit audit = new PatientDto.Audit();
+            if (patient.getCreatedDate() != null) {
+                audit.setCreatedDate(patient.getCreatedDate().toString());
+            }
+            if (patient.getLastModifiedDate() != null) {
+                audit.setLastModifiedDate(patient.getLastModifiedDate().toString());
+            }
+            dto.setAudit(audit);
+        }
+        
 
 
         // Set audit information

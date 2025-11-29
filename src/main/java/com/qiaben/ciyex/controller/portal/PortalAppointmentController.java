@@ -63,41 +63,36 @@ public class PortalAppointmentController {
     private final TelehealthResolver telehealthResolver;
 
     @GetMapping("/my")
-    @PreAuthorize("hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public ResponseEntity<ApiResponse<List<AppointmentDto>>> getMyAppointments(HttpServletRequest request) {
         return getPatientAppointments(request);
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public ResponseEntity<ApiResponse<List<AppointmentDto>>> getPatientAppointments(HttpServletRequest request) {
         try {
             log.info("Fetching appointments for portal user");
-
             setRequestContextOrg(request);
-            String tenantName = RequestContext.get().getTenantName();
-
             // RequestContext already set by interceptor, no need for executeInTenantContext
             List<AppointmentDTO> appointments = appointmentService.getAll(org.springframework.data.domain.PageRequest.of(0, 10)).getContent();
             List<AppointmentDto> appointmentDtos = appointments.stream().map(this::convertToDtoInContext).collect(Collectors.toList());
-
             return ResponseEntity.ok(ApiResponse.<List<AppointmentDto>>builder()
-                    .success(true)
-                    .message("Appointments retrieved successfully")
-                    .data(appointmentDtos)
-                    .build());
-
+                .success(true)
+                .message("Appointments retrieved successfully")
+                .data(appointmentDtos)
+                .build());
         } catch (Exception e) {
             log.error("Error fetching appointments for portal user", e);
             return ResponseEntity.ok(ApiResponse.<List<AppointmentDto>>builder()
-                    .success(false)
-                    .message("Failed to fetch appointments: " + e.getMessage())
-                    .build());
+                .success(false)
+                .message("Failed to fetch appointments: " + e.getMessage())
+                .build());
         }
     }
 
     @GetMapping("/available-slots")
-    @PreAuthorize("hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public ResponseEntity<ApiResponse<List<SlotDto>>> getAvailableSlots(
             @RequestParam(value = "provider_id", required = false) Long providerId,
             @RequestParam(value = "location_id", required = false) Long locationId,
@@ -106,11 +101,10 @@ public class PortalAppointmentController {
         try {
             log.info("Fetching available slots for provider: {}, location: {}, date: {}", providerId, locationId, date);
 
-            setRequestContextOrg(request);
-            String tenantName = RequestContext.get().getTenantName();
 
+            setRequestContextOrg(request);
             // RequestContext already set by interceptor
-            List<SlotDto> availableSlots = generateAvailableSlots(tenantName, providerId, locationId, date);
+            List<SlotDto> availableSlots = generateAvailableSlots(providerId, locationId, date);
 
             log.info("Retrieved {} available slots", availableSlots.size());
             return ResponseEntity.ok(ApiResponse.<List<SlotDto>>builder()
@@ -129,14 +123,12 @@ public class PortalAppointmentController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('PATIENT')")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public ResponseEntity<ApiResponse<AppointmentDto>> requestAppointment(@RequestBody CreateAppointmentRequest request, HttpServletRequest httpRequest) {
         try {
             log.info("Processing appointment request");
 
             setRequestContextOrg(httpRequest);
-            String tenantName = RequestContext.get().getTenantName();
-
             // RequestContext already set by interceptor
             AppointmentDTO appointmentDTO = new AppointmentDTO();
             appointmentDTO.setVisitType(request.getVisitType());
@@ -151,7 +143,7 @@ public class PortalAppointmentController {
             appointmentDTO.setReason(request.getReason());
             appointmentDTO.setPriority(request.getPriority() != null ? request.getPriority() : "Routine");
             appointmentDTO.setStatus("PENDING");
-            // orgId deprecated - tenantName used via RequestContext
+            // orgId deprecated - tenantName removed
             appointmentDTO.setPatientId(1L);
 
             // Generate Jitsi meeting URL for virtual appointments
@@ -255,7 +247,7 @@ public class PortalAppointmentController {
         return lower.contains("virtual") || lower.contains("telehealth") || lower.contains("video") || lower.contains("online");
     }
 
-    private List<SlotDto> generateAvailableSlots(String tenantName, Long providerId, Long locationId, String dateStr) {
+    private List<SlotDto> generateAvailableSlots(Long providerId, Long locationId, String dateStr) {
         List<SlotDto> availableSlots = new ArrayList<>();
 
         try {
@@ -282,9 +274,8 @@ public class PortalAppointmentController {
 
             // Generate slots for each provider (max 3 per provider)
             for (Provider provider : providers) {
-                List<SlotDto> providerSlots = generateSlotsForProvider(tenantName, provider.getId(), locationId, date);
+                List<SlotDto> providerSlots = generateSlotsForProvider(provider.getId(), locationId, date);
                 availableSlots.addAll(providerSlots);
-
                 // Limit to 3 slots per provider
                 if (availableSlots.size() >= 3) {
                     break;
@@ -303,7 +294,7 @@ public class PortalAppointmentController {
         return availableSlots;
     }
 
-    private List<SlotDto> generateSlotsForProvider(String tenantName, Long providerId, Long locationId, LocalDate date) {
+    private List<SlotDto> generateSlotsForProvider(Long providerId, Long locationId, LocalDate date) {
         List<SlotDto> slots = new ArrayList<>();
 
         // Generate 3 time slots for the day (9 AM, 10 AM, 2 PM)
@@ -319,7 +310,6 @@ public class PortalAppointmentController {
 
             SlotDto slot = new SlotDto();
             slot.setId((long) (providerId * 1000 + i)); // Generate a simple ID
-            slot.setTenantName(tenantName);
             slot.setProviderId(providerId);
             slot.setStart(startDateTime.toString());
             slot.setEnd(endDateTime.toString());
