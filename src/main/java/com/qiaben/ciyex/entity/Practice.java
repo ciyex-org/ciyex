@@ -7,7 +7,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
-@EqualsAndHashCode(callSuper=false)
+@EqualsAndHashCode(callSuper = false)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -26,25 +26,23 @@ public class Practice extends AuditableEntity {
     @Column(name = "description")
     private String description;
 
-    // Practice Settings
     @Column(name = "enable_patient_practice")
     private Boolean enablePatientPractice;
 
-    // Regional Settings
     @Column(name = "units_for_visit_forms")
-    private String unitsForVisitForms; // US, Metric, Both
+    private String unitsForVisitForms;
 
     @Column(name = "display_format_us_weights")
-    private String displayFormatUSWeights; // Show pounds as decimal value, Show pounds and ounces
+    private String displayFormatUSWeights;
 
     @Column(name = "telephone_country_code")
     private String telephoneCountryCode;
 
     @Column(name = "date_display_format")
-    private String dateDisplayFormat; // YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY
+    private String dateDisplayFormat;
 
     @Column(name = "time_display_format")
-    private String timeDisplayFormat; // 24 hr, 12 hr
+    private String timeDisplayFormat;
 
     @Column(name = "time_zone")
     private String timeZone;
@@ -52,7 +50,6 @@ public class Practice extends AuditableEntity {
     @Column(name = "currency_designator")
     private String currencyDesignator;
 
-    // Contact Information
     @Column(name = "email")
     private String email;
 
@@ -80,12 +77,17 @@ public class Practice extends AuditableEntity {
     @Column(name = "country")
     private String country;
 
-    // External Storage ID
     @Column(name = "external_id")
     private String externalId;
 
-    @PrePersist
-    public void prePersist() {
+    @Column(name = "fhir_id")
+    private String fhirId;
+
+    /**
+     * Manual method to initialize default values.
+     * Call this method inside your service before saving.
+     */
+    public void applyDefaults() {
         if (enablePatientPractice == null) {
             enablePatientPractice = true;
         }

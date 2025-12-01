@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,6 +37,16 @@ public class PracticeService {
         // Validate the required fields
         if (dto.getName() == null || dto.getName().trim().isEmpty()) {
             throw new IllegalArgumentException("Practice name is required");
+        }
+
+        // Generate externalId if not provided
+        if (dto.getExternalId() == null || dto.getExternalId().trim().isEmpty()) {
+            dto.setExternalId(UUID.randomUUID().toString());
+        }
+
+        // Generate fhirId if not provided
+        if (dto.getFhirId() == null || dto.getFhirId().trim().isEmpty()) {
+            dto.setFhirId(UUID.randomUUID().toString());
         }
 
         // Map DTO to Entity
@@ -273,6 +284,8 @@ public class PracticeService {
         Practice practice = new Practice();
         practice.setName(dto.getName());
         practice.setDescription(dto.getDescription());
+        practice.setExternalId(dto.getExternalId());
+        practice.setFhirId(dto.getFhirId());
 
         if (dto.getPracticeSettings() != null) {
             practice.setEnablePatientPractice(dto.getPracticeSettings().getEnablePatientPractice());
@@ -314,7 +327,8 @@ public class PracticeService {
         dto.setId(practice.getId());
         dto.setName(practice.getName());
         dto.setDescription(practice.getDescription());
-        dto.setFhirId(practice.getExternalId());
+        dto.setExternalId(practice.getExternalId());
+        dto.setFhirId(practice.getFhirId());
 
         // Practice Settings
         if (practice.getEnablePatientPractice() != null) {

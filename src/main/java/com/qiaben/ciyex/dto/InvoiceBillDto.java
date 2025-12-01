@@ -22,6 +22,7 @@ public class InvoiceBillDto {
     private InvoiceStatus status;
 
     private String externalId;
+    private String fhirId;
     private String invoiceNumber;
     private String invoiceUrl;
     private String receiptUrl;

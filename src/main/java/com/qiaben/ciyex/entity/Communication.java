@@ -21,7 +21,8 @@ public class Communication extends AuditableEntity {
     @Column(name = "external_id")
     private String externalId;
 
-    
+    @Column(name = "fhir_id")
+    private String fhirId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
