@@ -62,6 +62,7 @@ public class FacilityDto {
 
     // External ID
     private String externalId;
+    private String fhirId;
 
     // Audit Information
     private Audit audit;

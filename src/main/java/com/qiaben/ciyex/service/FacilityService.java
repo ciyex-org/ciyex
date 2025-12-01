@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,6 +30,16 @@ public class FacilityService {
     @Transactional
     public FacilityDto create(FacilityDto dto) {
         log.info("Creating new facility: {}", dto.getName());
+
+        // Generate externalId if not provided
+        if (dto.getExternalId() == null || dto.getExternalId().trim().isEmpty()) {
+            dto.setExternalId(UUID.randomUUID().toString());
+        }
+
+        // Generate fhirId if not provided
+        if (dto.getFhirId() == null || dto.getFhirId().trim().isEmpty()) {
+            dto.setFhirId(UUID.randomUUID().toString());
+        }
 
         Facility entity = mapToEntity(dto);
         Facility saved = repository.save(entity);
@@ -209,6 +220,7 @@ public class FacilityService {
                 .info(dto.getInfo())
                 .isActive(dto.getIsActive() != null ? dto.getIsActive() : true)
                 .externalId(dto.getExternalId())
+                .fhirId(dto.getFhirId())
                 .build();
     }
 
@@ -247,6 +259,7 @@ public class FacilityService {
         entity.setInfo(dto.getInfo());
         entity.setIsActive(dto.getIsActive());
         entity.setExternalId(dto.getExternalId());
+        entity.setFhirId(dto.getFhirId());
     }
 
     private FacilityDto mapToDto(Facility entity) {
@@ -293,6 +306,7 @@ public class FacilityService {
                 .info(entity.getInfo())
                 .isActive(entity.getIsActive())
                 .externalId(entity.getExternalId())
+                .fhirId(entity.getFhirId())
                 .audit(audit)
                 .build();
     }

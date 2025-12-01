@@ -37,6 +37,9 @@ public class InvoiceBill extends AuditableEntity {
     @Column(name = "external_id")
     private String externalId;
 
+    @Column(name = "fhir_id")
+    private String fhirId;
+
     @Column(name = "invoice_number")
     private String invoiceNumber;
 

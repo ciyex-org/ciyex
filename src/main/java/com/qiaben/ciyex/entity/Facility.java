@@ -125,10 +125,13 @@ public class Facility extends AuditableEntity {
     @Column(name = "external_id")
     private String externalId;
 
-    @PrePersist
-    @Override
-    protected void prePersist() {
-        super.prePersist(); // Call parent to set audit fields
+    @Column(name = "fhir_id")
+    private String fhirId;
+
+    /**
+     * Default values method (call this before saving).
+     */
+    public void applyDefaults() {
         if (isActive == null) {
             isActive = true;
         }
@@ -157,6 +160,4 @@ public class Facility extends AuditableEntity {
             taxIdType = "EIN";
         }
     }
-
-    // audit fields provided by AuditableEntity
 }
