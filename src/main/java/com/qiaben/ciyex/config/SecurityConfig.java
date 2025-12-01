@@ -108,7 +108,8 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.addAllowedOriginPattern("http://localhost:3000"); // Local frontend
         config.addAllowedOriginPattern("https://aran-stg.zpoa.com"); // Keycloak
-        config.addAllowedOriginPattern("https://portal.ciyex.com");  // Production
+        config.addAllowedOriginPattern("https://portal.ciyex.com"); // Production
+         config.addAllowedOriginPattern("https://portal-stg.ciyex.com"); // Staging
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
         config.setAllowCredentials(true);
