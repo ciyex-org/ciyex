@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,14 +21,16 @@ public class PatientBillingController {
 
 
 
-    /**
-     * Generate a printable patient statement (for print/statement button)
-     */
     @GetMapping("/statement")
     public ResponseEntity<ApiResponse<PatientStatementDto>> getPatientStatement(
             @PathVariable Long patientId) {
-        PatientStatementDto dto = service.getPatientStatement(patientId);
-        return ResponseEntity.ok(ApiResponse.ok("Statement loaded", dto));
+        try {
+            PatientStatementDto dto = service.getPatientStatement(patientId);
+            return ResponseEntity.ok(ApiResponse.ok("Statement loaded", dto));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        }
     }
 
 
@@ -39,8 +42,13 @@ public class PatientBillingController {
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody TransferRequest body) {
-        PatientInvoiceDto updated = service.transferOutstandingToPatient(patientId, invoiceId, body.amount);
-        return ResponseEntity.ok(ApiResponse.ok("Transfer successful", updated));
+        try {
+            PatientInvoiceDto updated = service.transferOutstandingToPatient(patientId, invoiceId, body.amount);
+            return ResponseEntity.ok(ApiResponse.ok("Transfer successful", updated));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        }
     }
 
     /** Transfer PT balance to INS balance */
@@ -50,8 +58,13 @@ public class PatientBillingController {
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody TransferRequest body) {
-        PatientInvoiceDto updated = service.transferOutstandingToInsurance(patientId, invoiceId, body.amount);
-        return ResponseEntity.ok(ApiResponse.ok("Transfer successful", updated));
+        try {
+            PatientInvoiceDto updated = service.transferOutstandingToInsurance(patientId, invoiceId, body.amount);
+            return ResponseEntity.ok(ApiResponse.ok("Transfer successful", updated));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        }
     }
 
     public static class TransferRequest {
@@ -73,9 +86,14 @@ public class PatientBillingController {
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody BackdateRequest body) {
-        var data = service.backdateInvoice(patientId, invoiceId,
-                new PatientBillingService.BackdateRequest(body.date()));
-        return ResponseEntity.ok(ApiResponse.ok("Invoice backdated", data));
+        try {
+            var data = service.backdateInvoice(patientId, invoiceId,
+                    new PatientBillingService.BackdateRequest(body.date()));
+            return ResponseEntity.ok(ApiResponse.ok("Invoice backdated", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        }
     }
 
     @PostMapping("/account-adjustment")
@@ -83,16 +101,20 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @RequestBody AccountAdjustmentRequest body) {
-        var req = new PatientBillingService.AccountAdjustmentRequest(
-                body.adjustmentType(),
-                body.flatRate(),
-                body.specificAmount(),
-                body.description(),
-                body.includeCourtesyCredit()
-        );
-        var data = service.accountAdjustment(patientId, req);
-        return ResponseEntity.ok(ApiResponse.ok("Account adjusted", data));
-
+        try {
+            var req = new PatientBillingService.AccountAdjustmentRequest(
+                    body.adjustmentType(),
+                    body.flatRate(),
+                    body.specificAmount(),
+                    body.description(),
+                    body.includeCourtesyCredit()
+            );
+            var data = service.accountAdjustment(patientId, req);
+            return ResponseEntity.ok(ApiResponse.ok("Account adjusted", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        }
     }
 
     /** Adjust specific invoice with percentage discount and adjustment type */
@@ -102,17 +124,30 @@ public class PatientBillingController {
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody InvoiceAdjustmentRequest body) {
-        var data = service.adjustInvoice(patientId, invoiceId, body);
-        return ResponseEntity.ok(ApiResponse.ok("Invoice adjusted", data));
+        try {
+            var data = service.adjustInvoice(patientId, invoiceId, body);
+            return ResponseEntity.ok(ApiResponse.ok("Invoice adjusted", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        }
     }
 
     @GetMapping("/invoices")
     public ResponseEntity<ApiResponse<List<PatientInvoiceDto>>> listInvoices(
 
             @PathVariable Long patientId) {
-
-        var data = service.listInvoices(patientId);
-        return ResponseEntity.ok(ApiResponse.ok("Invoices loaded", data));
+        try {
+            var data = service.listInvoices(patientId);
+            return ResponseEntity.ok(ApiResponse.ok("Invoices loaded", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error listing invoices for patient {}", patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error loading invoices: " + ex.getMessage()));
+        }
     }
 
     /** +Add Procedure → create invoice (JSON body) */
@@ -121,9 +156,21 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @RequestBody PatientBillingService.CreateInvoiceRequest body) {
-
-        var data = service.createInvoiceFromProcedure(patientId, body);
-        return ResponseEntity.ok(ApiResponse.ok("Invoice created", data));
+        try {
+            if (body == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Request body is required"));
+            }
+            var data = service.createInvoiceFromProcedure(patientId, body);
+            return ResponseEntity.ok(ApiResponse.ok("Invoice created", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error creating invoice for patient {}", patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error creating invoice: " + ex.getMessage()));
+        }
     }
 
 
@@ -134,9 +181,21 @@ public class PatientBillingController {
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody PatientBillingService.UpdateInvoiceRequest body) {
-
-        var data = service.updateInvoiceFromProcedure(patientId, invoiceId, body);
-        return ResponseEntity.ok(ApiResponse.ok("Invoice updated", data));
+        try {
+            if (body == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Request body is required"));
+            }
+            var data = service.updateInvoiceFromProcedure(patientId, invoiceId, body);
+            return ResponseEntity.ok(ApiResponse.ok("Invoice updated", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error updating invoice {} for patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error updating invoice: " + ex.getMessage()));
+        }
     }
 
     /** Delete invoice */
@@ -144,9 +203,17 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<Void>> deleteInvoice(
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
-
-        service.deleteInvoice(patientId, invoiceId);
-        return ResponseEntity.ok(ApiResponse.ok("Invoice deleted", null));
+        try {
+            service.deleteInvoice(patientId, invoiceId);
+            return ResponseEntity.ok(ApiResponse.ok("Invoice deleted", null));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error deleting invoice {} for patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error deleting invoice: " + ex.getMessage()));
+        }
     }
 
     /** Get invoice lines for a specific invoice */
@@ -154,9 +221,17 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<List<PatientInvoiceLineDto>>> getInvoiceLines(
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
-
-        var data = service.getInvoiceLines(patientId, invoiceId);
-        return ResponseEntity.ok(ApiResponse.ok("Invoice lines loaded", data));
+        try {
+            var data = service.getInvoiceLines(patientId, invoiceId);
+            return ResponseEntity.ok(ApiResponse.ok("Invoice lines loaded", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error getting invoice lines for invoice {} patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error loading invoice lines: " + ex.getMessage()));
+        }
     }
 
     /** Edit line amount (re-estimate) — JSON body { newCharge } */
@@ -167,9 +242,21 @@ public class PatientBillingController {
             @PathVariable Long invoiceId,
             @PathVariable Long lineId,
             @RequestBody PatientBillingService.UpdateLineAmountRequest body) {
-
-        var data = service.updateInvoiceLineAmount(patientId, invoiceId, lineId, body);
-        return ResponseEntity.ok(ApiResponse.ok("Line updated", data));
+        try {
+            if (body == null || body.newCharge() == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("New charge amount is required"));
+            }
+            var data = service.updateInvoiceLineAmount(patientId, invoiceId, lineId, body);
+            return ResponseEntity.ok(ApiResponse.ok("Line updated", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error updating line {} for invoice {} patient {}", lineId, invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error updating invoice line: " + ex.getMessage()));
+        }
     }
 
     /** Percentage adjustment — JSON body { percent } */
@@ -179,9 +266,21 @@ public class PatientBillingController {
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody PatientBillingService.PercentageAdjustmentRequest body) {
-
-        var data = service.applyInvoicePercentageAdjustment(patientId, invoiceId, body);
-        return ResponseEntity.ok(ApiResponse.ok("Adjustment applied", data));
+        try {
+            if (body == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Request body with percentage is required"));
+            }
+            var data = service.applyInvoicePercentageAdjustment(patientId, invoiceId, body);
+            return ResponseEntity.ok(ApiResponse.ok("Adjustment applied", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error applying adjustment to invoice {} patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error applying adjustment: " + ex.getMessage()));
+        }
     }
 
 
@@ -195,8 +294,17 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<List<PatientClaimDto>>> listAllClaimsForPatient(
 
             @PathVariable Long patientId) {
-        var data = service.listAllClaimsForPatient(patientId);
-        return ResponseEntity.ok(ApiResponse.ok("Claims loaded", data));
+        try {
+            var data = service.listAllClaimsForPatient(patientId);
+            return ResponseEntity.ok(ApiResponse.ok("Claims loaded", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error listing claims for patient {}", patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error loading claims: " + ex.getMessage()));
+        }
     }
 
     @GetMapping("/invoices/{invoiceId}/claim")
@@ -204,9 +312,17 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
-
-        var data = service.getActiveClaimForInvoice(patientId, invoiceId);
-        return ResponseEntity.ok(ApiResponse.ok("Claim loaded", data));
+        try {
+            var data = service.getActiveClaimForInvoice(patientId, invoiceId);
+            return ResponseEntity.ok(ApiResponse.ok("Claim loaded", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error getting claim for invoice {} patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error loading claim: " + ex.getMessage()));
+        }
     }
 
     @GetMapping("/invoices/{invoiceId}/claims")
@@ -214,9 +330,17 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
-
-        var data = service.listClaimsForInvoice(patientId, invoiceId);
-        return ResponseEntity.ok(ApiResponse.ok("Invoice claims loaded", data));
+        try {
+            var data = service.listClaimsForInvoice(patientId, invoiceId);
+            return ResponseEntity.ok(ApiResponse.ok("Invoice claims loaded", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error listing claims for invoice {} patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error loading claims: " + ex.getMessage()));
+        }
     }
 
     @PostMapping("/invoices/{invoiceId}/claim/promote")
@@ -224,9 +348,17 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
-
-        var data = service.promoteClaim(patientId, invoiceId);
-        return ResponseEntity.ok(ApiResponse.ok("Claim promoted", data));
+        try {
+            var data = service.promoteClaim(patientId, invoiceId);
+            return ResponseEntity.ok(ApiResponse.ok("Claim promoted", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error promoting claim for invoice {} patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error promoting claim: " + ex.getMessage()));
+        }
     }
 
     @PostMapping("/invoices/{invoiceId}/claim/send-to-batch")
@@ -234,9 +366,17 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
-
-        var data = service.sendClaimToBatch(patientId, invoiceId);
-        return ResponseEntity.ok(ApiResponse.ok("Claim moved to batch", data));
+        try {
+            var data = service.sendClaimToBatch(patientId, invoiceId);
+            return ResponseEntity.ok(ApiResponse.ok("Claim moved to batch", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error sending claim to batch for invoice {} patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error sending claim to batch: " + ex.getMessage()));
+        }
     }
 
     @PostMapping("/invoices/{invoiceId}/claim/submit")
@@ -244,9 +384,17 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
-
-        var data = service.submitClaim(patientId, invoiceId);
-        return ResponseEntity.ok(ApiResponse.ok("Claim submitted", data));
+        try {
+            var data = service.submitClaim(patientId, invoiceId);
+            return ResponseEntity.ok(ApiResponse.ok("Claim submitted", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error submitting claim for invoice {} patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error submitting claim: " + ex.getMessage()));
+        }
     }
 
     @PostMapping("/invoices/{invoiceId}/claim/close")
@@ -254,9 +402,17 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
-
-        var data = service.closeClaim(patientId, invoiceId);
-        return ResponseEntity.ok(ApiResponse.ok("Claim closed", data));
+        try {
+            var data = service.closeClaim(patientId, invoiceId);
+            return ResponseEntity.ok(ApiResponse.ok("Claim closed", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error closing claim for invoice {} patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error closing claim: " + ex.getMessage()));
+        }
     }
 
     @PostMapping("/invoices/{invoiceId}/claim/void-recreate")
@@ -264,9 +420,17 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
-
-        var data = service.voidAndRecreateClaim(patientId, invoiceId);
-        return ResponseEntity.ok(ApiResponse.ok("Claim voided and recreated", data));
+        try {
+            var data = service.voidAndRecreateClaim(patientId, invoiceId);
+            return ResponseEntity.ok(ApiResponse.ok("Claim voided and recreated", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error voiding/recreating claim for invoice {} patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error voiding and recreating claim: " + ex.getMessage()));
+        }
     }
 
     /** Compose/Edit core claim fields */
@@ -276,9 +440,21 @@ public class PatientBillingController {
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody PatientBillingService.PatientClaimCoreUpdate body) {
-
-        var data = service.updateClaim(patientId, invoiceId, body);
-        return ResponseEntity.ok(ApiResponse.ok("Claim updated", data));
+        try {
+            if (body == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Request body is required"));
+            }
+            var data = service.updateClaim(patientId, invoiceId, body);
+            return ResponseEntity.ok(ApiResponse.ok("Claim updated", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error updating claim for invoice {} patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error updating claim: " + ex.getMessage()));
+        }
     }
 
     /** Get claim line details (DOS, code, description, provider, total submitted amount) */
@@ -286,9 +462,17 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<List<ClaimLineDetailDto>>> getClaimLineDetails(
             @PathVariable Long patientId,
             @PathVariable Long claimId) {
-
-        var data = service.getClaimLineDetails(claimId);
-        return ResponseEntity.ok(ApiResponse.ok("Claim lines loaded", data));
+        try {
+            var data = service.getClaimLineDetails(claimId);
+            return ResponseEntity.ok(ApiResponse.ok("Claim lines loaded", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error getting claim lines for claim {} patient {}", claimId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error loading claim lines: " + ex.getMessage()));
+        }
     }
 
     // --- Attachment & EOB endpoints ---
@@ -297,9 +481,17 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @PathVariable Long claimId,
-            @RequestParam("file") MultipartFile file) throws Exception {
-        service.uploadClaimAttachment(patientId, claimId, file);
-        return ResponseEntity.ok(ApiResponse.ok("Attachment uploaded", null));
+            @RequestParam("file") MultipartFile file) {
+        try {
+            service.uploadClaimAttachment(patientId, claimId, file);
+            return ResponseEntity.ok(ApiResponse.ok("Attachment uploaded", null));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error uploading attachment: " + ex.getMessage()));
+        }
     }
 
     @GetMapping("/claims/{claimId}/attachment")
@@ -307,10 +499,15 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @PathVariable Long claimId) {
-        byte[] data = service.getClaimAttachment(patientId, claimId);
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(data);
+        try {
+            byte[] data = service.getClaimAttachment(patientId, claimId);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(data);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(null);
+        }
     }
 
     @PostMapping(value = "/claims/{claimId}/eob", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -318,9 +515,17 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @PathVariable Long claimId,
-            @RequestParam("file") MultipartFile file) throws Exception {
-        service.uploadClaimEob(patientId, claimId, file);
-        return ResponseEntity.ok(ApiResponse.ok("EOB uploaded", null));
+            @RequestParam("file") MultipartFile file) {
+        try {
+            service.uploadClaimEob(patientId, claimId, file);
+            return ResponseEntity.ok(ApiResponse.ok("EOB uploaded", null));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error uploading EOB: " + ex.getMessage()));
+        }
     }
 
     @GetMapping("/claims/{claimId}/eob")
@@ -328,10 +533,15 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @PathVariable Long claimId) {
-        byte[] data = service.getClaimEob(patientId, claimId);
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(data);
+        try {
+            byte[] data = service.getClaimEob(patientId, claimId);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(data);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(null);
+        }
     }
 
 
@@ -344,9 +554,17 @@ public class PatientBillingController {
             @RequestParam(required = false) Long invoiceId,
             @RequestParam(required = false) Long claimId,
             @RequestParam(required = false) Long insuranceId) {
-
-        var data = service.listInsurancePayments(patientId, invoiceId, claimId, insuranceId);
-        return ResponseEntity.ok(ApiResponse.ok("Insurance payments loaded", data));
+        try {
+            var data = service.listInsurancePayments(patientId, invoiceId, claimId, insuranceId);
+            return ResponseEntity.ok(ApiResponse.ok("Insurance payments loaded", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error listing insurance payments for patient {}", patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error loading insurance payments: " + ex.getMessage()));
+        }
     }
 
     @GetMapping("/invoices/{invoiceId}/insurance-payments")
@@ -354,9 +572,17 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
-
-        var data = service.listInsurancePayments(patientId, invoiceId, null, null);
-        return ResponseEntity.ok(ApiResponse.ok("Insurance payments for invoice loaded", data));
+        try {
+            var data = service.listInsurancePayments(patientId, invoiceId, null, null);
+            return ResponseEntity.ok(ApiResponse.ok("Insurance payments for invoice loaded", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error listing insurance payments for invoice {} patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error loading insurance payments: " + ex.getMessage()));
+        }
     }
 
     /** Apply insurance EOB grid */
@@ -366,9 +592,21 @@ public class PatientBillingController {
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody PatientInsurancePaymentRequestDto body) {
-
-        var data = service.applyInsurancePayment(patientId, invoiceId, body);
-        return ResponseEntity.ok(ApiResponse.ok("Insurance payment applied", data));
+        try {
+            if (body == null || body.lines() == null || body.lines().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Request body with payment lines is required"));
+            }
+            var data = service.applyInsurancePayment(patientId, invoiceId, body);
+            return ResponseEntity.ok(ApiResponse.ok("Insurance payment applied", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error applying insurance payment for invoice {} patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error applying insurance payment: " + ex.getMessage()));
+        }
     }
 
     /** EDIT insurance remit line */
@@ -379,9 +617,21 @@ public class PatientBillingController {
             @PathVariable Long invoiceId,
             @PathVariable Long remitId,
             @RequestBody PatientInsuranceRemitLineDto body) {
-
-        var data = service.editInsuranceRemitLine(patientId, invoiceId, remitId, body);
-        return ResponseEntity.ok(ApiResponse.ok("Insurance payment updated", data));
+        try {
+            if (body == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Request body is required"));
+            }
+            var data = service.editInsuranceRemitLine(patientId, invoiceId, remitId, body);
+            return ResponseEntity.ok(ApiResponse.ok("Insurance payment updated", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error editing insurance remit {} for invoice {} patient {}", remitId, invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error updating insurance payment: " + ex.getMessage()));
+        }
     }
 
     /** VOID insurance payment = hard delete remit line */
@@ -392,9 +642,17 @@ public class PatientBillingController {
             @PathVariable Long invoiceId,
             @PathVariable Long remitId,
             @RequestBody(required = false) PatientBillingService.VoidReason reason) {
-
-        var data = service.voidInsurancePayment(patientId, invoiceId, remitId, reason);
-        return ResponseEntity.ok(ApiResponse.ok("Insurance payment voided (deleted)", data));
+        try {
+            var data = service.voidInsurancePayment(patientId, invoiceId, remitId, reason);
+            return ResponseEntity.ok(ApiResponse.ok("Insurance payment voided (deleted)", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error voiding insurance payment {} for invoice {} patient {}", remitId, invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error voiding insurance payment: " + ex.getMessage()));
+        }
     }
 
     /** REFUND insurance → increase invoice insurance balance */
@@ -405,9 +663,24 @@ public class PatientBillingController {
             @PathVariable Long invoiceId,
             @PathVariable Long remitId,
             @RequestBody PatientBillingService.RefundRequest body) {
-
-        var data = service.refundInsurancePayment(patientId, invoiceId, remitId, body);
-        return ResponseEntity.ok(ApiResponse.ok("Insurance payment refunded to insurance balance", data));
+        try {
+            if (body == null || body.amount() == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Refund amount is required"));
+            }
+            var data = service.refundInsurancePayment(patientId, invoiceId, remitId, body);
+            return ResponseEntity.ok(ApiResponse.ok("Insurance payment refunded to insurance balance", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (IllegalStateException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error refunding insurance payment {} for invoice {} patient {}", remitId, invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error refunding insurance payment: " + ex.getMessage()));
+        }
     }
 
     /** TRANSFER (insurance balance → patient account credit) */
@@ -418,9 +691,24 @@ public class PatientBillingController {
             @PathVariable Long invoiceId,
             @PathVariable Long remitId,
             @RequestBody PatientBillingService.TransferCreditRequest body) {
-
-        var data = service.transferInsuranceCreditToPatient(patientId, invoiceId, remitId, body);
-        return ResponseEntity.ok(ApiResponse.ok("Insurance overpayment adjusted", data));
+        try {
+            if (body == null || body.amount() == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Transfer amount is required"));
+            }
+            var data = service.transferInsuranceCreditToPatient(patientId, invoiceId, remitId, body);
+            return ResponseEntity.ok(ApiResponse.ok("Insurance overpayment adjusted", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (IllegalStateException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error transferring insurance credit for remit {} invoice {} patient {}", remitId, invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error transferring insurance credit: " + ex.getMessage()));
+        }
     }
 
     /** Get detailed insurance payment information */
@@ -429,9 +717,21 @@ public class PatientBillingController {
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @PathVariable Long remitId) {
-        log.info("Getting insurance payment details for patient {} invoice {} remit {}", patientId, invoiceId, remitId);
-        InsurancePaymentDetailDto details = service.getInsurancePaymentDetails(patientId, invoiceId, remitId);
-        return ResponseEntity.ok(ApiResponse.ok("Insurance payment details retrieved", details));
+        try {
+            log.info("Getting insurance payment details for patient {} invoice {} remit {}", patientId, invoiceId, remitId);
+            InsurancePaymentDetailDto details = service.getInsurancePaymentDetails(patientId, invoiceId, remitId);
+            return ResponseEntity.ok(ApiResponse.ok("Insurance payment details retrieved", details));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (RuntimeException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error getting insurance payment details for remit {} invoice {} patient {}", remitId, invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error retrieving insurance payment details: " + ex.getMessage()));
+        }
     }
 
     /* ================= Patient Payment & Credit ================= */
@@ -443,9 +743,32 @@ public class PatientBillingController {
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @RequestBody PatientPatientPaymentRequestDto body) {
-
-        var data = service.applyPatientPayment(patientId, invoiceId, body);
-        return ResponseEntity.ok(ApiResponse.ok("Patient payment applied", data));
+        try {
+            if (body == null || body.allocations() == null || body.allocations().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Request body with payment allocations is required"));
+            }
+            if (body.paymentMethod() == null || body.paymentMethod().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Payment method is required"));
+            }
+            var data = service.applyPatientPayment(patientId, invoiceId, body);
+            return ResponseEntity.ok(ApiResponse.ok("Patient payment applied", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (RuntimeException ex) {
+            if (ex.getMessage() != null && ex.getMessage().contains("not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.error(ex.getMessage()));
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error applying patient payment for invoice {} patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error applying patient payment: " + ex.getMessage()));
+        }
     }
 
     /** Get detailed patient payment information */
@@ -454,9 +777,21 @@ public class PatientBillingController {
             @PathVariable Long patientId,
             @PathVariable Long invoiceId,
             @PathVariable Long paymentId) {
-        log.info("Getting patient payment details for patient {} invoice {} payment {}", patientId, invoiceId, paymentId);
-        PatientPaymentDetailDto details = service.getPatientPaymentDetails(patientId, invoiceId, paymentId);
-        return ResponseEntity.ok(ApiResponse.ok("Patient payment details retrieved", details));
+        try {
+            log.info("Getting patient payment details for patient {} invoice {} payment {}", patientId, invoiceId, paymentId);
+            PatientPaymentDetailDto details = service.getPatientPaymentDetails(patientId, invoiceId, paymentId);
+            return ResponseEntity.ok(ApiResponse.ok("Patient payment details retrieved", details));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (RuntimeException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error getting patient payment details for payment {} invoice {} patient {}", paymentId, invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error retrieving patient payment details: " + ex.getMessage()));
+        }
     }
 
     /** GET all patient payment allocations for a patient */
@@ -464,9 +799,17 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<List<PatientPatientPaymentAllocationDto>>> getAllPatientPayments(
 
             @PathVariable Long patientId) {
-
-        var data = service.getAllPatientPayments(patientId);
-        return ResponseEntity.ok(ApiResponse.ok("All patient payments fetched", data));
+        try {
+            var data = service.getAllPatientPayments(patientId);
+            return ResponseEntity.ok(ApiResponse.ok("All patient payments fetched", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error getting all patient payments for patient {}", patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error fetching patient payments: " + ex.getMessage()));
+        }
     }
 
     /** GET allocations by invoice */
@@ -475,9 +818,17 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
-
-        var data = service.getPatientPaymentsByInvoice(patientId, invoiceId);
-        return ResponseEntity.ok(ApiResponse.ok("Patient payments for invoice fetched", data));
+        try {
+            var data = service.getPatientPaymentsByInvoice(patientId, invoiceId);
+            return ResponseEntity.ok(ApiResponse.ok("Patient payments for invoice fetched", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error getting patient payments for invoice {} patient {}", invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error fetching patient payments: " + ex.getMessage()));
+        }
     }
 
     /** EDIT patient payment */
@@ -488,9 +839,21 @@ public class PatientBillingController {
             @PathVariable Long invoiceId,
             @PathVariable Long paymentId,
             @RequestBody PatientPaymentDto body) {
-
-        var data = service.editPatientPayment(patientId, invoiceId, paymentId, body);
-        return ResponseEntity.ok(ApiResponse.ok("Patient payment updated", data));
+        try {
+            if (body == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Request body is required"));
+            }
+            var data = service.editPatientPayment(patientId, invoiceId, paymentId, body);
+            return ResponseEntity.ok(ApiResponse.ok("Patient payment updated", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error editing patient payment {} for invoice {} patient {}", paymentId, invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error updating patient payment: " + ex.getMessage()));
+        }
     }
 
     /** VOID patient payment = delete payment + allocations */
@@ -501,9 +864,17 @@ public class PatientBillingController {
             @PathVariable Long invoiceId,
             @PathVariable Long paymentId,
             @RequestBody(required = false) PatientBillingService.VoidReason reason) {
-
-        var data = service.voidPatientPayment(patientId, invoiceId, paymentId, reason);
-        return ResponseEntity.ok(ApiResponse.ok("Patient payment voided (deleted)", data));
+        try {
+            var data = service.voidPatientPayment(patientId, invoiceId, paymentId, reason);
+            return ResponseEntity.ok(ApiResponse.ok("Patient payment voided (deleted)", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error voiding patient payment {} for invoice {} patient {}", paymentId, invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error voiding patient payment: " + ex.getMessage()));
+        }
     }
 
     /** REFUND patient payment → move to account credit */
@@ -514,9 +885,21 @@ public class PatientBillingController {
             @PathVariable Long invoiceId,
             @PathVariable Long paymentId,
             @RequestBody PatientBillingService.RefundRequest body) {
-
-        var data = service.refundPatientPayment(patientId, invoiceId, paymentId, body);
-        return ResponseEntity.ok(ApiResponse.ok("Patient payment refunded to patient credit", data));
+        try {
+            if (body == null || body.amount() == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Refund amount is required"));
+            }
+            var data = service.refundPatientPayment(patientId, invoiceId, paymentId, body);
+            return ResponseEntity.ok(ApiResponse.ok("Patient payment refunded to patient credit", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error refunding patient payment {} for invoice {} patient {}", paymentId, invoiceId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error refunding patient payment: " + ex.getMessage()));
+        }
     }
 
     /** Transfer patient credit between patients */
@@ -526,9 +909,21 @@ public class PatientBillingController {
             @PathVariable Long fromPatientId,
             @PathVariable Long toPatientId,
             @RequestBody PatientBillingService.TransferCreditRequest body) {
-
-        var data = service.transferPatientCreditToPatient(fromPatientId, toPatientId, body.amount());
-        return ResponseEntity.ok(ApiResponse.ok("Patient credit transferred", data));
+        try {
+            if (body == null || body.amount() == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Transfer amount is required"));
+            }
+            var data = service.transferPatientCreditToPatient(fromPatientId, toPatientId, body.amount());
+            return ResponseEntity.ok(ApiResponse.ok("Patient credit transferred", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error transferring credit from patient {} to patient {}", fromPatientId, toPatientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error transferring patient credit: " + ex.getMessage()));
+        }
     }
 
     /* ================= Account credit ================= */
@@ -635,16 +1030,38 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientDepositDto>> addPatientDeposit(
             @PathVariable Long patientId,
             @RequestBody PatientDepositRequest request) {
-        PatientDepositDto result = service.addPatientDeposit(patientId, request);
-        return ResponseEntity.ok(ApiResponse.ok("Deposit added successfully", result));
+        try {
+            if (request == null || request.amount() == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Deposit amount is required"));
+            }
+            PatientDepositDto result = service.addPatientDeposit(patientId, request);
+            return ResponseEntity.ok(ApiResponse.ok("Deposit added successfully", result));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error adding deposit for patient {}", patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error adding deposit: " + ex.getMessage()));
+        }
     }
 
     /** Get all patient deposits */
     @GetMapping("/deposit")
     public ResponseEntity<ApiResponse<List<PatientDepositDto>>> getPatientDeposits(
             @PathVariable Long patientId) {
-        List<PatientDepositDto> deposits = service.getPatientDeposits(patientId);
-        return ResponseEntity.ok(ApiResponse.ok("Deposits retrieved successfully", deposits));
+        try {
+            List<PatientDepositDto> deposits = service.getPatientDeposits(patientId);
+            return ResponseEntity.ok(ApiResponse.ok("Deposits retrieved successfully", deposits));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error getting deposits for patient {}", patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error retrieving deposits: " + ex.getMessage()));
+        }
     }
 
     /** Get a single patient deposit */
@@ -652,8 +1069,17 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientDepositDto>> getPatientDeposit(
             @PathVariable Long patientId,
             @PathVariable Long depositId) {
-        PatientDepositDto deposit = service.getPatientDeposit(patientId, depositId);
-        return ResponseEntity.ok(ApiResponse.ok("Deposit retrieved successfully", deposit));
+        try {
+            PatientDepositDto deposit = service.getPatientDeposit(patientId, depositId);
+            return ResponseEntity.ok(ApiResponse.ok("Deposit retrieved successfully", deposit));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error getting deposit {} for patient {}", depositId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error retrieving deposit: " + ex.getMessage()));
+        }
     }
 
     /** Update patient deposit */
@@ -662,8 +1088,21 @@ public class PatientBillingController {
             @PathVariable Long patientId,
             @PathVariable Long depositId,
             @RequestBody PatientDepositRequest request) {
-        PatientDepositDto result = service.updatePatientDeposit(patientId, depositId, request);
-        return ResponseEntity.ok(ApiResponse.ok("Deposit updated successfully", result));
+        try {
+            if (request == null || request.amount() == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Deposit amount is required"));
+            }
+            PatientDepositDto result = service.updatePatientDeposit(patientId, depositId, request);
+            return ResponseEntity.ok(ApiResponse.ok("Deposit updated successfully", result));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error updating deposit {} for patient {}", depositId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error updating deposit: " + ex.getMessage()));
+        }
     }
 
     /** Delete patient deposit */
@@ -671,8 +1110,17 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<Void>> deletePatientDeposit(
             @PathVariable Long patientId,
             @PathVariable Long depositId) {
-        service.deletePatientDeposit(patientId, depositId);
-        return ResponseEntity.ok(ApiResponse.ok("Deposit deleted successfully", null));
+        try {
+            service.deletePatientDeposit(patientId, depositId);
+            return ResponseEntity.ok(ApiResponse.ok("Deposit deleted successfully", null));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error deleting deposit {} for patient {}", depositId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error deleting deposit: " + ex.getMessage()));
+        }
     }
 
 
@@ -759,9 +1207,14 @@ public class PatientBillingController {
 
             @PathVariable Long patientId,
             @PathVariable Long claimId) {
-        service.lockClaim(patientId, claimId);
-        PatientClaimDto dto = service.toClaimDto(service.getClaimOrThrow(patientId, claimId));
-        return ResponseEntity.ok(ApiResponse.ok("Claim locked", dto));
+        try {
+            service.lockClaim(patientId, claimId);
+            PatientClaimDto dto = service.toClaimDto(service.getClaimOrThrow(patientId, claimId));
+            return ResponseEntity.ok(ApiResponse.ok("Claim locked", dto));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        }
     }
 
 
@@ -775,9 +1228,14 @@ public class PatientBillingController {
             @PathVariable Long claimId,
             @RequestBody ClaimStatusUpdateDto dto
     ) {
-        service.changeClaimStatus(patientId, claimId, dto);
-        PatientClaimDto response = service.toClaimDto(service.getClaimOrThrow(patientId, claimId));
-        return ResponseEntity.ok(ApiResponse.ok("Claim status updated", response));
+        try {
+            service.changeClaimStatus(patientId, claimId, dto);
+            PatientClaimDto response = service.toClaimDto(service.getClaimOrThrow(patientId, claimId));
+            return ResponseEntity.ok(ApiResponse.ok("Claim status updated", response));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        }
     }
 
 
@@ -788,9 +1246,17 @@ public class PatientBillingController {
             @PathVariable Long patientId,
             @PathVariable Long claimId,
             @RequestParam("file") MultipartFile file) throws Exception {
-        service.submitClaimAttachment(patientId, claimId, file);
-        PatientClaimDto dto = service.toClaimDto(service.getClaimOrThrow(patientId, claimId));
-        return ResponseEntity.ok(ApiResponse.ok("Claim attachment submitted", dto));
+        try {
+            service.submitClaimAttachment(patientId, claimId, file);
+            PatientClaimDto dto = service.toClaimDto(service.getClaimOrThrow(patientId, claimId));
+            return ResponseEntity.ok(ApiResponse.ok("Claim attachment submitted", dto));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error submitting attachment: " + ex.getMessage()));
+        }
     }
 
     /**
@@ -800,8 +1266,17 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoicePrintDto>> getPrintableInvoice(
             @PathVariable Long patientId,
             @PathVariable Long invoiceId) {
-        PatientInvoicePrintDto dto = service.getPrintableInvoice(patientId, invoiceId);
-        return ResponseEntity.ok(ApiResponse.ok("Invoice loaded for printing", dto));
+        try {
+            PatientInvoicePrintDto dto = service.getPrintableInvoice(patientId, invoiceId);
+            return ResponseEntity.ok(ApiResponse.ok("Invoice loaded for printing", dto));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        }
     }
+
+
+
+
 }
 
