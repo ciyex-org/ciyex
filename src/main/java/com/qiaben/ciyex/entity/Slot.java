@@ -36,4 +36,3 @@ public class Slot extends AuditableEntity {
     private String comment;
 
 }
-///

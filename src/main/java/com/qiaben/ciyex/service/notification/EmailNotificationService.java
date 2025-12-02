@@ -1,9 +1,6 @@
 package com.qiaben.ciyex.service.notification;
 
-import com.qiaben.ciyex.dto.integration.IntegrationKey;
-import com.qiaben.ciyex.dto.integration.SmtpConfig;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.util.TenantContextUtil;
+import com.qiaben.ciyex.service.OrgConfigService;
 
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
@@ -15,31 +12,22 @@ import java.util.Properties;
 
 @Service
 @Slf4j
+
 public class EmailNotificationService {
+    private final OrgConfigService orgConfigService;
 
-    private final OrgIntegrationConfigProvider configProvider;
-
-    public EmailNotificationService(OrgIntegrationConfigProvider configProvider) {
-        this.configProvider = configProvider;
+    public EmailNotificationService(OrgConfigService orgConfigService) {
+        this.orgConfigService = orgConfigService;
     }
 
     public void sendEmail(String to, String subject, String body) {
-        String tenantName = TenantContextUtil.getTenantName();
-        SmtpConfig smtp = configProvider.getForCurrentTenant(IntegrationKey.SMTP);
-        // Log helpful context
-        if (tenantName == null) {
-            log.warn("Email send attempted with no tenantName in context");
-        }
-
-        // --- Apply safe defaults if DB has only server/username/password ---
-        String host = smtp.getServer() != null ? smtp.getServer() : "smtp.sendgrid.net";
-        int port = (smtp.getPort() != null) ? smtp.getPort() : 587;   // ✅ fixed
-        String fromAddress = (smtp.getFromAddress() != null && !smtp.getFromAddress().isBlank())
-                ? smtp.getFromAddress()
-                : "notification@ciyex.com";  // fallback default
-        String fromName = (smtp.getFromName() != null && !smtp.getFromName().isBlank())
-                ? smtp.getFromName()
-                : "Qiaben Health";  // fallback default
+        // Fetch SMTP config from org_config table
+        String host = orgConfigService.getConfig("smtp.server").orElse("smtp.sendgrid.net");
+        int port = orgConfigService.getConfig("smtp.port").map(Integer::parseInt).orElse(587);
+        String username = orgConfigService.getConfig("smtp.username").orElse("");
+        String password = orgConfigService.getConfig("smtp.password").orElse("");
+        String fromAddress = orgConfigService.getConfig("smtp.fromAddress").orElse("notification@ciyex.com");
+        String fromName = orgConfigService.getConfig("smtp.fromName").orElse("Qiaben Health");
 
         Properties props = new Properties();
         props.put("mail.smtp.host", host);
@@ -50,7 +38,7 @@ public class EmailNotificationService {
         Session session = Session.getInstance(props, new Authenticator() {
             @Override
             protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication(smtp.getUsername(), smtp.getPassword());
+                return new PasswordAuthentication(username, password);
             }
         });
 
