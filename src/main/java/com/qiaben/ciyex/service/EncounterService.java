@@ -28,26 +28,36 @@ import java.util.stream.Collectors;
 @Slf4j
 public class EncounterService {
 
-    
-   
     private final EncounterRepository encounterRepository;
+    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
     private final ExternalStorageResolver externalStorageResolver;
     private final OrgIntegrationConfigProvider orgIntegrationConfigProvider;
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     @Autowired
-    public EncounterService(EncounterRepository encounterRepository, ExternalStorageResolver externalStorageResolver, OrgIntegrationConfigProvider orgIntegrationConfigProvider) {
+    public EncounterService(EncounterRepository encounterRepository, 
+                           com.qiaben.ciyex.repository.PatientRepository patientRepository,
+                           ExternalStorageResolver externalStorageResolver, 
+                           OrgIntegrationConfigProvider orgIntegrationConfigProvider) {
         this.encounterRepository = encounterRepository;
+        this.patientRepository = patientRepository;
         this.externalStorageResolver = externalStorageResolver;
         this.orgIntegrationConfigProvider = orgIntegrationConfigProvider;
     }
 
     @Transactional
     public EncounterDto createEncounter(Long patientId, EncounterDto dto) {
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
         Encounter encounter = mapToEntity(dto);
         encounter.setId(null);
-        encounter.setPatientId(patientId);                 // NEW
+        encounter.setPatientId(patientId);
         long now = System.currentTimeMillis();
         encounter.setEncounterDate(dto.getEncounterDate());
 
@@ -93,25 +103,52 @@ public class EncounterService {
 
     @Transactional(readOnly = true)
     public List<EncounterDto> listByPatient(Long patientId) {
+        // Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
         return encounterRepository.findByPatientId(patientId)
                 .stream().map(this::mapToDto).toList();
     }
 
     @Transactional(readOnly = true)
     public EncounterDto getByIdForPatient(Long id, Long patientId) {
+        // Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
         Encounter encounter = encounterRepository
                 .findByIdAndPatientId(id, patientId)
-                .orElseThrow(() -> new RuntimeException("Encounter not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct.",
+                        id, patientId)
+                ));
         return mapToDto(encounter);
     }
 
     @Transactional
     public EncounterDto updateEncounter(Long id, Long patientId, EncounterDto dto) {
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Find encounter
         Encounter encounter = encounterRepository
                 .findByIdAndPatientId(id, patientId)
-                .orElseThrow(() -> new RuntimeException("Encounter not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct.",
+                        id, patientId)
+                ));
 
-        // Check if encounter is signed - prevent modification
+        // Step 3: Check if encounter is signed - prevent modification
         validateEncounterNotSigned(id, patientId);
         
         encounter.setVisitCategory(dto.getVisitCategory());
@@ -146,11 +183,22 @@ public class EncounterService {
 
     @Transactional
     public void deleteEncounter(Long id, Long patientId) {
+        // Step 1: Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
+        // Step 2: Find encounter
         Encounter encounter = encounterRepository
                 .findByIdAndPatientId(id, patientId)
-                .orElseThrow(() -> new RuntimeException("Encounter not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct.",
+                        id, patientId)
+                ));
 
-        // Check if encounter is signed - prevent modification
+        // Step 3: Check if encounter is signed - prevent modification
         validateEncounterNotSigned(id, patientId);
 
         // External sync
@@ -178,9 +226,19 @@ public class EncounterService {
     }
 
     private EncounterDto updateStatus(Long id, Long patientId,  EncounterStatus status) {
+        // Validate Patient exists
+        if (!patientRepository.existsById(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+            );
+        }
+
         Encounter encounter = encounterRepository
                 .findByIdAndPatientId(id, patientId)
-                .orElseThrow(() -> new RuntimeException("Encounter not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct.",
+                        id, patientId)
+                ));
         encounter.setStatus(status);
         encounter = encounterRepository.save(encounter);
 
@@ -213,7 +271,10 @@ public class EncounterService {
     public void validateEncounterNotSigned(Long encounterId, Long patientId) {
         Encounter encounter = encounterRepository
                 .findByIdAndPatientId(encounterId, patientId)
-                .orElseThrow(() -> new RuntimeException("Encounter not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct.",
+                        encounterId, patientId)
+                ));
 
         if (encounter.getStatus() == EncounterStatus.SIGNED) {
             throw new IllegalStateException("Cannot modify data for a signed encounter. Please unsign the encounter first.");
@@ -230,7 +291,10 @@ public class EncounterService {
     public EncounterStatus getEncounterStatus(Long encounterId, Long patientId) {
         Encounter encounter = encounterRepository
                 .findByIdAndPatientId(encounterId, patientId)
-                .orElseThrow(() -> new RuntimeException("Encounter not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct.",
+                        encounterId, patientId)
+                ));
         return encounter.getStatus() != null ? encounter.getStatus() : EncounterStatus.UNSIGNED;
     }
 

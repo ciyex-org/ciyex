@@ -42,17 +42,16 @@ public class EncounterController {
     public ResponseEntity<ApiResponse<EncounterDto>> createEncounter(
             @PathVariable Long patientId,
             @RequestBody EncounterDto encounterDto) {
-        try {
-            // Validate mandatory fields
-            String validationError = validateMandatoryFields(encounterDto);
-            if (validationError != null) {
-                return ResponseEntity.badRequest().body(ApiResponse.<EncounterDto>builder()
-                        .success(false)
-                        .message(validationError)
-                        .build());
-            }
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(encounterDto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<EncounterDto>builder()
+                    .success(false)
+                    .message(validationError)
+                    .build());
+        }
 
-            // enforce patient scope from path
+        try {
             encounterDto.setPatientId(patientId);
             EncounterDto created = encounterService.createEncounter(patientId, encounterDto);
             return ResponseEntity.ok(ApiResponse.<EncounterDto>builder()
@@ -60,10 +59,15 @@ public class EncounterController {
                     .message("Encounter created")
                     .data(created)
                     .build());
-        } catch (Exception e) {
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(404).body(ApiResponse.<EncounterDto>builder()
+                    .success(false)
+                    .message(ex.getMessage())
+                    .build());
+        } catch (Exception ex) {
             return ResponseEntity.status(500).body(ApiResponse.<EncounterDto>builder()
                     .success(false)
-                    .message("Failed to create encounter: " + e.getMessage())
+                    .message("Error creating Encounter: " + ex.getMessage())
                     .build());
         }
     }
@@ -79,10 +83,15 @@ public class EncounterController {
                     .message("Encounters fetched")
                     .data(items)
                     .build());
-        } catch (Exception e) {
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(404).body(ApiResponse.<List<EncounterDto>>builder()
+                    .success(false)
+                    .message(ex.getMessage())
+                    .build());
+        } catch (Exception ex) {
             return ResponseEntity.status(500).body(ApiResponse.<List<EncounterDto>>builder()
                     .success(false)
-                    .message("Failed to list encounters: " + e.getMessage())
+                    .message("Error fetching encounters: " + ex.getMessage())
                     .build());
         }
     }
@@ -99,10 +108,15 @@ public class EncounterController {
                     .message("Encounter fetched")
                     .data(dto)
                     .build());
-        } catch (Exception e) {
+        } catch (IllegalArgumentException ex) {
             return ResponseEntity.status(404).body(ApiResponse.<EncounterDto>builder()
                     .success(false)
-                    .message("Encounter not found: " + e.getMessage())
+                    .message(ex.getMessage())
+                    .build());
+        } catch (Exception ex) {
+            return ResponseEntity.status(500).body(ApiResponse.<EncounterDto>builder()
+                    .success(false)
+                    .message("Error fetching encounter: " + ex.getMessage())
                     .build());
         }
     }
@@ -113,16 +127,16 @@ public class EncounterController {
             @PathVariable Long patientId,
             @PathVariable Long id,
             @RequestBody EncounterDto encounterDto) {
-        try {
-            // Validate mandatory fields
-            String validationError = validateMandatoryFields(encounterDto);
-            if (validationError != null) {
-                return ResponseEntity.badRequest().body(ApiResponse.<EncounterDto>builder()
-                        .success(false)
-                        .message(validationError)
-                        .build());
-            }
+        // Validate mandatory fields
+        String validationError = validateMandatoryFields(encounterDto);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(ApiResponse.<EncounterDto>builder()
+                    .success(false)
+                    .message(validationError)
+                    .build());
+        }
 
+        try {
             encounterDto.setPatientId(patientId);
             EncounterDto updated = encounterService.updateEncounter(id, patientId, encounterDto);
             return ResponseEntity.ok(ApiResponse.<EncounterDto>builder()
@@ -130,39 +144,46 @@ public class EncounterController {
                     .message("Encounter updated")
                     .data(updated)
                     .build());
-        } catch (IllegalStateException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.<EncounterDto>builder()
-                    .success(false)
-                    .message(e.getMessage())
-                    .build());
-        } catch (Exception e) {
+        } catch (IllegalArgumentException ex) {
             return ResponseEntity.status(404).body(ApiResponse.<EncounterDto>builder()
                     .success(false)
-                    .message("Failed to update encounter: " + e.getMessage())
+                    .message(ex.getMessage())
+                    .build());
+        } catch (IllegalStateException ex) {
+            return ResponseEntity.status(423).body(ApiResponse.<EncounterDto>builder()
+                    .success(false)
+                    .message(ex.getMessage())
+                    .build());
+        } catch (Exception ex) {
+            return ResponseEntity.status(500).body(ApiResponse.<EncounterDto>builder()
+                    .success(false)
+                    .message("Error updating encounter: " + ex.getMessage())
                     .build());
         }
     }
 
     // DELETE (scoped)
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteEncounter(
+    public ResponseEntity<?> deleteEncounter(
             @PathVariable Long patientId,
             @PathVariable Long id) {
         try {
             encounterService.deleteEncounter(id, patientId);
-            return ResponseEntity.ok(ApiResponse.<Void>builder()
-                    .success(true)
-                    .message("Encounter deleted")
-                    .build());
-        } catch (IllegalStateException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.<Void>builder()
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(404).body(ApiResponse.builder()
                     .success(false)
-                    .message(e.getMessage())
+                    .message(ex.getMessage())
                     .build());
-        } catch (Exception e) {
-            return ResponseEntity.status(404).body(ApiResponse.<Void>builder()
+        } catch (IllegalStateException ex) {
+            return ResponseEntity.status(423).body(ApiResponse.builder()
                     .success(false)
-                    .message("Failed to delete encounter: " + e.getMessage())
+                    .message(ex.getMessage())
+                    .build());
+        } catch (Exception ex) {
+            return ResponseEntity.status(500).body(ApiResponse.builder()
+                    .success(false)
+                    .message("Error deleting encounter: " + ex.getMessage())
                     .build());
         }
     }
@@ -177,10 +198,15 @@ public class EncounterController {
                     .message("Encounter signed")
                     .data(dto)
                     .build());
-        } catch (Exception e) {
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(404).body(ApiResponse.<EncounterDto>builder()
+                    .success(false)
+                    .message(ex.getMessage())
+                    .build());
+        } catch (Exception ex) {
             return ResponseEntity.status(400).body(ApiResponse.<EncounterDto>builder()
                     .success(false)
-                    .message("Failed to sign encounter: " + e.getMessage())
+                    .message("Error signing encounter: " + ex.getMessage())
                     .build());
         }
     }
@@ -196,10 +222,15 @@ public class EncounterController {
                     .message("Encounter unsigned")
                     .data(dto)
                     .build());
-        } catch (Exception e) {
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(404).body(ApiResponse.<EncounterDto>builder()
+                    .success(false)
+                    .message(ex.getMessage())
+                    .build());
+        } catch (Exception ex) {
             return ResponseEntity.status(400).body(ApiResponse.<EncounterDto>builder()
                     .success(false)
-                    .message("Failed to unsign encounter: " + e.getMessage())
+                    .message("Error unsigning encounter: " + ex.getMessage())
                     .build());
         }
     }
@@ -215,10 +246,15 @@ public class EncounterController {
                     .message("Encounter marked incomplete")
                     .data(dto)
                     .build());
-        } catch (Exception e) {
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(404).body(ApiResponse.<EncounterDto>builder()
+                    .success(false)
+                    .message(ex.getMessage())
+                    .build());
+        } catch (Exception ex) {
             return ResponseEntity.status(400).body(ApiResponse.<EncounterDto>builder()
                     .success(false)
-                    .message("Failed to mark encounter incomplete: " + e.getMessage())
+                    .message("Error marking encounter incomplete: " + ex.getMessage())
                     .build());
         }
     }
