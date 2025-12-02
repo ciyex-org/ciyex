@@ -36,9 +36,9 @@ public class PortalAuthService {
 
     private static final long JWT_EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours
 
-    /* -----------------------------------------------------------
-       JWT TOKEN GENERATION (LOCAL PORTAL LOGIN ONLY)
-    ------------------------------------------------------------*/
+    /**
+     * 🔐 Generate JWT for local login (NOT Keycloak)
+     */
     private String generateJwtToken(PortalUser user) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getId());
@@ -47,7 +47,6 @@ public class PortalAuthService {
         claims.put("status", user.getStatus().toString());
         claims.put("preferred_username", user.getEmail());
 
-        // Spring Security expects realm_access → roles
         Map<String, Object> realmAccess = new HashMap<>();
         realmAccess.put("roles", Collections.singletonList("PATIENT"));
         claims.put("realm_access", realmAccess);
@@ -63,9 +62,10 @@ public class PortalAuthService {
                 .compact();
     }
 
-    /* -----------------------------------------------------------
-       REGISTER PORTAL USER (LOCAL REGISTRATION)
-    ------------------------------------------------------------*/
+    /**
+     * 🟢 Register portal user (local registration)
+     * Keycloak UUID is NOT available here. It will be filled after Keycloak login.
+     */
     @Transactional
     public ApiResponse<PortalLoginResponse> register(PortalRegisterRequest request) {
         try {
@@ -76,7 +76,6 @@ public class PortalAuthService {
                         .build();
             }
 
-            // Auto-approved by default
             PortalUser user = PortalUser.builder()
                     .email(request.getEmail())
                     .password(passwordEncoder.encode(request.getPassword()))
@@ -89,36 +88,24 @@ public class PortalAuthService {
 
             PortalUser savedUser = portalUserRepository.save(user);
 
-            // Create PortalPatient
             PortalPatient patient = PortalPatient.builder()
                     .portalUser(savedUser)
-                    .dateOfBirth(
-                            request.getDateOfBirth() != null ?
-                                    request.getDateOfBirth() :
-                                    LocalDate.now().minusYears(25)
-                    )
+                    .dateOfBirth(Optional.ofNullable(request.getDateOfBirth())
+                            .orElse(LocalDate.now().minusYears(25)))
                     .addressLine1(request.getStreet())
                     .addressLine2(request.getStreet2())
                     .city(request.getCity())
                     .state(request.getState())
-                    .country(
-                            request.getCountry() != null ?
-                                    request.getCountry() : "USA"
-                    )
+                    .country(Optional.ofNullable(request.getCountry()).orElse("USA"))
                     .postalCode(request.getPostalCode())
                     .build();
 
             portalPatientRepository.save(patient);
 
-            log.info("✅ Portal user registered and auto-approved: {}", savedUser.getEmail());
-
-            PortalLoginResponse response = PortalLoginResponse.fromEntity(savedUser);
-            response.setToken(generateJwtToken(savedUser));
-
             return ApiResponse.<PortalLoginResponse>builder()
                     .success(true)
                     .message("Registration successful and approved!")
-                    .data(response)
+                    .data(PortalLoginResponse.fromEntity(savedUser))
                     .build();
 
         } catch (Exception e) {
@@ -130,9 +117,9 @@ public class PortalAuthService {
         }
     }
 
-    /* -----------------------------------------------------------
-       LOCAL PORTAL LOGIN
-    ------------------------------------------------------------*/
+    /**
+     * 🟢 Login with local username/password (NOT Keycloak)
+     */
     public ApiResponse<PortalLoginResponse> login(PortalLoginRequest request) {
         try {
             Optional<PortalUser> userOpt = portalUserRepository.findByEmail(request.getEmail());
@@ -160,8 +147,8 @@ public class PortalAuthService {
             }
 
             PortalLoginResponse response = PortalLoginResponse.fromEntity(user);
+            response.setToken(generateJwtToken(user));
 
-            // Insert patient data
             if (user.getPortalPatient() != null) {
                 PortalPatient patient = user.getPortalPatient();
                 response.setDateOfBirth(patient.getDateOfBirth());
@@ -171,10 +158,6 @@ public class PortalAuthService {
                 response.setCountry(patient.getCountry());
                 response.setPostalCode(patient.getPostalCode());
             }
-
-            response.setToken(generateJwtToken(user));
-
-            log.info("✅ Portal user logged in successfully: {}", user.getEmail());
 
             return ApiResponse.<PortalLoginResponse>builder()
                     .success(true)
@@ -191,10 +174,13 @@ public class PortalAuthService {
         }
     }
 
-    /* -----------------------------------------------------------
-       AUTO-CREATE OR UPDATE USER FROM KEYCLOAK LOGIN
-       THIS FIXES ALL UUID MAPPING PROBLEMS
-    ------------------------------------------------------------*/
+    /**
+     * 🟣 KEY METHOD
+     * Ensure portal user exists — also updates Keycloak UUID for existing users.
+     * Works for:
+     *  - Existing local-registered users (Emma etc.)
+     *  - New users logging in through Keycloak for the first time
+     */
     @Transactional
     public PortalUser ensurePortalUserExistsFromKeycloak(Map<String, Object> userData) {
 
@@ -207,44 +193,52 @@ public class PortalAuthService {
             throw new RuntimeException("Email missing in Keycloak token");
         }
 
-        PortalUser user = portalUserRepository.findByEmail(email).orElse(null);
+        Optional<PortalUser> existingOpt = portalUserRepository.findByEmail(email);
 
-        if (user == null) {
-            // NEW USER FROM KEYCLOAK
-            log.info("Creating new portal user from Keycloak login: {}", email);
+        if (existingOpt.isPresent()) {
+            PortalUser existing = existingOpt.get();
 
-            user = PortalUser.builder()
-                    .email(email)
-                    .password(passwordEncoder.encode("keycloak-login"))
-                    .firstName(firstName)
-                    .lastName(lastName)
-                    .status(PortalStatus.APPROVED)
-                    .approvedDate(LocalDateTime.now())
-                    .keycloakUserId(keycloakId)
-                    .build();
+            // ⭐ CRITICAL: Update Keycloak UUID for existing users
+            if (existing.getKeycloakUserId() == null ||
+                !existing.getKeycloakUserId().equals(keycloakId)) {
 
-            PortalUser savedUser = portalUserRepository.save(user);
+                log.info("🔄 Updating existing user {} with Keycloak UUID {}", email, keycloakId);
+                existing.setKeycloakUserId(keycloakId);
+                portalUserRepository.save(existing);
+            }
 
-            PortalPatient patient = PortalPatient.builder()
-                    .portalUser(savedUser)
-                    .dateOfBirth(LocalDate.now().minusYears(25))
-                    .country("USA")
-                    .build();
-            portalPatientRepository.save(patient);
-
-            return savedUser;
+            return existing;
         }
 
-        // EXISTING USER: UPDATE Keycloak UUID
-        if (keycloakId != null && !keycloakId.equals(user.getKeycloakUserId())) {
-            log.info("🔄 Updating Keycloak UUID for {} → {}", email, keycloakId);
-            user.setKeycloakUserId(keycloakId);
-            portalUserRepository.save(user);
-        }
+        // ⭐ NEW user flow
+        log.info("🆕 Creating portal user for new Keycloak user {}", email);
 
-        return user;
+        PortalUser newUser = PortalUser.builder()
+                .email(email)
+                .password(passwordEncoder.encode("keycloak-login"))
+                .firstName(firstName)
+                .lastName(lastName)
+                .status(PortalStatus.APPROVED)
+                .approvedDate(LocalDateTime.now())
+                .keycloakUserId(keycloakId)
+                .build();
+
+        portalUserRepository.save(newUser);
+
+        PortalPatient newPatient = PortalPatient.builder()
+                .portalUser(newUser)
+                .dateOfBirth(LocalDate.now().minusYears(25))
+                .country("USA")
+                .build();
+
+        portalPatientRepository.save(newPatient);
+
+        return newUser;
     }
 
+    /**
+     * 🟢 Get profile by user ID
+     */
     public ApiResponse<PortalLoginResponse> getProfile(Long userId) {
         return portalUserRepository.findById(userId)
                 .map(user -> ApiResponse.<PortalLoginResponse>builder()
