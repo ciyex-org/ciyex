@@ -2,56 +2,93 @@ package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.MedicationRequestDto;
 import com.qiaben.ciyex.entity.MedicationRequest;
+import com.qiaben.ciyex.entity.portal.PortalPatient;
+import com.qiaben.ciyex.entity.portal.PortalUser;
 import com.qiaben.ciyex.repository.MedicationRequestRepository;
+import com.qiaben.ciyex.repository.portal.PortalPatientRepository;
+import com.qiaben.ciyex.repository.portal.PortalUserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Service for fetching medication requests linked to a portal user's EHR patient ID.
+ * Uses EMAIL as the lookup key, avoiding dependency on Keycloak UUID mapping.
+ */
 @Service
 @Slf4j
 public class MedicationsService {
 
     private final MedicationRequestRepository medicationRequestRepository;
+    private final PortalUserRepository portalUserRepository;
+    private final PortalPatientRepository portalPatientRepository;
 
-    public MedicationsService(MedicationRequestRepository medicationRequestRepository) {
+    public MedicationsService(
+            MedicationRequestRepository medicationRequestRepository,
+            PortalUserRepository portalUserRepository,
+            PortalPatientRepository portalPatientRepository
+    ) {
         this.medicationRequestRepository = medicationRequestRepository;
+        this.portalUserRepository = portalUserRepository;
+        this.portalPatientRepository = portalPatientRepository;
     }
 
+    /**
+     * Fetch medications for the currently authenticated portal user.
+     * Maps user email -> PortalUser -> PortalPatient -> EHR Patient ID.
+     */
     public List<MedicationRequestDto> getMedicationsForPortalUser() {
-        // Get Keycloak user from authentication context
+
+        // 1️⃣ Get Keycloak-authenticated user identity (email)
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
-            log.error("No authenticated user found in security context");
+            log.error("❌ No authenticated user found in security context");
             throw new RuntimeException("User not authenticated");
         }
 
-        // Get Keycloak user UUID
-        String keycloakUserId = authentication.getName();
-        log.info("Processing medication request for Keycloak user: {}", keycloakUserId);
+        String email = authentication.getName();
+        log.info("🔍 Fetching medications for portal user email: {}", email);
 
-        // Get EHR patient ID from portal mapping using repository
-        java.util.UUID uuid = java.util.UUID.fromString(keycloakUserId);
-        Long ehrPatientId = medicationRequestRepository.findEhrPatientIdByKeycloakUserId(uuid);
+        // 2️⃣ Find portal user by email
+        PortalUser portalUser = portalUserRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.error("❌ Portal user not found for email: {}", email);
+                    return new RuntimeException("Portal user not found: " + email);
+                });
+
+        // 3️⃣ Get portal patient mapping
+        PortalPatient portalPatient = portalPatientRepository.findByPortalUser_Id(portalUser.getId())
+                .orElseThrow(() -> {
+                    log.error("❌ No portal patient record found for user email: {}", email);
+                    return new RuntimeException("Patient mapping not found for user: " + email);
+                });
+
+        Long ehrPatientId = portalPatient.getEhrPatientId();
         if (ehrPatientId == null) {
-            log.error("No patient mapping found for Keycloak user: {}", keycloakUserId);
-            throw new RuntimeException("Patient mapping not found for user: " + keycloakUserId);
+            log.error("❌ Portal patient {} has no EHR patient ID", portalPatient.getId());
+            throw new RuntimeException("No EHR patient ID mapped for user: " + email);
         }
 
-        log.info("Found EHR patient ID {} for Keycloak user {}", ehrPatientId, keycloakUserId);
+        log.info("✅ Email {} maps to EHR patient ID {}", email, ehrPatientId);
 
-        // Query medications for this patient
-        List<MedicationRequest> medications = medicationRequestRepository.findByPatientId(ehrPatientId);
-        return medications.stream()
+        // 4️⃣ Fetch medications for this EHR patient
+        List<MedicationRequest> meds = medicationRequestRepository.findByPatientId(ehrPatientId);
+
+        log.info("📦 Found {} medication records for EHR patient {}", meds.size(), ehrPatientId);
+
+        // 5️⃣ Convert entities → DTO
+        return meds.stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
 
-
+    /**
+     * Convert MedicationRequest entity to DTO.
+     */
     private MedicationRequestDto mapToDto(MedicationRequest entity) {
         MedicationRequestDto dto = new MedicationRequestDto();
         dto.setId(entity.getId());
