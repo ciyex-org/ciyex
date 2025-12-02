@@ -27,6 +27,7 @@ public class PatientBillingService {
      * Generate a printable patient statement for the print/statement API.
      */
     public PatientStatementDto getPatientStatement(Long patientId) {
+        getPatientOrThrow(patientId);
         PatientStatementDto dto = new PatientStatementDto();
         // Patient info (replace with actual lookup if PatientRepository is available)
         dto.patientId = patientId;
@@ -166,6 +167,7 @@ public class PatientBillingService {
     }
 
     public PatientAccountCreditDto accountAdjustment(Long patientId, AccountAdjustmentRequest req) {
+        getPatientOrThrow(patientId);
         if (req == null || req.adjustmentType() == null) {
             throw new IllegalArgumentException("Adjustment type is required");
         }
@@ -274,6 +276,7 @@ public class PatientBillingService {
     }
 
     public List<PatientInvoiceDto> listInvoices(Long patientId) {
+        getPatientOrThrow(patientId);
         return invoiceRepo.findByPatientIdOrderByIdDesc(patientId)
                 .stream().map(this::toInvoiceDto).toList();
     }
@@ -289,7 +292,11 @@ public class PatientBillingService {
     }
 
     public PatientInvoiceDto createInvoiceFromProcedure(Long patientId, CreateInvoiceRequest b) {
-        if (b == null) throw new IllegalArgumentException("Body required");
+        getPatientOrThrow(patientId);
+        if (b == null) throw new IllegalArgumentException("Request body is required");
+        if (b.code() == null || b.code().isEmpty()) throw new IllegalArgumentException("Procedure code is required");
+        if (b.dos() == null || b.dos().isEmpty()) throw new IllegalArgumentException("Date of service is required");
+        if (b.rate() == null) throw new IllegalArgumentException("Rate is required");
 
         PatientInvoice invoice = new PatientInvoice();
         invoice.setPatientId(patientId);
@@ -333,18 +340,23 @@ public class PatientBillingService {
     public void deleteInvoice(Long patientId, Long invoiceId) {
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
 
-        // Delete associated claim if exists
-        PatientClaim claim = claimRepo.findByInvoiceId(invoiceId);
-        if (claim != null) {
-            claimRepo.delete(claim);
-        }
+        try {
+            // Delete associated claim if exists
+            PatientClaim claim = claimRepo.findByInvoiceId(invoiceId);
+            if (claim != null) {
+                claimRepo.delete(claim);
+            }
 
-        // Delete invoice (cascade will handle invoice lines)
-        invoiceRepo.delete(invoice);
+            // Delete invoice (cascade will handle invoice lines)
+            invoiceRepo.delete(invoice);
+        } catch (Exception ex) {
+            log.error("Error deleting invoice {} for patient {}", invoiceId, patientId, ex);
+            throw new RuntimeException("Failed to delete invoice: " + ex.getMessage(), ex);
+        }
     }
 
     public PatientInvoiceDto updateInvoiceFromProcedure(Long patientId, Long invoiceId, UpdateInvoiceRequest b) {
-        if (b == null) throw new IllegalArgumentException("Body required");
+        if (b == null) throw new IllegalArgumentException("Request body is required");
 
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
 
@@ -383,11 +395,20 @@ public class PatientBillingService {
     }
 
     public PatientInvoiceDto updateInvoiceLineAmount(Long patientId, Long invoiceId, Long lineId, UpdateLineAmountRequest b) {
+        if (b == null || b.newCharge() == null) {
+            throw new IllegalArgumentException("New charge amount is required");
+        }
+        
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
-        PatientInvoiceLine line = lineRepo.findById(lineId).orElseThrow();
-        if (!line.getInvoice().getId().equals(invoiceId)) throw new IllegalArgumentException("Line not in invoice");
+        PatientInvoiceLine line = lineRepo.findById(lineId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Invoice line not found with ID: %d. Please provide a valid Invoice Line ID.", lineId)
+                ));
+        if (!line.getInvoice().getId().equals(invoiceId)) {
+            throw new IllegalArgumentException("Invoice line does not belong to this invoice");
+        }
 
-        BigDecimal amt = nz(b == null ? null : b.newCharge());
+        BigDecimal amt = nz(b.newCharge());
         line.setCharge(amt);
         line.setAllowed(amt);
         line.setInsWriteOff(BigDecimal.ZERO);
@@ -399,8 +420,12 @@ public class PatientBillingService {
     }
 
     public PatientInvoiceDto applyInvoicePercentageAdjustment(Long patientId, Long invoiceId, PercentageAdjustmentRequest b) {
+        if (b == null) {
+            throw new IllegalArgumentException("Percentage adjustment request is required");
+        }
+        
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
-        int percent = (b == null) ? 0 : b.percent();
+        int percent = b.percent();
         BigDecimal p = BigDecimal.valueOf(percent).divide(BigDecimal.valueOf(100), 8, RoundingMode.HALF_UP);
 
         for (PatientInvoiceLine l : invoice.getLines()) {
@@ -439,6 +464,7 @@ public class PatientBillingService {
     }
 
     public List<PatientClaimDto> listAllClaimsForPatient(Long patientId) {
+        getPatientOrThrow(patientId);
         List<PatientClaim> claims;
         try {
             claims = claimRepo.findAllByPatientIdOrderByIdDesc(patientId);
@@ -463,6 +489,7 @@ public class PatientBillingService {
     }
 
     public PatientClaimDto promoteClaim(Long patientId, Long invoiceId) {
+        getPatientOrThrow(patientId);
         PatientClaim c = getClaimOrThrow(patientId, invoiceId);
         if (c.getStatus() == PatientClaim.Status.DRAFT) {
             c.setStatus(PatientClaim.Status.IN_PROCESS);
@@ -482,26 +509,34 @@ public class PatientBillingService {
     }
 
     public PatientClaimDto sendClaimToBatch(Long patientId, Long invoiceId) {
+        getPatientOrThrow(patientId);
         PatientClaim c = getClaimOrThrow(patientId, invoiceId);
         c.setStatus(PatientClaim.Status.READY_FOR_SUBMISSION);
+        claimRepo.save(c);
         return toClaimDto(c);
     }
 
     public PatientClaimDto submitClaim(Long patientId, Long invoiceId) {
+        getPatientOrThrow(patientId);
         PatientClaim c = getClaimOrThrow(patientId, invoiceId);
         c.setStatus(PatientClaim.Status.SUBMITTED);
+        claimRepo.save(c);
         return toClaimDto(c);
     }
 
     public PatientClaimDto closeClaim(Long patientId, Long invoiceId) {
+        getPatientOrThrow(patientId);
         PatientClaim c = getClaimOrThrow(patientId, invoiceId);
         c.setStatus(PatientClaim.Status.CLOSED);
+        claimRepo.save(c);
         return toClaimDto(c);
     }
 
     public PatientClaimDto voidAndRecreateClaim(Long patientId, Long invoiceId) {
+        getPatientOrThrow(patientId);
         PatientClaim existing = getClaimOrThrow(patientId, invoiceId);
         existing.setStatus(PatientClaim.Status.VOID);
+        claimRepo.save(existing);
 
         PatientClaim fresh = new PatientClaim();
         fresh.setPatientId(patientId);
@@ -543,6 +578,10 @@ public class PatientBillingService {
 
 
     public PatientClaimDto updateClaim(Long patientId, Long invoiceId, PatientClaimCoreUpdate p) {
+        if (p == null) {
+            throw new IllegalArgumentException("Claim update request is required");
+        }
+        
         PatientClaim c = getClaimOrThrow(patientId, invoiceId);
         if (p != null) {
             c.setTreatingProviderId(p.treatingProviderId());
@@ -577,7 +616,9 @@ public class PatientBillingService {
     public List<ClaimLineDetailDto> getClaimLineDetails(Long claimId) {
         // Get the claim
         PatientClaim claim = claimRepo.findById(claimId)
-                .orElseThrow(() -> new IllegalArgumentException("Claim not found: " + claimId));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Claim not found with ID: %d. Please provide a valid Claim ID.", claimId)
+                ));
 
         // Get the invoice associated with the claim
         Long invoiceId = claim.getInvoiceId();
@@ -605,9 +646,13 @@ public class PatientBillingService {
     /* ================ Insurance Payment ================ */
 
     public PatientInvoiceDto applyInsurancePayment(Long patientId, Long invoiceId, PatientInsurancePaymentRequestDto req) {
+        if (req == null || req.lines() == null || req.lines().isEmpty()) {
+            throw new IllegalArgumentException("Payment request with lines is required");
+        }
+        
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
 
-        if (req != null && req.lines() != null) {
+        if (req.lines() != null) {
             for (PatientInsuranceRemitLineDto r : req.lines()) {
                 // 1) persist remit row
                 PatientInsuranceRemitLine e = new PatientInsuranceRemitLine();
@@ -626,7 +671,10 @@ public class PatientBillingService {
                 remitRepo.save(e);
 
                 // 2) recompute affected invoice line
-                PatientInvoiceLine line = lineRepo.findById(r.invoiceLineId()).orElseThrow();
+                PatientInvoiceLine line = lineRepo.findById(r.invoiceLineId())
+                        .orElseThrow(() -> new IllegalArgumentException(
+                            String.format("Invoice line not found with ID: %d. Please provide a valid Invoice Line ID.", r.invoiceLineId())
+                        ));
                 if (!line.getInvoice().getId().equals(invoiceId)) throw new IllegalArgumentException("Line not in invoice");
 
                 BigDecimal submitted = nz(r.submitted());
@@ -683,9 +731,15 @@ public class PatientBillingService {
 
     /** EDIT */
     public PatientInvoiceDto editInsuranceRemitLine(Long patientId, Long invoiceId, Long remitId, PatientInsuranceRemitLineDto dto) {
+        if (dto == null) {
+            throw new IllegalArgumentException("Request body is required");
+        }
+        
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
         PatientInsuranceRemitLine remit = remitRepo.findById(remitId)
-                .orElseThrow(() -> new IllegalArgumentException("Insurance remit not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Insurance remit not found with ID: %d. Please provide a valid remit ID.", remitId)
+                ));
 
         if (dto.submitted() != null)    remit.setSubmitted(dto.submitted());
         if (dto.balance() != null)      remit.setBalance(dto.balance());
@@ -725,6 +779,14 @@ public class PatientBillingService {
     /** VOID = hard delete the remit row */
     public PatientInvoiceDto voidInsurancePayment(Long patientId, Long invoiceId, Long remitId, VoidReason reason) {
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
+        
+        // Verify remit exists before deleting
+        if (!remitRepo.existsById(remitId)) {
+            throw new IllegalArgumentException(
+                String.format("Insurance remit not found with ID: %d. Please provide a valid remit ID.", remitId)
+            );
+        }
+        
         remitRepo.deleteById(remitId);
         invoice.recalcTotals(); // recompute totals from remaining lines + their portions
         return toInvoiceDto(invoice);
@@ -819,9 +881,13 @@ public class PatientBillingService {
 
     /** Get detailed insurance payment information */
     public InsurancePaymentDetailDto getInsurancePaymentDetails(Long patientId, Long invoiceId, Long remitId) {
+        getPatientOrThrow(patientId);
+        
         // Fetch the remit line
         PatientInsuranceRemitLine remitLine = remitRepo.findById(remitId)
-                .orElseThrow(() -> new RuntimeException("Insurance payment not found: " + remitId));
+                .orElseThrow(() -> new RuntimeException(
+                    String.format("Insurance payment not found with ID: %d. Please provide a valid remit ID.", remitId)
+                ));
         
         // Fetch the invoice
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
@@ -876,9 +942,13 @@ public class PatientBillingService {
 
     /** Get detailed patient payment information */
     public PatientPaymentDetailDto getPatientPaymentDetails(Long patientId, Long invoiceId, Long paymentId) {
+        getPatientOrThrow(patientId);
+        
         // Fetch the payment
         PatientPayment payment = paymentRepo.findById(paymentId)
-                .orElseThrow(() -> new RuntimeException("Patient payment not found: " + paymentId));
+                .orElseThrow(() -> new RuntimeException(
+                    String.format("Patient payment not found with ID: %d. Please provide a valid payment ID.", paymentId)
+                ));
         
         // Fetch the invoice
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
@@ -939,6 +1009,16 @@ public class PatientBillingService {
     /* ================ Patient Payment & Credit ================ */
 
     public PatientInvoiceDto applyPatientPayment(Long patientId, Long invoiceId, PatientPatientPaymentRequestDto req) {
+        if (req == null) {
+            throw new IllegalArgumentException("Payment request is required");
+        }
+        if (req.paymentMethod() == null || req.paymentMethod().isEmpty()) {
+            throw new IllegalArgumentException("Payment method is required");
+        }
+        if (req.allocations() == null || req.allocations().isEmpty()) {
+            throw new IllegalArgumentException("Payment allocations are required");
+        }
+        
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
 
         BigDecimal outstanding = nz(invoice.getInsBalance()).add(nz(invoice.getPtBalance()));
@@ -1004,6 +1084,8 @@ public class PatientBillingService {
     }
 
     public List<PatientPatientPaymentAllocationDto> getAllPatientPayments(Long patientId) {
+        getPatientOrThrow(patientId);
+        
         var allocations = allocationRepo.findByPatientId(patientId);
         return allocations.stream()
                 .map(a -> new PatientPatientPaymentAllocationDto(
@@ -1031,9 +1113,15 @@ public class PatientBillingService {
     }
 
     public PatientInvoiceDto editPatientPayment(Long patientId, Long invoiceId, Long paymentId, PatientPaymentDto dto) {
+        if (dto == null) {
+            throw new IllegalArgumentException("Request body is required");
+        }
+        
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
         PatientPayment payment = paymentRepo.findById(paymentId)
-                .orElseThrow(() -> new IllegalArgumentException("Patient payment not found"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Patient payment not found with ID: %d. Please provide a valid payment ID.", paymentId)
+                ));
 
         if (dto.amount() != null) payment.setAmount(dto.amount());
         if (dto.paymentMethod() != null) {
@@ -1049,6 +1137,14 @@ public class PatientBillingService {
     /** VOID = delete allocations then delete payment */
     public PatientInvoiceDto voidPatientPayment(Long patientId, Long invoiceId, Long paymentId, VoidReason reason) {
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
+        
+        // Verify payment exists before deleting
+        if (!paymentRepo.existsById(paymentId)) {
+            throw new IllegalArgumentException(
+                String.format("Patient payment not found with ID: %d. Please provide a valid payment ID.", paymentId)
+            );
+        }
+        
         List<PatientPaymentAllocation> allocs = allocationRepo.findByPaymentId(paymentId);
         allocs.forEach(allocationRepo::delete);
         paymentRepo.deleteById(paymentId);
@@ -1123,7 +1219,10 @@ public class PatientBillingService {
 
     public PatientAccountCreditDto applyAccountCredit(Long patientId, ApplyCreditRequest b) {
         BigDecimal amount = (b == null) ? BigDecimal.ZERO : nz(b.amount());
-        PatientAccountCredit c = creditRepo.findByPatientId(patientId).orElseThrow();
+        PatientAccountCredit c = creditRepo.findByPatientId(patientId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Patient account credit not found for Patient ID: %d. Please verify the Patient ID is correct.", patientId)
+                ));
         if (amount.compareTo(BigDecimal.ZERO) <= 0) return new PatientAccountCreditDto(patientId, c.getBalance());
         if (c.getBalance().compareTo(amount) < 0) throw new IllegalArgumentException("Insufficient credit");
         c.setBalance(c.getBalance().subtract(amount));
@@ -1131,7 +1230,15 @@ public class PatientBillingService {
     }
 
     public PatientDepositDto addPatientDeposit(Long patientId, PatientDepositRequest request) {
-        if (request == null || request.amount() == null || request.amount().signum() <= 0) {
+        getPatientOrThrow(patientId);
+        
+        if (request == null) {
+            throw new IllegalArgumentException("Deposit request is required");
+        }
+        if (request.amount() == null) {
+            throw new IllegalArgumentException("Deposit amount is required");
+        }
+        if (request.amount().signum() <= 0) {
             throw new IllegalArgumentException("Deposit amount must be positive");
         }
 
@@ -1162,6 +1269,8 @@ public class PatientBillingService {
      * Get all deposits for a patient
      */
     public List<PatientDepositDto> getPatientDeposits(Long patientId) {
+        getPatientOrThrow(patientId);
+        
         List<PatientDeposit> deposits = depositRepo.findByPatientIdOrderByDepositDateDesc(patientId);
         return deposits.stream()
                 .map(this::toDepositDto)
@@ -1172,8 +1281,12 @@ public class PatientBillingService {
      * Get a single deposit by id
      */
     public PatientDepositDto getPatientDeposit(Long patientId, Long depositId) {
+        getPatientOrThrow(patientId);
+        
         PatientDeposit deposit = depositRepo.findByIdAndPatientId(depositId, patientId)
-                .orElseThrow(() -> new IllegalArgumentException("Deposit not found for patient"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Deposit not found with ID: %d for Patient ID: %d. Please verify both IDs are correct.", depositId, patientId)
+                ));
         return toDepositDto(deposit);
     }
 
@@ -1181,12 +1294,22 @@ public class PatientBillingService {
      * Update an existing deposit
      */
     public PatientDepositDto updatePatientDeposit(Long patientId, Long depositId, PatientDepositRequest request) {
-        if (request == null || request.amount() == null || request.amount().signum() <= 0) {
+        getPatientOrThrow(patientId);
+        
+        if (request == null) {
+            throw new IllegalArgumentException("Deposit request is required");
+        }
+        if (request.amount() == null) {
+            throw new IllegalArgumentException("Deposit amount is required");
+        }
+        if (request.amount().signum() <= 0) {
             throw new IllegalArgumentException("Deposit amount must be positive");
         }
 
         PatientDeposit deposit = depositRepo.findByIdAndPatientId(depositId, patientId)
-                .orElseThrow(() -> new IllegalArgumentException("Deposit not found for patient"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Deposit not found with ID: %d for Patient ID: %d. Please verify both IDs are correct.", depositId, patientId)
+                ));
 
         BigDecimal oldAmount = deposit.getAmount();
         BigDecimal newAmount = request.amount();
@@ -1214,8 +1337,12 @@ public class PatientBillingService {
      * Delete a deposit
      */
     public void deletePatientDeposit(Long patientId, Long depositId) {
+        getPatientOrThrow(patientId);
+        
         PatientDeposit deposit = depositRepo.findByIdAndPatientId(depositId, patientId)
-                .orElseThrow(() -> new IllegalArgumentException("Deposit not found for patient"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Deposit not found with ID: %d for Patient ID: %d. Please verify both IDs are correct.", depositId, patientId)
+                ));
 
         // Update account credit balance (subtract the deposit amount)
         var creditOpt = creditRepo.findByPatientId(patientId);
@@ -1541,14 +1668,34 @@ public class PatientBillingService {
 
     /** Lock claim (after lock, claim cannot be edited) */
     public void lockClaim(Long patientId, Long claimId) {
-        PatientClaim claim = claimRepo.findById(claimId).orElseThrow();
+        getPatientOrThrow(patientId);
+        PatientClaim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Claim not found with ID: %d. Please provide a valid Claim ID.", claimId)
+                ));
+        if (!claim.getPatientId().equals(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Claim not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Claim ID are correct and that the claim belongs to this patient.",
+                    claimId, patientId)
+            );
+        }
         claim.setLocked(true);
         claimRepo.save(claim);
     }
 
 
     public void changeClaimStatus(Long patientId, Long claimId, ClaimStatusUpdateDto dto) {
-        PatientClaim claim = claimRepo.findById(claimId).orElseThrow();
+        getPatientOrThrow(patientId);
+        PatientClaim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Claim not found with ID: %d. Please provide a valid Claim ID.", claimId)
+                ));
+        if (!claim.getPatientId().equals(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Claim not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Claim ID are correct and that the claim belongs to this patient.",
+                    claimId, patientId)
+            );
+        }
         if (dto.getStatus() != null) {
             claim.setStatus(PatientClaim.Status.valueOf(dto.getStatus()));
         }
@@ -1565,7 +1712,10 @@ public class PatientBillingService {
      * Get claim by ID and convert to DTO
      */
     public PatientClaimDto getClaimDtoById(Long claimId) {
-        PatientClaim claim = claimRepo.findById(claimId).orElseThrow();
+        PatientClaim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Claim not found with ID: %d. Please provide a valid Claim ID.", claimId)
+                ));
         return toClaimDto(claim);
     }
 
@@ -1574,7 +1724,17 @@ public class PatientBillingService {
     /** Submit claim attachment */
     public void submitClaimAttachment(Long patientId, Long claimId, MultipartFile file) throws Exception {
         // Save file to claim entity and increment attachment count
-        PatientClaim claim = claimRepo.findById(claimId).orElseThrow();
+        getPatientOrThrow(patientId);
+        PatientClaim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Claim not found with ID: %d. Please provide a valid Claim ID.", claimId)
+                ));
+        if (!claim.getPatientId().equals(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Claim not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Claim ID are correct and that the claim belongs to this patient.",
+                    claimId, patientId)
+            );
+        }
         if (file != null && !file.isEmpty()) {
             claim.setAttachmentFile(file.getBytes());
             claim.setAttachments(claim.getAttachments() + 1);
@@ -2035,14 +2195,27 @@ public class PatientBillingService {
     /* ===================== Helpers ===================== */
 
     private PatientInvoice getInvoiceOrThrow(Long patientId, Long invoiceId) {
-        return invoiceRepo.findByIdAndPatientId(invoiceId, patientId).orElseThrow();
+        return invoiceRepo.findByIdAndPatientId(invoiceId, patientId)
+            .orElseThrow(() -> new IllegalArgumentException(
+                String.format("Invoice not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Invoice ID are correct and that the invoice belongs to this patient.",
+                    invoiceId, patientId)
+            ));
     }
 
     public PatientClaim getClaimOrThrow(Long patientId, Long invoiceId) {
-        return claimRepo.findByInvoiceIdAndPatientId(invoiceId, patientId).orElseThrow();
+        return claimRepo.findByInvoiceIdAndPatientId(invoiceId, patientId)
+            .orElseThrow(() -> new IllegalArgumentException(
+                String.format("Claim not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Claim ID are correct and that the claim belongs to this patient.",
+                    invoiceId, patientId)
+            ));
     }
 
-    /**
+    private Patient getPatientOrThrow(Long patientId) {
+        return patientRepo.findById(patientId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
+                ));
+    }    /**
      * Get the primary facility or the first active facility.
      * Returns null if no facility is found.
      */
@@ -2105,21 +2278,61 @@ public class PatientBillingService {
 
     // --- Attachment & EOB upload/download ---
     public void uploadClaimAttachment(Long patientId, Long claimId, MultipartFile file) throws Exception {
-        PatientClaim claim = claimRepo.findById(claimId).orElseThrow();
+        getPatientOrThrow(patientId);
+        PatientClaim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Claim not found with ID: %d. Please provide a valid Claim ID.", claimId)
+                ));
+        if (!claim.getPatientId().equals(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Claim not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Claim ID are correct and that the claim belongs to this patient.",
+                    claimId, patientId)
+            );
+        }
         claim.setAttachmentFile(file.getBytes());
         claim.setAttachments(claim.getAttachments() + 1);
     }
     public byte[] getClaimAttachment(Long patientId, Long claimId) {
-        PatientClaim claim = claimRepo.findById(claimId).orElseThrow();
+        getPatientOrThrow(patientId);
+        PatientClaim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Claim not found with ID: %d. Please provide a valid Claim ID.", claimId)
+                ));
+        if (!claim.getPatientId().equals(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Claim not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Claim ID are correct and that the claim belongs to this patient.",
+                    claimId, patientId)
+            );
+        }
         return claim.getAttachmentFile();
     }
     public void uploadClaimEob(Long patientId, Long claimId, MultipartFile file) throws Exception {
-        PatientClaim claim = claimRepo.findById(claimId).orElseThrow();
+        getPatientOrThrow(patientId);
+        PatientClaim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Claim not found with ID: %d. Please provide a valid Claim ID.", claimId)
+                ));
+        if (!claim.getPatientId().equals(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Claim not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Claim ID are correct and that the claim belongs to this patient.",
+                    claimId, patientId)
+            );
+        }
         claim.setEobFile(file.getBytes());
         claim.setEobAttached(true);
     }
     public byte[] getClaimEob(Long patientId, Long claimId) {
-        PatientClaim claim = claimRepo.findById(claimId).orElseThrow();
+        getPatientOrThrow(patientId);
+        PatientClaim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                    String.format("Claim not found with ID: %d. Please provide a valid Claim ID.", claimId)
+                ));
+        if (!claim.getPatientId().equals(patientId)) {
+            throw new IllegalArgumentException(
+                String.format("Claim not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Claim ID are correct and that the claim belongs to this patient.",
+                    claimId, patientId)
+            );
+        }
         return claim.getEobFile();
     }
 
@@ -2163,5 +2376,7 @@ public class PatientBillingService {
                 deposit.getPaymentMethod()
         );
     }
+
+
 
 }

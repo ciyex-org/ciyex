@@ -1,91 +1,3 @@
-//package com.qiaben.ciyex.controller;
-//
-//import com.qiaben.ciyex.dto.ApiResponse;
-//import com.qiaben.ciyex.dto.DateTimeFinalizedDto;
-//import com.qiaben.ciyex.service.DateTimeFinalizedService;
-//import lombok.RequiredArgsConstructor;
-//import lombok.extern.slf4j.Slf4j;
-//import org.springframework.http.ResponseEntity;
-//import org.springframework.web.bind.annotation.*;
-//
-//import java.util.List;
-//
-//@RestController
-//@RequestMapping("/api/date-time-finalized")
-//@RequiredArgsConstructor
-//@Slf4j
-//public class DateTimeFinalizedController {
-//
-//    private final DateTimeFinalizedService service;
-//
-//    // READ ALL by patient
-//    @GetMapping("/{patientId}")
-//    public ResponseEntity<ApiResponse<List<DateTimeFinalizedDto>>> getAllByPatient(
-//            @PathVariable Long patientId,
-//            ) {
-//        var list = service.getAllByPatient(patientId);
-//        return ResponseEntity.ok(ApiResponse.<List<DateTimeFinalizedDto>>builder()
-//                .success(true).message("Finalization timestamps fetched").data(list).build());
-//    }
-//
-//    // READ ALL by patient + encounter
-//    @GetMapping("/{patientId}/{encounterId}")
-//    public ResponseEntity<ApiResponse<List<DateTimeFinalizedDto>>> getAllByEncounter(
-//            @PathVariable Long patientId,
-//            @PathVariable Long encounterId,
-//            ) {
-//        var list = service.getAllByEncounter(patientId, encounterId);
-//        return ResponseEntity.ok(ApiResponse.<List<DateTimeFinalizedDto>>builder()
-//                .success(true).message("Finalization timestamps fetched").data(list).build());
-//    }
-//
-//    // READ ONE
-//    @GetMapping("/{patientId}/{encounterId}/{id}")
-//    public ResponseEntity<ApiResponse<DateTimeFinalizedDto>> getOne(
-//            @PathVariable Long patientId,
-//            @PathVariable Long encounterId,
-//            @PathVariable Long id,
-//            ) {
-//        var dto = service.getOne(patientId, encounterId, id);
-//        return ResponseEntity.ok(ApiResponse.<DateTimeFinalizedDto>builder()
-//                .success(true).message("Finalization timestamp fetched").data(dto).build());
-//    }
-//
-//    // CREATE
-//    @PostMapping("/{patientId}/{encounterId}")
-//    public ResponseEntity<ApiResponse<DateTimeFinalizedDto>> create(
-//            @PathVariable Long patientId,
-//            @PathVariable Long encounterId,
-//            //            @RequestBody DateTimeFinalizedDto dto) {
-//        var created = service.create(patientId, encounterId, dto);
-//        return ResponseEntity.ok(ApiResponse.<DateTimeFinalizedDto>builder()
-//                .success(true).message("Finalization timestamp created").data(created).build());
-//    }
-//
-//    // UPDATE
-//    @PutMapping("/{patientId}/{encounterId}/{id}")
-//    public ResponseEntity<ApiResponse<DateTimeFinalizedDto>> update(
-//            @PathVariable Long patientId,
-//            @PathVariable Long encounterId,
-//            @PathVariable Long id,
-//            //            @RequestBody DateTimeFinalizedDto dto) {
-//        var updated = service.update(patientId, encounterId, id, dto);
-//        return ResponseEntity.ok(ApiResponse.<DateTimeFinalizedDto>builder()
-//                .success(true).message("Finalization timestamp updated").data(updated).build());
-//    }
-//
-//    // DELETE
-//    @DeleteMapping("/{patientId}/{encounterId}/{id}")
-//    public ResponseEntity<ApiResponse<Void>> delete(
-//            @PathVariable Long patientId,
-//            @PathVariable Long encounterId,
-//            @PathVariable Long id,
-//            ) {
-//        service.delete(patientId, encounterId, id);
-//        return ResponseEntity.ok(ApiResponse.<Void>builder()
-//                .success(true).message("Finalization timestamp deleted").build());
-//    }
-//}
 
 
 
@@ -346,6 +258,10 @@ public class DateTimeFinalizedController {
 
         if (dto.getTargetId() == null) {
             missingFields.append("targetId, ");
+        }
+
+        if (dto.getFinalizedAt() == null || dto.getFinalizedAt().trim().isEmpty()) {
+            missingFields.append("finalizedAt, ");
         }
 
         if (dto.getFinalizedBy() == null || dto.getFinalizedBy().trim().isEmpty()) {
