@@ -36,24 +36,24 @@ public class PortalAuthService {
 
     private static final long JWT_EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours
 
+    /* -----------------------------------------------------------
+       JWT TOKEN GENERATION (LOCAL PORTAL LOGIN ONLY)
+    ------------------------------------------------------------*/
     private String generateJwtToken(PortalUser user) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getId());
         claims.put("email", user.getEmail());
-        claims.put("role", "PATIENT"); // This will be picked up by KeycloakJwtAuthenticationConverter
+        claims.put("role", "PATIENT");
         claims.put("status", user.getStatus().toString());
-        
-        // ✅ Add preferred_username for compatibility
         claims.put("preferred_username", user.getEmail());
-        
-        // ✅ Add realm_access structure that Spring Security expects
+
+        // Spring Security expects realm_access → roles
         Map<String, Object> realmAccess = new HashMap<>();
         realmAccess.put("roles", Collections.singletonList("PATIENT"));
         claims.put("realm_access", realmAccess);
 
-        // ✅ Use the secret directly (it's already Base64-encoded in application.yml)
         byte[] keyBytes = Base64.getDecoder().decode(jwtSecret);
-        
+
         return Jwts.builder()
                 .claims(claims)
                 .subject(user.getEmail())
@@ -63,7 +63,9 @@ public class PortalAuthService {
                 .compact();
     }
 
-    /** ✅ Register portal user — auto-approved */
+    /* -----------------------------------------------------------
+       REGISTER PORTAL USER (LOCAL REGISTRATION)
+    ------------------------------------------------------------*/
     @Transactional
     public ApiResponse<PortalLoginResponse> register(PortalRegisterRequest request) {
         try {
@@ -74,7 +76,7 @@ public class PortalAuthService {
                         .build();
             }
 
-            // ✅ Auto-approved user
+            // Auto-approved by default
             PortalUser user = PortalUser.builder()
                     .email(request.getEmail())
                     .password(passwordEncoder.encode(request.getPassword()))
@@ -87,15 +89,22 @@ public class PortalAuthService {
 
             PortalUser savedUser = portalUserRepository.save(user);
 
-            // ✅ Create linked portal patient
+            // Create PortalPatient
             PortalPatient patient = PortalPatient.builder()
                     .portalUser(savedUser)
-                    .dateOfBirth(request.getDateOfBirth() != null ? request.getDateOfBirth() : LocalDate.now().minusYears(25))
+                    .dateOfBirth(
+                            request.getDateOfBirth() != null ?
+                                    request.getDateOfBirth() :
+                                    LocalDate.now().minusYears(25)
+                    )
                     .addressLine1(request.getStreet())
                     .addressLine2(request.getStreet2())
                     .city(request.getCity())
                     .state(request.getState())
-                    .country(request.getCountry() != null ? request.getCountry() : "USA")
+                    .country(
+                            request.getCountry() != null ?
+                                    request.getCountry() : "USA"
+                    )
                     .postalCode(request.getPostalCode())
                     .build();
 
@@ -103,10 +112,13 @@ public class PortalAuthService {
 
             log.info("✅ Portal user registered and auto-approved: {}", savedUser.getEmail());
 
+            PortalLoginResponse response = PortalLoginResponse.fromEntity(savedUser);
+            response.setToken(generateJwtToken(savedUser));
+
             return ApiResponse.<PortalLoginResponse>builder()
                     .success(true)
                     .message("Registration successful and approved!")
-                    .data(PortalLoginResponse.fromEntity(savedUser))
+                    .data(response)
                     .build();
 
         } catch (Exception e) {
@@ -118,7 +130,9 @@ public class PortalAuthService {
         }
     }
 
-    /** ✅ Login for portal user */
+    /* -----------------------------------------------------------
+       LOCAL PORTAL LOGIN
+    ------------------------------------------------------------*/
     public ApiResponse<PortalLoginResponse> login(PortalLoginRequest request) {
         try {
             Optional<PortalUser> userOpt = portalUserRepository.findByEmail(request.getEmail());
@@ -146,6 +160,8 @@ public class PortalAuthService {
             }
 
             PortalLoginResponse response = PortalLoginResponse.fromEntity(user);
+
+            // Insert patient data
             if (user.getPortalPatient() != null) {
                 PortalPatient patient = user.getPortalPatient();
                 response.setDateOfBirth(patient.getDateOfBirth());
@@ -157,6 +173,7 @@ public class PortalAuthService {
             }
 
             response.setToken(generateJwtToken(user));
+
             log.info("✅ Portal user logged in successfully: {}", user.getEmail());
 
             return ApiResponse.<PortalLoginResponse>builder()
@@ -174,9 +191,13 @@ public class PortalAuthService {
         }
     }
 
-    /** ✅ Validate or auto-create portal user from Keycloak login */
+    /* -----------------------------------------------------------
+       AUTO-CREATE OR UPDATE USER FROM KEYCLOAK LOGIN
+       THIS FIXES ALL UUID MAPPING PROBLEMS
+    ------------------------------------------------------------*/
     @Transactional
     public PortalUser ensurePortalUserExistsFromKeycloak(Map<String, Object> userData) {
+
         String email = (String) userData.getOrDefault("email", "");
         String firstName = (String) userData.getOrDefault("given_name", "Unknown");
         String lastName = (String) userData.getOrDefault("family_name", "");
@@ -186,9 +207,13 @@ public class PortalAuthService {
             throw new RuntimeException("Email missing in Keycloak token");
         }
 
-        return portalUserRepository.findByEmail(email).orElseGet(() -> {
-            log.info("Creating portal user for new Keycloak user: {}", email);
-            PortalUser newUser = PortalUser.builder()
+        PortalUser user = portalUserRepository.findByEmail(email).orElse(null);
+
+        if (user == null) {
+            // NEW USER FROM KEYCLOAK
+            log.info("Creating new portal user from Keycloak login: {}", email);
+
+            user = PortalUser.builder()
                     .email(email)
                     .password(passwordEncoder.encode("keycloak-login"))
                     .firstName(firstName)
@@ -197,20 +222,29 @@ public class PortalAuthService {
                     .approvedDate(LocalDateTime.now())
                     .keycloakUserId(keycloakId)
                     .build();
-            portalUserRepository.save(newUser);
 
-            PortalPatient newPatient = PortalPatient.builder()
-                    .portalUser(newUser)
+            PortalUser savedUser = portalUserRepository.save(user);
+
+            PortalPatient patient = PortalPatient.builder()
+                    .portalUser(savedUser)
                     .dateOfBirth(LocalDate.now().minusYears(25))
                     .country("USA")
                     .build();
-            portalPatientRepository.save(newPatient);
+            portalPatientRepository.save(patient);
 
-            return newUser;
-        });
+            return savedUser;
+        }
+
+        // EXISTING USER: UPDATE Keycloak UUID
+        if (keycloakId != null && !keycloakId.equals(user.getKeycloakUserId())) {
+            log.info("🔄 Updating Keycloak UUID for {} → {}", email, keycloakId);
+            user.setKeycloakUserId(keycloakId);
+            portalUserRepository.save(user);
+        }
+
+        return user;
     }
 
-    /** ✅ Get user profile by ID */
     public ApiResponse<PortalLoginResponse> getProfile(Long userId) {
         return portalUserRepository.findById(userId)
                 .map(user -> ApiResponse.<PortalLoginResponse>builder()
