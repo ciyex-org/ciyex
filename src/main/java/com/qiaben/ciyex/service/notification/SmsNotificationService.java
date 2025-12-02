@@ -1,9 +1,6 @@
     package com.qiaben.ciyex.service.notification;
 
-    import com.qiaben.ciyex.dto.integration.IntegrationKey;
-    import com.qiaben.ciyex.dto.integration.TwilioConfig;
-    import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-    import com.qiaben.ciyex.util.TenantContextUtil;
+    import com.qiaben.ciyex.service.OrgConfigService;
 
     import com.twilio.Twilio;
     import com.twilio.rest.api.v2010.account.Message;
@@ -14,24 +11,27 @@
     @Slf4j
     public class SmsNotificationService {
 
-        private final OrgIntegrationConfigProvider configProvider;
+        private final OrgConfigService orgConfigService;
 
-        public SmsNotificationService(OrgIntegrationConfigProvider configProvider) {
-            this.configProvider = configProvider;
+        public SmsNotificationService(OrgConfigService orgConfigService) {
+            this.orgConfigService = orgConfigService;
         }
 
         public void sendSms(String to, String body) {
-            String tenantName = TenantContextUtil.getTenantName();
-            TwilioConfig twilio = configProvider.getForCurrentTenant(IntegrationKey.TWILIO);
-            if (tenantName == null) {
-                log.warn("SMS send attempted with no tenantName in context");
+            String accountSid = orgConfigService.getConfig("twilio.accountSid").orElse("");
+            String authToken = orgConfigService.getConfig("twilio.authToken").orElse("");
+            String fromNumber = orgConfigService.getConfig("twilio.phoneNumber").orElse("");
+
+            if (accountSid.isEmpty() || authToken.isEmpty() || fromNumber.isEmpty()) {
+                log.error("Twilio config missing in org_config table");
+                throw new RuntimeException("Twilio config missing");
             }
 
-            Twilio.init(twilio.getAccountSid(), twilio.getAuthToken());
+            Twilio.init(accountSid, authToken);
 
             Message message = Message.creator(
                     new com.twilio.type.PhoneNumber(to),
-                    new com.twilio.type.PhoneNumber(twilio.getPhoneNumber()),
+                    new com.twilio.type.PhoneNumber(fromNumber),
                     body
             ).create();
 
