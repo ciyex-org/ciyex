@@ -12,13 +12,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import org.springframework.security.oauth2.jwt.Jwt;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Service for fetching medication requests linked to a portal user's EHR patient ID.
- * Uses EMAIL as the lookup key, avoiding dependency on Keycloak UUID mapping.
- */
 @Service
 @Slf4j
 public class MedicationsService {
@@ -37,33 +34,44 @@ public class MedicationsService {
         this.portalPatientRepository = portalPatientRepository;
     }
 
-    /**
-     * Fetch medications for the currently authenticated portal user.
-     * Maps user email -> PortalUser -> PortalPatient -> EHR Patient ID.
-     */
     public List<MedicationRequestDto> getMedicationsForPortalUser() {
 
-        // 1️⃣ Get Keycloak-authenticated user identity (email)
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
             log.error("❌ No authenticated user found in security context");
             throw new RuntimeException("User not authenticated");
         }
 
-        String email = authentication.getName();
+        // ✅ FIX — extract email from Keycloak JWT
+        final String email;
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof Jwt jwt) {
+            email = jwt.getClaim("email");
+            log.info("🔍 Extracted email from JWT: {}", email);
+        } else {
+            log.error("❌ Email claim not found in JWT");
+            throw new RuntimeException("Email not found in Keycloak token");
+        }
+
+        if (email == null) {
+            log.error("❌ Email claim not found in JWT");
+            throw new RuntimeException("Email not found in Keycloak token");
+        }
+
         log.info("🔍 Fetching medications for portal user email: {}", email);
 
-        // 2️⃣ Find portal user by email
+        // Find portal user by email
         PortalUser portalUser = portalUserRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.error("❌ Portal user not found for email: {}", email);
                     return new RuntimeException("Portal user not found: " + email);
                 });
 
-        // 3️⃣ Get portal patient mapping
+        // Find linked portal patient
         PortalPatient portalPatient = portalPatientRepository.findByPortalUser_Id(portalUser.getId())
                 .orElseThrow(() -> {
-                    log.error("❌ No portal patient record found for user email: {}", email);
+                    log.error("❌ No portal patient found for email: {}", email);
                     return new RuntimeException("Patient mapping not found for user: " + email);
                 });
 
@@ -75,20 +83,15 @@ public class MedicationsService {
 
         log.info("✅ Email {} maps to EHR patient ID {}", email, ehrPatientId);
 
-        // 4️⃣ Fetch medications for this EHR patient
         List<MedicationRequest> meds = medicationRequestRepository.findByPatientId(ehrPatientId);
 
         log.info("📦 Found {} medication records for EHR patient {}", meds.size(), ehrPatientId);
 
-        // 5️⃣ Convert entities → DTO
         return meds.stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Convert MedicationRequest entity to DTO.
-     */
     private MedicationRequestDto mapToDto(MedicationRequest entity) {
         MedicationRequestDto dto = new MedicationRequestDto();
         dto.setId(entity.getId());
@@ -100,10 +103,7 @@ public class MedicationsService {
         dto.setDateIssued(entity.getDateIssued());
         dto.setPrescribingDoctor(entity.getPrescribingDoctor());
         dto.setStatus(entity.getStatus());
-
-        MedicationRequestDto.Audit audit = new MedicationRequestDto.Audit();
-        dto.setAudit(audit);
-
+        dto.setAudit(new MedicationRequestDto.Audit());
         return dto;
     }
 }
