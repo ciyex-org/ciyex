@@ -54,20 +54,25 @@ public class ScheduleService {
 
 
 // Create in external storage and capture externalId
-        String externalId = null;
+        String externalId = dto.getExternalId(); // Start with DTO's externalId
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         if (storageType != null) {
-            ExternalScheduleStorage external =
-                    (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
-            externalId = external.createSchedule(dto);
+            try {
+                ExternalScheduleStorage external =
+                        (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
+                String extId = external.createSchedule(dto);
+                if (extId != null) {
+                    externalId = extId; // Override with external storage ID if available
+                    log.info("Successfully created schedule in external storage with externalId: {}", externalId);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to sync with external storage, falling back to local generation: {}", e.getMessage());
+                // Fall back to auto-generation if external storage fails
+                externalId = null;
+            }
         }
 
-        // Use externalId from DTO if not created by external storage
-        if (externalId == null && dto.getExternalId() != null) {
-            externalId = dto.getExternalId();
-        }
-
-        // Auto-generate externalId if not provided
+        // Auto-generate externalId if not provided, no external storage, or external storage failed
         if (externalId == null) {
             externalId = "SCH-" + System.currentTimeMillis();
             log.info("Auto-generated externalId: {}", externalId);

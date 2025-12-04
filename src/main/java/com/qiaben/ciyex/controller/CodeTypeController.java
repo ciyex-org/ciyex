@@ -5,6 +5,7 @@ import com.qiaben.ciyex.dto.CodeTypeDto;
 import com.qiaben.ciyex.service.CodeTypeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,10 +24,21 @@ public class CodeTypeController {
     public ResponseEntity<ApiResponse<List<CodeTypeDto>>> getAllByEncounter(
             @PathVariable Long patientId,
             @PathVariable Long encounterId) {
-
-        var list = service.getAllByEncounter(patientId, encounterId);
-        return ResponseEntity.ok(ApiResponse.<List<CodeTypeDto>>builder()
-                .success(true).message("CodeTypes fetched").data(list).build());
+        try {
+            var list = service.getAllByEncounter(patientId, encounterId);
+            return ResponseEntity.ok(ApiResponse.<List<CodeTypeDto>>builder()
+                    .success(true).message("CodeTypes fetched successfully").data(list).build());
+        } catch (IllegalArgumentException e) {
+            log.warn("No CodeTypes found: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<List<CodeTypeDto>>builder()
+                            .success(false).message(e.getMessage()).data(null).build());
+        } catch (Exception e) {
+            log.error("Error fetching CodeTypes for patientId={}, encounterId={}: {}", patientId, encounterId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<CodeTypeDto>>builder()
+                            .success(false).message("Failed to fetch CodeTypes: " + e.getMessage()).data(null).build());
+        }
     }
 
     // READ ONE
@@ -35,10 +47,21 @@ public class CodeTypeController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id) {
-
-        var dto = service.getOne(patientId, encounterId, id);
-        return ResponseEntity.ok(ApiResponse.<CodeTypeDto>builder()
-                .success(true).message("CodeType fetched").data(dto).build());
+        try {
+            var dto = service.getOne(patientId, encounterId, id);
+            return ResponseEntity.ok(ApiResponse.<CodeTypeDto>builder()
+                    .success(true).message("CodeType fetched successfully").data(dto).build());
+        } catch (IllegalArgumentException e) {
+            log.warn("CodeType not found: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<CodeTypeDto>builder()
+                            .success(false).message(e.getMessage()).data(null).build());
+        } catch (Exception e) {
+            log.error("Error fetching CodeType for id={}, patientId={}, encounterId={}: {}", id, patientId, encounterId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<CodeTypeDto>builder()
+                            .success(false).message("Failed to fetch CodeType: " + e.getMessage()).data(null).build());
+        }
     }
 
     // CREATE
@@ -47,10 +70,22 @@ public class CodeTypeController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @RequestBody CodeTypeDto dto) {
-
-        var created = service.create(patientId, encounterId, dto);
-        return ResponseEntity.ok(ApiResponse.<CodeTypeDto>builder()
-                .success(true).message("CodeType created").data(created).build());
+        try {
+            var created = service.create(patientId, encounterId, dto);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ApiResponse.<CodeTypeDto>builder()
+                            .success(true).message("CodeType created successfully").data(created).build());
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid request for CodeType creation: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<CodeTypeDto>builder()
+                            .success(false).message(e.getMessage()).data(null).build());
+        } catch (Exception e) {
+            log.error("Error creating CodeType for patientId={}, encounterId={}: {}", patientId, encounterId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<CodeTypeDto>builder()
+                            .success(false).message("Failed to create CodeType: " + e.getMessage()).data(null).build());
+        }
     }
 
     // UPDATE
@@ -60,10 +95,21 @@ public class CodeTypeController {
             @PathVariable Long encounterId,
             @PathVariable Long id,
             @RequestBody CodeTypeDto dto) {
-
-        var updated = service.update(patientId, encounterId, id, dto);
-        return ResponseEntity.ok(ApiResponse.<CodeTypeDto>builder()
-                .success(true).message("CodeType updated").data(updated).build());
+        try {
+            var updated = service.update(patientId, encounterId, id, dto);
+            return ResponseEntity.ok(ApiResponse.<CodeTypeDto>builder()
+                    .success(true).message("CodeType updated successfully").data(updated).build());
+        } catch (IllegalArgumentException e) {
+            log.warn("CodeType not found or invalid request: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<CodeTypeDto>builder()
+                            .success(false).message(e.getMessage()).data(null).build());
+        } catch (Exception e) {
+            log.error("Error updating CodeType for id={}, patientId={}, encounterId={}: {}", id, patientId, encounterId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<CodeTypeDto>builder()
+                            .success(false).message("Failed to update CodeType: " + e.getMessage()).data(null).build());
+        }
     }
 
     // DELETE
@@ -72,10 +118,21 @@ public class CodeTypeController {
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable Long id) {
-
-        service.delete(patientId, encounterId, id);
-        return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .success(true).message("CodeType deleted").build());
+        try {
+            service.delete(patientId, encounterId, id);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(true).message("CodeType deleted successfully").build());
+        } catch (IllegalArgumentException e) {
+            log.warn("CodeType not found: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<Void>builder()
+                            .success(false).message(e.getMessage()).build());
+        } catch (Exception e) {
+            log.error("Error deleting CodeType for id={}, patientId={}, encounterId={}: {}", id, patientId, encounterId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<Void>builder()
+                            .success(false).message("Failed to delete CodeType: " + e.getMessage()).build());
+        }
     }
 
     // SEARCH (in encounter)
@@ -86,9 +143,15 @@ public class CodeTypeController {
             @RequestParam(value = "q", required = false, defaultValue = "") String q,
             @RequestParam(value = "codeTypeKey", required = false) String codeTypeKey,
             @RequestParam(value = "active", required = false) Boolean active) {
-
-        var list = service.searchInEncounter(patientId, encounterId, codeTypeKey, active, q);
-        return ResponseEntity.ok(ApiResponse.<List<CodeTypeDto>>builder()
-                .success(true).message("CodeTypes search results").data(list).build());
+        try {
+            var list = service.searchInEncounter(patientId, encounterId, codeTypeKey, active, q);
+            return ResponseEntity.ok(ApiResponse.<List<CodeTypeDto>>builder()
+                    .success(true).message("CodeTypes search results retrieved successfully").data(list).build());
+        } catch (Exception e) {
+            log.error("Error searching CodeTypes for patientId={}, encounterId={}: {}", patientId, encounterId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<CodeTypeDto>>builder()
+                            .success(false).message("Failed to search CodeTypes: " + e.getMessage()).data(null).build());
+        }
     }
 }

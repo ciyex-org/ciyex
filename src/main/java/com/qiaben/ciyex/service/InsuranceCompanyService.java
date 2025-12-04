@@ -50,12 +50,13 @@ public class InsuranceCompanyService {
                 externalId = externalStorage.create(dto); // Override with external storage ID if available
                 log.info("Successfully created insurance company in external storage with externalId: {}", externalId);
             } catch (Exception e) {
-                log.error("Failed to create insurance company in external storage: {}", e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e);
+                log.warn("Failed to sync with external storage, falling back to local generation: {}", e.getMessage());
+                // Fall back to auto-generation if external storage fails
+                externalId = null;
             }
         }
 
-        // Auto-generate externalId if not provided and no external storage
+        // Auto-generate externalId if not provided, no external storage, or external storage failed
         if (externalId == null) {
             externalId = "INS-" + System.currentTimeMillis();
             log.info("Auto-generated externalId: {}", externalId);
@@ -90,18 +91,41 @@ public class InsuranceCompanyService {
         InsuranceCompany entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Insurance company not found with id: " + id));
         entity = updateEntityFromDto(entity, dto);
+        // Determine externalId priority: DTO.externalId > existing entity.fhirId
+        String externalId = dto.getExternalId() != null ? dto.getExternalId() : entity.getFhirId();
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
 
-        String externalId = entity.getFhirId();
-        if (externalId != null) {
+        if (storageType != null) {
             try {
                 ExternalStorage<InsuranceCompanyDto> externalStorage = storageResolver.resolve(InsuranceCompanyDto.class);
-                externalStorage.update(dto, externalId);
+                if (externalId != null) {
+                    // Try update in external storage
+                    externalStorage.update(dto, externalId);
+                    log.info("Updated insurance company in external storage with externalId={}", externalId);
+                } else {
+                    // No external id yet - try creating in external storage
+                    String created = externalStorage.create(dto);
+                    if (created != null) {
+                        externalId = created;
+                        log.info("Created insurance company in external storage with externalId={}", externalId);
+                    }
+                }
             } catch (Exception e) {
-                log.error("Failed to update insurance company in external storage: {}", e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e);
+                log.warn("Failed to sync with external storage during update, falling back to local state: {}", e.getMessage());
+                // fall back to local handling below
+                externalId = null;
             }
         }
 
+        // Ensure we have an external/fhir id; prefer DTO value, then existing entity, else generate
+        if (externalId == null) {
+            if (dto.getExternalId() != null) externalId = dto.getExternalId();
+            else if (entity.getFhirId() != null) externalId = entity.getFhirId();
+            else externalId = "INS-" + System.currentTimeMillis();
+            log.info("Using local externalId for insurance company id={} externalId={}", entity.getId(), externalId);
+        }
+
+        entity.setFhirId(externalId);
         entity = repository.save(entity);
         return mapToDto(entity);
     }
