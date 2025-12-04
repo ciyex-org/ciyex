@@ -62,23 +62,31 @@ public class AllergyIntoleranceService {
             }
         }
 
-        // Optional external sync
+        // Optional external sync with graceful fallback
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         String externalId = null;
         if (storageType != null && !rows.isEmpty()) {
-            ExternalStorage<AllergyIntoleranceDto> ext = storageResolver.resolve(AllergyIntoleranceDto.class);
-
-            AllergyIntoleranceDto snapshot = toDto(dto.getPatientId(), rows, true);
-            externalId = ext.create(snapshot);
-
-            for (AllergyIntolerance r : rows) {
-                r.setFhirId(externalId);
-                r.setExternalId(externalId);
-                repo.save(r);
+            try {
+                ExternalStorage<AllergyIntoleranceDto> ext = storageResolver.resolve(AllergyIntoleranceDto.class);
+                AllergyIntoleranceDto snapshot = toDto(dto.getPatientId(), rows, true);
+                externalId = ext.create(snapshot);
+                
+                if (externalId != null) {
+                    for (AllergyIntolerance r : rows) {
+                        r.setFhirId(externalId);
+                        r.setExternalId(externalId);
+                        repo.save(r);
+                    }
+                    log.info("Successfully created allergy intolerance in external storage with externalId: {}", externalId);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to sync with external storage, falling back to local generation: {}", e.getMessage());
+                // Fall back to auto-generation if external storage fails
+                externalId = null;
             }
         }
 
-        // Auto-generate externalId if not provided by external storage
+        // Auto-generate externalId if not provided, no external storage, or external storage failed
         if (externalId == null) {
             externalId = "ALG-" + System.currentTimeMillis();
             for (AllergyIntolerance r : rows) {

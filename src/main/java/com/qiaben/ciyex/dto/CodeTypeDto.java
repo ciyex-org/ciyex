@@ -6,6 +6,7 @@ import lombok.Data;
 public class CodeTypeDto {
     private Long id;
     private String externalId;
+    private String fhirId;
     private Long patientId;
     private Long encounterId;
 

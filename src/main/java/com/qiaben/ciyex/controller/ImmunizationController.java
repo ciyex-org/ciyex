@@ -53,6 +53,14 @@ public class ImmunizationController {
             @PathVariable Long patientId) {
         try {
             ImmunizationDto dto = service.getByPatientId(patientId);
+            // Check if immunizations list is null or if audit is null (indicates patient not found)
+            if (dto == null || dto.getAudit() == null) {
+                return ResponseEntity.ok(ApiResponse.<ImmunizationDto>builder()
+                        .success(false)
+                        .message("Immunization not found for patientId: " + patientId)
+                        .data(null)
+                        .build());
+            }
             return ResponseEntity.ok(ApiResponse.<ImmunizationDto>builder()
                     .success(true)
                     .message("Immunization retrieved successfully")
@@ -62,7 +70,8 @@ public class ImmunizationController {
             log.error("Failed to retrieve Immunization for patientId {}: {}", patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<ImmunizationDto>builder()
                     .success(false)
-                    .message("Failed to retrieve Immunization: " + e.getMessage())
+                    .message("Failed to retrieve immunization: " + e.getMessage())
+                    .data(null)
                     .build());
         }
     }

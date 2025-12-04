@@ -75,6 +75,22 @@ public class MedicationRequestService {
                 .orElseThrow(() -> new RuntimeException("MedicationRequest not found with id: " + id));
         entity = updateEntityFromDto(entity, dto);
         MedicationRequest updatedEntity = repository.save(entity);
+
+        // Ensure fhirId/externalId are set after update. Use DTO values if provided, otherwise auto-generate.
+        if (updatedEntity.getFhirId() == null) {
+            String provided = dto.getExternalId() != null ? dto.getExternalId() : dto.getFhirId();
+            if (provided != null && !provided.isBlank()) {
+                updatedEntity.setFhirId(provided);
+                updatedEntity.setExternalId(provided);
+                repository.save(updatedEntity);
+            } else {
+                String gen = "MED-" + System.currentTimeMillis();
+                updatedEntity.setFhirId(gen);
+                updatedEntity.setExternalId(gen);
+                repository.save(updatedEntity);
+            }
+        }
+
         return mapToDto(updatedEntity);
     }
 

@@ -43,6 +43,10 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
         log.info("FHIR create AllergyIntolerance List for tenantName={} patientId={}", tenantName, dto.getPatientId());
         return executeWithRetry(() -> {
             IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            if (client == null) {
+                log.warn("FHIR client is null, skipping external storage sync");
+                return null;
+            }
             ListResource list = mapToFhir(dto, tenantName);
             String externalId = client.create().resource(list).execute().getId().getIdPart();
             log.info("FHIR create success externalId={} tenantName={}", externalId, tenantName);
@@ -56,6 +60,10 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
         log.info("FHIR update AllergyIntolerance List externalId={} tenantName={}", externalId, tenantName);
         executeWithRetry(() -> {
             IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            if (client == null) {
+                log.warn("FHIR client is null, skipping external storage sync");
+                return null;
+            }
             ListResource list = mapToFhir(dto, tenantName);
             list.setId(externalId);
             client.update().resource(list).execute();
@@ -70,6 +78,10 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
         log.info("FHIR get AllergyIntolerance List externalId={} tenantName={}", externalId, tenantName);
         return executeWithRetry(() -> {
             IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            if (client == null) {
+                log.warn("FHIR client is null, skipping external storage sync");
+                return null;
+            }
             ListResource list = client.read().resource(ListResource.class).withId(externalId).execute();
             AllergyIntoleranceDto dto = mapFromFhir(list, tenantName);
             dto.setExternalId(externalId);
@@ -88,6 +100,10 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
         log.info("FHIR delete AllergyIntolerance List externalId={} tenantName={}", externalId, tenantName);
         executeWithRetry(() -> {
             IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            if (client == null) {
+                log.warn("FHIR client is null, skipping external storage sync");
+                return null;
+            }
             client.delete().resourceById("List", externalId).execute();
             log.info("FHIR delete success externalId={} tenantName={}", externalId, tenantName);
             return null;
@@ -100,6 +116,10 @@ public class FhirExternalAllergyIntoleranceStorage implements ExternalStorage<Al
         log.info("FHIR searchAll AllergyIntolerance Lists tenantName={}", tenantName);
         return executeWithRetry(() -> {
             IGenericClient client = fhirClientProvider.getForCurrentTenant();
+            if (client == null) {
+                log.warn("FHIR client is null, skipping external storage sync");
+                return new ArrayList<>();
+            }
 
         Bundle bundle = client.search()
                     .forResource(ListResource.class)
