@@ -125,6 +125,8 @@ public class PatientBillingService {
     private final InvoiceCourtesyCreditRepository invoiceCourtesyCreditRepo;
     private final AppointmentRepository appointmentRepo;
     private final FacilityRepository facilityRepo;
+    private final CoverageService coverageService;
+    private final InsuranceDepositRepository insuranceDepositRepo;
 
 
 
@@ -1448,25 +1450,6 @@ public class PatientBillingService {
     }
 
     /**
-     * Add insurance deposit and update patient account credit
-     */
-    public PatientAccountCreditDto addInsuranceDeposit(Long patientId, InsuranceDepositRequest request) {
-        // Find or create PatientAccountCredit
-        var credit = creditRepo.findByPatientId(patientId)
-                .orElseGet(() -> {
-                    var c = new PatientAccountCredit();
-                    c.setPatientId(patientId);
-                    c.setBalance(java.math.BigDecimal.ZERO);
-                    return c;
-                });
-        java.math.BigDecimal amount = request.amount() != null ? request.amount() : java.math.BigDecimal.ZERO;
-        credit.setBalance(credit.getBalance().add(amount));
-        creditRepo.save(credit);
-        // TODO: Optionally, persist insurance deposit as a separate entity for audit/history
-        return new PatientAccountCreditDto(patientId, credit.getBalance());
-    }
-
-    /**
      * Add courtesy credit and update patient account credit
      */
     public PatientAccountCreditDto addCourtesyCredit(Long patientId, CourtesyCreditRequest request) {
@@ -2377,6 +2360,159 @@ public class PatientBillingService {
         );
     }
 
+    /* ===================== Insurance Deposit ===================== */
+
+    public InsuranceDepositDto addInsuranceDeposit(Long patientId, InsuranceDepositDto request) {
+        getPatientOrThrow(patientId);
+        
+        InsuranceDeposit deposit = new InsuranceDeposit();
+        deposit.setPatientId(patientId);
+        deposit.setPolicyId(request.policyId());
+        deposit.setDepositAmount(request.depositAmount() != null ? request.depositAmount() : BigDecimal.ZERO);
+        deposit.setDepositDate(request.depositDate() != null ? request.depositDate() : LocalDate.now());
+        deposit.setPaymentMethod(request.paymentMethod());
+        deposit.setProviderId(request.providerId());
+        deposit.setDescription(request.description());
+        insuranceDepositRepo.save(deposit);
+        
+        if (request.policyId() != null) {
+            coverageService.addCopayAmount(request.policyId(), deposit.getDepositAmount().doubleValue());
+        }
+        
+        return toInsuranceDepositDto(deposit);
+    }
+
+    public InsuranceDepositDto getInsuranceDeposit(Long patientId, Long depositId) {
+        getPatientOrThrow(patientId);
+        InsuranceDeposit deposit = insuranceDepositRepo.findByIdAndPatientId(depositId, patientId)
+                .orElseThrow(() -> new IllegalArgumentException("Insurance deposit not found: " + depositId));
+        return toInsuranceDepositDto(deposit);
+    }
+
+    public List<InsuranceDepositDto> getInsuranceDeposits(Long patientId) {
+        getPatientOrThrow(patientId);
+        return insuranceDepositRepo.findByPatientIdOrderByDepositDateDesc(patientId)
+                .stream().map(this::toInsuranceDepositDto).toList();
+    }
+
+    public InsuranceDepositDto updateInsuranceDeposit(Long patientId, Long depositId, InsuranceDepositDto request) {
+        getPatientOrThrow(patientId);
+        
+        InsuranceDeposit deposit = insuranceDepositRepo.findByIdAndPatientId(depositId, patientId)
+                .orElseThrow(() -> new IllegalArgumentException("Insurance deposit not found: " + depositId));
+        
+        BigDecimal oldAmount = deposit.getDepositAmount();
+        BigDecimal newAmount = request.depositAmount() != null ? request.depositAmount() : BigDecimal.ZERO;
+        BigDecimal difference = newAmount.subtract(oldAmount);
+        
+        deposit.setDepositAmount(newAmount);
+        deposit.setDepositDate(request.depositDate() != null ? request.depositDate() : deposit.getDepositDate());
+        deposit.setPaymentMethod(request.paymentMethod());
+        deposit.setProviderId(request.providerId());
+        deposit.setDescription(request.description());
+        insuranceDepositRepo.save(deposit);
+        
+        if (request.policyId() != null && difference.compareTo(BigDecimal.ZERO) != 0) {
+            coverageService.addCopayAmount(request.policyId(), difference.doubleValue());
+        }
+        
+        return toInsuranceDepositDto(deposit);
+    }
+
+    public void deleteInsuranceDeposit(Long patientId, Long depositId) {
+        getPatientOrThrow(patientId);
+        
+        InsuranceDeposit deposit = insuranceDepositRepo.findByIdAndPatientId(depositId, patientId)
+                .orElseThrow(() -> new IllegalArgumentException("Insurance deposit not found: " + depositId));
+        
+        if (deposit.getPolicyId() != null && deposit.getDepositAmount() != null) {
+            coverageService.addCopayAmount(deposit.getPolicyId(), -deposit.getDepositAmount().doubleValue());
+        }
+        
+        insuranceDepositRepo.delete(deposit);
+    }
+
+    private InsuranceDepositDto toInsuranceDepositDto(InsuranceDeposit deposit) {
+        return new InsuranceDepositDto(
+                deposit.getId(),
+                deposit.getPatientId(),
+                deposit.getPolicyId(),
+                deposit.getDepositAmount(),
+                deposit.getDepositDate(),
+                deposit.getPaymentMethod(),
+                deposit.getProviderId(),
+                deposit.getDescription()
+        );
+    }
+
+    /* ===================== Credit Adjustment & Transfer of Credit ===================== */
+
+    public CreditAdjustmentDetailDto getCreditAdjustment(Long patientId, Long invoiceId) {
+        PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
+        List<PatientInsuranceRemitLine> remitLines = remitRepo.findByInvoiceId(invoiceId);
+        
+        BigDecimal totalWriteOff = remitLines.stream()
+                .map(r -> nz(r.getInsWriteOff()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        BigDecimal insurancePayment = remitLines.stream()
+                .map(r -> nz(r.getInsPay()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        List<CreditAdjustmentDetailDto.LineDetail> lines = invoice.getLines().stream()
+                .map(line -> new CreditAdjustmentDetailDto.LineDetail(
+                        line.getCode(),
+                        line.getTreatment(),
+                        line.getProvider(),
+                        nz(line.getInsWriteOff()),
+                        nz(line.getPatientPortion()),
+                        nz(line.getInsPortion()),
+                        nz(line.getCharge()),
+                        nz(line.getInsWriteOff())
+                ))
+                .toList();
+        
+        return new CreditAdjustmentDetailDto(
+                invoice.getId(),
+                LocalDate.now(),
+                "Write Off $" + totalWriteOff,
+                insurancePayment,
+                totalWriteOff,
+                nz(invoice.getPtBalance()),
+                nz(invoice.getInsBalance()),
+                nz(invoice.getTotalCharge()),
+                totalWriteOff,
+                lines
+        );
+    }
+
+    public TransferOfCreditDetailDto getTransferOfCredit(Long patientId, Long invoiceId) {
+        PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
+        List<PatientInsuranceRemitLine> remitLines = remitRepo.findByInvoiceId(invoiceId);
+        
+        BigDecimal totalCredit = remitLines.stream()
+                .map(r -> nz(r.getInsPay()).add(nz(r.getInsWriteOff())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        List<TransferOfCreditDetailDto.LineDetail> lines = invoice.getLines().stream()
+                .map(line -> new TransferOfCreditDetailDto.LineDetail(
+                        line.getCode(),
+                        line.getTreatment(),
+                        nz(line.getInsWriteOff()),
+                        nz(line.getPatientPortion()),
+                        nz(line.getInsPortion()),
+                        nz(line.getCharge())
+                ))
+                .toList();
+        
+        return new TransferOfCreditDetailDto(
+                invoice.getId(),
+                LocalDate.now(),
+                "Transfer of credits",
+                totalCredit,
+                lines
+        );
+    }
 
 
 }
