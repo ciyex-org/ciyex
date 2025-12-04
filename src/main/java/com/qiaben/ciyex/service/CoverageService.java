@@ -420,4 +420,17 @@ public class CoverageService {
     private boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
     }
+
+    /**
+     * Add amount to coverage copay amount
+     */
+    @Transactional
+    public void addCopayAmount(Long coverageId, Double amount) {
+        Coverage coverage = coverageRepository.findById(coverageId)
+                .orElseThrow(() -> new RuntimeException("Coverage not found with id: " + coverageId));
+        Double currentCopay = coverage.getCopayAmount() != null ? coverage.getCopayAmount() : 0.0;
+        coverage.setCopayAmount(currentCopay + amount);
+        coverageRepository.save(coverage);
+        log.info("Updated copay amount for coverage {} by {}", coverageId, amount);
+    }
 }

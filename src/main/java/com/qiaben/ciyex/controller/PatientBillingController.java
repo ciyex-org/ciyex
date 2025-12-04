@@ -1124,15 +1124,76 @@ public class PatientBillingController {
     }
 
 
-    /** Insurance Deposit: Add insurance deposit and update account credit */
-    @PostMapping("/insurance-deposit")
-    public ResponseEntity<ApiResponse<PatientAccountCreditDto>> addInsuranceDeposit(
+    /* ===================== Insurance Deposit ===================== */
 
+    @PostMapping("/insurance-deposit")
+    public ResponseEntity<ApiResponse<InsuranceDepositDto>> addInsuranceDeposit(
             @PathVariable Long patientId,
-            @RequestBody InsuranceDepositRequest request
-    ) {
-        var data = service.addInsuranceDeposit(patientId, request);
-        return ResponseEntity.ok(ApiResponse.ok("Insurance deposit added and account credit updated", data));
+            @RequestBody InsuranceDepositDto request) {
+        try {
+            var data = service.addInsuranceDeposit(patientId, request);
+            return ResponseEntity.ok(ApiResponse.ok("Insurance deposit added", data));
+        } catch (Exception ex) {
+            log.error("Error adding insurance deposit for patient {}", patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error adding insurance deposit: " + ex.getMessage()));
+        }
+    }
+
+    @GetMapping("/insurance-deposit/{depositId}")
+    public ResponseEntity<ApiResponse<InsuranceDepositDto>> getInsuranceDeposit(
+            @PathVariable Long patientId,
+            @PathVariable Long depositId) {
+        try {
+            var data = service.getInsuranceDeposit(patientId, depositId);
+            return ResponseEntity.ok(ApiResponse.ok("Insurance deposit retrieved", data));
+        } catch (Exception ex) {
+            log.error("Error getting insurance deposit for patient {}", patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error retrieving insurance deposit: " + ex.getMessage()));
+        }
+    }
+
+    @GetMapping("/insurance-deposit")
+    public ResponseEntity<ApiResponse<List<InsuranceDepositDto>>> getInsuranceDeposits(
+            @PathVariable Long patientId) {
+        try {
+            var data = service.getInsuranceDeposits(patientId);
+            return ResponseEntity.ok(ApiResponse.ok("Insurance deposits retrieved", data));
+        } catch (Exception ex) {
+            log.error("Error getting insurance deposits for patient {}", patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error retrieving insurance deposits: " + ex.getMessage()));
+        }
+    }
+
+    @PutMapping("/insurance-deposit/{depositId}")
+    public ResponseEntity<ApiResponse<InsuranceDepositDto>> updateInsuranceDeposit(
+            @PathVariable Long patientId,
+            @PathVariable Long depositId,
+            @RequestBody InsuranceDepositDto request) {
+        try {
+            var data = service.updateInsuranceDeposit(patientId, depositId, request);
+            return ResponseEntity.ok(ApiResponse.ok("Insurance deposit updated", data));
+        } catch (Exception ex) {
+            log.error("Error updating insurance deposit for patient {}", patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error updating insurance deposit: " + ex.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/insurance-deposit/{depositId}")
+    public ResponseEntity<ApiResponse<Void>> deleteInsuranceDeposit(
+            @PathVariable Long patientId,
+            @PathVariable Long depositId) {
+        try {
+            service.deleteInsuranceDeposit(patientId, depositId);
+            return ResponseEntity.ok(ApiResponse.ok("Insurance deposit deleted", null));
+        } catch (Exception ex) {
+            log.error("Error deleting insurance deposit for patient {}", patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error deleting insurance deposit: " + ex.getMessage()));
+        }
     }
 
     /** Courtesy Credit: Add courtesy credit and update account credit */
@@ -1275,7 +1336,33 @@ public class PatientBillingController {
         }
     }
 
+    /** Get credit adjustment details for invoice */
+    @GetMapping("/invoices/{invoiceId}/credit-adjustment")
+    public ResponseEntity<ApiResponse<CreditAdjustmentDetailDto>> getCreditAdjustment(
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId) {
+        try {
+            CreditAdjustmentDetailDto dto = service.getCreditAdjustment(patientId, invoiceId);
+            return ResponseEntity.ok(ApiResponse.ok("Credit adjustment loaded", dto));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        }
+    }
 
+    /** Get transfer of credit details for invoice */
+    @GetMapping("/invoices/{invoiceId}/transfer-of-credit")
+    public ResponseEntity<ApiResponse<TransferOfCreditDetailDto>> getTransferOfCredit(
+            @PathVariable Long patientId,
+            @PathVariable Long invoiceId) {
+        try {
+            TransferOfCreditDetailDto dto = service.getTransferOfCredit(patientId, invoiceId);
+            return ResponseEntity.ok(ApiResponse.ok("Transfer of credit loaded", dto));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage()));
+        }
+    }
 
 
 }
