@@ -21,5 +21,11 @@ public class InventorySettings extends AuditableEntity {
     private boolean autoReorderSuggestions;
     private int criticalLowPercentage;
 
+    /**
+     * Persisted external identifier (FHIR-equivalent) for this settings record.
+     */
+    @Column(length = 128)
+    private String externalId;
+
     // audit fields provided by AuditableEntity
 }
