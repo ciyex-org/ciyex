@@ -11,4 +11,16 @@ public class InventorySettingsDto {
     private boolean lowStockAlerts;
     private boolean autoReorderSuggestions;
     private int criticalLowPercentage;
+
+    // FHIR/external identifier (auto-generated)
+    private String fhirId;
+
+    // Audit dates from AuditableEntity
+    private Audit audit;
+
+    @Data
+    public static class Audit {
+        private String createdDate;
+        private String lastModifiedDate;
+    }
 }
