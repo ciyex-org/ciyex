@@ -450,22 +450,66 @@ public class CommunicationService {
             dto.setReadAt(r.getReadAt());
             dto.setReadBy(r.getReadBy());
 
-            // Use the messageType from the entity if available, otherwise determine from context
+            // Determine messageType and fromType from entity or infer from context
             String messageType = r.getMessageType();
-            if (messageType == null || messageType.trim().isEmpty()) {
-                // Fallback logic if messageType is not set in entity
-                messageType = "patient_to_provider"; // default assumption
-            }
-            dto.setMessageType(messageType);
+            String fromType = r.getFromType();
             
-            // Set fromType based on messageType
-            String fromType = "patient"; // default
-            if ("provider_to_patient".equals(messageType)) {
-                fromType = "provider";
-            } else if ("patient_to_provider".equals(messageType)) {
-                fromType = "patient";
+            // If messageType is not set, infer it from the data
+            if (messageType == null || messageType.trim().isEmpty()) {
+                // Infer from fromId and providerId/patientId
+                if (r.getFromId() != null) {
+                    if (r.getFromId().equals(r.getProviderId())) {
+                        // Provider sent the message
+                        messageType = "provider_to_patient";
+                        fromType = "provider";
+                        log.info("Inferred messageType=provider_to_patient from fromId={} matching providerId={}", 
+                                r.getFromId(), r.getProviderId());
+                    } else if (r.getFromId().equals(r.getPatientId())) {
+                        // Patient sent the message
+                        messageType = "patient_to_provider";
+                        fromType = "patient";
+                        log.info("Inferred messageType=patient_to_provider from fromId={} matching patientId={}", 
+                                r.getFromId(), r.getPatientId());
+                    }
+                }
+                
+                // Fallback: check sender field format
+                if (messageType == null && r.getSender() != null) {
+                    if (r.getSender().startsWith("Provider/")) {
+                        messageType = "provider_to_patient";
+                        fromType = "provider";
+                        log.info("Inferred messageType=provider_to_patient from sender={}", r.getSender());
+                    } else if (r.getSender().startsWith("Patient/")) {
+                        messageType = "patient_to_provider";
+                        fromType = "patient";
+                        log.info("Inferred messageType=patient_to_provider from sender={}", r.getSender());
+                    }
+                }
+                
+                // Last resort: default to patient_to_provider
+                if (messageType == null) {
+                    messageType = "patient_to_provider";
+                    fromType = "patient";
+                    log.warn("Could not infer messageType for communication {}, defaulting to patient_to_provider", r.getId());
+                }
             }
+            
+            // Set fromType based on messageType if still not set
+            if (fromType == null || fromType.trim().isEmpty()) {
+                if ("provider_to_patient".equals(messageType)) {
+                    fromType = "provider";
+                } else if ("patient_to_provider".equals(messageType)) {
+                    fromType = "patient";
+                } else {
+                    fromType = "patient"; // fallback
+                }
+            }
+            
+            dto.setMessageType(messageType);
             dto.setFromType(fromType);
+            
+            log.info("Communication {}: messageType={}, fromType={}, fromId={}, providerId={}, patientId={}",
+                    r.getId(), messageType, fromType, r.getFromId(), r.getProviderId(), r.getPatientId());
 
             // Set from fields from entity if available
             dto.setFromId(r.getFromId());

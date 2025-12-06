@@ -162,11 +162,8 @@ public class PortalCommunicationController {
                 ));
             }
 
-            // ---------------------------------------------------------------------
-            //  ✅ FIXED PATIENT → PROVIDER BLOCK
-            // ---------------------------------------------------------------------
+            // PATIENT → PROVIDER
             if (isPatient) {
-
                 if (messageDto.getProviderId() == null) {
                     return ResponseEntity.badRequest().body(Map.of(
                             "success", false,
@@ -186,7 +183,6 @@ public class PortalCommunicationController {
 
                 if (portalUser.getPortalPatient() == null ||
                         portalUser.getPortalPatient().getEhrPatientId() == null) {
-
                     return ResponseEntity.badRequest().body(Map.of(
                             "success", false,
                             "message", "Patient profile not linked to EHR system"
@@ -194,23 +190,23 @@ public class PortalCommunicationController {
                 }
 
                 Long ehrPatientId = portalUser.getPortalPatient().getEhrPatientId();
+                String patientName = portalUser.getFirstName() + " " + portalUser.getLastName();
 
-                // ----------------------------------
-                //  FIX: USE EHR PATIENT ID AS SENDER
-                // ----------------------------------
+                // Set all required fields for patient → provider message
                 messageDto.setPatientId(ehrPatientId);
                 messageDto.setFromId(ehrPatientId);
-                messageDto.setFromName(portalUser.getFirstName() + " " + portalUser.getLastName());
+                messageDto.setFromName(patientName);
+                messageDto.setFromType("patient");
                 messageDto.setSender("Patient/" + ehrPatientId);
                 messageDto.setRecipients(List.of("Provider/" + messageDto.getProviderId()));
                 messageDto.setMessageType("patient_to_provider");
+                
+                log.info("Patient message: patientId={}, providerId={}, fromId={}, fromName={}",
+                        ehrPatientId, messageDto.getProviderId(), ehrPatientId, patientName);
             }
 
-            // ---------------------------------------------------------------------
-            //  PROVIDER → PATIENT
-            // ---------------------------------------------------------------------
+            // PROVIDER → PATIENT
             else if (isProvider) {
-
                 if (messageDto.getPatientId() == null) {
                     return ResponseEntity.badRequest().body(Map.of(
                             "success", false,
@@ -218,7 +214,6 @@ public class PortalCommunicationController {
                     ));
                 }
 
-                // FIX: use providerRepository.findByEmail()
                 Optional<Provider> optProvider = providerRepository.findByEmail(userEmail);
                 if (optProvider.isEmpty()) {
                     return ResponseEntity.badRequest().body(Map.of(
@@ -230,12 +225,17 @@ public class PortalCommunicationController {
                 Provider provider = optProvider.get();
                 String providerName = provider.getFirstName() + " " + provider.getLastName();
 
+                // Set all required fields for provider → patient message
                 messageDto.setProviderId(provider.getId());
                 messageDto.setFromId(provider.getId());
                 messageDto.setFromName(providerName);
+                messageDto.setFromType("provider");
                 messageDto.setSender("Provider/" + provider.getId());
                 messageDto.setRecipients(List.of("Patient/" + messageDto.getPatientId()));
                 messageDto.setMessageType("provider_to_patient");
+                
+                log.info("Provider message: patientId={}, providerId={}, fromId={}, fromName={}",
+                        messageDto.getPatientId(), provider.getId(), provider.getId(), providerName);
             }
 
             messageDto.setStatus(CommunicationStatus.SENT);
