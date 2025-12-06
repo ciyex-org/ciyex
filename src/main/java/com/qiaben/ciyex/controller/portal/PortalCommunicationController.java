@@ -29,8 +29,8 @@ public class PortalCommunicationController {
     private final ProviderRepository providerRepository;
 
     public PortalCommunicationController(CommunicationService communicationService,
-                                       PortalUserRepository portalUserRepository,
-                                       ProviderRepository providerRepository) {
+                                         PortalUserRepository portalUserRepository,
+                                         ProviderRepository providerRepository) {
         this.communicationService = communicationService;
         this.portalUserRepository = portalUserRepository;
         this.providerRepository = providerRepository;
@@ -47,8 +47,7 @@ public class PortalCommunicationController {
                 ));
             }
 
-            // Prefer the JWT email claim (or preferred_username) when available; authentication.getName()
-            // can return the subject (UUID) which doesn't match portal user email records.
+            // Get email from JWT
             String tempEmail = null;
             Object principal = authentication.getPrincipal();
             if (principal instanceof Jwt) {
@@ -62,10 +61,12 @@ public class PortalCommunicationController {
                 tempEmail = authentication.getName();
             }
             final String userEmail = tempEmail;
+
             boolean isPatient = authentication.getAuthorities().stream()
-                    .anyMatch(auth -> auth.getAuthority().equals("PATIENT") || auth.getAuthority().equals("ROLE_PATIENT"));
+                    .anyMatch(a -> a.getAuthority().equals("PATIENT") || a.getAuthority().equals("ROLE_PATIENT"));
+
             boolean isProvider = authentication.getAuthorities().stream()
-                    .anyMatch(auth -> auth.getAuthority().equals("PROVIDER") || auth.getAuthority().equals("ROLE_PROVIDER"));
+                    .anyMatch(a -> a.getAuthority().equals("PROVIDER") || a.getAuthority().equals("ROLE_PROVIDER"));
 
             if (!isPatient && !isProvider) {
                 return ResponseEntity.badRequest().body(Map.of(
@@ -77,15 +78,15 @@ public class PortalCommunicationController {
             List<CommunicationDto> communications;
 
             if (isPatient) {
-                // Map portal user email -> portal user -> linked EHR patient id
                 Optional<PortalUser> optPortalUser = portalUserRepository.findByEmail(userEmail);
                 if (optPortalUser.isEmpty()) {
-                    log.warn("Portal user not found for email: {}", userEmail);
                     communications = Collections.emptyList();
                 } else {
                     PortalUser portalUser = optPortalUser.get();
-                    if (portalUser.getPortalPatient() == null || portalUser.getPortalPatient().getEhrPatientId() == null) {
-                        log.warn("Portal user {} has no linked EHR patient", userEmail);
+
+                    if (portalUser.getPortalPatient() == null ||
+                            portalUser.getPortalPatient().getEhrPatientId() == null) {
+
                         communications = Collections.emptyList();
                     } else {
                         Long ehrPatientId = portalUser.getPortalPatient().getEhrPatientId();
@@ -93,14 +94,10 @@ public class PortalCommunicationController {
                     }
                 }
             } else {
-                // For providers, return empty list for now (service layer doesn't support provider communications)
                 communications = Collections.emptyList();
             }
 
-            // ✅ Prevent NullPointerException
-            if (communications == null) {
-                communications = Collections.emptyList();
-            }
+            if (communications == null) communications = Collections.emptyList();
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
@@ -129,8 +126,7 @@ public class PortalCommunicationController {
                 ));
             }
 
-            // Prefer the JWT email claim (or preferred_username) when available; authentication.getName()
-            // can return the subject (UUID) which doesn't match portal user email records.
+            // Extract email from token
             String tempEmail = null;
             Object principal = authentication.getPrincipal();
             if (principal instanceof Jwt) {
@@ -144,10 +140,12 @@ public class PortalCommunicationController {
                 tempEmail = authentication.getName();
             }
             final String userEmail = tempEmail;
+
             boolean isPatient = authentication.getAuthorities().stream()
-                    .anyMatch(auth -> auth.getAuthority().equals("PATIENT") || auth.getAuthority().equals("ROLE_PATIENT"));
+                    .anyMatch(a -> a.getAuthority().equals("PATIENT") || a.getAuthority().equals("ROLE_PATIENT"));
+
             boolean isProvider = authentication.getAuthorities().stream()
-                    .anyMatch(auth -> auth.getAuthority().equals("PROVIDER") || auth.getAuthority().equals("ROLE_PROVIDER"));
+                    .anyMatch(a -> a.getAuthority().equals("PROVIDER") || a.getAuthority().equals("ROLE_PROVIDER"));
 
             if (!isPatient && !isProvider) {
                 return ResponseEntity.badRequest().body(Map.of(
@@ -156,7 +154,7 @@ public class PortalCommunicationController {
                 ));
             }
 
-            // ✅ Validate fields
+            // REQUIRED: message payload
             if (messageDto.getPayload() == null || messageDto.getPayload().trim().isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "success", false,
@@ -164,8 +162,11 @@ public class PortalCommunicationController {
                 ));
             }
 
+            // ---------------------------------------------------------------------
+            //  ✅ FIXED PATIENT → PROVIDER BLOCK
+            // ---------------------------------------------------------------------
             if (isPatient) {
-                // Patient sending message to provider
+
                 if (messageDto.getProviderId() == null) {
                     return ResponseEntity.badRequest().body(Map.of(
                             "success", false,
@@ -173,18 +174,19 @@ public class PortalCommunicationController {
                     ));
                 }
 
-        // Get portal user and EHR patient ID
-        Optional<PortalUser> optPortalUser = portalUserRepository.findByEmail(userEmail);
-        if (optPortalUser.isEmpty()) {
-            log.warn("Portal user not found for email: {}", userEmail);
-            return ResponseEntity.badRequest().body(Map.of(
-                "success", false,
-                "message", "Portal user not found for email: " + userEmail
-            ));
-        }
-        PortalUser portalUser = optPortalUser.get();
+                Optional<PortalUser> optPortalUser = portalUserRepository.findByEmail(userEmail);
+                if (optPortalUser.isEmpty()) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                            "success", false,
+                            "message", "Portal user not found"
+                    ));
+                }
 
-                if (portalUser.getPortalPatient() == null || portalUser.getPortalPatient().getEhrPatientId() == null) {
+                PortalUser portalUser = optPortalUser.get();
+
+                if (portalUser.getPortalPatient() == null ||
+                        portalUser.getPortalPatient().getEhrPatientId() == null) {
+
                     return ResponseEntity.badRequest().body(Map.of(
                             "success", false,
                             "message", "Patient profile not linked to EHR system"
@@ -193,16 +195,22 @@ public class PortalCommunicationController {
 
                 Long ehrPatientId = portalUser.getPortalPatient().getEhrPatientId();
 
-                // Set message fields for patient-to-provider
+                // ----------------------------------
+                //  FIX: USE EHR PATIENT ID AS SENDER
+                // ----------------------------------
                 messageDto.setPatientId(ehrPatientId);
-                messageDto.setFromId(portalUser.getId());
+                messageDto.setFromId(ehrPatientId);
                 messageDto.setFromName(portalUser.getFirstName() + " " + portalUser.getLastName());
-                messageDto.setSender("Patient/" + portalUser.getId());
+                messageDto.setSender("Patient/" + ehrPatientId);
                 messageDto.setRecipients(List.of("Provider/" + messageDto.getProviderId()));
                 messageDto.setMessageType("patient_to_provider");
+            }
 
-            } else if (isProvider) {
-                // Provider sending message to patient
+            // ---------------------------------------------------------------------
+            //  PROVIDER → PATIENT
+            // ---------------------------------------------------------------------
+            else if (isProvider) {
+
                 if (messageDto.getPatientId() == null) {
                     return ResponseEntity.badRequest().body(Map.of(
                             "success", false,
@@ -210,21 +218,18 @@ public class PortalCommunicationController {
                     ));
                 }
 
-        // Get provider by email
-        Optional<Provider> optProvider = providerRepository.findAll().stream()
-            .filter(p -> userEmail.equals(p.getEmail()))
-            .findFirst();
-        if (optProvider.isEmpty()) {
-            log.warn("Provider not found for email: {}", userEmail);
-            return ResponseEntity.badRequest().body(Map.of(
-                "success", false,
-                "message", "Provider not found for email: " + userEmail
-            ));
-        }
-        Provider provider = optProvider.get();
-        String providerName = provider.getFirstName() + " " + provider.getLastName();
+                // FIX: use providerRepository.findByEmail()
+                Optional<Provider> optProvider = providerRepository.findByEmail(userEmail);
+                if (optProvider.isEmpty()) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                            "success", false,
+                            "message", "Provider not found"
+                    ));
+                }
 
-                // Set message fields for provider-to-patient
+                Provider provider = optProvider.get();
+                String providerName = provider.getFirstName() + " " + provider.getLastName();
+
                 messageDto.setProviderId(provider.getId());
                 messageDto.setFromId(provider.getId());
                 messageDto.setFromName(providerName);
@@ -260,4 +265,3 @@ public class PortalCommunicationController {
         }
     }
 }
-

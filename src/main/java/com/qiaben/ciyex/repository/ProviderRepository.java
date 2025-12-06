@@ -12,6 +12,8 @@ public interface ProviderRepository extends JpaRepository<Provider, Long> {
     // Single tenant per instance - no orgId filtering needed
     
     Optional<Provider> findByExternalId(String externalId);
+    
+    Optional<Provider> findByEmail(String email);
 
     @Query("SELECT p.externalId FROM Provider p")
     List<String> findAllExternalIds();
