@@ -28,8 +28,39 @@ public class CommunicationController {
             @RequestBody CommunicationDto dto) {
         try {
             RequestContext ctx = new RequestContext();
-            // orgId deprecated; tenantName populated by interceptor.
             RequestContext.set(ctx);
+
+            // Validate required fields
+            if (dto.getPatientId() == null) {
+                return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
+                        .success(false)
+                        .message("Patient ID is required")
+                        .build());
+            }
+            if (dto.getProviderId() == null) {
+                return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
+                        .success(false)
+                        .message("Provider ID is required")
+                        .build());
+            }
+            if (dto.getPayload() == null || dto.getPayload().trim().isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
+                        .success(false)
+                        .message("Message content is required")
+                        .build());
+            }
+
+            // Ensure fromType and messageType are set
+            if (dto.getFromType() == null || dto.getFromType().trim().isEmpty()) {
+                // Default to provider for EHR endpoint
+                dto.setFromType("provider");
+            }
+            if (dto.getMessageType() == null || dto.getMessageType().trim().isEmpty()) {
+                dto.setMessageType("provider_to_patient");
+            }
+
+            log.info("Creating communication: patientId={}, providerId={}, fromType={}, messageType={}",
+                    dto.getPatientId(), dto.getProviderId(), dto.getFromType(), dto.getMessageType());
 
             CommunicationDto created = service.create(dto);
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
