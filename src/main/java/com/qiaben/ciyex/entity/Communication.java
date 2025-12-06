@@ -65,4 +65,16 @@ public class Communication extends AuditableEntity {
 
     @Column(name = "attachment_ids")
     private String attachmentIds; // comma-separated message attachment IDs (deprecated - use message_attachments table instead)
+
+    @Column(name = "message_type")
+    private String messageType; // "patient_to_provider" or "provider_to_patient"
+
+    @Column(name = "from_type")
+    private String fromType; // "patient" or "provider"
+
+    @Column(name = "from_id")
+    private Long fromId; // ID of the sender (patient ID or provider ID)
+
+    @Column(name = "from_name")
+    private String fromName; // Name of the sender
 }

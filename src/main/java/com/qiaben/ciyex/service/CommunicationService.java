@@ -96,6 +96,10 @@ public class CommunicationService {
                 .patientId(dto.getPatientId())
                 .providerId(dto.getProviderId())
                 .attachmentIds(dto.getAttachmentIds())
+                .messageType(dto.getMessageType())
+                .fromType(dto.getFromType())
+                .fromId(dto.getFromId())
+                .fromName(dto.getFromName())
                 .build();
 
         Communication saved = repo.save(entity);
@@ -446,33 +450,51 @@ public class CommunicationService {
             dto.setReadAt(r.getReadAt());
             dto.setReadBy(r.getReadBy());
 
-            // Determine message type based on provider_id
-            String messageType = "unknown";
-            String fromType = "patient"; // default
-
-            if (r.getProviderId() != null) {
-                // If provider_id is set, assume provider-to-patient
-                messageType = "provider_to_patient";
-                fromType = "provider";
-            } else {
-                // Otherwise, assume patient-to-provider
-                messageType = "patient_to_provider";
-                fromType = "patient";
+            // Use the messageType from the entity if available, otherwise determine from context
+            String messageType = r.getMessageType();
+            if (messageType == null || messageType.trim().isEmpty()) {
+                // Fallback logic if messageType is not set in entity
+                messageType = "patient_to_provider"; // default assumption
             }
             dto.setMessageType(messageType);
+            
+            // Set fromType based on messageType
+            String fromType = "patient"; // default
+            if ("provider_to_patient".equals(messageType)) {
+                fromType = "provider";
+            } else if ("patient_to_provider".equals(messageType)) {
+                fromType = "patient";
+            }
             dto.setFromType(fromType);
 
-            // From (provider name)
-            if (r.getProviderId() != null) {
-                try {
-                    providerRepo.findById(r.getProviderId()).ifPresent(provider -> {
-                        String providerName = provider.getFirstName() + " " + provider.getLastName();
-                        dto.setFromId(r.getProviderId());
-                        dto.setFromName(providerName);
-                    });
-                } catch (Exception e) {
-                    log.warn("Could not find provider name for provider ID {}: {}", r.getProviderId(), e.getMessage());
-                    dto.setFromName("Unknown Provider");
+            // Set from fields from entity if available
+            dto.setFromId(r.getFromId());
+            dto.setFromName(r.getFromName());
+            
+            // Fallback: populate from fields if not set in entity
+            if (dto.getFromName() == null || dto.getFromName().trim().isEmpty()) {
+                if ("provider".equals(fromType) && r.getProviderId() != null) {
+                    try {
+                        providerRepo.findById(r.getProviderId()).ifPresent(provider -> {
+                            String providerName = provider.getFirstName() + " " + provider.getLastName();
+                            dto.setFromId(r.getProviderId());
+                            dto.setFromName(providerName);
+                        });
+                    } catch (Exception e) {
+                        log.warn("Could not find provider name for provider ID {}: {}", r.getProviderId(), e.getMessage());
+                        dto.setFromName("Unknown Provider");
+                    }
+                } else if ("patient".equals(fromType) && r.getPatientId() != null) {
+                    try {
+                        patientRepo.findById(r.getPatientId()).ifPresent(patient -> {
+                            String patientName = patient.getFirstName() + " " + patient.getLastName();
+                            dto.setFromId(r.getPatientId());
+                            dto.setFromName(patientName);
+                        });
+                    } catch (Exception e) {
+                        log.warn("Could not find patient name for patient ID {}: {}", r.getPatientId(), e.getMessage());
+                        dto.setFromName("Unknown Patient");
+                    }
                 }
             }
 
