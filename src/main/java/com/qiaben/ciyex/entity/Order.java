@@ -3,9 +3,11 @@ package com.qiaben.ciyex.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 @Data
-@EqualsAndHashCode(callSuper = true)
+@ToString(exclude = "inventory")
+@EqualsAndHashCode(callSuper = true, exclude = "inventory")
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
