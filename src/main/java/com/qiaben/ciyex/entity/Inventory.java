@@ -3,6 +3,7 @@ package com.qiaben.ciyex.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import java.util.List;
 
 @Data
@@ -10,7 +11,8 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @Entity
-@EqualsAndHashCode(callSuper = true)
+@ToString(exclude = "orders")
+@EqualsAndHashCode(callSuper = true, exclude = "orders")
 public class Inventory extends AuditableEntity {
 
     @Id

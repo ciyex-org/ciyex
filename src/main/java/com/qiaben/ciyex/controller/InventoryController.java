@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -102,14 +103,34 @@ public class InventoryController {
     public ResponseEntity<ApiResponse<OrderDto>> reorder(
             @PathVariable Long id,
             @RequestBody OrderDto dto) {
-        OrderDto createdOrder = service.createReorder(id, dto);
-        return ResponseEntity.ok(
-                ApiResponse.<OrderDto>builder()
-                        .success(true)
-                        .message("Reorder created successfully (pending receipt)")
-                        .data(createdOrder)
-                        .build()
-        );
+        try {
+            OrderDto createdOrder = service.createReorder(id, dto);
+            return ResponseEntity.status(HttpStatus.CREATED).body(
+                    ApiResponse.<OrderDto>builder()
+                            .success(true)
+                            .message("Reorder created successfully (pending receipt)")
+                            .data(createdOrder)
+                            .build()
+            );
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    ApiResponse.<OrderDto>builder()
+                            .success(false)
+                            .message(e.getMessage())
+                            .data(null)
+                            .build()
+            );
+        } catch (Throwable t) {
+            // Catch Throwable to ensure Errors like StackOverflowError are handled gracefully
+            String msg = "An unexpected error occurred: " + t.getClass().getSimpleName();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ApiResponse.<OrderDto>builder()
+                            .success(false)
+                            .message(msg)
+                            .data(null)
+                            .build()
+            );
+        }
     }
 
     @GetMapping("/records/weekly-consumption")
