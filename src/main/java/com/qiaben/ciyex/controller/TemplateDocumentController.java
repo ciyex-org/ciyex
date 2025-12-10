@@ -4,7 +4,7 @@
     import com.qiaben.ciyex.dto.TemplateDocumentUpsertRequest;
     import com.qiaben.ciyex.entity.TemplateContext;
     import com.qiaben.ciyex.service.TemplateDocumentService;
-    import com.qiaben.ciyex.dto.integration.RequestContext;
+    import com.qiaben.ciyex.exception.ResourceNotFoundException;
     import org.springframework.web.server.ResponseStatusException;
     import static org.springframework.http.HttpStatus.BAD_REQUEST;
     import jakarta.validation.Valid;
@@ -48,13 +48,12 @@
         // Filter by context via path (e.g. /filter/ENCOUNTER or /filter/PORTAL)
         @GetMapping(value = "/filter/{context}", produces = MediaType.APPLICATION_JSON_VALUE)
         public List<TemplateDocumentResponse> filterByContext(@PathVariable String context) {
-            TemplateContext ctxEnum = null;
             try {
-                ctxEnum = TemplateContext.valueOf(context.toUpperCase());
+                TemplateContext ctxEnum = TemplateContext.valueOf(context.toUpperCase());
+                return service.getAll(ctxEnum, null);
             } catch (IllegalArgumentException ex) {
                 throw new ResponseStatusException(BAD_REQUEST, "Invalid context: " + context);
             }
-            return service.getAll(ctxEnum, null);
         }
 
         // Update
