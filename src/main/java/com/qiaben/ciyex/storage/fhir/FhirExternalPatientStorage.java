@@ -32,8 +32,13 @@ public class FhirExternalPatientStorage implements ExternalStorage<PatientDto> {
     @Override
     public String create(PatientDto entityDto) {
         log.info("Entering create for patientName: {}", getPatientName(entityDto));
+        IGenericClient client = fhirClientProvider.getForCurrentTenant();
+        if (client == null) {
+            log.warn("No FHIR client available, skipping external create for patient: {}", getPatientName(entityDto));
+            return null;
+        }
+
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             log.debug("Fetched IGenericClient");
             Patient fhirPatient = mapToFhirPatient(entityDto);
             log.debug("Mapped PatientDto to FHIR Patient: name={}, mrn={}", fhirPatient.getNameFirstRep(), entityDto.getMedicalRecordNumber());
@@ -46,8 +51,13 @@ public class FhirExternalPatientStorage implements ExternalStorage<PatientDto> {
     @Override
     public void update(PatientDto entityDto, String externalId) {
         log.info("Entering update for externalId: {}, patientName: {}", externalId, getPatientName(entityDto));
+        IGenericClient client = fhirClientProvider.getForCurrentTenant();
+        if (client == null) {
+            log.warn("No FHIR client available, skipping external update for patient externalId: {}", externalId);
+            return;
+        }
+
         executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             log.debug("Fetched IGenericClient");
             Patient fhirPatient = mapToFhirPatient(entityDto);
             fhirPatient.setId(externalId);
@@ -61,8 +71,13 @@ public class FhirExternalPatientStorage implements ExternalStorage<PatientDto> {
     @Override
     public PatientDto get(String externalId) {
         log.info("Entering get for externalId: {}", externalId);
+        IGenericClient client = fhirClientProvider.getForCurrentTenant();
+        if (client == null) {
+            log.warn("No FHIR client available, skipping external get for externalId: {}", externalId);
+            return null;
+        }
+
         return executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             log.debug("Fetched IGenericClient");
             Patient fhirPatient = client.read().resource(Patient.class).withId(externalId).execute();
             log.debug("Retrieved FHIR Patient with id: {}, name={}", externalId, fhirPatient.getNameFirstRep());
@@ -76,8 +91,13 @@ public class FhirExternalPatientStorage implements ExternalStorage<PatientDto> {
     @Override
     public void delete(String externalId) {
         log.info("Entering delete for externalId: {}", externalId);
+        IGenericClient client = fhirClientProvider.getForCurrentTenant();
+        if (client == null) {
+            log.warn("No FHIR client available, skipping external delete for externalId: {}", externalId);
+            return;
+        }
+
         executeWithRetry(() -> {
-            IGenericClient client = fhirClientProvider.getForCurrentTenant();
             log.debug("Fetched IGenericClient");
             log.info("Deleting Patient with externalId: {}", externalId);
             client.delete().resourceById("Patient", externalId).execute();
@@ -89,13 +109,18 @@ public class FhirExternalPatientStorage implements ExternalStorage<PatientDto> {
     @Override
     public List<PatientDto> searchAll() {
         log.info("Entering searchAll");
+        IGenericClient client = fhirClientProvider.getForCurrentTenant();
+        if (client == null) {
+            log.warn("No FHIR client available, skipping searchAll and returning empty list");
+            return List.of();
+        }
 
-        Bundle bundle = fhirClientProvider.getForCurrentTenant().search()
-                .forResource(org.hl7.fhir.r4.model.Patient.class)
-                .returnBundle(Bundle.class)
-                .execute();
+        Bundle bundle = client.search()
+            .forResource(org.hl7.fhir.r4.model.Patient.class)
+            .returnBundle(Bundle.class)
+            .execute();
 
-        log.debug("Received Bundle with {} entries", bundle.getEntry().size());
+        log.debug("Received Bundle with {} entries", bundle.getEntry() == null ? 0 : bundle.getEntry().size());
         List<PatientDto> patientDtos = bundle.getEntry().stream()
                 .map(entry -> {
                     Patient patient = (Patient) entry.getResource();

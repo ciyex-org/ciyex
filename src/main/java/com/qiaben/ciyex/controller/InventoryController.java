@@ -14,8 +14,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/inventory")
 public class InventoryController {
 
@@ -121,8 +123,17 @@ public class InventoryController {
                             .build()
             );
         } catch (Throwable t) {
-            // Catch Throwable to ensure Errors like StackOverflowError are handled gracefully
-            String msg = "An unexpected error occurred: " + t.getClass().getSimpleName();
+            // Log full stacktrace for investigation
+            log.error("Reorder failed for inventory id {}: {}", id, t.getMessage(), t);
+
+            String msg;
+            if (t instanceof StackOverflowError) {
+                // Don't expose internal error details to clients, provide actionable guidance
+                msg = "Internal server error: recursion detected while processing reorder (StackOverflowError). Please check server logs and contact support.";
+            } else {
+                msg = "An unexpected error occurred while processing reorder. Please check server logs and contact support.";
+            }
+
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ApiResponse.<OrderDto>builder()
                             .success(false)

@@ -270,17 +270,18 @@ public class ImmunizationService {
         ImmunizationDto dto = new ImmunizationDto();
         dto.setPatientId(patientId);
 
+        // Always create audit object, even for empty results
+        ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
         if (!entities.isEmpty()) {
             Immunization firstEntity = entities.get(0);
-            ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
             if (firstEntity.getCreatedDate() != null) {
                 audit.setCreatedDate(firstEntity.getCreatedDate().toString());
             }
             if (firstEntity.getLastModifiedDate() != null) {
                 audit.setLastModifiedDate(firstEntity.getLastModifiedDate().toString());
             }
-            dto.setAudit(audit);
         }
+        dto.setAudit(audit);
 
         dto.setImmunizations(entities.stream().map(this::mapToItem).collect(Collectors.toList()));
         return dto;
