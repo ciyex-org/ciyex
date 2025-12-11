@@ -262,12 +262,12 @@ public class ScheduleService {
             dto.setActorReferences(externalDto.getActorReferences());
         }
 
-        // Map recurrence from entity
-        if (entity.getRecurrenceFrequency() != null) {
+        // Map recurrence from entity or external
+        if (hasRecurrenceData(entity)) {
             ScheduleDto.Recurrence recurrence = new ScheduleDto.Recurrence();
             recurrence.setFrequency(entity.getRecurrenceFrequency());
             recurrence.setInterval(entity.getRecurrenceInterval());
-            if (entity.getRecurrenceByWeekday() != null) {
+            if (entity.getRecurrenceByWeekday() != null && !entity.getRecurrenceByWeekday().trim().isEmpty()) {
                 recurrence.setByWeekday(List.of(entity.getRecurrenceByWeekday().split(",")));
             }
             recurrence.setStartDate(entity.getRecurrenceStartDate());
@@ -310,6 +310,18 @@ public class ScheduleService {
     }
 
 
+
+    private boolean hasRecurrenceData(Schedule entity) {
+        return entity.getRecurrenceFrequency() != null ||
+               entity.getRecurrenceInterval() != null ||
+               entity.getRecurrenceByWeekday() != null ||
+               entity.getRecurrenceStartDate() != null ||
+               entity.getRecurrenceEndDate() != null ||
+               entity.getRecurrenceStartTime() != null ||
+               entity.getRecurrenceEndTime() != null ||
+               entity.getRecurrenceMaxOccurrences() != null ||
+               entity.getRecurrenceLocationId() != null;
+    }
 
     private void validateScheduleDto(ScheduleDto dto) {
         if (dto.getRecurrence() == null) {
