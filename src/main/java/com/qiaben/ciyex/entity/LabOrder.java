@@ -1,7 +1,10 @@
 package com.qiaben.ciyex.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
+
+import java.util.UUID;
 
 @Entity
 @Table(name = "lab_orders")
@@ -36,9 +39,11 @@ public class LabOrder {
     private String labName;
 
     // Technicals
-    @Column(name = "order_number")
+    @NotBlank(message = "orderNumber is mandatory")
+    @Column(name = "order_number", nullable = false)
     private String orderNumber;
 
+    
     @Column(name = "test_code")
     private String testCode;
 
@@ -77,7 +82,16 @@ public class LabOrder {
     private String lastModifiedDate;
 
 
-    @Column(name = "fhir_external_id")
-    private String externalId; // stores ServiceRequest id
-}
+    @Column(name = "external_id")
+    private String externalId;
 
+    @Column(name = "fhir_id")
+    private String fhirId; // stores ServiceRequest id
+
+    @PrePersist
+    private void generateExternalId() {
+        if (this.externalId == null) {
+            this.externalId = UUID.randomUUID().toString();
+        }
+    }
+}

@@ -5,7 +5,8 @@ import lombok.Data;
 @Data
 public class LabOrderDto {
     private Long id;
-    private String externalId; // FHIR resource id
+    private String externalId;
+    private String fhirId; // FHIR resource id
 
     // Patient linkage
     private Long patientId;
@@ -16,6 +17,11 @@ public class LabOrderDto {
     private String labName;
 
     // Technical fields
+    /**
+     * Mandatory: unique order number supplied by upstream system or generated internally.
+     * Must not be null/blank when creating or updating a Lab Order.
+     */
+    
     private String orderNumber;
     private String testCode;
     private String testDisplay;
@@ -41,4 +47,3 @@ public class LabOrderDto {
         private String lastModifiedDate;
     }
 }
-

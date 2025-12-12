@@ -114,33 +114,38 @@ public class LabOrderController {
         public ResponseEntity<ApiResponse<LabOrderDto>> getForPatient(
                         @PathVariable Long patientId,
                         @PathVariable Long id) {
-                try {
-                                RequestContext ctx = new RequestContext();
-                                // orgId deprecated; tenantName populated by interceptor.
-                                RequestContext.set(ctx);
-                        var dto = service.getOne(id);
-                        if (dto == null || dto.getPatientId() == null || !Objects.equals(dto.getPatientId(), patientId)) {
+                        try {
+                                        RequestContext ctx = new RequestContext();
+                                        // orgId deprecated; tenantName populated by interceptor.
+                                        RequestContext.set(ctx);
+                                var dto = service.getOne(id);
+                                if (dto == null || dto.getPatientId() == null || !Objects.equals(dto.getPatientId(), patientId)) {
+                                        return ResponseEntity.ok(ApiResponse.<LabOrderDto>builder()
+                                                        .success(false)
+                                                        .message("Lab order not found for the specified patient")
+                                                        .build());
+                                }
+                                return ResponseEntity.ok(ApiResponse.<LabOrderDto>builder()
+                                                .success(true)
+                                                .message("Lab order retrieved successfully")
+                                                .data(dto)
+                                                .build());
+                        } catch (IllegalArgumentException e) {
+                                log.debug("Lab order not found for id {}: {}", id, e.getMessage());
+                                return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                                        .body(ApiResponse.<LabOrderDto>builder().success(false).message(e.getMessage()).build());
+                        } catch (Exception e) {
+                                log.error("Failed to get lab order id {} for patientId {}: {}", id, patientId, e.getMessage(), e);
                                 return ResponseEntity.ok(ApiResponse.<LabOrderDto>builder()
                                                 .success(false)
-                                                .message("Lab order not found for the specified patient")
+                                                .message("Failed to retrieve lab order: " + e.getMessage())
                                                 .build());
+                        } finally {
+                                RequestContext.clear();
                         }
-                        return ResponseEntity.ok(ApiResponse.<LabOrderDto>builder()
-                                        .success(true)
-                                        .message("Lab order retrieved successfully")
-                                        .data(dto)
-                                        .build());
-                } catch (Exception e) {
-                        log.error("Failed to get lab order id {} for patientId {}: {}", id, patientId, e.getMessage(), e);
-                        return ResponseEntity.ok(ApiResponse.<LabOrderDto>builder()
-                                        .success(false)
-                                        .message("Failed to retrieve lab order: " + e.getMessage())
-                                        .build());
-                } finally {
-                        RequestContext.clear();
-                }
     }
 
+    
         // ---------- CREATE for patient ----------
         @PostMapping("/{patientId}")
         public ResponseEntity<ApiResponse<LabOrderDto>> createForPatient(
@@ -209,6 +214,10 @@ public class LabOrderController {
                                         .message("Lab order updated successfully")
                                         .data(updated)
                                         .build());
+                } catch (IllegalArgumentException e) {
+                        log.debug("Lab order not found for id {}: {}", id, e.getMessage());
+                        return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                                .body(ApiResponse.<LabOrderDto>builder().success(false).message(e.getMessage()).build());
                 } catch (Exception e) {
                         log.error("Failed to update lab order id {} for patientId {}: {}", id, patientId, e.getMessage(), e);
                         return ResponseEntity.ok(ApiResponse.<LabOrderDto>builder()
@@ -242,6 +251,10 @@ public class LabOrderController {
                                         .success(true)
                                         .message("Lab order deleted successfully")
                                         .build());
+                } catch (IllegalArgumentException e) {
+                        log.debug("Lab order not found for id {}: {}", id, e.getMessage());
+                        return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                                .body(ApiResponse.<Void>builder().success(false).message(e.getMessage()).build());
                 } catch (Exception e) {
                         log.error("Failed to delete lab order id {} for patientId {}: {}", id, patientId, e.getMessage(), e);
                         return ResponseEntity.ok(ApiResponse.<Void>builder()

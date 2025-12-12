@@ -37,8 +37,13 @@ public class LabOrderService {
     @Transactional
     public LabOrderDto create(LabOrderDto dto) {
         validateMandatory(dto);
-        if (dto.getTestCode() == null) throw new IllegalArgumentException("testCode is required");
         LabOrder order = mapToEntity(dto);
+        
+        // Generate shared ID for both externalId and fhirId
+        String sharedId = java.util.UUID.randomUUID().toString();
+        order.setExternalId(sharedId);
+        order.setFhirId(sharedId);
+        
         order.setCreatedDate(nowString());
         order.setLastModifiedDate(nowString());
 
@@ -47,22 +52,20 @@ public class LabOrderService {
             try {
                 ExternalStorage<LabOrderDto> es = storageResolver.resolve(LabOrderDto.class);
                 String externalId = es.create(dto);
-                order.setExternalId(externalId);
+                // Don't override the shared ID we just set
             } catch (Exception e) {
                 log.warn("External create skipped. reason={}", rootMessage(e));
             }
         }
         LabOrder saved = repository.save(order);
-        LabOrderDto out = mapToDto(saved);
-        out.setExternalId(saved.getExternalId());
-        return out;
+        return mapToDto(saved);
     }
 
     // ---- READ ONE ----
     @Transactional(readOnly = true)
     public LabOrderDto getOne(Long id) {
     LabOrder order = repository.findById(id)
-        .orElseThrow(() -> new RuntimeException("LabOrder not found id=" + id));
+        .orElseThrow(() -> new IllegalArgumentException("LabOrder not found for id: " + id));
     return mapToDto(order);
     }
 
@@ -74,6 +77,7 @@ public class LabOrderService {
     return orders.stream().map(this::mapToDto).collect(Collectors.toList());
     }
 
+    
     // Org-scoped search returning ApiResponse (similar to AllergyIntoleranceService.searchAll)
     @Transactional(readOnly = true)
     public ApiResponse<List<LabOrderDto>> searchAll() {
@@ -90,13 +94,43 @@ public class LabOrderService {
     @Transactional
     public LabOrderDto update(Long id, LabOrderDto dto) {
         LabOrder order = repository.findById(id)
-            .orElseThrow(() -> new RuntimeException("LabOrder not found id=" + id));
+            .orElseThrow(() -> new IllegalArgumentException("LabOrder not found for id: " + id));
+        // enforce non-blank for mandatory fields when provided in update;
+        // also ensure existing entity already has required values when not provided.
         if (dto.getOrderNumber() != null) {
-            // if patch supplies orderNumber ensure it's not blank
             if (isBlank(dto.getOrderNumber())) throw new IllegalArgumentException("orderNumber cannot be blank");
         } else if (isBlank(order.getOrderNumber())) {
-            // existing entity must already have a value
             throw new IllegalStateException("Existing lab order missing required orderNumber");
+        }
+
+        if (dto.getTestCode() != null) {
+            if (isBlank(dto.getTestCode())) throw new IllegalArgumentException("testCode cannot be blank");
+        } else if (isBlank(order.getTestCode())) {
+            throw new IllegalStateException("Existing lab order missing required testCode");
+        }
+
+        if (dto.getPhysicianName() != null) {
+            if (isBlank(dto.getPhysicianName())) throw new IllegalArgumentException("physicianName cannot be blank");
+        } else if (isBlank(order.getPhysicianName())) {
+            throw new IllegalStateException("Existing lab order missing required physicianName");
+        }
+
+        if (dto.getOrderingProvider() != null) {
+            if (isBlank(dto.getOrderingProvider())) throw new IllegalArgumentException("orderingProvider cannot be blank");
+        } else if (isBlank(order.getOrderingProvider())) {
+            throw new IllegalStateException("Existing lab order missing required orderingProvider");
+        }
+
+        if (dto.getDiagnosisCode() != null) {
+            if (isBlank(dto.getDiagnosisCode())) throw new IllegalArgumentException("diagnosisCode cannot be blank");
+        } else if (isBlank(order.getDiagnosisCode())) {
+            throw new IllegalStateException("Existing lab order missing required diagnosisCode");
+        }
+
+        if (dto.getProcedureCode() != null) {
+            if (isBlank(dto.getProcedureCode())) throw new IllegalArgumentException("procedureCode cannot be blank");
+        } else if (isBlank(order.getProcedureCode())) {
+            throw new IllegalStateException("Existing lab order missing required procedureCode");
         }
         updateEntityFromDto(order, dto);
         order.setLastModifiedDate(nowString());
@@ -116,7 +150,7 @@ public class LabOrderService {
     @Transactional
     public void delete(Long id) {
         LabOrder order = repository.findById(id)
-            .orElseThrow(() -> new RuntimeException("LabOrder not found id=" + id));
+            .orElseThrow(() -> new IllegalArgumentException("LabOrder not found for id: " + id));
         String externalId = order.getExternalId();
         repository.delete(order);
         // External sync
@@ -146,6 +180,7 @@ public class LabOrderService {
         LabOrder e = new LabOrder();
         e.setPatientId(dto.getPatientId());
         e.setExternalId(dto.getExternalId());
+        e.setFhirId(dto.getFhirId());
         e.setPhysicianName(dto.getPhysicianName());
         e.setOrderDateTime(dto.getOrderDateTime());
         e.setOrderName(dto.getOrderName());
@@ -166,10 +201,17 @@ public class LabOrderService {
     }
 
     private LabOrderDto mapToDto(LabOrder e) {
+        // Migration: if fhirId is null, use externalId
+        if (e.getFhirId() == null && e.getExternalId() != null) {
+            e.setFhirId(e.getExternalId());
+            repository.save(e);
+        }
+        
         LabOrderDto d = new LabOrderDto();
         d.setId(e.getId());
         d.setPatientId(e.getPatientId());
         d.setExternalId(e.getExternalId());
+        d.setFhirId(e.getFhirId());
         d.setPhysicianName(e.getPhysicianName());
         d.setOrderDateTime(e.getOrderDateTime());
         d.setOrderName(e.getOrderName());
@@ -197,6 +239,7 @@ public class LabOrderService {
 
     private void updateEntityFromDto(LabOrder e, LabOrderDto d) {
         if (d.getPatientId() != null) e.setPatientId(d.getPatientId());
+        if (d.getFhirId() != null) e.setFhirId(d.getFhirId());
         if (d.getPhysicianName() != null) e.setPhysicianName(d.getPhysicianName());
         if (d.getOrderDateTime() != null) e.setOrderDateTime(d.getOrderDateTime());
         if (d.getOrderName() != null) e.setOrderName(d.getOrderName());
@@ -220,6 +263,11 @@ public class LabOrderService {
     private void validateMandatory(LabOrderDto dto) {
         if (dto == null) throw new IllegalArgumentException("lab order payload is required");
         if (isBlank(dto.getOrderNumber())) throw new IllegalArgumentException("orderNumber is required");
+        if (isBlank(dto.getTestCode())) throw new IllegalArgumentException("testCode is required");
+        if (isBlank(dto.getPhysicianName())) throw new IllegalArgumentException("physicianName is required");
+        if (isBlank(dto.getOrderingProvider())) throw new IllegalArgumentException("orderingProvider is required");
+        if (isBlank(dto.getDiagnosisCode())) throw new IllegalArgumentException("diagnosisCode is required");
+        if (isBlank(dto.getProcedureCode())) throw new IllegalArgumentException("procedureCode is required");
     }
     private boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
 }
