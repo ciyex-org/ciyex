@@ -13,6 +13,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -27,7 +28,10 @@ public class GlobalCodeService {
     public GlobalCodeDto create(GlobalCodeDto in) {
         // Mandatory field validation (defensive in service layer in addition to @Valid in controller)
         validateMandatory(in);
+        String sharedId = UUID.randomUUID().toString();
         GlobalCode e = GlobalCode.builder()
+                .externalId(sharedId)
+                .fhirId(sharedId)
                 .codeType(in.getCodeType()).code(in.getCode()).modifier(in.getModifier())
                 .active(in.getActive())
                 .description(in.getDescription()).shortDescription(in.getShortDescription())
@@ -40,11 +44,8 @@ public class GlobalCodeService {
 
         final GlobalCode saved = repo.save(e);
 
-
         external.ifPresent(ext -> {
-            String extId = ext.create(mapToDto(saved));
-            saved.setExternalId(extId);
-            repo.save(saved);
+            ext.create(mapToDto(saved));
         });
 
         return mapToDto(saved);
@@ -105,9 +106,16 @@ public class GlobalCodeService {
     }
 
     private GlobalCodeDto mapToDto(GlobalCode e) {
+        // Migration: if fhirId is null, use externalId
+        if (e.getFhirId() == null && e.getExternalId() != null) {
+            e.setFhirId(e.getExternalId());
+            repo.save(e);
+        }
+        
         GlobalCodeDto dto = new GlobalCodeDto();
         dto.setId(e.getId());
         dto.setExternalId(e.getExternalId());
+        dto.setFhirId(e.getFhirId());
         dto.setCodeType(e.getCodeType());
         dto.setCode(e.getCode());
         dto.setModifier(e.getModifier());

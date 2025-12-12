@@ -6,12 +6,13 @@ import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(
 
 
-                name = "codess", indexes = {
+                name = "global_codes", indexes = {
                                 @Index(name = "idx_global_codes_type_code", columnList = "code_type, code")
                 })
 @Getter
@@ -29,6 +30,9 @@ public class GlobalCode extends AuditableEntity {
 
         @Column(name = "external_id")
         private String externalId;
+
+        @Column(name = "fhir_id")
+        private String fhirId;
 
         @Column(name = "code_type", length = 16, nullable = false)
         private String codeType; // ICD9 | ICD10 | CPT4 | HCPCS | CUSTOM
@@ -79,5 +83,12 @@ public class GlobalCode extends AuditableEntity {
 
         public void setUpdatedAt(LocalDateTime updatedAt) {
                 setLastModifiedDate(updatedAt);
+        }
+
+        @PrePersist
+        private void generateExternalId() {
+                if (this.externalId == null) {
+                        this.externalId = UUID.randomUUID().toString();
+                }
         }
 }
