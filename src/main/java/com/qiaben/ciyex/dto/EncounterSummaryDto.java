@@ -2,15 +2,18 @@
 
 package com.qiaben.ciyex.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;
 import java.util.List;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class EncounterSummaryDto {
     private EncounterMeta meta;
 
     private List<AssignedProvider> assignedProviders;
     private List<ChiefComplaint> chiefComplaints;
+    private List<Vitals> vitals;
     private List<HPIEntry> hpi;
     private List<PMHEntry> pmh;
     private List<PatientMHEntry> patientMH;
@@ -19,12 +22,12 @@ public class EncounterSummaryDto {
     private List<ROSEntry> ros;
     private List<PhysicalExam> physicalExam;
     private List<Procedure> procedures;
-    private List<Code> codes;
+//    private List<Code> codes;
     private List<Assessment> assessment;
     private List<Plan> plan;
     private List<ProviderNote> providerNotes;
     private ProviderSignature providerSignature;
-    private Signoff signoff;
+//    private Signoff signoff;
     private DateTimeFinalized dateTimeFinalized;
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -44,6 +47,25 @@ public class EncounterSummaryDto {
         private String role;
         private String start;
         private String end;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class Vitals {
+        private Long id;
+        private Double weightKg;
+        private Double weightLbs;
+        private Double heightCm;
+        private Double heightIn;
+        private Integer bpSystolic;
+        private Integer bpDiastolic;
+        private Integer pulse;
+        private Integer respiration;
+        private Double temperatureC;
+        private Double temperatureF;
+        private Double oxygenSaturation;
+        private Double bmi;
+        private String notes;
+        private String recordedAt;
     }
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -145,12 +167,12 @@ public class EncounterSummaryDto {
         private String relatedIcds;
     }
 
-    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-    public static class Code {
-        private Long id;
-        private String code;
-        private String description;
-    }
+//    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+//    public static class Code {
+//        private Long id;
+//        private String code;
+//        private String description;
+//    }
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class Assessment {
@@ -195,14 +217,14 @@ public class EncounterSummaryDto {
         private String lockedAt;
     }
 
-    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-    public static class Signoff {
-        private String status;
-        private String signedBy;
-        private String signedAt;
-        private List<String> cosigners;
-        private String cosignedAt;
-        private String finalizedAt;
-        private String lockedAt;
-    }
+//    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+//    public static class Signoff {
+//        private String status;
+//        private String signedBy;
+//        private String signedAt;
+//        private List<String> cosigners;
+//        private String cosignedAt;
+//        private String finalizedAt;
+//        private String lockedAt;
+//    }
 }
