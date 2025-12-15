@@ -83,6 +83,12 @@ public class Practice extends AuditableEntity {
     @Column(name = "fhir_id")
     private String fhirId;
 
+    @Column(name = "session_timeout_minutes")
+    private Integer sessionTimeoutMinutes;
+
+    @Column(name = "token_expiry_minutes")
+    private Integer tokenExpiryMinutes;
+
     /**
      * Manual method to initialize default values.
      * Call this method inside your service before saving.
@@ -111,6 +117,12 @@ public class Practice extends AuditableEntity {
         }
         if (currencyDesignator == null) {
             currencyDesignator = "$";
+        }
+        if (sessionTimeoutMinutes == null) {
+            sessionTimeoutMinutes = 5; // Default 5 minutes
+        }
+        if (tokenExpiryMinutes == null) {
+            tokenExpiryMinutes = 5; // Default 5 minutes
         }
     }
 }

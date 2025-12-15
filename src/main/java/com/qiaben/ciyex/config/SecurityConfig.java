@@ -17,12 +17,15 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import com.qiaben.ciyex.interceptor.SessionTimeoutInterceptor;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 
 @Configuration
 @EnableWebSecurity
-public class SecurityConfig {
+public class SecurityConfig implements WebMvcConfigurer {
 
     @Autowired(required = false)
     @Nullable
@@ -30,6 +33,11 @@ public class SecurityConfig {
 
     @Autowired
     private KeycloakJwtAuthenticationConverter keycloakJwtAuthenticationConverter;
+
+
+
+    @Autowired
+    private SessionTimeoutInterceptor sessionTimeoutInterceptor;
 
     @Value("${jwt.secret:portal-secret-key-for-development-only}")
     private String jwtSecret;
@@ -72,6 +80,8 @@ public class SecurityConfig {
         if (jwtAuthenticationFilter != null) {
             http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         }
+        
+
 
         return http.build();
     }
@@ -117,4 +127,12 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", config);
         return source;
     }
+
+    // Disabled interceptor - causing immediate logout
+    // @Override
+    // public void addInterceptors(InterceptorRegistry registry) {
+    //     registry.addInterceptor(sessionTimeoutInterceptor)
+    //             .addPathPatterns("/api/**")
+    //             .excludePathPatterns("/api/auth/**", "/api/public/**", "/actuator/**");
+    // }
 }

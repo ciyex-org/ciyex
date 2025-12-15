@@ -107,6 +107,50 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> request) {
+        String refreshToken = request.get("refreshToken");
+        
+        if (refreshToken == null) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", "refresh_token required"));
+        }
+
+        try {
+            String tokenUrl = keycloakConfig.getTokenEndpoint();
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            
+            MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+            params.add("grant_type", "refresh_token");
+            params.add("client_id", keycloakConfig.getResource());
+            params.add("client_secret", keycloakConfig.getClientSecret());
+            params.add("refresh_token", refreshToken);
+            
+            HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(params, headers);
+            
+            ResponseEntity<Map> response = restTemplate.postForEntity(tokenUrl, entity, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK) {
+                Map<String, Object> tokenData = response.getBody();
+                
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "data", Map.of(
+                        "token", tokenData.get("access_token"),
+                        "refreshToken", tokenData.get("refresh_token")
+                    )
+                ));
+            }
+            
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "error", "invalid_token"));
+            
+        } catch (Exception e) {
+            log.error("Token refresh failed", e);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "error", "refresh_failed"));
+        }
+    }
+
     @GetMapping("/health")
     public ResponseEntity<?> health() {
         return ResponseEntity.ok(Map.of("status", "ok", "service", "auth"));
