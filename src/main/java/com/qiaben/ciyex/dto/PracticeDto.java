@@ -18,6 +18,9 @@ public class PracticeDto {
     private String description;
     private String externalId;
     private String fhirId;
+    
+    // Session timeout in minutes (5-30)
+    private Integer tokenExpiryMinutes;
 
     // Practice Settings
     private PracticeSettings practiceSettings;
@@ -30,6 +33,23 @@ public class PracticeDto {
 
     // Audit Information
     private Audit audit;
+    
+    /**
+     * Get token expiry minutes (session timeout)
+     */
+    public Integer getTokenExpiryMinutes() {
+        return tokenExpiryMinutes;
+    }
+    
+    /**
+     * Set token expiry minutes (session timeout)
+     * Valid range: 5-30 minutes
+     */
+    public void setTokenExpiryMinutes(Integer tokenExpiryMinutes) {
+        if (tokenExpiryMinutes != null && tokenExpiryMinutes >= 5 && tokenExpiryMinutes <= 30) {
+            this.tokenExpiryMinutes = tokenExpiryMinutes;
+        }
+    }
 
     @Data
     @NoArgsConstructor
@@ -38,6 +58,17 @@ public class PracticeDto {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class PracticeSettings {
         private Boolean enablePatientPractice;
+        private Integer sessionTimeoutMinutes;
+        private Integer tokenExpiryMinutes;
+        
+        public Integer getTokenExpiryMinutes() {
+            return tokenExpiryMinutes;
+        }
+        
+        public void setTokenExpiryMinutes(Integer tokenExpiryMinutes) {
+            this.tokenExpiryMinutes = tokenExpiryMinutes;
+            this.sessionTimeoutMinutes = tokenExpiryMinutes; // Keep both in sync
+        }
     }
 
     @Data

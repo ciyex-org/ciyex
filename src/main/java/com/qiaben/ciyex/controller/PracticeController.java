@@ -3,6 +3,7 @@ package com.qiaben.ciyex.controller;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.PracticeDto;
 import com.qiaben.ciyex.service.PracticeService;
+import com.qiaben.ciyex.service.KeycloakAdminService;
 import lombok.Data;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,9 +17,11 @@ import java.util.List;
 public class PracticeController {
 
     private final PracticeService service;
+    private final KeycloakAdminService keycloakAdminService;
 
-    public PracticeController(PracticeService service) {
+    public PracticeController(PracticeService service, KeycloakAdminService keycloakAdminService) {
         this.service = service;
+        this.keycloakAdminService = keycloakAdminService;
     }
 
     @PostMapping
@@ -255,8 +258,20 @@ public class PracticeController {
                 practice.setPracticeSettings(new PracticeDto.PracticeSettings());
             }
             practice.getPracticeSettings().setEnablePatientPractice(request.getEnablePatientPractice());
+            if (request.getSessionTimeoutMinutes() != null) {
+                practice.getPracticeSettings().setSessionTimeoutMinutes(request.getSessionTimeoutMinutes());
+            }
+            if (request.getTokenExpiryMinutes() != null) {
+                practice.getPracticeSettings().setTokenExpiryMinutes(request.getTokenExpiryMinutes());
+            }
 
             PracticeDto updatedPractice = service.update(id, practice);
+            
+            // Update Keycloak token lifespan dynamically
+            if (request.getTokenExpiryMinutes() != null) {
+                keycloakAdminService.updateClientTokenLifespan(request.getTokenExpiryMinutes());
+            }
+            
             return ResponseEntity.ok(
                     ApiResponse.<PracticeDto>builder()
                             .success(true)
@@ -423,6 +438,8 @@ public class PracticeController {
     @Data
     public static class PracticeSettingsUpdateRequest {
         private Boolean enablePatientPractice;
+        private Integer sessionTimeoutMinutes;
+        private Integer tokenExpiryMinutes;
     }
 
     @Data

@@ -139,6 +139,10 @@ public class PracticeService {
 
         if (dto.getPracticeSettings() != null) {
             practice.setEnablePatientPractice(dto.getPracticeSettings().getEnablePatientPractice());
+            if (dto.getPracticeSettings().getTokenExpiryMinutes() != null) {
+                practice.setTokenExpiryMinutes(dto.getPracticeSettings().getTokenExpiryMinutes());
+                practice.setSessionTimeoutMinutes(dto.getPracticeSettings().getTokenExpiryMinutes());
+            }
         }
 
         if (dto.getRegionalSettings() != null) {
@@ -245,6 +249,8 @@ public class PracticeService {
     private void populatePracticeSettings(Practice practice, PracticeDto extendedPracticeDto) {
         PracticeDto.PracticeSettings practiceSettings = new PracticeDto.PracticeSettings();
         practiceSettings.setEnablePatientPractice(practice.getEnablePatientPractice());
+        practiceSettings.setSessionTimeoutMinutes(practice.getSessionTimeoutMinutes());
+        practiceSettings.setTokenExpiryMinutes(practice.getTokenExpiryMinutes());
         extendedPracticeDto.setPracticeSettings(practiceSettings);
     }
 
@@ -289,6 +295,10 @@ public class PracticeService {
 
         if (dto.getPracticeSettings() != null) {
             practice.setEnablePatientPractice(dto.getPracticeSettings().getEnablePatientPractice());
+            if (dto.getPracticeSettings().getTokenExpiryMinutes() != null) {
+                practice.setTokenExpiryMinutes(dto.getPracticeSettings().getTokenExpiryMinutes());
+                practice.setSessionTimeoutMinutes(dto.getPracticeSettings().getTokenExpiryMinutes());
+            }
         }
 
         if (dto.getRegionalSettings() != null) {
@@ -331,9 +341,11 @@ public class PracticeService {
         dto.setFhirId(practice.getFhirId());
 
         // Practice Settings
-        if (practice.getEnablePatientPractice() != null) {
+        if (practice.getEnablePatientPractice() != null || practice.getSessionTimeoutMinutes() != null || practice.getTokenExpiryMinutes() != null) {
             PracticeDto.PracticeSettings practiceSettings = new PracticeDto.PracticeSettings();
             practiceSettings.setEnablePatientPractice(practice.getEnablePatientPractice());
+            practiceSettings.setSessionTimeoutMinutes(practice.getSessionTimeoutMinutes());
+            practiceSettings.setTokenExpiryMinutes(practice.getTokenExpiryMinutes());
             dto.setPracticeSettings(practiceSettings);
         }
 
