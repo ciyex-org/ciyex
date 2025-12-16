@@ -187,6 +187,8 @@ public class EncounterSummaryDto {
         private String diagnosticPlan;
         private String plan;
         private String notes;
+        private String section1;
+        private String section2;
         private Object sectionsJson;
         private Object followUpVisit;
         private Object returnWorkSchool;

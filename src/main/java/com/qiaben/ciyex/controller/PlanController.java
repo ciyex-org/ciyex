@@ -130,8 +130,11 @@ public class PlanController {
         if (dto.plan == null || dto.plan.trim().isEmpty()) {
             missingFields.add("plan");
         }
-        if (dto.sectionsJson == null || dto.sectionsJson.trim().isEmpty()) {
-            missingFields.add("sectionsJson");
+        if (dto.section1 == null || dto.section1.trim().isEmpty()) {
+            missingFields.add("section1");
+        }
+        if (dto.section2 == null || dto.section2.trim().isEmpty()) {
+            missingFields.add("section2");
         }
         if (dto.notes == null || dto.notes.trim().isEmpty()) {
             missingFields.add("notes");

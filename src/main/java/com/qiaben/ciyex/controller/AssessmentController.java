@@ -351,9 +351,9 @@ public class AssessmentController {
             missingFields.append("assessmentText, ");
         }
 
-        if (dto.getNotes() == null || dto.getNotes().trim().isEmpty()) {
-            missingFields.append("notes, ");
-        }
+        // if (dto.getNotes() == null || dto.getNotes().trim().isEmpty()) {
+        //     missingFields.append("notes, ");
+        // }
 
         if (!missingFields.isEmpty()) {
             // Remove the trailing comma and space

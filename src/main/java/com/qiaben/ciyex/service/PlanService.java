@@ -411,9 +411,12 @@ public class PlanService {
                     row(cs, x, y, "Return Work/School:", e.getReturnWorkSchool()); y -= 16;
                 }
 
-                // Sections (render as wrapped block)
-                if (StringUtils.hasText(e.getSectionsJson())) {
-                    y = block(cs, x, y, "Sections", e.getSectionsJson());
+                // Sections (render as wrapped blocks)
+                if (StringUtils.hasText(e.getSection1())) {
+                    y = block(cs, x, y, "Section 1", e.getSection1());
+                }
+                if (StringUtils.hasText(e.getSection2())) {
+                    y = block(cs, x, y, "Section 2", e.getSection2());
                 }
 
                 y -= 10;
@@ -440,7 +443,8 @@ public class PlanService {
         e.setNotes(d.getNotes());
         e.setFollowUpVisit(d.getFollowUpVisit());
         e.setReturnWorkSchool(d.getReturnWorkSchool());
-        e.setSectionsJson(d.getSectionsJson()); // keep as string
+        e.setSection1(d.getSection1());
+        e.setSection2(d.getSection2());
     }
 
     private PlanDto toDto(Plan e) {
@@ -451,7 +455,8 @@ public class PlanService {
         d.setPatientId(e.getPatientId()); d.setEncounterId(e.getEncounterId());
         d.setDiagnosticPlan(e.getDiagnosticPlan()); d.setPlan(e.getPlan()); d.setNotes(e.getNotes());
         d.setFollowUpVisit(e.getFollowUpVisit()); d.setReturnWorkSchool(e.getReturnWorkSchool());
-        d.setSectionsJson(e.getSectionsJson());
+        d.setSection1(e.getSection1());
+        d.setSection2(e.getSection2());
         d.setESigned(e.getESigned());
         d.setSignedAt(e.getSignedAt() != null ? e.getSignedAt().format(ISO) : null);
         d.setSignedBy(e.getSignedBy());

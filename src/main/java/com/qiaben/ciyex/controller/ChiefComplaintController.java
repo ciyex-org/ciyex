@@ -421,9 +421,9 @@ public class ChiefComplaintController {
             missingFields.append("complaint, ");
         }
 
-        if (dto.getDetails() == null || dto.getDetails().trim().isEmpty()) {
-            missingFields.append("details, ");
-        }
+        // if (dto.getDetails() == null || dto.getDetails().trim().isEmpty()) {
+        //     missingFields.append("details, ");
+        // }
 
         if (!missingFields.isEmpty()) {
             // Remove the trailing comma and space

@@ -120,13 +120,13 @@ public class Plan extends AuditableEntity {
     @Column(name = "patient_id", nullable = false) private Long patientId;
     @Column(name = "encounter_id", nullable = false) private Long encounterId;
 
-    // NOTE: keep everything as strings/text — including sectionsJson
     @Column(name = "diagnostic_plan", columnDefinition = "text") private String diagnosticPlan;
     @Column(name = "plan",            columnDefinition = "text") private String plan;
     @Column(name = "notes",           columnDefinition = "text") private String notes;
     @Column(name = "follow_up_visit", length = 255)              private String followUpVisit;
     @Column(name = "return_work_school", length = 255)           private String returnWorkSchool;
-    @Column(name = "sections_json",   columnDefinition = "text") private String sectionsJson;
+    @Column(name = "section1",        columnDefinition = "text") private String section1;
+    @Column(name = "section2",        columnDefinition = "text") private String section2;
 
     @Column(name = "external_id", length = 255) private String externalId;
     @Column(name = "fhir_id", length = 255) private String fhirId;
