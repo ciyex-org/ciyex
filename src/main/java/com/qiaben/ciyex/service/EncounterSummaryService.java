@@ -317,7 +317,8 @@ public class EncounterSummaryService {
                             .plan(d.getPlan())
                             .diagnosticPlan(d.getDiagnosticPlan())
                             .notes(d.getNotes())
-                            .sectionsJson(d.getSectionsJson())
+                            .section1(d.getSection1())
+                            .section2(d.getSection2())
                             .followUpVisit(d.getFollowUpVisit())
                             .returnWorkSchool(d.getReturnWorkSchool())
                             .build())
@@ -383,61 +384,213 @@ public class EncounterSummaryService {
         sb.append("<!DOCTYPE html><html><head><meta charset='UTF-8'/>");
         sb.append("<style>");
         sb.append("* { margin: 0; padding: 0; box-sizing: border-box; }");
-        sb.append("body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; background: #f9fafb; color: #1f2937; }");
-        sb.append(".container { max-width: 900px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }");
-        sb.append(".header { border-bottom: 3px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px; }");
-        sb.append(".company-title { font-size: 28px; font-weight: 700; color: #1e40af; margin-bottom: 8px; }");
-        sb.append(".company-info { font-size: 14px; color: #6b7280; line-height: 1.6; }");
-        sb.append(".section { margin: 30px 0; padding: 20px; background: #f9fafb; border-radius: 8px; border-left: 4px solid #3b82f6; }");
-        sb.append(".section-title { font-size: 18px; font-weight: 700; color: #1e40af; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 0.5px; }");
-        sb.append(".card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 10px 0; }");
-        sb.append(".row { display: flex; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }");
-        sb.append(".row:last-child { border-bottom: none; }");
-        sb.append(".label { font-weight: 600; color: #374151; min-width: 180px; }");
-        sb.append(".value { color: #1f2937; flex: 1; }");
-        sb.append(".list-item { padding: 10px; margin: 8px 0; background: white; border-radius: 6px; border-left: 3px solid #60a5fa; }");
-        sb.append(".grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }");
-        sb.append("@media print { body { padding: 20px; } .container { box-shadow: none; } }");
+        sb.append("body { font-family: Arial, sans-serif; font-size: 9px; line-height: 1.2; padding: 15px; color: #000; }");
+        sb.append(".header { border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 8px; }");
+        sb.append(".company { font-size: 14px; font-weight: bold; }");
+        sb.append(".info { font-size: 8px; color: #333; }");
+        sb.append(".section { margin: 6px 0; page-break-inside: avoid; }");
+        sb.append(".title { font-size: 10px; font-weight: bold; background: #e0e0e0; padding: 2px 4px; margin-bottom: 3px; }");
+        sb.append(".row { display: flex; padding: 1px 0; }");
+        sb.append(".label { font-weight: 600; min-width: 80px; font-size: 8px; }");
+        sb.append(".value { flex: 1; font-size: 8px; }");
+        sb.append(".grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 8px; }");
+        sb.append(".item { padding: 2px; border-left: 2px solid #ccc; }");
+        sb.append(".compact { display: inline-block; margin-right: 10px; font-size: 8px; }");
+        sb.append("@page { size: A4; margin: 10mm; }");
+        sb.append("@media print { body { padding: 0; } }");
         sb.append("</style>");
-        sb.append("</head><body><div class='container'>");
+        sb.append("</head><body>");
         
+        // Header
         sb.append("<div class='header'>");
-        sb.append("<div class='company-title'>Ciyex Health Solutions</div>");
-        sb.append("<div class='company-info'>");
-        sb.append("123 Main Street, Chennai, India<br/>");
-        sb.append("Phone: +91 98765 43210 | Email: info@ciyex.com");
-        sb.append("</div></div>");
+        sb.append("<div class='company'>Ciyex Health Solutions</div>");
+        sb.append("<div class='info'>123 Main St, Chennai | +91 98765 43210 | info@ciyex.com</div>");
+        sb.append("</div>");
         
+        // Encounter Meta - compact
         if (dto.getMeta() != null) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Encounter Details</div>");
-            sb.append("<div class='card'>");
-            writeRowStyled(sb, "Visit Category", dto.getMeta().getVisitCategory());
-            writeRowStyled(sb, "Type", dto.getMeta().getType());
-            writeRowStyled(sb, "Facility", dto.getMeta().getFacility());
-            writeRowStyled(sb, "Date of Service", dto.getMeta().getDateOfService());
-            writeRowStyled(sb, "Reason for Visit", dto.getMeta().getReasonForVisit());
+            sb.append("<div class='section'><div class='title'>ENCOUNTER</div><div class='grid'>");
+            if (dto.getMeta().getVisitCategory() != null) sb.append("<div><b>Visit:</b> ").append(escape(dto.getMeta().getVisitCategory())).append("</div>");
+            if (dto.getMeta().getType() != null) sb.append("<div><b>Type:</b> ").append(escape(dto.getMeta().getType())).append("</div>");
+            if (dto.getMeta().getFacility() != null) sb.append("<div><b>Facility:</b> ").append(escape(dto.getMeta().getFacility())).append("</div>");
+            if (dto.getMeta().getDateOfService() != null) sb.append("<div><b>Date:</b> ").append(escape(dto.getMeta().getDateOfService())).append("</div>");
+            if (dto.getMeta().getReasonForVisit() != null) sb.append("<div><b>Reason:</b> ").append(escape(dto.getMeta().getReasonForVisit())).append("</div>");
             sb.append("</div></div>");
         }
         
-        appendProviders(sb, dto);
-        appendChiefComplaints(sb, dto);
-        appendVitals(sb, dto);
-        appendHPI(sb, dto);
-        appendPatientMH(sb, dto);
-        appendPMH(sb, dto);
-        appendFamilyHistory(sb, dto);
-        appendSocialHistory(sb, dto);
-        appendROS(sb, dto);
-        appendPhysicalExam(sb, dto);
-        appendProcedures(sb, dto);
-        appendAssessment(sb, dto);
-        appendPlan(sb, dto);
-        appendProviderNotes(sb, dto);
-        appendProviderSignature(sb, dto);
-        appendDateTimeFinalized(sb, dto);
+        // Assigned Providers - inline
+        if (dto.getAssignedProviders() != null && !dto.getAssignedProviders().isEmpty()) {
+            sb.append("<div class='section'><div class='title'>PROVIDERS</div>");
+            for (var p : dto.getAssignedProviders()) {
+                sb.append("<span class='compact'><b>").append(escape(p.getProviderName() != null ? p.getProviderName() : p.getName()));
+                if (p.getRole() != null) sb.append("</b> (").append(escape(p.getRole())).append(")");
+                else sb.append("</b>");
+                sb.append("</span>");
+            }
+            sb.append("</div>");
+        }
         
-        sb.append("</div></body></html>");
+        // Chief Complaints - inline
+        if (dto.getChiefComplaints() != null && !dto.getChiefComplaints().isEmpty()) {
+            sb.append("<div class='section'><div class='title'>CHIEF COMPLAINT</div>");
+            for (var cc : dto.getChiefComplaints()) {
+                sb.append("<b>").append(escape(cc.getComplaint())).append("</b>");
+                if (cc.getNotes() != null) sb.append(": ").append(escape(cc.getNotes()));
+                sb.append(" ");
+            }
+            sb.append("</div>");
+        }
+        
+        // Vitals - grid
+        if (dto.getVitals() != null && !dto.getVitals().isEmpty()) {
+            sb.append("<div class='section'><div class='title'>VITALS</div><div class='grid'>");
+            for (var v : dto.getVitals()) {
+                if (v.getWeightKg() != null) sb.append("<div>Wt: ").append(v.getWeightKg()).append("kg</div>");
+                if (v.getHeightCm() != null) sb.append("<div>Ht: ").append(v.getHeightCm()).append("cm</div>");
+                if (v.getBpSystolic() != null && v.getBpDiastolic() != null) 
+                    sb.append("<div>BP: ").append(v.getBpSystolic()).append("/").append(v.getBpDiastolic()).append("</div>");
+                if (v.getPulse() != null) sb.append("<div>Pulse: ").append(v.getPulse()).append("</div>");
+                if (v.getTemperatureC() != null) sb.append("<div>Temp: ").append(v.getTemperatureC()).append("°C</div>");
+                if (v.getOxygenSaturation() != null) sb.append("<div>O2: ").append(v.getOxygenSaturation()).append("%</div>");
+                if (v.getBmi() != null) sb.append("<div>BMI: ").append(v.getBmi()).append("</div>");
+            }
+            sb.append("</div></div>");
+        }
+        
+        // HPI - compact
+        if (dto.getHpi() != null && !dto.getHpi().isEmpty()) {
+            sb.append("<div class='section'><div class='title'>HPI</div>");
+            for (var h : dto.getHpi()) {
+                sb.append(escape(h.getDescription())).append(" ");
+            }
+            sb.append("</div>");
+        }
+        
+        // Patient MH - inline
+        if (dto.getPatientMH() != null && !dto.getPatientMH().isEmpty()) {
+            sb.append("<div class='section'><div class='title'>PATIENT MH</div>");
+            for (var pmh : dto.getPatientMH()) {
+                if (pmh.getDescription() != null) sb.append(escape(pmh.getDescription())).append("; ");
+            }
+            sb.append("</div>");
+        }
+        
+        // PMH - inline
+        if (dto.getPmh() != null && !dto.getPmh().isEmpty()) {
+            sb.append("<div class='section'><div class='title'>PMH</div>");
+            for (var pmh : dto.getPmh()) {
+                sb.append(escape(pmh.getDescription())).append("; ");
+            }
+            sb.append("</div>");
+        }
+        
+        // Family History - inline
+        if (dto.getFamilyHistory() != null && !dto.getFamilyHistory().isEmpty()) {
+            sb.append("<div class='section'><div class='title'>FAMILY HISTORY</div>");
+            for (var fh : dto.getFamilyHistory()) {
+                if (fh.getRelation() != null) sb.append(escape(fh.getRelation())).append(": ");
+                if (fh.getCondition() != null) sb.append(escape(fh.getCondition())).append("; ");
+            }
+            sb.append("</div>");
+        }
+        
+        // Social History - inline
+        if (dto.getSocialHistory() != null && dto.getSocialHistory().getEntries() != null && !dto.getSocialHistory().getEntries().isEmpty()) {
+            sb.append("<div class='section'><div class='title'>SOCIAL HISTORY</div>");
+            for (var sh : dto.getSocialHistory().getEntries()) {
+                sb.append("<b>").append(escape(sh.getCategory())).append(":</b> ");
+                if (sh.getValue() != null) sb.append(escape(sh.getValue())).append("; ");
+            }
+            sb.append("</div>");
+        }
+        
+        // ROS - grid
+        if (dto.getRos() != null && !dto.getRos().isEmpty()) {
+            sb.append("<div class='section'><div class='title'>ROS</div><div class='grid'>");
+            for (var ros : dto.getRos()) {
+                sb.append("<div><b>").append(escape(ros.getSystemName())).append(":</b> ");
+                sb.append(ros.getIsNegative() ? "(-)" : "(+)");
+                if (ros.getFinding() != null) sb.append(" ").append(escape(ros.getFinding()));
+                sb.append("</div>");
+            }
+            sb.append("</div></div>");
+        }
+        
+        // Physical Exam - compact text format
+        if (dto.getPhysicalExam() != null && !dto.getPhysicalExam().isEmpty()) {
+            sb.append("<div class='section'><div class='title'>EXAM</div>");
+            for (var pe : dto.getPhysicalExam()) {
+                if (pe.getSections() != null) {
+                    for (var sec : pe.getSections()) {
+                        sb.append("<b>").append(escape(sec.getSectionKey())).append(":</b> ");
+                        if (sec.getAllNormal()) sb.append("normal");
+                        if (sec.getNormalText() != null) sb.append(escape(sec.getNormalText()));
+                        if (sec.getFindings() != null) sb.append(" ").append(escape(sec.getFindings()));
+                        sb.append(". ");
+                    }
+                }
+            }
+            sb.append("</div>");
+        }
+        
+        // Procedures - inline
+        if (dto.getProcedures() != null && !dto.getProcedures().isEmpty()) {
+            sb.append("<div class='section'><div class='title'>PROCEDURES</div>");
+            for (var proc : dto.getProcedures()) {
+                if (proc.getCpt4() != null) sb.append("<b>").append(escape(proc.getCpt4())).append("</b> ");
+                if (proc.getDescription() != null) sb.append(escape(proc.getDescription())).append("; ");
+            }
+            sb.append("</div>");
+        }
+        
+        // Assessment - compact
+        if (dto.getAssessment() != null && !dto.getAssessment().isEmpty()) {
+            sb.append("<div class='section'><div class='title'>ASSESSMENT</div>");
+            int idx = 1;
+            for (var a : dto.getAssessment()) {
+                sb.append(idx++).append(". ").append(escape(a.getAssessment())).append(" ");
+            }
+            sb.append("</div>");
+        }
+        
+        // Plan - compact
+        if (dto.getPlan() != null && !dto.getPlan().isEmpty()) {
+            sb.append("<div class='section'><div class='title'>PLAN</div>");
+            for (var p : dto.getPlan()) {
+                if (p.getDiagnosticPlan() != null) sb.append("<b>Dx:</b> ").append(escape(p.getDiagnosticPlan())).append(" ");
+                if (p.getPlan() != null) sb.append("<b>Plan:</b> ").append(escape(p.getPlan())).append(" ");
+                if (p.getFollowUpVisit() != null) sb.append("<b>F/U:</b> ").append(escape(String.valueOf(p.getFollowUpVisit()))).append(" ");
+            }
+            sb.append("</div>");
+        }
+        
+        // Provider Notes (SOAP) - compact
+        if (dto.getProviderNotes() != null && !dto.getProviderNotes().isEmpty()) {
+            sb.append("<div class='section'><div class='title'>SOAP</div>");
+            for (var note : dto.getProviderNotes()) {
+                if (note.getSubjective() != null) sb.append("<b>S:</b> ").append(escape(note.getSubjective())).append(" ");
+                if (note.getObjective() != null) sb.append("<b>O:</b> ").append(escape(note.getObjective())).append(" ");
+                if (note.getAssessment() != null) sb.append("<b>A:</b> ").append(escape(note.getAssessment())).append(" ");
+                if (note.getPlan() != null) sb.append("<b>P:</b> ").append(escape(note.getPlan())).append(" ");
+            }
+            sb.append("</div>");
+        }
+        
+        // Provider Signature - minimal
+        if (dto.getProviderSignature() != null && dto.getProviderSignature().getSignedBy() != null) {
+            sb.append("<div class='section'><div class='title'>SIGNATURE</div>");
+            sb.append("<b>Signed:</b> ").append(escape(dto.getProviderSignature().getSignedBy()));
+            if (dto.getProviderSignature().getSignedAt() != null) 
+                sb.append(" at ").append(escape(dto.getProviderSignature().getSignedAt()));
+            sb.append("</div>");
+        }
+        
+        // Date/Time Finalized - minimal
+        if (dto.getDateTimeFinalized() != null && dto.getDateTimeFinalized().getFinalizedAt() != null) {
+            sb.append("<div class='section'><b>Finalized:</b> ").append(escape(dto.getDateTimeFinalized().getFinalizedAt())).append("</div>");
+        }
+        
+        sb.append("</body></html>");
         return sb.toString();
     }
 
@@ -455,257 +608,7 @@ public class EncounterSummaryService {
         }
     }
 
-    private static void writeRowStyled(StringBuilder sb, String label, String value) {
-        if (value == null || value.isBlank()) return;
-        sb.append("<div class='row'>");
-        sb.append("<span class='label'>").append(escape(label)).append(":</span>");
-        sb.append("<span class='value'>").append(escape(value)).append("</span>");
-        sb.append("</div>");
-    }
 
-    private static void appendProviders(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getAssignedProviders() != null && !dto.getAssignedProviders().isEmpty()) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Assigned Providers</div>");
-            for (var p : dto.getAssignedProviders()) {
-                sb.append("<div class='list-item'>");
-                sb.append("<strong>").append(escape(p.getProviderName() != null ? p.getProviderName() : p.getName())).append("</strong>");
-                if (p.getRole() != null) sb.append(" - ").append(escape(p.getRole()));
-                if (p.getStart() != null || p.getEnd() != null) {
-                    sb.append("<br/><small style='color:#6b7280;'>");
-                    if (p.getStart() != null) sb.append("Start: ").append(escape(p.getStart()));
-                    if (p.getEnd() != null) sb.append(" | End: ").append(escape(p.getEnd()));
-                    sb.append("</small>");
-                }
-                sb.append("</div>");
-            }
-            sb.append("</div>");
-        }
-    }
-
-    private static void appendChiefComplaints(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getChiefComplaints() != null && !dto.getChiefComplaints().isEmpty()) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Chief Complaints</div>");
-            for (var cc : dto.getChiefComplaints()) {
-                sb.append("<div class='list-item'>");
-                sb.append("<strong>").append(escape(cc.getComplaint())).append("</strong>");
-                if (cc.getNotes() != null) sb.append("<br/>").append(escape(cc.getNotes()));
-                sb.append("</div>");
-            }
-            sb.append("</div>");
-        }
-    }
-
-    private static void appendVitals(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getVitals() != null && !dto.getVitals().isEmpty()) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Vitals</div>");
-            for (var v : dto.getVitals()) {
-                sb.append("<div class='card'><div class='grid'>");
-                if (v.getWeightKg() != null) sb.append("<div><span class='label'>Weight:</span> ").append(v.getWeightKg()).append(" kg</div>");
-                if (v.getHeightCm() != null) sb.append("<div><span class='label'>Height:</span> ").append(v.getHeightCm()).append(" cm</div>");
-                if (v.getBpSystolic() != null && v.getBpDiastolic() != null) 
-                    sb.append("<div><span class='label'>BP:</span> ").append(v.getBpSystolic()).append("/").append(v.getBpDiastolic()).append(" mmHg</div>");
-                if (v.getPulse() != null) sb.append("<div><span class='label'>Pulse:</span> ").append(v.getPulse()).append(" bpm</div>");
-                if (v.getTemperatureC() != null) sb.append("<div><span class='label'>Temperature:</span> ").append(v.getTemperatureC()).append(" °C</div>");
-                if (v.getOxygenSaturation() != null) sb.append("<div><span class='label'>O2 Sat:</span> ").append(v.getOxygenSaturation()).append("%</div>");
-                if (v.getBmi() != null) sb.append("<div><span class='label'>BMI:</span> ").append(v.getBmi()).append("</div>");
-                sb.append("</div>");
-                if (v.getNotes() != null) sb.append("<div style='margin-top:10px;'><strong>Notes:</strong> ").append(escape(v.getNotes())).append("</div>");
-                sb.append("</div>");
-            }
-            sb.append("</div>");
-        }
-    }
-
-    private static void appendHPI(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getHpi() != null && !dto.getHpi().isEmpty()) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>History of Present Illness</div>");
-            for (var h : dto.getHpi()) {
-                sb.append("<div class='list-item'>").append(escape(h.getDescription())).append("</div>");
-            }
-            sb.append("</div>");
-        }
-    }
-
-    private static void appendPatientMH(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getPatientMH() != null && !dto.getPatientMH().isEmpty()) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Patient Medical History</div>");
-            for (var pmh : dto.getPatientMH()) {
-                sb.append("<div class='list-item'>");
-                if (pmh.getDescription() != null) sb.append(escape(pmh.getDescription()));
-                if (pmh.getText() != null) sb.append("<br/>").append(escape(pmh.getText()));
-                sb.append("</div>");
-            }
-            sb.append("</div>");
-        }
-    }
-
-    private static void appendPMH(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getPmh() != null && !dto.getPmh().isEmpty()) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Past Medical History</div>");
-            for (var pmh : dto.getPmh()) {
-                sb.append("<div class='list-item'>").append(escape(pmh.getDescription())).append("</div>");
-            }
-            sb.append("</div>");
-        }
-    }
-
-    private static void appendFamilyHistory(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getFamilyHistory() != null && !dto.getFamilyHistory().isEmpty()) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Family History</div>");
-            for (var fh : dto.getFamilyHistory()) {
-                sb.append("<div class='list-item'>");
-                if (fh.getRelation() != null) sb.append("<strong>").append(escape(fh.getRelation())).append(":</strong> ");
-                if (fh.getCondition() != null) sb.append(escape(fh.getCondition()));
-                if (fh.getDetails() != null) sb.append(" - ").append(escape(fh.getDetails()));
-                sb.append("</div>");
-            }
-            sb.append("</div>");
-        }
-    }
-
-    private static void appendSocialHistory(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getSocialHistory() != null && dto.getSocialHistory().getEntries() != null && !dto.getSocialHistory().getEntries().isEmpty()) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Social History</div>");
-            for (var sh : dto.getSocialHistory().getEntries()) {
-                sb.append("<div class='list-item'>");
-                sb.append("<strong>").append(escape(sh.getCategory())).append(":</strong> ");
-                if (sh.getValue() != null) sb.append(escape(sh.getValue()));
-                if (sh.getDetails() != null) sb.append(" - ").append(escape(sh.getDetails()));
-                sb.append("</div>");
-            }
-            sb.append("</div>");
-        }
-    }
-
-    private static void appendROS(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getRos() != null && !dto.getRos().isEmpty()) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Review of Systems</div>");
-            for (var ros : dto.getRos()) {
-                sb.append("<div class='list-item'>");
-                sb.append("<strong>").append(escape(ros.getSystemName())).append(":</strong> ");
-                sb.append(ros.getIsNegative() ? "Negative" : "Positive");
-                if (ros.getFinding() != null) sb.append(" - ").append(escape(ros.getFinding()));
-                if (ros.getNotes() != null) sb.append("<br/>").append(escape(ros.getNotes()));
-                sb.append("</div>");
-            }
-            sb.append("</div>");
-        }
-    }
-
-    private static void appendPhysicalExam(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getPhysicalExam() != null && !dto.getPhysicalExam().isEmpty()) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Physical Examination</div>");
-            for (var pe : dto.getPhysicalExam()) {
-                if (pe.getSections() != null) {
-                    for (var sec : pe.getSections()) {
-                        if (sec.getNormalText() != null || sec.getFindings() != null) {
-                            sb.append("<div class='list-item'>");
-                            sb.append("<strong>").append(escape(sec.getSectionKey())).append(":</strong> ");
-                            if (sec.getAllNormal()) sb.append("Normal");
-                            if (sec.getNormalText() != null) sb.append(" - ").append(escape(sec.getNormalText()));
-                            if (sec.getFindings() != null) sb.append("<br/>Findings: ").append(escape(sec.getFindings()));
-                            sb.append("</div>");
-                        }
-                    }
-                }
-            }
-            sb.append("</div>");
-        }
-    }
-
-    private static void appendProcedures(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getProcedures() != null && !dto.getProcedures().isEmpty()) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Procedures</div>");
-            for (var proc : dto.getProcedures()) {
-                sb.append("<div class='list-item'>");
-                if (proc.getCpt4() != null) sb.append("<strong>").append(escape(proc.getCpt4())).append("</strong> - ");
-                if (proc.getDescription() != null) sb.append(escape(proc.getDescription()));
-                if (proc.getProcedureName() != null) sb.append("<br/>").append(escape(proc.getProcedureName()));
-                if (proc.getUnits() != null) sb.append(" | Units: ").append(proc.getUnits());
-                if (proc.getRate() != null) sb.append(" | Rate: $").append(proc.getRate());
-                sb.append("</div>");
-            }
-            sb.append("</div>");
-        }
-    }
-
-    private static void appendAssessment(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getAssessment() != null && !dto.getAssessment().isEmpty()) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Assessment</div>");
-            for (var a : dto.getAssessment()) {
-                sb.append("<div class='list-item'>").append(escape(a.getAssessment())).append("</div>");
-            }
-            sb.append("</div>");
-        }
-    }
-
-    private static void appendPlan(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getPlan() != null && !dto.getPlan().isEmpty()) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Plan</div>");
-            for (var p : dto.getPlan()) {
-                sb.append("<div class='card'>");
-                if (p.getDiagnosticPlan() != null) sb.append("<div><strong>Diagnostic Plan:</strong> ").append(escape(p.getDiagnosticPlan())).append("</div>");
-                if (p.getPlan() != null) sb.append("<div><strong>Plan:</strong> ").append(escape(p.getPlan())).append("</div>");
-                if (p.getNotes() != null) sb.append("<div><strong>Notes:</strong> ").append(escape(p.getNotes())).append("</div>");
-                if (p.getFollowUpVisit() != null) sb.append("<div><strong>Follow-up:</strong> ").append(escape(String.valueOf(p.getFollowUpVisit()))).append("</div>");
-                sb.append("</div>");
-            }
-            sb.append("</div>");
-        }
-    }
-
-    private static void appendProviderNotes(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getProviderNotes() != null && !dto.getProviderNotes().isEmpty()) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Provider Notes (SOAP)</div>");
-            for (var note : dto.getProviderNotes()) {
-                sb.append("<div class='card'>");
-                if (note.getSubjective() != null) sb.append("<div><strong>Subjective:</strong> ").append(escape(note.getSubjective())).append("</div>");
-                if (note.getObjective() != null) sb.append("<div><strong>Objective:</strong> ").append(escape(note.getObjective())).append("</div>");
-                if (note.getAssessment() != null) sb.append("<div><strong>Assessment:</strong> ").append(escape(note.getAssessment())).append("</div>");
-                if (note.getPlan() != null) sb.append("<div><strong>Plan:</strong> ").append(escape(note.getPlan())).append("</div>");
-                if (note.getNarrative() != null) sb.append("<div><strong>Narrative:</strong> ").append(escape(note.getNarrative())).append("</div>");
-                sb.append("</div>");
-            }
-            sb.append("</div>");
-        }
-    }
-
-    private static void appendProviderSignature(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getProviderSignature() != null) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Provider Signature</div>");
-            sb.append("<div class='card'>");
-            if (dto.getProviderSignature().getSignedBy() != null) 
-                sb.append("<div><strong>Signed By:</strong> ").append(escape(dto.getProviderSignature().getSignedBy())).append("</div>");
-            if (dto.getProviderSignature().getSignedAt() != null) 
-                sb.append("<div><strong>Signed At:</strong> ").append(escape(dto.getProviderSignature().getSignedAt())).append("</div>");
-            sb.append("</div></div>");
-        }
-    }
-
-    private static void appendDateTimeFinalized(StringBuilder sb, EncounterSummaryDto dto) {
-        if (dto.getDateTimeFinalized() != null && dto.getDateTimeFinalized().getFinalizedAt() != null) {
-            sb.append("<div class='section'>");
-            sb.append("<div class='section-title'>Finalization</div>");
-            sb.append("<div class='card'>");
-            sb.append("<div><strong>Finalized At:</strong> ").append(escape(dto.getDateTimeFinalized().getFinalizedAt())).append("</div>");
-            sb.append("</div></div>");
-        }
-    }
 
     private static String escape(String s) {
         return s == null ? "" : s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;").replace("'","&#039;");

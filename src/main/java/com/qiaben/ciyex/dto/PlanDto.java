@@ -51,7 +51,8 @@ public class PlanDto {
     public String notes;
     public String followUpVisit;
     public String returnWorkSchool;
-    public String sectionsJson; // PLAIN STRING
+    public String section1;
+    public String section2;
 
     public Boolean eSigned;
     public String  signedAt;    // ISO string
