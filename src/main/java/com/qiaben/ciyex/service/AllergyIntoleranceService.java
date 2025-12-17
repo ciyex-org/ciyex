@@ -297,7 +297,9 @@ public class AllergyIntoleranceService {
         if (isBlank(r.getReaction()))    throw new IllegalArgumentException("reaction is required");
     }
 
+
     private boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
     }
 }
+

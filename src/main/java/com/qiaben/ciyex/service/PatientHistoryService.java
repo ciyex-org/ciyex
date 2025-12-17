@@ -50,4 +50,5 @@ public class PatientHistoryService {
             throw new RuntimeException("Failed to retrieve patient history", e);
         }
     }
+
 }

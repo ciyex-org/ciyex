@@ -14,4 +14,5 @@ public class PatientHistoryDto {
     private String lastModifiedDate;
     private String createdBy;
     private String lastModifiedBy;
+
 }

@@ -25,4 +25,5 @@ public class PatientHistory extends AuditableEntity {
     
     @Column(name = "fhir_id")
     private String fhirId;
+
 }
