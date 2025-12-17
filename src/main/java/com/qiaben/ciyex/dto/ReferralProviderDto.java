@@ -15,6 +15,8 @@ public class ReferralProviderDto {
     private String phoneNumber;
     private String email;
     private String fhirId;
+    private String npiId;
+    private String taxId;
     private Long practiceId; // Direct practice ID field for convenience
     private PracticeInfo practice;
 
