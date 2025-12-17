@@ -84,6 +84,9 @@ public class CommunicationService {
             fhirId = UUID.randomUUID().toString();
         }
 
+        // Generate conversation key for proper threading
+        String conversationKey = dto.getPatientId() + "_" + dto.getProviderId();
+        
         Communication entity = Communication.builder()
                 .externalId(externalId)
                 .fhirId(fhirId)
@@ -92,7 +95,7 @@ public class CommunicationService {
                 .sentDate(dto.getSentDate() != null ? dto.getSentDate() : now)
                 .payload(dto.getPayload())
                 .subject(dto.getSubject())
-                .inResponseTo(dto.getInResponseTo())
+                .inResponseTo(conversationKey) // Use conversation key for proper threading
                 .patientId(dto.getPatientId())
                 .providerId(dto.getProviderId())
                 .attachmentIds(dto.getAttachmentIds())
@@ -515,37 +518,56 @@ public class CommunicationService {
             dto.setFromId(r.getFromId());
             dto.setFromName(r.getFromName());
             
-            // Fallback: populate from fields if not set in entity
-            if (dto.getFromName() == null || dto.getFromName().trim().isEmpty()) {
+            // Ensure fromId and fromName are NEVER null
+            if (dto.getFromId() == null || dto.getFromName() == null || dto.getFromName().trim().isEmpty()) {
                 if ("provider".equals(fromType) && r.getProviderId() != null) {
+                    dto.setFromId(r.getProviderId());
                     try {
                         providerRepo.findById(r.getProviderId()).ifPresent(provider -> {
-                            String providerName = provider.getFirstName() + " " + provider.getLastName();
-                            dto.setFromId(r.getProviderId());
+                            String providerName = "Dr. " + provider.getFirstName() + " " + provider.getLastName();
                             dto.setFromName(providerName);
                         });
+                        if (dto.getFromName() == null || dto.getFromName().trim().isEmpty()) {
+                            dto.setFromName("Provider #" + r.getProviderId());
+                        }
                     } catch (Exception e) {
                         log.warn("Could not find provider name for provider ID {}: {}", r.getProviderId(), e.getMessage());
-                        dto.setFromName("Unknown Provider");
+                        dto.setFromName("Provider #" + r.getProviderId());
                     }
                 } else if ("patient".equals(fromType) && r.getPatientId() != null) {
+                    dto.setFromId(r.getPatientId());
                     try {
                         patientRepo.findById(r.getPatientId()).ifPresent(patient -> {
                             String patientName = patient.getFirstName() + " " + patient.getLastName();
-                            dto.setFromId(r.getPatientId());
                             dto.setFromName(patientName);
                         });
+                        if (dto.getFromName() == null || dto.getFromName().trim().isEmpty()) {
+                            dto.setFromName("Patient #" + r.getPatientId());
+                        }
                     } catch (Exception e) {
                         log.warn("Could not find patient name for patient ID {}: {}", r.getPatientId(), e.getMessage());
-                        dto.setFromName("Unknown Patient");
+                        dto.setFromName("Patient #" + r.getPatientId());
                     }
                 }
             }
 
-            // To (patient names)
+            // Set correct recipient based on message direction
             List<String> toNames = new ArrayList<>();
             List<Long> toIds = new ArrayList<>();
-            if (r.getPatientId() != null) {
+            
+            if ("patient_to_provider".equals(messageType) && r.getProviderId() != null) {
+                // Patient → Provider: recipient is provider
+                try {
+                    providerRepo.findById(r.getProviderId()).ifPresent(provider -> {
+                        String providerName = "Dr. " + provider.getFirstName() + " " + provider.getLastName();
+                        toNames.add(providerName);
+                        toIds.add(r.getProviderId());
+                    });
+                } catch (Exception e) {
+                    log.warn("Could not find provider name for provider ID {}: {}", r.getProviderId(), e.getMessage());
+                }
+            } else if ("provider_to_patient".equals(messageType) && r.getPatientId() != null) {
+                // Provider → Patient: recipient is patient
                 try {
                     patientRepo.findById(r.getPatientId()).ifPresent(patient -> {
                         String patientName = patient.getFirstName() + " " + patient.getLastName();
@@ -556,6 +578,7 @@ public class CommunicationService {
                     log.warn("Could not find patient name for patient ID {}: {}", r.getPatientId(), e.getMessage());
                 }
             }
+            
             dto.setToNames(toNames);
             dto.setToIds(toIds);
 

@@ -194,12 +194,13 @@ public class PortalCommunicationController {
 
                 // Set all required fields for patient → provider message
                 messageDto.setPatientId(ehrPatientId);
+                messageDto.setProviderId(messageDto.getProviderId());
                 messageDto.setFromId(ehrPatientId);
                 messageDto.setFromName(patientName);
                 messageDto.setFromType("patient");
+                messageDto.setMessageType("patient_to_provider");
                 messageDto.setSender("Patient/" + ehrPatientId);
                 messageDto.setRecipients(List.of("Provider/" + messageDto.getProviderId()));
-                messageDto.setMessageType("patient_to_provider");
                 
                 log.info("Patient message: patientId={}, providerId={}, fromId={}, fromName={}",
                         ehrPatientId, messageDto.getProviderId(), ehrPatientId, patientName);
@@ -226,13 +227,14 @@ public class PortalCommunicationController {
                 String providerName = provider.getFirstName() + " " + provider.getLastName();
 
                 // Set all required fields for provider → patient message
+                messageDto.setPatientId(messageDto.getPatientId());
                 messageDto.setProviderId(provider.getId());
                 messageDto.setFromId(provider.getId());
                 messageDto.setFromName(providerName);
                 messageDto.setFromType("provider");
+                messageDto.setMessageType("provider_to_patient");
                 messageDto.setSender("Provider/" + provider.getId());
                 messageDto.setRecipients(List.of("Patient/" + messageDto.getPatientId()));
-                messageDto.setMessageType("provider_to_patient");
                 
                 log.info("Provider message: patientId={}, providerId={}, fromId={}, fromName={}",
                         messageDto.getPatientId(), provider.getId(), provider.getId(), providerName);

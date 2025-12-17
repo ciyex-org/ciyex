@@ -11,6 +11,8 @@ import java.util.stream.Collectors;
 import jakarta.servlet.http.HttpServletRequest;
 
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -61,22 +63,35 @@ public class PortalAppointmentController {
     private final LocationRepository locationRepository;
     private final SlotRepository slotRepository;
     private final TelehealthResolver telehealthResolver;
+    private final com.qiaben.ciyex.service.portal.PortalPatientService portalPatientService;
 
     @GetMapping("/my")
     @PreAuthorize("hasAuthority('ROLE_PATIENT')")
-    public ResponseEntity<ApiResponse<List<AppointmentDto>>> getMyAppointments(HttpServletRequest request) {
-        return getPatientAppointments(request);
+    public ResponseEntity<ApiResponse<List<AppointmentDto>>> getMyAppointments(HttpServletRequest request, Authentication authentication) {
+        return getPatientAppointments(request, authentication);
     }
 
     @GetMapping
     @PreAuthorize("hasAuthority('ROLE_PATIENT')")
-    public ResponseEntity<ApiResponse<List<AppointmentDto>>> getPatientAppointments(HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<List<AppointmentDto>>> getPatientAppointments(HttpServletRequest request, Authentication authentication) {
         try {
             log.info("Fetching appointments for portal user");
             setRequestContextOrg(request);
-            // RequestContext already set by interceptor, no need for executeInTenantContext
-            List<AppointmentDTO> appointments = appointmentService.getAll(org.springframework.data.domain.PageRequest.of(0, 10)).getContent();
+            
+            // Get current portal user's ehrPatientId
+            Long ehrPatientId = getCurrentPortalUserEhrPatientId(authentication);
+            if (ehrPatientId == null) {
+                return ResponseEntity.ok(ApiResponse.<List<AppointmentDto>>builder()
+                    .success(false)
+                    .message("Portal user not found or not linked to EHR patient")
+                    .build());
+            }
+            
+            // Filter appointments by the portal user's ehrPatientId
+            List<AppointmentDTO> appointments = appointmentService.getByPatientId(ehrPatientId);
             List<AppointmentDto> appointmentDtos = appointments.stream().map(this::convertToDtoInContext).collect(Collectors.toList());
+            
+            log.info("Found {} appointments for portal user with ehrPatientId: {}", appointments.size(), ehrPatientId);
             return ResponseEntity.ok(ApiResponse.<List<AppointmentDto>>builder()
                 .success(true)
                 .message("Appointments retrieved successfully")
@@ -124,7 +139,7 @@ public class PortalAppointmentController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('ROLE_PATIENT')")
-    public ResponseEntity<ApiResponse<AppointmentDto>> requestAppointment(@RequestBody CreateAppointmentRequest request, HttpServletRequest httpRequest) {
+    public ResponseEntity<ApiResponse<AppointmentDto>> requestAppointment(@RequestBody CreateAppointmentRequest request, HttpServletRequest httpRequest, Authentication authentication) {
         try {
             log.info("Processing appointment request");
 
@@ -139,12 +154,23 @@ public class PortalAppointmentController {
             LocalDate appointmentDate = parseDateFromMMDDYY(request.getDate());
             appointmentDTO.setAppointmentStartDate(appointmentDate);
             appointmentDTO.setAppointmentEndDate(appointmentDate);
-            appointmentDTO.setAppointmentStartTime(java.time.LocalTime.parse(request.getTime()));
+            
+            LocalTime startTime = java.time.LocalTime.parse(request.getTime());
+            appointmentDTO.setAppointmentStartTime(startTime);
+            appointmentDTO.setAppointmentEndTime(startTime.plusMinutes(30)); // Add 30 minutes for end time
+            
             appointmentDTO.setReason(request.getReason());
             appointmentDTO.setPriority(request.getPriority() != null ? request.getPriority() : "Routine");
             appointmentDTO.setStatus("PENDING");
-            // orgId deprecated - tenantName removed
-            appointmentDTO.setPatientId(1L);
+            // Set patientId to current portal user's ehrPatientId
+            Long ehrPatientId = getCurrentPortalUserEhrPatientId(httpRequest, authentication);
+            if (ehrPatientId == null) {
+                return ResponseEntity.ok(ApiResponse.<AppointmentDto>builder()
+                    .success(false)
+                    .message("Portal user not found or not linked to EHR patient")
+                    .build());
+            }
+            appointmentDTO.setPatientId(ehrPatientId);
 
             // Generate Jitsi meeting URL for virtual appointments
             if (isVirtualAppointment(request.getVisitType())) {
@@ -239,6 +265,44 @@ public class PortalAppointmentController {
         }
 
         return dto;
+    }
+    
+    /**
+     * Get current portal user's ehrPatientId from authentication
+     */
+    private Long getCurrentPortalUserEhrPatientId(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+        
+        try {
+            String email = null;
+            if (authentication.getPrincipal() instanceof Jwt jwt) {
+                email = jwt.getClaimAsString("email");
+            }
+            
+            if (email == null || email.isEmpty()) {
+                log.warn("No email claim found in token");
+                return null;
+            }
+            
+            var patientInfo = portalPatientService.getPatientInfo(email);
+            if (patientInfo.isSuccess() && patientInfo.getData() != null) {
+                return patientInfo.getData().getEhrPatientId();
+            }
+            
+            return null;
+        } catch (Exception e) {
+            log.error("Error getting current portal user's ehrPatientId", e);
+            return null;
+        }
+    }
+    
+    /**
+     * Overloaded method for backward compatibility
+     */
+    private Long getCurrentPortalUserEhrPatientId(HttpServletRequest request, Authentication authentication) {
+        return getCurrentPortalUserEhrPatientId(authentication);
     }
 
     private boolean isVirtualAppointment(String visitType) {
