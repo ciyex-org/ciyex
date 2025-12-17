@@ -180,7 +180,7 @@ public class PortalAppointmentController {
                         String roomName = "apt" + System.currentTimeMillis(); // Generate unique room name
                         JitsiTelehealthService.JoinTokenWithMeetingUrl result =
                             jitsiService.createJoinTokenWithUrl(roomName, "patient-" + appointmentDTO.getPatientId(), 3600);
-                        // appointmentDTO.setMeetingUrl(result.meetingUrl()); // Meeting URLs generated dynamically via JOIN API
+                        appointmentDTO.setMeetingUrl(result.meetingUrl()); // Meeting URLs generated dynamically via JOIN API
                         log.info("Generated Jitsi meeting URL for virtual appointment: {}", result.meetingUrl());
                     }
                 } catch (Exception e) {
@@ -235,6 +235,7 @@ public class PortalAppointmentController {
         dto.setProviderId(appointment.getProviderId());
         dto.setLocationId(appointment.getLocationId());
         dto.setPatientId(appointment.getPatientId());
+        dto.setMeetingUrl(appointment.getMeetingUrl());
 
         if (appointment.getProviderId() != null) {
             try {
