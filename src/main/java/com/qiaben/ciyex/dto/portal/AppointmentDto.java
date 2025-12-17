@@ -30,5 +30,5 @@ public class AppointmentDto {
     private String providerName;
     private String locationName;
     private String patientName;
-    // private String meetingUrl;
+    private String meetingUrl;
 }

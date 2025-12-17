@@ -38,7 +38,7 @@ public class AppointmentDTO {
     private String externalId;  // Alias for fhirId for external integrations
 
     // Telehealth
-    // private String meetingUrl;
+    private String meetingUrl;
 
     // ✅ Track audit metadata
     private Audit audit = new Audit();
