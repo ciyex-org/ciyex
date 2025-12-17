@@ -105,12 +105,9 @@ public class AllergyIntoleranceService {
     public AllergyIntoleranceDto getByPatientId(Long patientId) {
         List<AllergyIntolerance> rows = repo.findAllByPatientId(patientId);
 
-        if (rows.isEmpty())
-            throw new RuntimeException("No allergies found for patientId=" + patientId);
-
         AllergyIntoleranceDto dto = toDto(patientId, rows, false);
 
-        if (rows.get(0).getExternalId() != null) {
+        if (!rows.isEmpty() && rows.get(0).getExternalId() != null) {
             String storageType = configProvider.getStorageTypeForCurrentOrg();
             if (storageType != null) {
                 ExternalStorage<AllergyIntoleranceDto> ext = storageResolver.resolve(AllergyIntoleranceDto.class);
@@ -300,7 +297,9 @@ public class AllergyIntoleranceService {
         if (isBlank(r.getReaction()))    throw new IllegalArgumentException("reaction is required");
     }
 
+
     private boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
     }
 }
+

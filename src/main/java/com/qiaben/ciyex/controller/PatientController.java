@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.Map;
+import com.qiaben.ciyex.service.PatientHistoryService;
 
 @RestController
 @RequestMapping("/api/patients")
@@ -24,6 +25,7 @@ import java.util.Map;
 public class PatientController {
 
     private final PatientService service;
+    private final PatientHistoryService historyService;
 
     // ✅ Create a new Patient with validation
     @PostMapping
@@ -179,6 +181,66 @@ public class PatientController {
                     .success(false)
                     .message("Failed to retrieve patients: " + e.getMessage())
                     .build());
+        }
+    }
+
+    // ✅ Patient history endpoint
+    @PostMapping("/{id}/history")
+    public ResponseEntity<ApiResponse<Object>> createPatientHistory(
+            @PathVariable Long id,
+            @RequestBody(required = false) Object historyData) {
+        try {
+            service.getById(id); // Validate patient exists
+            Object savedData = historyService.saveHistory(id, historyData);
+            
+            return ResponseEntity.ok(ApiResponse.<Object>builder()
+                    .success(true)
+                    .message("Patient history saved successfully")
+                    .data(savedData)
+                    .build());
+        } catch (RuntimeException e) {
+            log.error("Patient not found with id {}", id);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<Object>builder()
+                            .success(false)
+                            .message("Patient not found")
+                            .build());
+        } catch (Exception e) {
+            log.error("Failed to save patient history for id {}", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<Object>builder()
+                            .success(false)
+                            .message("Failed to save patient history")
+                            .build());
+        }
+    }
+
+    // ✅ Get patient history endpoint
+    @GetMapping("/{id}/history")
+    public ResponseEntity<ApiResponse<Object>> getPatientHistory(@PathVariable Long id) {
+        try {
+            service.getById(id); // Validate patient exists
+            Object historyData = historyService.getHistory(id);
+            
+            return ResponseEntity.ok(ApiResponse.<Object>builder()
+                    .success(true)
+                    .message("Patient history retrieved successfully")
+                    .data(historyData)
+                    .build());
+        } catch (RuntimeException e) {
+            log.error("Patient not found with id {}", id);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<Object>builder()
+                            .success(false)
+                            .message("Patient not found")
+                            .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve patient history for id {}", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<Object>builder()
+                            .success(false)
+                            .message("Failed to retrieve patient history")
+                            .build());
         }
     }
 }

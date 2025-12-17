@@ -53,8 +53,9 @@ public class AllergyIntoleranceController {
         } catch (Exception e) {
             log.error("Failed to retrieve Allergy Intolerance for patientId {}: {}", patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto>builder()
-                    .success(false)
-                    .message("Failed to retrieve Allergy Intolerance: " + e.getMessage())
+                    .success(true)
+                    .message("No allergies found for patient ID: " + patientId)
+                    .data(new AllergyIntoleranceDto())
                     .build());
         }
     }
@@ -172,4 +173,5 @@ public class AllergyIntoleranceController {
                     .build());
         }
     }
+
 }
