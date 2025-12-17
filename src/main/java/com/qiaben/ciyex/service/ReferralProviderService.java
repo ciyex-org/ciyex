@@ -168,6 +168,12 @@ public class ReferralProviderService {
                 .orElseThrow(() -> new RuntimeException("Referral practice not found"));
     }
 
+    @Transactional(readOnly = true)
+    public ReferralPractice getPracticeDetails(Long practiceId) {
+        return practiceRepo.findById(practiceId)
+                .orElseThrow(() -> new RuntimeException("Referral practice not found"));
+    }
+
     // ---------- MAPPING ----------
     private ReferralProviderDto mapToDto(ReferralProvider entity) {
         ReferralProviderDto dto = new ReferralProviderDto();
@@ -182,6 +188,8 @@ public class ReferralProviderService {
         dto.setPhoneNumber(entity.getPhoneNumber());
         dto.setEmail(entity.getEmail());
         dto.setFhirId(entity.getFhirId());
+        dto.setNpiId(entity.getNpiId());
+        dto.setTaxId(entity.getTaxId());
 
         if (entity.getPractice() != null) {
             dto.setPracticeId(entity.getPractice().getId());
@@ -215,6 +223,8 @@ public class ReferralProviderService {
                 .phoneNumber(dto.getPhoneNumber())
                 .email(dto.getEmail())
                 .fhirId(dto.getFhirId())
+                .npiId(dto.getNpiId())
+                .taxId(dto.getTaxId())
                 // DO NOT set practice here; attach managed entity in create/update
                 .build();
     }
@@ -230,6 +240,8 @@ public class ReferralProviderService {
         if (dto.getPhoneNumber() != null) entity.setPhoneNumber(dto.getPhoneNumber());
         if (dto.getEmail() != null) entity.setEmail(dto.getEmail());
         if (dto.getFhirId() != null) entity.setFhirId(dto.getFhirId());
+        if (dto.getNpiId() != null) entity.setNpiId(dto.getNpiId());
+        if (dto.getTaxId() != null) entity.setTaxId(dto.getTaxId());
         return entity;
     }
 }

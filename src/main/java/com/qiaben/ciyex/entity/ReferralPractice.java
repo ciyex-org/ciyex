@@ -47,5 +47,11 @@ public class ReferralPractice extends AuditableEntity {
     @Column(name = "fhir_id")
     private String fhirId;
 
+    @Column(name = "npi_id")
+    private String npiId;
+
+    @Column(name = "tax_id")
+    private String taxId;
+
     // audit fields provided by AuditableEntity
 }

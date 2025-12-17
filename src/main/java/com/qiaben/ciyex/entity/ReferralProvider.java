@@ -26,6 +26,8 @@ public class ReferralProvider extends AuditableEntity {
     @Column(name = "phone_number") private String phoneNumber;
     private String email;
     @Column(name = "fhir_id") private String fhirId;
+    @Column(name = "npi_id") private String npiId;
+    @Column(name = "tax_id") private String taxId;
 
     // LAZY is fine because we JOIN FETCH in repository queries
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

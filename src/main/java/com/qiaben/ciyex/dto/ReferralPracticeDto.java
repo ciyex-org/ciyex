@@ -14,6 +14,8 @@ public class ReferralPracticeDto {
     private String phoneNumber;
     private String email;
     private String fhirId; // For external FHIR integration
+    private String npiId;
+    private String taxId;
 
     @Data
     public static class Audit {
