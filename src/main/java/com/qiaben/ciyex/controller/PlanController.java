@@ -136,9 +136,9 @@ public class PlanController {
         if (dto.section2 == null || dto.section2.trim().isEmpty()) {
             missingFields.add("section2");
         }
-        if (dto.notes == null || dto.notes.trim().isEmpty()) {
-            missingFields.add("notes");
-        }
+//        if (dto.notes == null || dto.notes.trim().isEmpty()) {
+//            missingFields.add("notes");
+//        }
 
         if (!missingFields.isEmpty()) {
             throw new IllegalArgumentException("Missing mandatory fields: " + String.join(", ", missingFields));

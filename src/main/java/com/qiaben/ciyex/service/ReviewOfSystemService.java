@@ -118,6 +118,7 @@
 
 package com.qiaben.ciyex.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.ReviewOfSystemDto;
 import com.qiaben.ciyex.entity.ReviewOfSystem;
 import com.qiaben.ciyex.repository.ReviewOfSystemRepository;
@@ -142,6 +143,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -158,6 +160,7 @@ public class ReviewOfSystemService {
     private final EncounterService encounterService;
     private final ExternalStorageResolver storageResolver;
     private final OrgIntegrationConfigProvider configProvider;
+    private final ObjectMapper objectMapper;
 
     @Autowired(required = false)
     private com.qiaben.ciyex.storage.fhir.FhirExternalReviewOfSystemStorage fhirStorage;
@@ -402,6 +405,8 @@ public class ReviewOfSystemService {
         e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
         repo.save(e);
 
+        ReviewOfSystemDto dto = toDto(e);
+
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             PDPage page = new PDPage(PDRectangle.LETTER);
             doc.addPage(page);
@@ -420,37 +425,31 @@ public class ReviewOfSystemService {
                 y -= 26;
                 draw(cs, x, y, "Patient ID:", String.valueOf(patientId)); y -= 16;
                 draw(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 16;
-                draw(cs, x, y, "ROS ID:", String.valueOf(id)); y -= 16;
+                draw(cs, x, y, "ROS ID:", String.valueOf(id)); y -= 20;
 
-                // Content
-                y -= 10;
-                draw(cs, x, y, "System:", e.getSystemName()); y -= 16;
-                draw(cs, x, y, "Status:", Boolean.TRUE.equals(e.getIsNegative()) ? "Negative" : "Positive"); y -= 18;
-
-                if (e.getSystemDetails() != null && !e.getSystemDetails().isEmpty()) {
-                    draw(cs, x, y, "Findings:", ""); y -= 14;
-                    for (String d : e.getSystemDetails()) {
-                        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 16, y);
-                        cs.showText("- " + d); cs.endText();
-                        y -= 14;
-                    }
-                    y -= 8;
-                }
-
-                if (StringUtils.hasText(e.getNotes())) {
-                    draw(cs, x, y, "Notes:", ""); y -= 14;
-                    for (String ln : e.getNotes().split("\\R")) {
-                        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 16, y);
-                        cs.showText(ln); cs.endText();
-                        y -= 14;
-                    }
-                }
+                // Render each system category
+                y = renderSystemCategory(cs, x, y, "Constitutional", dto.getConstitutional());
+                y = renderSystemCategory(cs, x, y, "Eyes", dto.getEyes());
+                y = renderSystemCategory(cs, x, y, "ENT", dto.getEnt());
+                y = renderSystemCategory(cs, x, y, "Neck", dto.getNeck());
+                y = renderSystemCategory(cs, x, y, "Cardiovascular", dto.getCardiovascular());
+                y = renderSystemCategory(cs, x, y, "Respiratory", dto.getRespiratory());
+                y = renderSystemCategory(cs, x, y, "Gastrointestinal", dto.getGastrointestinal());
+                y = renderSystemCategory(cs, x, y, "Genitourinary (Male)", dto.getGenitourinaryMale());
+                y = renderSystemCategory(cs, x, y, "Genitourinary (Female)", dto.getGenitourinaryFemale());
+                y = renderSystemCategory(cs, x, y, "Musculoskeletal", dto.getMusculoskeletal());
+                y = renderSystemCategory(cs, x, y, "Skin", dto.getSkin());
+                y = renderSystemCategory(cs, x, y, "Neurologic", dto.getNeurologic());
+                y = renderSystemCategory(cs, x, y, "Psychiatric", dto.getPsychiatric());
+                y = renderSystemCategory(cs, x, y, "Endocrine", dto.getEndocrine());
+                y = renderSystemCategory(cs, x, y, "Hematologic/Lymphatic", dto.getHematologicLymphatic());
+                y = renderSystemCategory(cs, x, y, "Allergic/Immunologic", dto.getAllergicImmunologic());
 
                 // eSign footer
                 y -= 10;
                 draw(cs, x, y, "eSigned:", Boolean.TRUE.equals(e.getESigned()) ? "Yes" : "No"); y -= 16;
                 if (e.getSignedAt() != null) { draw(cs, x, y, "Signed At:", e.getSignedAt().toString()); y -= 16; }
-                if (StringUtils.hasText(e.getSignedBy())) { draw(cs, x, y, "Signed By:", e.getSignedBy()); y -= 16; }
+                if (StringUtils.hasText(e.getSignedBy())) { draw(cs, x, y, "Signed By:", e.getSignedBy()); }
             }
 
             doc.save(baos);
@@ -458,6 +457,70 @@ public class ReviewOfSystemService {
         } catch (IOException ex) {
             throw new RuntimeException("Failed to generate ROS PDF", ex);
         }
+    }
+
+    private float renderSystemCategory(PDPageContentStream cs, float x, float y, String categoryName, Object category) throws IOException {
+        if (category == null) return y;
+
+        cs.setFont(PDType1Font.HELVETICA_BOLD, 12);
+        cs.beginText();
+        cs.newLineAtOffset(x, y);
+        cs.showText(categoryName);
+        cs.endText();
+        y -= 14;
+
+        // Use reflection to get all boolean fields and note
+        try {
+            java.lang.reflect.Field[] fields = category.getClass().getDeclaredFields();
+            List<String> positiveSymptoms = new ArrayList<>();
+            String note = null;
+
+            for (java.lang.reflect.Field field : fields) {
+                field.setAccessible(true);
+                Object value = field.get(category);
+                
+                if (field.getName().equals("note") && value instanceof String) {
+                    note = (String) value;
+                } else if (value instanceof Boolean && Boolean.TRUE.equals(value)) {
+                    // Convert camelCase to readable format
+                    String symptomName = field.getName().replaceAll("([A-Z])", " $1").trim();
+                    symptomName = symptomName.substring(0, 1).toUpperCase() + symptomName.substring(1);
+                    positiveSymptoms.add(symptomName);
+                }
+            }
+
+            if (!positiveSymptoms.isEmpty()) {
+                cs.setFont(PDType1Font.HELVETICA, 10);
+                for (String symptom : positiveSymptoms) {
+                    cs.beginText();
+                    cs.newLineAtOffset(x + 10, y);
+                    cs.showText("+ " + symptom);
+                    cs.endText();
+                    y -= 12;
+                }
+            } else {
+                cs.setFont(PDType1Font.HELVETICA_OBLIQUE, 10);
+                cs.beginText();
+                cs.newLineAtOffset(x + 10, y);
+                cs.showText("All Negative");
+                cs.endText();
+                y -= 12;
+            }
+
+            if (StringUtils.hasText(note)) {
+                cs.setFont(PDType1Font.HELVETICA_OBLIQUE, 9);
+                cs.beginText();
+                cs.newLineAtOffset(x + 10, y);
+                cs.showText("Note: " + note);
+                cs.endText();
+                y -= 12;
+            }
+        } catch (Exception ex) {
+            log.error("Error rendering system category", ex);
+        }
+
+        y -= 6; // spacing between categories
+        return y;
     }
 
     // ----- helpers
@@ -473,10 +536,31 @@ public class ReviewOfSystemService {
         d.setFhirId(e.getFhirId());
         d.setPatientId(e.getPatientId());
         d.setEncounterId(e.getEncounterId());
-        d.setSystemName(e.getSystemName());
-        d.setIsNegative(e.getIsNegative());
-        d.setNotes(e.getNotes());
-        d.setSystemDetails(new ArrayList<>(e.getSystemDetails()));
+
+        // Deserialize JSON data
+        if (StringUtils.hasText(e.getRosData())) {
+            try {
+                ReviewOfSystemDto temp = objectMapper.readValue(e.getRosData(), ReviewOfSystemDto.class);
+                d.setConstitutional(temp.getConstitutional());
+                d.setEyes(temp.getEyes());
+                d.setEnt(temp.getEnt());
+                d.setNeck(temp.getNeck());
+                d.setCardiovascular(temp.getCardiovascular());
+                d.setRespiratory(temp.getRespiratory());
+                d.setGastrointestinal(temp.getGastrointestinal());
+                d.setGenitourinaryMale(temp.getGenitourinaryMale());
+                d.setGenitourinaryFemale(temp.getGenitourinaryFemale());
+                d.setMusculoskeletal(temp.getMusculoskeletal());
+                d.setSkin(temp.getSkin());
+                d.setNeurologic(temp.getNeurologic());
+                d.setPsychiatric(temp.getPsychiatric());
+                d.setEndocrine(temp.getEndocrine());
+                d.setHematologicLymphatic(temp.getHematologicLymphatic());
+                d.setAllergicImmunologic(temp.getAllergicImmunologic());
+            } catch (Exception ex) {
+                log.error("Failed to deserialize ROS data", ex);
+            }
+        }
 
         d.setESigned(e.getESigned());
         d.setSignedAt(e.getSignedAt());
@@ -493,11 +577,14 @@ public class ReviewOfSystemService {
     }
 
     private void applyDto(ReviewOfSystem e, ReviewOfSystemDto d) {
-        e.setSystemName(d.getSystemName());
-        e.setIsNegative(d.getIsNegative());
-        e.setNotes(d.getNotes());
-        e.getSystemDetails().clear();
-        if (d.getSystemDetails() != null) e.getSystemDetails().addAll(d.getSystemDetails());
+        try {
+            // Serialize the entire DTO (excluding metadata) to JSON
+            String json = objectMapper.writeValueAsString(d);
+            e.setRosData(json);
+        } catch (Exception ex) {
+            log.error("Failed to serialize ROS data", ex);
+            throw new RuntimeException("Failed to save ROS data", ex);
+        }
         // eSign fields managed only via eSign()
     }
 }

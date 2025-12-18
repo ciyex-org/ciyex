@@ -2,6 +2,7 @@ package com.qiaben.ciyex.storage.fhir;
 
 import ca.uhn.fhir.rest.client.api.IGenericClient;
 import ca.uhn.fhir.rest.client.exceptions.FhirClientConnectionException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.ReviewOfSystemDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.provider.FhirClientProvider;
@@ -30,8 +31,8 @@ public class FhirExternalReviewOfSystemStorage implements ExternalStorage<Review
     @Override
     public String create(ReviewOfSystemDto dto) {
         String tenantName = tenantName();
-        log.info("FHIR create ReviewOfSystem for tenantName={} patientId={} encounterId={} systemName={}",
-                tenantName, dto.getPatientId(), dto.getEncounterId(), dto.getSystemName());
+        log.info("FHIR create ReviewOfSystem for tenantName={} patientId={} encounterId={}",
+                tenantName, dto.getPatientId(), dto.getEncounterId());
 
         return executeWithRetry(() -> {
             IGenericClient client = fhirClientProvider.getForCurrentTenant();
@@ -129,8 +130,8 @@ public class FhirExternalReviewOfSystemStorage implements ExternalStorage<Review
             new Coding().setSystem("http://terminology.hl7.org/CodeSystem/observation-category").setCode("exam")
         ));
 
-        // Set code based on system name
-        observation.setCode(new CodeableConcept().setText(dto.getSystemName()));
+        // Set code for Review of Systems
+        observation.setCode(new CodeableConcept().setText("Review of Systems"));
 
         // Set subject (patient)
         if (dto.getPatientId() != null) {
@@ -142,28 +143,13 @@ public class FhirExternalReviewOfSystemStorage implements ExternalStorage<Review
             observation.setEncounter(new Reference("Encounter/" + dto.getEncounterId()));
         }
 
-        // Set value based on isNegative
-        if (dto.getIsNegative() != null) {
-            if (dto.getIsNegative()) {
-                observation.setValue(new CodeableConcept().setText("Negative"));
-            } else {
-                observation.setValue(new CodeableConcept().setText("Positive"));
-            }
-        }
-
-        // Add notes as comment
-        if (dto.getNotes() != null && !dto.getNotes().isEmpty()) {
-            observation.addNote(new Annotation().setText(dto.getNotes()));
-        }
-
-        // Add system details as components
-        if (dto.getSystemDetails() != null && !dto.getSystemDetails().isEmpty()) {
-            for (String detail : dto.getSystemDetails()) {
-                Observation.ObservationComponentComponent component = new Observation.ObservationComponentComponent();
-                component.setCode(new CodeableConcept().setText("Detail"));
-                component.setValue(new StringType(detail));
-                observation.addComponent(component);
-            }
+        // Serialize entire DTO as JSON and store as note
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            String jsonData = mapper.writeValueAsString(dto);
+            observation.addNote(new Annotation().setText(jsonData));
+        } catch (Exception e) {
+            log.error("Failed to serialize ROS DTO to JSON", e);
         }
 
         // Add tenant tag
@@ -173,49 +159,31 @@ public class FhirExternalReviewOfSystemStorage implements ExternalStorage<Review
     }
 
     private ReviewOfSystemDto mapFromFhir(Observation observation) {
-        ReviewOfSystemDto dto = new ReviewOfSystemDto();
+        // Deserialize from JSON stored in note
+        if (!observation.getNote().isEmpty()) {
+            try {
+                String jsonData = observation.getNote().get(0).getText();
+                ObjectMapper mapper = new ObjectMapper();
+                return mapper.readValue(jsonData, ReviewOfSystemDto.class);
+            } catch (Exception e) {
+                log.error("Failed to deserialize ROS DTO from JSON", e);
+            }
+        }
 
-        // Extract patient ID
+        // Fallback: create empty DTO with basic info
+        ReviewOfSystemDto dto = new ReviewOfSystemDto();
         if (observation.getSubject() != null && observation.getSubject().getReference() != null) {
             String patientRef = observation.getSubject().getReference();
             if (patientRef.startsWith("Patient/")) {
                 dto.setPatientId(Long.parseLong(patientRef.substring(8)));
             }
         }
-
-        // Extract encounter ID
         if (observation.getEncounter() != null && observation.getEncounter().getReference() != null) {
             String encounterRef = observation.getEncounter().getReference();
             if (encounterRef.startsWith("Encounter/")) {
                 dto.setEncounterId(Long.parseLong(encounterRef.substring(10)));
             }
         }
-
-        // Extract system name from code
-        if (observation.getCode() != null) {
-            dto.setSystemName(observation.getCode().getText());
-        }
-
-        // Extract isNegative from value
-        if (observation.getValue() != null && observation.getValue() instanceof CodeableConcept) {
-            String valueText = ((CodeableConcept) observation.getValue()).getText();
-            dto.setIsNegative("Negative".equalsIgnoreCase(valueText));
-        }
-
-        // Extract notes from comments
-        if (!observation.getNote().isEmpty()) {
-            dto.setNotes(observation.getNote().get(0).getText());
-        }
-
-        // Extract system details from components
-        List<String> details = new ArrayList<>();
-        for (Observation.ObservationComponentComponent component : observation.getComponent()) {
-            if (component.getValue() instanceof StringType) {
-                details.add(((StringType) component.getValue()).getValue());
-            }
-        }
-        dto.setSystemDetails(details);
-
         return dto;
     }
 

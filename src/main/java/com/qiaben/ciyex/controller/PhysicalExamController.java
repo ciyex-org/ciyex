@@ -151,8 +151,8 @@ public class PhysicalExamController {
             if (section.getSectionKey() == null || section.getSectionKey().trim().isEmpty()) {
                 missingFields.add("Section " + (i + 1) + ": sectionKey");
             }
-            if (section.getAllNormal() == null) {
-                missingFields.add("Section " + (i + 1) + ": allNormal");
+            if (section.getFindings() == null) {
+                missingFields.add("Section " + (i + 1) + ": findings");
             }
             if (section.getNormalText() == null || section.getNormalText().trim().isEmpty()) {
                 missingFields.add("Section " + (i + 1) + ": normalText");

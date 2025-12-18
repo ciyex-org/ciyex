@@ -138,6 +138,7 @@ public class EncounterSummaryDto {
         private String status;
         private Boolean isNegative;
         private String finding;
+        private List<String> findings;
         private String notes;
     }
 

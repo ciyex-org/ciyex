@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -224,25 +225,80 @@ public class EncounterSummaryService {
 
     private List<EncounterSummaryDto.ROSEntry> mapROS(Long patientId, Long encounterId) {
         try {
-            return rosService.list(patientId, encounterId).stream()
-                    .map(d -> {
-                        var builder = EncounterSummaryDto.ROSEntry.builder()
-                                .id(d.getId())
-                                .systemName(d.getSystemName())
-                                .isNegative(d.getIsNegative())
-                                .notes(d.getNotes());
-                        
-                        // Map systemDetails to finding if available
-                        if (d.getSystemDetails() != null && !d.getSystemDetails().isEmpty()) {
-                            builder.finding(String.join(", ", d.getSystemDetails()));
-                        }
-                        
-                        return builder.build();
-                    })
-                    .collect(Collectors.toList());
+            var rosList = rosService.list(patientId, encounterId);
+            if (rosList.isEmpty()) return List.of();
+            
+            // Use a map to merge findings from multiple ROS records by system
+            Map<String, EncounterSummaryDto.ROSEntry> systemMap = new java.util.LinkedHashMap<>();
+            
+            for (var ros : rosList) {
+                mergeROSEntry(systemMap, ros.getId(), "Constitutional", ros.getConstitutional());
+                mergeROSEntry(systemMap, ros.getId(), "Eyes", ros.getEyes());
+                mergeROSEntry(systemMap, ros.getId(), "ENT", ros.getEnt());
+                mergeROSEntry(systemMap, ros.getId(), "Neck", ros.getNeck());
+                mergeROSEntry(systemMap, ros.getId(), "Cardiovascular", ros.getCardiovascular());
+                mergeROSEntry(systemMap, ros.getId(), "Respiratory", ros.getRespiratory());
+                mergeROSEntry(systemMap, ros.getId(), "Gastrointestinal", ros.getGastrointestinal());
+                mergeROSEntry(systemMap, ros.getId(), "Genitourinary (Male)", ros.getGenitourinaryMale());
+                mergeROSEntry(systemMap, ros.getId(), "Genitourinary (Female)", ros.getGenitourinaryFemale());
+                mergeROSEntry(systemMap, ros.getId(), "Musculoskeletal", ros.getMusculoskeletal());
+                mergeROSEntry(systemMap, ros.getId(), "Skin", ros.getSkin());
+                mergeROSEntry(systemMap, ros.getId(), "Neurologic", ros.getNeurologic());
+                mergeROSEntry(systemMap, ros.getId(), "Psychiatric", ros.getPsychiatric());
+                mergeROSEntry(systemMap, ros.getId(), "Endocrine", ros.getEndocrine());
+                mergeROSEntry(systemMap, ros.getId(), "Hematologic/Lymphatic", ros.getHematologicLymphatic());
+                mergeROSEntry(systemMap, ros.getId(), "Allergic/Immunologic", ros.getAllergicImmunologic());
+            }
+            
+            return new java.util.ArrayList<>(systemMap.values());
         } catch (Exception e) {
             log.error("Error mapping ROS", e);
             return List.of();
+        }
+    }
+    
+    private void mergeROSEntry(Map<String, EncounterSummaryDto.ROSEntry> systemMap, Long rosId, String systemName, Object category) {
+        try {
+            List<String> positiveSymptoms = new java.util.ArrayList<>();
+            String note = null;
+            
+            if (category != null) {
+                java.lang.reflect.Field[] fields = category.getClass().getDeclaredFields();
+                
+                for (java.lang.reflect.Field field : fields) {
+                    field.setAccessible(true);
+                    Object value = field.get(category);
+                    
+                    if (field.getName().equals("note") && value instanceof String) {
+                        note = (String) value;
+                    } else if (value instanceof Boolean && Boolean.TRUE.equals(value)) {
+                        String symptomName = field.getName().replaceAll("([A-Z])", " $1").trim();
+                        symptomName = symptomName.substring(0, 1).toUpperCase() + symptomName.substring(1);
+                        positiveSymptoms.add(symptomName);
+                    }
+                }
+            }
+            
+            // Merge with existing entry or create new
+            EncounterSummaryDto.ROSEntry existing = systemMap.get(systemName);
+            if (existing != null) {
+                // Merge findings
+                List<String> mergedFindings = new java.util.ArrayList<>(existing.getFindings() != null ? existing.getFindings() : List.of());
+                mergedFindings.addAll(positiveSymptoms);
+                existing.setFindings(mergedFindings);
+                existing.setIsNegative(mergedFindings.isEmpty());
+                if (note != null) existing.setNotes(note);
+            } else {
+                systemMap.put(systemName, EncounterSummaryDto.ROSEntry.builder()
+                        .id(rosId)
+                        .systemName(systemName)
+                        .isNegative(positiveSymptoms.isEmpty())
+                        .findings(positiveSymptoms)
+                        .notes(note)
+                        .build());
+            }
+        } catch (Exception ex) {
+            log.debug("Error extracting ROS entry for {}", systemName, ex);
         }
     }
 
@@ -504,16 +560,26 @@ public class EncounterSummaryService {
             sb.append("</div>");
         }
         
-        // ROS - grid
+        // ROS - compact format
         if (dto.getRos() != null && !dto.getRos().isEmpty()) {
-            sb.append("<div class='section'><div class='title'>ROS</div><div class='grid'>");
+            sb.append("<div class='section'><div class='title'>ROS</div>");
             for (var ros : dto.getRos()) {
-                sb.append("<div><b>").append(escape(ros.getSystemName())).append(":</b> ");
-                sb.append(ros.getIsNegative() ? "(-)" : "(+)");
-                if (ros.getFinding() != null) sb.append(" ").append(escape(ros.getFinding()));
-                sb.append("</div>");
+                if (ros.getSystemName() != null) {
+                    sb.append("<div style='margin-bottom:4px;'><b>").append(escape(ros.getSystemName())).append("</b><br/>");
+                    if (Boolean.TRUE.equals(ros.getIsNegative())) {
+                        sb.append("<span style='margin-left:10px;font-style:italic;'>All Negative</span>");
+                    } else if (ros.getFindings() != null && !ros.getFindings().isEmpty()) {
+                        for (String finding : ros.getFindings()) {
+                            sb.append("<span style='margin-left:10px;'>+ ").append(escape(finding)).append("</span><br/>");
+                        }
+                    }
+                    if (ros.getNotes() != null) {
+                        sb.append("<span style='margin-left:10px;font-size:7px;color:#666;'>Note: ").append(escape(ros.getNotes())).append("</span>");
+                    }
+                    sb.append("</div>");
+                }
             }
-            sb.append("</div></div>");
+            sb.append("</div>");
         }
         
         // Physical Exam - compact text format
