@@ -150,9 +150,9 @@ public class ProviderSignatureController {
         if (dto.getSignatureFormat() == null || dto.getSignatureFormat().trim().isEmpty()) {
             missingFields.add("signatureFormat");
         }
-        if (dto.getComments() == null || dto.getComments().trim().isEmpty()) {
-            missingFields.add("comments");
-        }
+//        if (dto.getComments() == null || dto.getComments().trim().isEmpty()) {
+//            missingFields.add("comments");
+//        }
 
         if (!missingFields.isEmpty()) {
             throw new IllegalArgumentException("Missing mandatory fields: " + String.join(", ", missingFields));

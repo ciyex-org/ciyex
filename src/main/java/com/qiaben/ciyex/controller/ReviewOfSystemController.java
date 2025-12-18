@@ -121,24 +121,28 @@ public class ReviewOfSystemController {
     private final ReviewOfSystemService service;
 
     /**
-     * Validates that all mandatory fields are present: systemName, notes, and systemDetails.
-     * Throws IllegalArgumentException if any field is missing.
+     * Validates that at least one system category is provided.
      */
     private void validateMandatoryFields(ReviewOfSystemDto dto) {
-        List<String> missingFields = new java.util.ArrayList<>();
-
-        if (dto.getSystemName() == null || dto.getSystemName().trim().isEmpty()) {
-            missingFields.add("systemName");
-        }
-        if (dto.getNotes() == null || dto.getNotes().trim().isEmpty()) {
-            missingFields.add("notes");
-        }
-        if (dto.getSystemDetails() == null || dto.getSystemDetails().isEmpty()) {
-            missingFields.add("systemDetails");
-        }
-
-        if (!missingFields.isEmpty()) {
-            throw new IllegalArgumentException("Missing mandatory fields: " + String.join(", ", missingFields));
+        boolean hasAtLeastOneSystem = dto.getConstitutional() != null ||
+                dto.getEyes() != null ||
+                dto.getEnt() != null ||
+                dto.getNeck() != null ||
+                dto.getCardiovascular() != null ||
+                dto.getRespiratory() != null ||
+                dto.getGastrointestinal() != null ||
+                dto.getGenitourinaryMale() != null ||
+                dto.getGenitourinaryFemale() != null ||
+                dto.getMusculoskeletal() != null ||
+                dto.getSkin() != null ||
+                dto.getNeurologic() != null ||
+                dto.getPsychiatric() != null ||
+                dto.getEndocrine() != null ||
+                dto.getHematologicLymphatic() != null ||
+                dto.getAllergicImmunologic() != null;
+        
+        if (!hasAtLeastOneSystem) {
+            throw new IllegalArgumentException("At least one system category must be provided");
         }
     }
 

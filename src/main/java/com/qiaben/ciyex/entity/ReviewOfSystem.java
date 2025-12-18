@@ -72,7 +72,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "review_of_systems")
+@Table(name = "review_of_system")
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
 @EqualsAndHashCode(callSuper = true)
@@ -96,23 +96,9 @@ public class ReviewOfSystem extends AuditableEntity {
     @Column(name = "encounter_id", nullable = false)
     private Long encounterId;
 
-    @Column(name = "system_name", nullable = false, length = 64)
-    private String systemName;
-
-    @Column(name = "is_negative")
-    private Boolean isNegative;
-
-    @Column(name = "notes", columnDefinition = "text")
-    private String notes;
-
-    // details table: review_of_system_details (ros_id, detail)
-    @ElementCollection
-    @CollectionTable(
-            name = "review_of_system_details",
-            joinColumns = @JoinColumn(name = "ros_id")
-    )
-    @Column(name = "detail", length = 128)
-    private List<String> systemDetails = new ArrayList<>();
+    @Column(name = "ros_data", columnDefinition = "jsonb")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    private String rosData; // JSON string containing all system categories
 
     // --- eSign / Print ---
     @Column(name = "e_signed")
