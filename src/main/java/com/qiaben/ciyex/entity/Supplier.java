@@ -17,7 +17,6 @@ public class Supplier extends AuditableEntity {
     private Long id;
 
     private String name;
-    private String contact;
     private String phone;
     private String email;
 

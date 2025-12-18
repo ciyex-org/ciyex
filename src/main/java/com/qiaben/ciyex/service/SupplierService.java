@@ -78,7 +78,6 @@ public class SupplierService {
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier", "id", (Object) id));
 
         supplier.setName(dto.getName());
-        supplier.setContact(dto.getContact());
         supplier.setPhone(dto.getPhone());
         supplier.setEmail(dto.getEmail());
 
@@ -115,7 +114,6 @@ public class SupplierService {
         return Supplier.builder()
                 .id(dto.getId())
                 .name(dto.getName())
-                .contact(dto.getContact())
                 .phone(dto.getPhone())
                 .email(dto.getEmail())
                 .externalId(dto.getExternalId())
@@ -126,7 +124,6 @@ public class SupplierService {
         SupplierDto dto = new SupplierDto();
         dto.setId(supplier.getId());
         dto.setName(supplier.getName());
-        dto.setContact(supplier.getContact());
         dto.setPhone(supplier.getPhone());
         dto.setEmail(supplier.getEmail());
         dto.setExternalId(supplier.getExternalId());

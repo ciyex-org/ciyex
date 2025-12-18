@@ -94,19 +94,44 @@ public class OrderService {
         Order entity = repository.findById(id)
                 .orElseThrow(() -> new com.qiaben.ciyex.exception.ResourceNotFoundException("Order", "id", (Object) id));
 
+        // Update basic fields
         entity.setOrderNumber(dto.getOrderNumber());
         entity.setSupplier(dto.getSupplier());
         entity.setDate(dto.getDate());
         entity.setStatus(dto.getStatus());
         entity.setAmount(dto.getAmount());
 
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && entity.getExternalId() != null) {
-            ExternalStorage<OrderDto> storage = storageResolver.resolve(OrderDto.class);
-            storage.update(mapToDto(entity), entity.getExternalId());
+        // Persist fields that were previously not updated (stock, itemName, category)
+        if (dto.getStock() != null) {
+            entity.setStock(dto.getStock());
+        }
+        if (dto.getItemName() != null) {
+            entity.setItemName(dto.getItemName());
+        }
+        if (dto.getCategory() != null) {
+            entity.setCategory(dto.getCategory());
         }
 
-        return mapToDto(repository.save(entity));
+        String storageType = configProvider.getStorageTypeForCurrentOrg();
+        if (storageType != null && entity.getExternalId() != null) {
+            try {
+                ExternalStorage<OrderDto> storage = storageResolver.resolve(OrderDto.class);
+                if (storage != null) {
+                    storage.update(mapToDto(entity), entity.getExternalId());
+                }
+            } catch (Exception e) {
+                log.warn("External storage update failed for order id {} externalId {}: {}", entity.getId(), entity.getExternalId(), e.getMessage());
+            }
+        }
+
+        log.debug("Saving Order id={} before save: orderNumber={}, supplier={}, itemName={}, category={}, stock={}, amount={}",
+                entity.getId(), entity.getOrderNumber(), entity.getSupplier(), entity.getItemName(), entity.getCategory(), entity.getStock(), entity.getAmount());
+
+        Order saved = repository.save(entity);
+
+        log.debug("Saved Order id={} with lastModified={}", saved.getId(), saved.getLastModifiedDate());
+
+        return mapToDto(saved);
     }
 
     @Transactional
