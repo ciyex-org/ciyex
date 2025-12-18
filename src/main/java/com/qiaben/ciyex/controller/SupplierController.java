@@ -139,10 +139,6 @@ public class SupplierController {
             missingFields.append("name, ");
         }
 
-        if (dto.getContact() == null || dto.getContact().trim().isEmpty()) {
-            missingFields.append("contact, ");
-        }
-
         if (dto.getPhone() == null || dto.getPhone().trim().isEmpty()) {
             missingFields.append("phone, ");
         }
