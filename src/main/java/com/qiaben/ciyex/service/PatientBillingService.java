@@ -17,6 +17,7 @@ import java.util.ArrayList;
 
 import java.util.stream.Collectors;
 
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -131,7 +132,8 @@ public class PatientBillingService {
 
 
     /* ====== Request DTOs ====== */
-    public record CreateInvoiceRequest(String code, String description, String provider, String dos, BigDecimal rate) {}
+    public record ProcedureLineRequest(String code, String description, BigDecimal rate) {}
+    public record CreateInvoiceRequest(String provider, String dos, List<ProcedureLineRequest> procedures) {}
     public record UpdateInvoiceRequest(String code, String description, String provider, String dos, BigDecimal rate) {}
     public record UpdateLineAmountRequest(BigDecimal newCharge) {}
     public record PercentageAdjustmentRequest(int percent) {}
@@ -296,29 +298,31 @@ public class PatientBillingService {
     public PatientInvoiceDto createInvoiceFromProcedure(Long patientId, CreateInvoiceRequest b) {
         getPatientOrThrow(patientId);
         if (b == null) throw new IllegalArgumentException("Request body is required");
-        if (b.code() == null || b.code().isEmpty()) throw new IllegalArgumentException("Procedure code is required");
         if (b.dos() == null || b.dos().isEmpty()) throw new IllegalArgumentException("Date of service is required");
-        if (b.rate() == null) throw new IllegalArgumentException("Rate is required");
+        if (b.procedures() == null || b.procedures().isEmpty()) throw new IllegalArgumentException("At least one procedure is required");
 
         PatientInvoice invoice = new PatientInvoice();
         invoice.setPatientId(patientId);
         invoice.setStatus(PatientInvoice.Status.OPEN);
 
+        // Create invoice lines for each procedure
+        for (ProcedureLineRequest proc : b.procedures()) {
+            if (proc.code() == null || proc.code().isEmpty()) throw new IllegalArgumentException("Procedure code is required");
+            if (proc.rate() == null) throw new IllegalArgumentException("Rate is required for procedure " + proc.code());
 
+            PatientInvoiceLine line = new PatientInvoiceLine();
+            line.setInvoice(invoice);
+            line.setCode(proc.code());
+            line.setTreatment(proc.description());
+            line.setProvider(b.provider());
+            line.setDos(LocalDate.parse(b.dos()));
+            line.setCharge(nz(proc.rate()));
+            line.setAllowed(nz(proc.rate()));
+            line.setInsPortion(nz(proc.rate()));
+            line.setPatientPortion(BigDecimal.ZERO);
+            invoice.getLines().add(line);
+        }
 
-        PatientInvoiceLine line = new PatientInvoiceLine();
-        line.setInvoice(invoice);
-        line.setCode(b.code());
-        line.setTreatment(b.description());
-        line.setProvider(b.provider());
-        line.setDos(LocalDate.parse(b.dos()));
-        line.setCharge(nz(b.rate()));
-        line.setAllowed(nz(b.rate()));
-        // seed: all initially to insurance; patient = 0
-        line.setInsPortion(nz(b.rate()));
-        line.setPatientPortion(BigDecimal.ZERO);
-
-        invoice.getLines().add(line);
         invoice.recalcTotals();
         invoiceRepo.saveAndFlush(invoice);
 
@@ -328,8 +332,7 @@ public class PatientBillingService {
         claim.setInvoiceId(invoice.getId());
         claim.setStatus(PatientClaim.Status.DRAFT);
         claim.setCreatedOn(LocalDate.parse(b.dos()));
-        claim.setType("Electronic"); // Always set type to Electronic
-        // Set patient name
+        claim.setType("Electronic");
         patientRepo.findById(patientId).ifPresent(patient -> {
             String fullName = patient.getFirstName() + (patient.getMiddleName() != null ? " " + patient.getMiddleName() : "") + " " + patient.getLastName();
             claim.setPatientName(fullName.trim());
