@@ -137,12 +137,15 @@ public class ProcedureService {
                 rateValue = java.math.BigDecimal.ZERO;
                 log.warn("Invalid rate format for procedure ID: {}. Defaulting to 0.", saved.getId());
             }
-            PatientBillingService.CreateInvoiceRequest invoiceRequest = new PatientBillingService.CreateInvoiceRequest(
+            PatientBillingService.ProcedureLineRequest procedureLine = new PatientBillingService.ProcedureLineRequest(
                     saved.getCpt4(),
                     saved.getDescription(),
+                    rateValue
+            );
+            PatientBillingService.CreateInvoiceRequest invoiceRequest = new PatientBillingService.CreateInvoiceRequest(
                     saved.getProvidername(),
                     saved.getHospitalBillingStart(),
-                    rateValue
+                    List.of(procedureLine)
             );
             billingService.createInvoiceFromProcedure(patientId, invoiceRequest);
             log.info("Invoice automatically created for procedure ID: {}", saved.getId());
