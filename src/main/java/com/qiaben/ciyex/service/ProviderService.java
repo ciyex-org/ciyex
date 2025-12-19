@@ -432,21 +432,20 @@ public class ProviderService {
     private void validateMandatoryFields(ProviderDto dto) {
         StringBuilder errors = new StringBuilder();
 
+        // Check NPI first
+        if (dto.getNpi() == null || dto.getNpi().trim().isEmpty()) {
+            errors.append("npi, ");
+        }
+
         // Check identification fields
         if (dto.getIdentification() == null) {
-            errors.append("firstName, lastName, gender, dateOfBirth, ");
+            errors.append("firstName, lastName, ");
         } else {
             if (dto.getIdentification().getFirstName() == null || dto.getIdentification().getFirstName().trim().isEmpty()) {
                 errors.append("firstName, ");
             }
             if (dto.getIdentification().getLastName() == null || dto.getIdentification().getLastName().trim().isEmpty()) {
                 errors.append("lastName, ");
-            }
-            if (dto.getIdentification().getGender() == null || dto.getIdentification().getGender().trim().isEmpty()) {
-                errors.append("gender, ");
-            }
-            if (dto.getIdentification().getDateOfBirth() == null) {
-                errors.append("dateOfBirth, ");
             }
         }
 
@@ -470,13 +469,16 @@ public class ProviderService {
 
         // Check professional details fields
         if (dto.getProfessionalDetails() == null) {
-            errors.append("specialty, providertype, ");
+            errors.append("specialty, providertype, licenseNumber, ");
         } else {
             if (dto.getProfessionalDetails().getSpecialty() == null || dto.getProfessionalDetails().getSpecialty().trim().isEmpty()) {
                 errors.append("specialty, ");
             }
             if (dto.getProfessionalDetails().getProviderType() == null || dto.getProfessionalDetails().getProviderType().trim().isEmpty()) {
                 errors.append("providertype, ");
+            }
+            if (dto.getProfessionalDetails().getLicenseNumber() == null || dto.getProfessionalDetails().getLicenseNumber().trim().isEmpty()) {
+                errors.append("licenseNumber, ");
             }
         }
 
