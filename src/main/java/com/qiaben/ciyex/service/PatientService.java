@@ -260,12 +260,16 @@ public class PatientService {
             page = repository.findAll(pageable);
         }
         
+        Page<PatientDto> dtoPage = page.map(this::mapToDto);
+        
         if (!"all".equalsIgnoreCase(status)) {
-            return page.map(this::mapToDto)
-                    .filter(dto -> status.equalsIgnoreCase(dto.getStatus()));
+            List<PatientDto> filtered = dtoPage.getContent().stream()
+                    .filter(dto -> status.equalsIgnoreCase(dto.getStatus()))
+                    .collect(Collectors.toList());
+            return new org.springframework.data.domain.PageImpl<>(filtered, pageable, filtered.size());
         }
         
-        return page.map(this::mapToDto);
+        return dtoPage;
     }
 
     // --- Mapping helpers ---
