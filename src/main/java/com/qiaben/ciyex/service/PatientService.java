@@ -250,6 +250,24 @@ public class PatientService {
         return page.map(this::mapToDto);
     }
 
+    // ✅ Get patients with search and status filter
+    @Transactional(readOnly = true)
+    public Page<PatientDto> getPatients(String search, String status, Pageable pageable) {
+        Page<Patient> page;
+        if (search != null && !search.isBlank()) {
+            page = repository.searchBy(search.toLowerCase(), pageable);
+        } else {
+            page = repository.findAll(pageable);
+        }
+        
+        if (!"all".equalsIgnoreCase(status)) {
+            return page.map(this::mapToDto)
+                    .filter(dto -> status.equalsIgnoreCase(dto.getStatus()));
+        }
+        
+        return page.map(this::mapToDto);
+    }
+
     // --- Mapping helpers ---
     private Patient mapToEntity(PatientDto dto) {
         Patient patient = new Patient();

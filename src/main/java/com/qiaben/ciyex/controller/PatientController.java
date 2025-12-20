@@ -192,7 +192,7 @@ public class PatientController {
         try {
             service.getById(id); // Validate patient exists
             Object savedData = historyService.saveHistory(id, historyData);
-            
+
             return ResponseEntity.ok(ApiResponse.<Object>builder()
                     .success(true)
                     .message("Patient history saved successfully")
@@ -221,7 +221,6 @@ public class PatientController {
         try {
             service.getById(id); // Validate patient exists
             Object historyData = historyService.getHistory(id);
-            
             return ResponseEntity.ok(ApiResponse.<Object>builder()
                     .success(true)
                     .message("Patient history retrieved successfully")
