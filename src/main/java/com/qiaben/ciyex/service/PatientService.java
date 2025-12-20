@@ -250,6 +250,28 @@ public class PatientService {
         return page.map(this::mapToDto);
     }
 
+    // ✅ Get patients with search and status filter
+    @Transactional(readOnly = true)
+    public Page<PatientDto> getPatients(String search, String status, Pageable pageable) {
+        Page<Patient> page;
+        if (search != null && !search.isBlank()) {
+            page = repository.searchBy(search.toLowerCase(), pageable);
+        } else {
+            page = repository.findAll(pageable);
+        }
+        
+        Page<PatientDto> dtoPage = page.map(this::mapToDto);
+        
+        if (!"all".equalsIgnoreCase(status)) {
+            List<PatientDto> filtered = dtoPage.getContent().stream()
+                    .filter(dto -> status.equalsIgnoreCase(dto.getStatus()))
+                    .collect(Collectors.toList());
+            return new org.springframework.data.domain.PageImpl<>(filtered, pageable, filtered.size());
+        }
+        
+        return dtoPage;
+    }
+
     // --- Mapping helpers ---
     private Patient mapToEntity(PatientDto dto) {
         Patient patient = new Patient();
