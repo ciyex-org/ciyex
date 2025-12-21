@@ -20,10 +20,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 @CrossOrigin(
-    origins = { "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001" },
-    allowedHeaders = "*",
-    methods = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS },
-    allowCredentials = "true"
+        origins = { "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001" },
+        allowedHeaders = "*",
+        methods = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS },
+        allowCredentials = "true"
 )
 public class AuthController {
 
@@ -37,14 +37,14 @@ public class AuthController {
             String redirectUri = request.get("redirectUri");
             String codeVerifier = request.get("codeVerifier");
 
-            log.info("Received Keycloak callback - code: {}, redirectUri: {}", 
-                code != null ? code.substring(0, Math.min(20, code.length())) + "..." : "null", 
-                redirectUri);
+            log.info("Received Keycloak callback - code: {}, redirectUri: {}",
+                    code != null ? code.substring(0, Math.min(20, code.length())) + "..." : "null",
+                    redirectUri);
 
             if (code == null || redirectUri == null || codeVerifier == null) {
                 log.error("Missing required parameters");
                 return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Missing required parameters: code, redirectUri, or codeVerifier"));
+                        .body(Map.of("error", "Missing required parameters: code, redirectUri, or codeVerifier"));
             }
 
             HttpHeaders headers = new HttpHeaders();
@@ -64,87 +64,87 @@ public class AuthController {
             log.info("Exchanging code for token at: {}", tokenEndpoint);
 
             ResponseEntity<Map> response = restTemplate.postForEntity(
-                tokenEndpoint,
-                requestEntity,
-                Map.class
+                    tokenEndpoint,
+                    requestEntity,
+                    Map.class
             );
 
             if (response.getStatusCode().is2xxSuccessful()) {
                 log.info("Successfully exchanged code for token");
-                
+
                 Map<String, Object> tokenData = response.getBody();
                 String accessToken = (String) tokenData.get("access_token");
-                
+
                 // Decode JWT to get user info (basic parsing without validation since it's from Keycloak)
                 Map<String, Object> userData = parseJwtPayload(accessToken);
-                
+
                 // Format response for frontend
                 Map<String, Object> formattedResponse = Map.of(
-                    "success", true,
-                    "data", Map.of(
-                        "token", accessToken,
-                        "refreshToken", tokenData.getOrDefault("refresh_token", ""),
-                        "email", userData.getOrDefault("email", ""),
-                        "username", userData.getOrDefault("preferred_username", ""),
-                        "firstName", userData.getOrDefault("given_name", ""),
-                        "lastName", userData.getOrDefault("family_name", ""),
-                        "userId", userData.getOrDefault("sub", ""),
-                        "groups", userData.getOrDefault("groups", java.util.List.of())
-                    )
+                        "success", true,
+                        "data", Map.of(
+                                "token", accessToken,
+                                "refreshToken", tokenData.getOrDefault("refresh_token", ""),
+                                "email", userData.getOrDefault("email", ""),
+                                "username", userData.getOrDefault("preferred_username", ""),
+                                "firstName", userData.getOrDefault("given_name", ""),
+                                "lastName", userData.getOrDefault("family_name", ""),
+                                "userId", userData.getOrDefault("sub", ""),
+                                "groups", userData.getOrDefault("groups", java.util.List.of())
+                        )
                 );
-                
+
                 return ResponseEntity.ok(formattedResponse);
             } else {
                 log.error("Token exchange failed with status: {}", response.getStatusCode());
                 return ResponseEntity.status(response.getStatusCode())
-                    .body(Map.of("success", false, "error", "Token exchange failed"));
+                        .body(Map.of("success", false, "error", "Token exchange failed"));
             }
 
         } catch (Exception e) {
             log.error("Error during Keycloak callback", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "Authentication failed: " + e.getMessage()));
+                    .body(Map.of("error", "Authentication failed: " + e.getMessage()));
         }
     }
 
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> request) {
         String refreshToken = request.get("refreshToken");
-        
+
         if (refreshToken == null) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "error", "refresh_token required"));
         }
 
         try {
             String tokenUrl = keycloakConfig.getTokenEndpoint();
-            
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-            
+
             MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
             params.add("grant_type", "refresh_token");
             params.add("client_id", keycloakConfig.getResource());
             params.add("client_secret", keycloakConfig.getClientSecret());
             params.add("refresh_token", refreshToken);
-            
+
             HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(params, headers);
-            
+
             ResponseEntity<Map> response = restTemplate.postForEntity(tokenUrl, entity, Map.class);
-            
+
             if (response.getStatusCode() == HttpStatus.OK) {
                 Map<String, Object> tokenData = response.getBody();
-                
+
                 return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "data", Map.of(
-                        "token", tokenData.get("access_token"),
-                        "refreshToken", tokenData.get("refresh_token")
-                    )
+                        "success", true,
+                        "data", Map.of(
+                                "token", tokenData.get("access_token"),
+                                "refreshToken", tokenData.get("refresh_token")
+                        )
                 ));
             }
-            
+
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "error", "invalid_token"));
-            
+
         } catch (Exception e) {
             log.error("Token refresh failed", e);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "error", "refresh_failed"));
@@ -155,7 +155,7 @@ public class AuthController {
     public ResponseEntity<?> health() {
         return ResponseEntity.ok(Map.of("status", "ok", "service", "auth"));
     }
-    
+
     /**
      * Parse JWT payload without validation (since token is from trusted Keycloak)
      */
@@ -165,10 +165,10 @@ public class AuthController {
             if (parts.length < 2) {
                 return Map.of();
             }
-            
+
             // Decode base64 payload
             String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]));
-            
+
             // Parse JSON
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             return mapper.readValue(payload, Map.class);
