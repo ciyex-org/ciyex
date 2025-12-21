@@ -3,6 +3,7 @@ package com.qiaben.ciyex.controller;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.PracticeDto;
 import com.qiaben.ciyex.service.PracticeService;
+import com.qiaben.ciyex.service.KeycloakAdminService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ import java.util.List;
 public class SettingsController {
 
     private final PracticeService practiceService;
+    private final KeycloakAdminService keycloakAdminService;
 
     /**
      * GET /settings/practice/settings
@@ -135,6 +137,19 @@ public class SettingsController {
                 
                 practice.setTokenExpiryMinutes(timeout);
                 log.info("✅ Session timeout set to {} minutes", timeout);
+                
+                // Update Keycloak realm settings in real-time
+                try {
+                    boolean keycloakUpdated = keycloakAdminService.updateClientTokenLifespan(timeout);
+                    if (keycloakUpdated) {
+                        log.info("✅ Keycloak token lifespan updated to {} minutes", timeout);
+                    } else {
+                        log.warn("⚠️ Failed to update Keycloak token lifespan, but practice setting saved");
+                    }
+                } catch (Exception e) {
+                    log.error("❌ Error updating Keycloak token lifespan: {}", e.getMessage());
+                    // Continue with practice update even if Keycloak update fails
+                }
             }
 
             // Save updated practice
@@ -286,6 +301,131 @@ public class SettingsController {
     }
 
     /**
+     * POST /settings/token-expiry
+     * Updates token expiry for the organization and applies to Keycloak in real-time
+     */
+    @PostMapping("/token-expiry")
+    public ResponseEntity<ApiResponse<TokenExpiryResponse>> updateTokenExpiry(
+            @RequestBody TokenExpiryRequest request) {
+        try {
+            log.info("Updating token expiry to {} minutes", request.getMinutes());
+            
+            // Validate range (5-30 minutes)
+            if (request.getMinutes() < 5 || request.getMinutes() > 30) {
+                log.warn("Invalid token expiry {}, must be 5-30", request.getMinutes());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<TokenExpiryResponse>builder()
+                        .success(false)
+                        .message("Token expiry must be between 5 and 30 minutes")
+                        .data(null)
+                        .build());
+            }
+            
+            // Get first practice
+            ApiResponse<List<PracticeDto>> practicesResponse = practiceService.getAllPractices();
+            if (practicesResponse.getData() == null || practicesResponse.getData().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<TokenExpiryResponse>builder()
+                        .success(false)
+                        .message("No practice found")
+                        .data(null)
+                        .build());
+            }
+            
+            PracticeDto practice = practicesResponse.getData().get(0);
+            practice.setTokenExpiryMinutes(request.getMinutes());
+            
+            // Update Keycloak first
+            boolean keycloakUpdated = false;
+            String keycloakMessage = "";
+            try {
+                keycloakUpdated = keycloakAdminService.updateClientTokenLifespan(request.getMinutes());
+                if (keycloakUpdated) {
+                    keycloakMessage = "Keycloak updated successfully";
+                    log.info("✅ Keycloak token lifespan updated to {} minutes", request.getMinutes());
+                } else {
+                    keycloakMessage = "Keycloak update failed";
+                    log.warn("⚠️ Failed to update Keycloak token lifespan");
+                }
+            } catch (Exception e) {
+                keycloakMessage = "Keycloak update error: " + e.getMessage();
+                log.error("❌ Error updating Keycloak: {}", e.getMessage());
+            }
+            
+            // Update practice settings
+            practiceService.update(practice.getId(), practice);
+            log.info("✅ Practice token expiry updated to {} minutes", request.getMinutes());
+            
+            TokenExpiryResponse response = new TokenExpiryResponse();
+            response.setMinutes(request.getMinutes());
+            response.setKeycloakUpdated(keycloakUpdated);
+            response.setKeycloakMessage(keycloakMessage);
+            
+            return ResponseEntity.ok(
+                ApiResponse.<TokenExpiryResponse>builder()
+                    .success(true)
+                    .message("Token expiry updated successfully")
+                    .data(response)
+                    .build()
+            );
+        } catch (Exception e) {
+            log.error("❌ Error updating token expiry", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.<TokenExpiryResponse>builder()
+                    .success(false)
+                    .message("Failed to update token expiry: " + e.getMessage())
+                    .data(null)
+                    .build());
+        }
+    }
+
+    /**
+     * GET /settings/token-expiry
+     * Gets current token expiry setting
+     */
+    @GetMapping("/token-expiry")
+    public ResponseEntity<ApiResponse<TokenExpiryResponse>> getTokenExpiry() {
+        try {
+            log.info("Fetching current token expiry setting");
+            
+            ApiResponse<List<PracticeDto>> practicesResponse = practiceService.getAllPractices();
+            if (practicesResponse.getData() == null || practicesResponse.getData().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<TokenExpiryResponse>builder()
+                        .success(false)
+                        .message("No practice found")
+                        .data(null)
+                        .build());
+            }
+            
+            PracticeDto practice = practicesResponse.getData().get(0);
+            Integer currentExpiry = practice.getTokenExpiryMinutes() != null ? 
+                practice.getTokenExpiryMinutes() : 5;
+            
+            TokenExpiryResponse response = new TokenExpiryResponse();
+            response.setMinutes(currentExpiry);
+            response.setKeycloakUpdated(true); // Assume it's in sync
+            response.setKeycloakMessage("Current setting");
+            
+            return ResponseEntity.ok(
+                ApiResponse.<TokenExpiryResponse>builder()
+                    .success(true)
+                    .message("Token expiry retrieved successfully")
+                    .data(response)
+                    .build()
+            );
+        } catch (Exception e) {
+            log.error("❌ Error fetching token expiry", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.<TokenExpiryResponse>builder()
+                    .success(false)
+                    .message("Failed to fetch token expiry")
+                    .data(null)
+                    .build());
+        }
+    }
+
+    /**
      * Request/Response DTOs
      */
     @Data
@@ -322,5 +462,17 @@ public class SettingsController {
         private String timeDisplayFormat;
         private String timeZone;
         private String currencyDesignator;
+    }
+    
+    @Data
+    public static class TokenExpiryRequest {
+        private Integer minutes; // 5-30 minutes
+    }
+    
+    @Data
+    public static class TokenExpiryResponse {
+        private Integer minutes;
+        private Boolean keycloakUpdated;
+        private String keycloakMessage;
     }
 }
