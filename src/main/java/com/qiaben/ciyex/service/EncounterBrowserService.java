@@ -11,24 +11,26 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional; // ✅ Spring Transactional
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class EncounterBrowserService {
 
-    private final EncounterRepository encounterRepository; // ✅ inject repo
+    private final EncounterRepository encounterRepository;
 
     public EncounterBrowserService(EncounterRepository encounterRepository) {
         this.encounterRepository = encounterRepository;
     }
 
-    @Transactional(readOnly = true) // ✅ now valid
+    @Transactional(readOnly = true)
     public Page<EncounterDto> listAll(Optional<EncounterStatus> statusOpt,
-            boolean recentOnly,
-            int recentCount,
-            Pageable pageable
+                                      boolean recentOnly,
+                                      int recentCount,
+                                      Pageable pageable
     ) {
         // Build an effective pageable (don’t mutate the captured one)
         Pageable effective = pageable;
@@ -56,8 +58,11 @@ public class EncounterBrowserService {
         return page.map(this::mapToDto);
     }
 
-    // Simple mapper (adapt to your fields)
-    // In EncounterBrowseService or EncounterService (where your listAllForOrg() lives)
+    @Transactional(readOnly = true)
+    public List<EncounterDto> getAllEncounters() {
+        return encounterRepository.findAll().stream().map(this::mapToDto).collect(Collectors.toList());
+    }
+
     private EncounterDto mapToDto(Encounter e) {
         EncounterDto dto = new EncounterDto();
 
@@ -77,16 +82,10 @@ public class EncounterBrowserService {
         // Dates/timestamps — match your entity/DTO types (Instant/Long/LocalDateTime)
         dto.setEncounterDate(e.getEncounterDate());
 
-        
+
         // Status (enum/string) — make sure entity has @Enumerated(EnumType.STRING) if DB stores text
         dto.setStatus(e.getStatus());
 
-        // If you have more fields in DTO, map them here one-by-one.
-        // dto.setVisitNumber(e.getVisitNumber());
-        // dto.setAppointmentId(e.getAppointmentId());
-        // dto.setLocationId(e.getLocationId());
-        // dto.setProviderId(e.getProviderId());
-        // ...
         return dto;
     }
 
