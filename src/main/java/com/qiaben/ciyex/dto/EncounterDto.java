@@ -25,6 +25,7 @@ public class EncounterDto {
     private EncounterStatus status;
     private String externalId;
     private String fhirId;
+    private String diagnosis; // Diagnosis codes from procedures
 
     // audit
     private Audit audit;

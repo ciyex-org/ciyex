@@ -51,4 +51,15 @@ public class EncounterBrowseController {
                         .build()
         );
     }
+
+    @GetMapping("report/encounterAll")
+    public ResponseEntity<ApiResponse<?>> getAllEncounters() {
+        return ResponseEntity.ok(
+                ApiResponse.builder()
+                        .success(true)
+                        .message("All encounters fetched")
+                        .data(EncounterBrowserService.getAllEncounters())
+                        .build()
+        );
+    }
 }
