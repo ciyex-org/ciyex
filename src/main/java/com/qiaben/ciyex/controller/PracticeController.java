@@ -266,12 +266,12 @@ public class PracticeController {
             }
 
             PracticeDto updatedPractice = service.update(id, practice);
-
+            
             // Update Keycloak token lifespan dynamically
             if (request.getTokenExpiryMinutes() != null) {
                 keycloakAdminService.updateClientTokenLifespan(request.getTokenExpiryMinutes());
             }
-
+            
             return ResponseEntity.ok(
                     ApiResponse.<PracticeDto>builder()
                             .success(true)
