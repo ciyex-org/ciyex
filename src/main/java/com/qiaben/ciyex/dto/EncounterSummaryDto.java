@@ -166,6 +166,18 @@ public class EncounterSummaryDto {
         private Integer units;
         private Double rate;
         private String relatedIcds;
+        private List<CodeItem> codeItems;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class CodeItem {
+        private String cpt4;
+        private String description;
+        private Integer units;
+        private Double rate;
+        private String relatedIcds;
+        private String modifier1;
+        private String note;
     }
 
 //    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder

@@ -107,44 +107,153 @@ public class ProcedureController {
     }
 
     @PostMapping("/{patientId}/{encounterId}")
-    public ResponseEntity<ApiResponse<ProcedureDto>> create(
-            @PathVariable Long patientId, @PathVariable Long encounterId, @RequestBody ProcedureDto dto) {
+    public ResponseEntity<ApiResponse<?>> create(
+            @PathVariable Long patientId, @PathVariable Long encounterId, @RequestBody Object requestBody) {
         try {
-            // Validate mandatory fields
-            String validationError = validateMandatoryFields(dto);
-            if (validationError != null) {
-                return ResponseEntity.badRequest().body(ApiResponse.<ProcedureDto>builder()
-                        .success(false).message(validationError).build());
+            List<ProcedureDto.CodeItem> codeItems = new java.util.ArrayList<>();
+            ProcedureDto procedureDto = new ProcedureDto();
+            
+            if (requestBody instanceof List) {
+                // Array format - extract common fields from first item, code-specific fields from all items
+                List<java.util.Map<String, Object>> items = (List<java.util.Map<String, Object>>) requestBody;
+                
+                for (int i = 0; i < items.size(); i++) {
+                    java.util.Map<String, Object> item = items.get(i);
+                    
+                    // Extract code-specific fields for CodeItem
+                    ProcedureDto.CodeItem codeItem = new ProcedureDto.CodeItem();
+                    codeItem.setCpt4((String) item.get("cpt4"));
+                    codeItem.setDescription((String) item.get("description"));
+                    codeItem.setUnits((Integer) item.get("units"));
+                    codeItem.setRate((String) item.get("rate"));
+                    codeItem.setRelatedIcds((String) item.get("relatedIcds"));
+                    codeItem.setModifier1((String) item.get("modifier1"));
+
+                    codeItem.setHospitalBillingStart((String) item.get("hospitalBillingStart"));
+                    codeItem.setHospitalBillingEnd((String) item.get("hospitalBillingEnd"));
+                    codeItem.setNote((String) item.get("note"));
+                    codeItem.setPriceLevelId((Integer) item.get("priceLevelId"));
+                    codeItem.setPriceLevelTitle((String) item.get("priceLevelTitle"));
+                    codeItem.setProvidername((String) item.get("providername"));
+                    codeItems.add(codeItem);
+                    
+                    // Use first item for common procedure-level fields
+                    if (i == 0) {
+                        procedureDto.setHospitalBillingStart((String) item.get("hospitalBillingStart"));
+                        procedureDto.setHospitalBillingEnd((String) item.get("hospitalBillingEnd"));
+                        procedureDto.setNote((String) item.get("note"));
+                        procedureDto.setPriceLevelId((Integer) item.get("priceLevelId"));
+                        procedureDto.setPriceLevelTitle((String) item.get("priceLevelTitle"));
+                        procedureDto.setProvidername((String) item.get("providername"));
+                    }
+                }
+                procedureDto.setCodeItems(codeItems);
+            } else if (requestBody instanceof java.util.Map) {
+                java.util.Map<String, Object> map = (java.util.Map<String, Object>) requestBody;
+                if (map.containsKey("codeItems")) {
+                    // Object with codeItems array
+                    procedureDto = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .convertValue(requestBody, ProcedureDto.class);
+                } else {
+                    // Single code item
+                    procedureDto = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .convertValue(requestBody, ProcedureDto.class);
+                }
             }
-            var created = service.create(patientId, encounterId, dto);
-            return ResponseEntity.ok(ApiResponse.<ProcedureDto>builder()
+
+            // Validate
+            if (procedureDto.getCodeItems() != null && !procedureDto.getCodeItems().isEmpty()) {
+                for (ProcedureDto.CodeItem item : procedureDto.getCodeItems()) {
+                    if (item.getCpt4() == null || item.getRate() == null || item.getUnits() == null) {
+                        return ResponseEntity.badRequest().body(ApiResponse.builder()
+                                .success(false).message("Each code item must have cpt4, rate, and units").build());
+                    }
+                }
+            } else {
+                String validationError = validateMandatoryFields(procedureDto);
+                if (validationError != null) {
+                    return ResponseEntity.badRequest().body(ApiResponse.builder()
+                            .success(false).message(validationError).build());
+                }
+            }
+
+            var created = service.create(patientId, encounterId, procedureDto);
+            return ResponseEntity.ok(ApiResponse.builder()
                     .success(true).message("Procedure created").data(created).build());
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST)
-                    .body(ApiResponse.<ProcedureDto>builder().success(false).message(ex.getMessage()).build());
+                    .body(ApiResponse.builder().success(false).message(ex.getMessage()).build());
         } catch (IllegalStateException ex) {
             return ResponseEntity.status(org.springframework.http.HttpStatus.LOCKED)
-                    .body(ApiResponse.<ProcedureDto>builder().success(false).message(ex.getMessage()).build());
+                    .body(ApiResponse.builder().success(false).message(ex.getMessage()).build());
         } catch (Exception ex) {
             log.error("Error creating Procedure for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
             return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.<ProcedureDto>builder().success(false).message("Error creating Procedure: " + ex.getMessage()).build());
+                    .body(ApiResponse.builder().success(false).message("Error creating Procedure: " + ex.getMessage()).build());
         }
     }
 
     @PutMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<ApiResponse<ProcedureDto>> update(
             @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
-            @RequestBody ProcedureDto dto) {
+            @RequestBody Object requestBody) {
         try {
-            // Validate mandatory fields
-            String validationError = validateMandatoryFields(dto);
-            if (validationError != null) {
-                return ResponseEntity.badRequest().body(ApiResponse.<ProcedureDto>builder()
-                        .success(false).message(validationError).build());
+            List<ProcedureDto.CodeItem> codeItems = new java.util.ArrayList<>();
+            ProcedureDto procedureDto = new ProcedureDto();
+            
+            if (requestBody instanceof List) {
+                List<java.util.Map<String, Object>> items = (List<java.util.Map<String, Object>>) requestBody;
+                
+                for (int i = 0; i < items.size(); i++) {
+                    java.util.Map<String, Object> item = items.get(i);
+                    
+                    ProcedureDto.CodeItem codeItem = new ProcedureDto.CodeItem();
+                    codeItem.setCpt4((String) item.get("cpt4"));
+                    codeItem.setDescription((String) item.get("description"));
+                    codeItem.setUnits((Integer) item.get("units"));
+                    codeItem.setRate((String) item.get("rate"));
+                    codeItem.setRelatedIcds((String) item.get("relatedIcds"));
+                    codeItem.setModifier1((String) item.get("modifier1"));
+                    codeItem.setHospitalBillingStart((String) item.get("hospitalBillingStart"));
+                    codeItem.setHospitalBillingEnd((String) item.get("hospitalBillingEnd"));
+                    codeItem.setNote((String) item.get("note"));
+                    codeItem.setPriceLevelId((Integer) item.get("priceLevelId"));
+                    codeItem.setPriceLevelTitle((String) item.get("priceLevelTitle"));
+                    codeItem.setProvidername((String) item.get("providername"));
+                    codeItems.add(codeItem);
+                    
+                    if (i == 0) {
+                        procedureDto.setHospitalBillingStart((String) item.get("hospitalBillingStart"));
+                        procedureDto.setHospitalBillingEnd((String) item.get("hospitalBillingEnd"));
+                        procedureDto.setNote((String) item.get("note"));
+                        procedureDto.setPriceLevelId((Integer) item.get("priceLevelId"));
+                        procedureDto.setPriceLevelTitle((String) item.get("priceLevelTitle"));
+                        procedureDto.setProvidername((String) item.get("providername"));
+                    }
+                }
+                procedureDto.setCodeItems(codeItems);
+            } else if (requestBody instanceof java.util.Map) {
+                procedureDto = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .convertValue(requestBody, ProcedureDto.class);
             }
 
-            var updated = service.update(patientId, encounterId, id, dto);
+            // Validate
+            if (procedureDto.getCodeItems() != null && !procedureDto.getCodeItems().isEmpty()) {
+                for (ProcedureDto.CodeItem item : procedureDto.getCodeItems()) {
+                    if (item.getCpt4() == null || item.getRate() == null || item.getUnits() == null) {
+                        return ResponseEntity.badRequest().body(ApiResponse.<ProcedureDto>builder()
+                                .success(false).message("Each code item must have cpt4, rate, and units").build());
+                    }
+                }
+            } else {
+                String validationError = validateMandatoryFields(procedureDto);
+                if (validationError != null) {
+                    return ResponseEntity.badRequest().body(ApiResponse.<ProcedureDto>builder()
+                            .success(false).message(validationError).build());
+                }
+            }
+
+            var updated = service.update(patientId, encounterId, id, procedureDto);
             return ResponseEntity.ok(ApiResponse.<ProcedureDto>builder()
                     .success(true)
                     .message("Procedure updated successfully")
