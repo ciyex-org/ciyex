@@ -2,14 +2,10 @@ package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.PracticeDto;
-import com.qiaben.ciyex.service.KeycloakAdminService;
 import com.qiaben.ciyex.service.PracticeService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,23 +20,11 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/settings")
+@RequiredArgsConstructor
 @Slf4j
 public class SettingsController {
 
     private final PracticeService practiceService;
-    private final KeycloakAdminService keycloakAdminService;
-
-    @Value("${ciyex.env:local}")
-    private String environment;
-
-    @Value("${keycloak.enabled:true}")
-    private boolean keycloakEnabled;
-
-    public SettingsController(PracticeService practiceService, 
-                            @Autowired(required = false) KeycloakAdminService keycloakAdminService) {
-        this.practiceService = practiceService;
-        this.keycloakAdminService = keycloakAdminService;
-    }
 
     /**
      * GET /settings/practice/settings
@@ -155,17 +139,6 @@ public class SettingsController {
 
             // Save updated practice
             PracticeDto updated = practiceService.update(practice.getId(), practice);
-
-            // Update Keycloak if enabled and timeout changed
-            if (keycloakEnabled && keycloakAdminService != null && request.getSessionTimeoutMinutes() != null) {
-                Integer timeoutValue = request.getSessionTimeoutMinutes();
-                try {
-                    keycloakAdminService.updateClientTokenLifespan(timeoutValue);
-                    log.info("[{}] ✅ Keycloak updated with {}m timeout", environment, timeoutValue);
-                } catch (Exception e) {
-                    log.warn("[{}] ⚠️ Keycloak update failed: {}", environment, e.getMessage());
-                }
-            }
 
             return ResponseEntity.ok(
                 ApiResponse.<String>builder()
@@ -349,138 +322,5 @@ public class SettingsController {
         private String timeDisplayFormat;
         private String timeZone;
         private String currencyDesignator;
-    }
-
-    /**
-     * GET /settings/token-expiry
-     * Returns current token expiry settings with environment info
-     */
-    @GetMapping("/token-expiry")
-    public ResponseEntity<ApiResponse<TokenExpiryResponse>> getTokenExpiry() {
-        try {
-            ApiResponse<List<PracticeDto>> practicesResponse = practiceService.getAllPractices();
-            
-            if (practicesResponse.getData() == null || practicesResponse.getData().isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.<TokenExpiryResponse>builder()
-                        .success(false)
-                        .message("No practice found")
-                        .data(null)
-                        .build());
-            }
-
-            PracticeDto practice = practicesResponse.getData().get(0);
-            Integer minutes = practice.getTokenExpiryMinutes() != null ? practice.getTokenExpiryMinutes() : 5;
-
-            TokenExpiryResponse response = new TokenExpiryResponse();
-            response.setMinutes(minutes);
-            response.setEnvironment(environment);
-            response.setKeycloakEnabled(keycloakEnabled);
-            response.setKeycloakUpdated(true);
-            response.setKeycloakMessage(keycloakEnabled ? "Connected" : "Disabled");
-
-            return ResponseEntity.ok(
-                ApiResponse.<TokenExpiryResponse>builder()
-                    .success(true)
-                    .message("Token expiry settings retrieved")
-                    .data(response)
-                    .build()
-            );
-        } catch (Exception e) {
-            log.error("[{}] ❌ Error getting token expiry", environment, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.<TokenExpiryResponse>builder()
-                    .success(false)
-                    .message("Failed to get token expiry settings")
-                    .data(null)
-                    .build());
-        }
-    }
-
-    /**
-     * POST /settings/token-expiry
-     * Updates token expiry settings with Keycloak integration
-     */
-    @PostMapping("/token-expiry")
-    public ResponseEntity<ApiResponse<TokenExpiryResponse>> updateTokenExpiry(
-            @RequestBody TokenExpiryRequest request) {
-        try {
-            // Validate range
-            if (request.getMinutes() < 5 || request.getMinutes() > 30) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ApiResponse.<TokenExpiryResponse>builder()
-                        .success(false)
-                        .message("Token expiry must be between 5 and 30 minutes")
-                        .data(null)
-                        .build());
-            }
-
-            // Get practice
-            ApiResponse<List<PracticeDto>> practicesResponse = practiceService.getAllPractices();
-            if (practicesResponse.getData() == null || practicesResponse.getData().isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.<TokenExpiryResponse>builder()
-                        .success(false)
-                        .message("No practice found")
-                        .data(null)
-                        .build());
-            }
-
-            PracticeDto practice = practicesResponse.getData().get(0);
-            practice.setTokenExpiryMinutes(request.getMinutes());
-
-            // Save to database
-            practiceService.update(practice.getId(), practice);
-
-            // Update Keycloak if enabled
-            boolean keycloakUpdated = false;
-            String keycloakMessage = "Disabled";
-            
-            if (keycloakEnabled && keycloakAdminService != null) {
-                try {
-                    keycloakUpdated = keycloakAdminService.updateClientTokenLifespan(request.getMinutes());
-                    keycloakMessage = keycloakUpdated ? "Updated successfully" : "Update failed";
-                } catch (Exception e) {
-                    keycloakMessage = "Connection failed";
-                }
-            }
-
-            TokenExpiryResponse response = new TokenExpiryResponse();
-            response.setMinutes(request.getMinutes());
-            response.setEnvironment(environment);
-            response.setKeycloakEnabled(keycloakEnabled);
-            response.setKeycloakUpdated(keycloakUpdated);
-            response.setKeycloakMessage(keycloakMessage);
-
-            return ResponseEntity.ok(
-                ApiResponse.<TokenExpiryResponse>builder()
-                    .success(true)
-                    .message("Token expiry updated successfully")
-                    .data(response)
-                    .build()
-            );
-        } catch (Exception e) {
-            log.error("[{}] ❌ Error updating token expiry", environment, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.<TokenExpiryResponse>builder()
-                    .success(false)
-                    .message("Failed to update token expiry")
-                    .data(null)
-                    .build());
-        }
-    }
-
-    @Data
-    public static class TokenExpiryRequest {
-        private Integer minutes;
-    }
-
-    @Data
-    public static class TokenExpiryResponse {
-        private Integer minutes;
-        private String environment;
-        private boolean keycloakEnabled;
-        private boolean keycloakUpdated;
-        private String keycloakMessage;
     }
 }

@@ -31,9 +31,9 @@ spring:
       max-request-size: 1GB
 jwt:
   secret: Um7I76bdvjLLGMWPPYYZr4jYXSNKpHOtIQS8Ktg8C4w=
-  expiration: ${JWT_EXPIRATION:1800000}
+  expiration: 31557600000
 keycloak:
-  enabled: ${KEYCLOAK_ENABLED:true}
+  enabled: ${KEYCLOAK_ENABLED:false}
   auth-server-url: ${KEYCLOAK_AUTH_SERVER_URL:https://aran-stg.zpoa.com}
   realm: ${KEYCLOAK_REALM:master}
   resource: ${KEYCLOAK_RESOURCE:ciyex-app}
@@ -43,7 +43,7 @@ keycloak:
     username: ${KEYCLOAK_ADMIN_USERNAME:aran-admin}
     password: ${KEYCLOAK_ADMIN_PASSWORD:Kc@2024!Secure#Pass}
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,https://stg.ciyex.com}
+  allowed-origins: http://localhost:3000
 logging:
   level:
     root: info
