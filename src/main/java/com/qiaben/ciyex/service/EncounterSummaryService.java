@@ -326,17 +326,39 @@ public class EncounterSummaryService {
 
     private List<EncounterSummaryDto.Procedure> mapProcedures(Long patientId, Long encounterId) {
         try {
-            return procedureService.getAllByEncounter(patientId, encounterId).stream()
-                    .map(d -> EncounterSummaryDto.Procedure.builder()
-                            .id(d.getId())
-                            .cpt4(d.getCpt4())
-                            .description(d.getDescription())
-                            .procedureName(d.getNote())
-                            .units(d.getUnits())
-                            .rate(d.getRate() != null ? Double.valueOf(d.getRate()) : null)
-                            .relatedIcds(d.getRelatedIcds())
-                            .build())
-                    .collect(Collectors.toList());
+            List<EncounterSummaryDto.Procedure> result = new java.util.ArrayList<>();
+            var procedures = procedureService.getAllByEncounter(patientId, encounterId);
+            
+            for (var d : procedures) {
+                var builder = EncounterSummaryDto.Procedure.builder()
+                        .id(d.getId())
+                        .cpt4(d.getCpt4())
+                        .description(d.getDescription())
+                        .procedureName(d.getNote())
+                        .units(d.getUnits())
+                        .rate(d.getRate() != null ? Double.valueOf(d.getRate()) : null)
+                        .relatedIcds(d.getRelatedIcds());
+                
+                // Map code items if they exist
+                if (d.getCodeItems() != null && !d.getCodeItems().isEmpty()) {
+                    List<EncounterSummaryDto.CodeItem> codeItems = d.getCodeItems().stream()
+                            .map(ci -> EncounterSummaryDto.CodeItem.builder()
+                                    .cpt4(ci.getCpt4())
+                                    .description(ci.getDescription())
+                                    .units(ci.getUnits())
+                                    .rate(ci.getRate() != null ? Double.valueOf(ci.getRate()) : null)
+                                    .relatedIcds(ci.getRelatedIcds())
+                                    .modifier1(ci.getModifier1())
+                                    .note(ci.getNote())
+                                    .build())
+                            .collect(Collectors.toList());
+                    builder.codeItems(codeItems);
+                }
+                
+                result.add(builder.build());
+            }
+            
+            return result;
         } catch (Exception e) {
             log.error("Error mapping procedures", e);
             return List.of();
@@ -599,12 +621,24 @@ public class EncounterSummaryService {
             sb.append("</div>");
         }
         
-        // Procedures - inline
+        // Procedures - inline with code items
         if (dto.getProcedures() != null && !dto.getProcedures().isEmpty()) {
             sb.append("<div class='section'><div class='title'>PROCEDURES</div>");
             for (var proc : dto.getProcedures()) {
-                if (proc.getCpt4() != null) sb.append("<b>").append(escape(proc.getCpt4())).append("</b> ");
-                if (proc.getDescription() != null) sb.append(escape(proc.getDescription())).append("; ");
+                // Show main procedure if no code items
+                if (proc.getCodeItems() == null || proc.getCodeItems().isEmpty()) {
+                    if (proc.getCpt4() != null) sb.append("<b>").append(escape(proc.getCpt4())).append("</b> ");
+                    if (proc.getDescription() != null) sb.append(escape(proc.getDescription())).append("; ");
+                } else {
+                    // Show all code items
+                    for (var item : proc.getCodeItems()) {
+                        if (item.getCpt4() != null) sb.append("<b>").append(escape(item.getCpt4())).append("</b> ");
+                        if (item.getDescription() != null) sb.append(escape(item.getDescription()));
+                        if (item.getUnits() != null) sb.append(" (x").append(item.getUnits()).append(")");
+                        if (item.getRate() != null) sb.append(" $").append(item.getRate());
+                        sb.append("; ");
+                    }
+                }
             }
             sb.append("</div>");
         }

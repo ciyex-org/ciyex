@@ -53,17 +53,14 @@ public class Procedure extends AuditableEntity {
     @Column(name = "modifier1", length = 10)
     private String modifier1;
 
-    @Column(name = "modifier2", length = 10)
-    private String modifier2;
 
-    @Column(name = "modifier3", length = 10)
-    private String modifier3;
-
-    @Column(name = "modifier4", length = 10)
-    private String modifier4;
 
     @Column(name = "note", columnDefinition = "TEXT")
     private String note;
+
+    @Column(name = "code_items", columnDefinition = "JSON")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    private String codeItems;
 
     // audit fields provided by AuditableEntity
 

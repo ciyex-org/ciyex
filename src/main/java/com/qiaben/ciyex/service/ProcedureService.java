@@ -39,7 +39,6 @@ public class ProcedureService {
 
 
     public ProcedureDto create(Long patientId, Long encounterId, ProcedureDto in) {
-        // Validate patient and encounter existence
         boolean patientExists = patientRepository.existsById(patientId);
         boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
         if (!patientExists && !encounterExists) {
@@ -49,8 +48,18 @@ public class ProcedureService {
         } else if (!encounterExists) {
             throw new IllegalArgumentException("Encounter not found");
         }
-        // Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        // If codeItems exist, use first item for main procedure fields
+        if (in.getCodeItems() != null && !in.getCodeItems().isEmpty()) {
+            ProcedureDto.CodeItem firstItem = in.getCodeItems().get(0);
+            in.setCpt4(firstItem.getCpt4());
+            in.setDescription(firstItem.getDescription());
+            in.setUnits(firstItem.getUnits());
+            in.setRate(firstItem.getRate());
+            in.setRelatedIcds(firstItem.getRelatedIcds());
+            in.setModifier1(firstItem.getModifier1());
+        }
 
         Procedure p = Procedure.builder()
             .patientId(patientId)
@@ -63,18 +72,70 @@ public class ProcedureService {
             .hospitalBillingStart(in.getHospitalBillingStart())
             .hospitalBillingEnd(in.getHospitalBillingEnd())
             .modifier1(in.getModifier1())
-            .modifier2(in.getModifier2())
-            .modifier3(in.getModifier3())
-            .modifier4(in.getModifier4())
+
             .note(in.getNote())
             .priceLevelTitle(in.getPriceLevelTitle())
-            .priceLevelId(in.getPriceLevelId()) // FIX: ensure priceLevelId is set
+            .priceLevelId(in.getPriceLevelId())
             .providername(in.getProvidername())
             .build();
 
+        // Handle multiple code items
+        if (in.getCodeItems() != null && !in.getCodeItems().isEmpty()) {
+            try {
+                String codeItemsJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(in.getCodeItems());
+                p.setCodeItems(codeItemsJson);
+            } catch (Exception e) {
+                log.error("Failed to serialize code items", e);
+            }
+        }
+
+        return saveProcedureWithFhirAndInvoice(patientId, p);
+    }
+
+    public List<ProcedureDto> createMultiple(Long patientId, Long encounterId, ProcedureDto request) {
+        boolean patientExists = patientRepository.existsById(patientId);
+        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
+        if (!patientExists && !encounterExists) {
+            throw new IllegalArgumentException("Patient and Encounter not found");
+        } else if (!patientExists) {
+            throw new IllegalArgumentException("Patient not found");
+        } else if (!encounterExists) {
+            throw new IllegalArgumentException("Encounter not found");
+        }
+        encounterService.validateEncounterNotSigned(encounterId, patientId);
+
+        List<ProcedureDto> createdProcedures = new java.util.ArrayList<>();
+        List<ProcedureDto> itemsToProcess = request.getCodeItems() != null ? 
+            java.util.Collections.singletonList(request) : java.util.Collections.emptyList();
+        
+        for (ProcedureDto procedureItem : itemsToProcess) {
+            Procedure p = Procedure.builder()
+                .patientId(patientId)
+                .encounterId(encounterId)
+                .cpt4(procedureItem.getCpt4())
+                .description(procedureItem.getDescription())
+                .units(procedureItem.getUnits())
+                .rate(procedureItem.getRate())
+                .relatedIcds(procedureItem.getRelatedIcds())
+                .hospitalBillingStart(procedureItem.getHospitalBillingStart())
+                .hospitalBillingEnd(procedureItem.getHospitalBillingEnd())
+                .modifier1(procedureItem.getModifier1())
+
+                .note(procedureItem.getNote())
+                .priceLevelTitle(procedureItem.getPriceLevelTitle())
+                .priceLevelId(procedureItem.getPriceLevelId())
+                .providername(procedureItem.getProvidername())
+                .build();
+
+            ProcedureDto created = saveProcedureWithFhirAndInvoice(patientId, p);
+            createdProcedures.add(created);
+        }
+        return createdProcedures;
+    }
+
+    private ProcedureDto saveProcedureWithFhirAndInvoice(Long patientId, Procedure p) {
         final Procedure saved = repo.save(p);
 
-        // Step 5: Optional external FHIR sync
         String storageType = configProvider.getStorageTypeForCurrentOrg();
         log.info("Procedure create - storageType for current org: {}", storageType);
 
@@ -130,28 +191,56 @@ public class ProcedureService {
 
         // Automatically create invoice for the new procedure
         try {
-            java.math.BigDecimal rateValue;
-            try {
-                rateValue = new java.math.BigDecimal(saved.getRate());
-            } catch (Exception ex) {
-                rateValue = java.math.BigDecimal.ZERO;
-                log.warn("Invalid rate format for procedure ID: {}. Defaulting to 0.", saved.getId());
-            }
-            PatientBillingService.ProcedureLineRequest procedureLine = new PatientBillingService.ProcedureLineRequest(
+            List<PatientBillingService.ProcedureLineRequest> procedureLines = new java.util.ArrayList<>();
+            
+            // If codeItems exist, create invoice lines for each
+            if (saved.getCodeItems() != null && !saved.getCodeItems().isEmpty()) {
+                try {
+                    List<ProcedureDto.CodeItem> codeItems = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readValue(saved.getCodeItems(), new com.fasterxml.jackson.core.type.TypeReference<List<ProcedureDto.CodeItem>>(){});
+                    
+                    for (ProcedureDto.CodeItem item : codeItems) {
+                        java.math.BigDecimal rateValue;
+                        try {
+                            rateValue = new java.math.BigDecimal(item.getRate());
+                        } catch (Exception ex) {
+                            rateValue = java.math.BigDecimal.ZERO;
+                            log.warn("Invalid rate format for code item: {}. Defaulting to 0.", item.getCpt4());
+                        }
+                        procedureLines.add(new PatientBillingService.ProcedureLineRequest(
+                            item.getCpt4(),
+                            item.getDescription(),
+                            rateValue
+                        ));
+                    }
+                } catch (Exception ex) {
+                    log.error("Failed to parse code items for invoice", ex);
+                }
+            } else {
+                // Fallback to single procedure line
+                java.math.BigDecimal rateValue;
+                try {
+                    rateValue = new java.math.BigDecimal(saved.getRate());
+                } catch (Exception ex) {
+                    rateValue = java.math.BigDecimal.ZERO;
+                    log.warn("Invalid rate format for procedure ID: {}. Defaulting to 0.", saved.getId());
+                }
+                procedureLines.add(new PatientBillingService.ProcedureLineRequest(
                     saved.getCpt4(),
                     saved.getDescription(),
                     rateValue
-            );
+                ));
+            }
+            
             PatientBillingService.CreateInvoiceRequest invoiceRequest = new PatientBillingService.CreateInvoiceRequest(
                     saved.getProvidername(),
                     saved.getHospitalBillingStart(),
-                    List.of(procedureLine)
+                    procedureLines
             );
             billingService.createInvoiceFromProcedure(patientId, invoiceRequest);
             log.info("Invoice automatically created for procedure ID: {}", saved.getId());
         } catch (Exception e) {
             log.error("Failed to create invoice for procedure ID: {}", saved.getId(), e);
-            // Optionally, throw or handle failure (e.g., rollback if critical)
         }
 
         return mapToDto(saved);
@@ -176,6 +265,17 @@ public class ProcedureService {
                     String.format("Procedure not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
                 ));
 
+        // If codeItems exist, use first item for main procedure fields
+        if (in.getCodeItems() != null && !in.getCodeItems().isEmpty()) {
+            ProcedureDto.CodeItem firstItem = in.getCodeItems().get(0);
+            in.setCpt4(firstItem.getCpt4());
+            in.setDescription(firstItem.getDescription());
+            in.setUnits(firstItem.getUnits());
+            in.setRate(firstItem.getRate());
+            in.setRelatedIcds(firstItem.getRelatedIcds());
+            in.setModifier1(firstItem.getModifier1());
+        }
+
         p.setCpt4(in.getCpt4());
         p.setDescription(in.getDescription());
         p.setUnits(in.getUnits());
@@ -184,13 +284,21 @@ public class ProcedureService {
         p.setHospitalBillingStart(in.getHospitalBillingStart());
         p.setHospitalBillingEnd(in.getHospitalBillingEnd());
         p.setModifier1(in.getModifier1());
-        p.setModifier2(in.getModifier2());
-        p.setModifier3(in.getModifier3());
-        p.setModifier4(in.getModifier4());
         p.setNote(in.getNote());
         p.setPriceLevelTitle(in.getPriceLevelTitle());
-        p.setPriceLevelId(in.getPriceLevelId()); // FIX: ensure priceLevelId is set on update
+        p.setPriceLevelId(in.getPriceLevelId());
         p.setProvidername(in.getProvidername());
+
+        // Handle multiple code items
+        if (in.getCodeItems() != null && !in.getCodeItems().isEmpty()) {
+            try {
+                String codeItemsJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(in.getCodeItems());
+                p.setCodeItems(codeItemsJson);
+            } catch (Exception e) {
+                log.error("Failed to serialize code items", e);
+            }
+        }
+
         final Procedure updated = repo.save(p);
 
         // Step 7: Optional external FHIR sync
@@ -311,13 +419,23 @@ public class ProcedureService {
         dto.setHospitalBillingStart(e.getHospitalBillingStart());
         dto.setHospitalBillingEnd(e.getHospitalBillingEnd());
         dto.setModifier1(e.getModifier1());
-        dto.setModifier2(e.getModifier2());
-        dto.setModifier3(e.getModifier3());
-        dto.setModifier4(e.getModifier4());
+
         dto.setNote(e.getNote());
         dto.setPriceLevelId(e.getPriceLevelId());
         dto.setPriceLevelTitle(e.getPriceLevelTitle());
         dto.setProvidername(e.getProvidername());
+        
+        // Deserialize code items
+        if (e.getCodeItems() != null && !e.getCodeItems().isEmpty()) {
+            try {
+                List<ProcedureDto.CodeItem> codeItems = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readValue(e.getCodeItems(), new com.fasterxml.jackson.core.type.TypeReference<List<ProcedureDto.CodeItem>>(){});
+                dto.setCodeItems(codeItems);
+            } catch (Exception ex) {
+                log.error("Failed to deserialize code items", ex);
+            }
+        }
+        
         ProcedureDto.Audit a = new ProcedureDto.Audit();
         if (e.getCreatedAt() != null) a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
         if (e.getUpdatedAt() != null) a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
