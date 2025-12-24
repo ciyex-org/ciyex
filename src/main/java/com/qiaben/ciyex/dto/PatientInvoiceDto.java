@@ -9,6 +9,7 @@ public record PatientInvoiceDto(
         Long patientId,
         Status status,
         BigDecimal insWO,
+        BigDecimal appliedWO,
         BigDecimal ptBalance,
         BigDecimal insBalance,
         BigDecimal totalCharge,
