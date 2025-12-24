@@ -88,6 +88,13 @@ public class AppointmentService {
         return repository.findAllByPatientId(patientId, pageable).map(this::mapToDto);
     }
 
+    @Transactional(readOnly = true)
+    public AppointmentDTO getLatestByPatientId(Long patientId) {
+        return repository.findFirstByPatientIdOrderByAppointmentStartDateDescAppointmentStartTimeDesc(patientId)
+                .map(this::mapToDto)
+                .orElse(null);
+    }
+
     // -------- Update --------
     @Transactional
     public AppointmentDTO update(Long id, AppointmentDTO dto) {

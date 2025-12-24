@@ -253,7 +253,7 @@ public class PatientBillingService {
                     line.setInsPortion(nz(line.getInsPortion()).multiply(factor));
                     line.setPatientPortion(nz(line.getPatientPortion()).multiply(factor));
                 } else {
-                    // Default: all to insurance
+                    // Default: split based on insurance vs patient responsibility
                     line.setInsPortion(newCharge);
                     line.setPatientPortion(BigDecimal.ZERO);
                 }
@@ -263,9 +263,8 @@ public class PatientBillingService {
             }
         }
 
-        // Apply adjustment amount if provided
+        // Apply flat adjustment amount if provided
         if (req.adjustmentAmount() != null && req.adjustmentAmount().signum() != 0) {
-            // Create credit adjustment for the patient
             addCredit(patientId, req.adjustmentAmount());
         }
 
@@ -657,50 +656,49 @@ public class PatientBillingService {
         
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
 
-        if (req.lines() != null) {
-            for (PatientInsuranceRemitLineDto r : req.lines()) {
-                // 1) persist remit row
-                PatientInsuranceRemitLine e = new PatientInsuranceRemitLine();
-                e.setPatientId(patientId);
-                e.setInvoiceId(invoiceId);
-                e.setInvoiceLineId(r.invoiceLineId());
-                e.setSubmitted(nz(r.submitted()));
-                e.setBalance(nz(r.balance()));
-                e.setDeductible(nz(r.deductible()));
-                e.setAllowed(nz(r.allowed()));
-                e.setInsWriteOff(nz(r.insWriteOff()));
-                e.setInsPay(nz(r.insPay()));
-                e.setUpdateAllowed(r.updateAllowed());
-                e.setUpdateFlatPortion(r.updateFlatPortion());
-                e.setApplyWriteoff(r.applyWriteoff());
-                remitRepo.save(e);
+        for (PatientInsuranceRemitLineDto r : req.lines()) {
+            PatientInvoiceLine line = lineRepo.findById(r.invoiceLineId())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                        String.format("Invoice line not found with ID: %d", r.invoiceLineId())
+                    ));
+            if (!line.getInvoice().getId().equals(invoiceId)) throw new IllegalArgumentException("Line not in invoice");
 
-                // 2) recompute affected invoice line
-                PatientInvoiceLine line = lineRepo.findById(r.invoiceLineId())
-                        .orElseThrow(() -> new IllegalArgumentException(
-                            String.format("Invoice line not found with ID: %d. Please provide a valid Invoice Line ID.", r.invoiceLineId())
-                        ));
-                if (!line.getInvoice().getId().equals(invoiceId)) throw new IllegalArgumentException("Line not in invoice");
+            BigDecimal submitted = nz(r.submitted());
+            BigDecimal allowed = nz(r.allowed());
+            BigDecimal insPay = nz(r.insPay());
 
-                BigDecimal submitted = nz(r.submitted());
-                BigDecimal allowed   = nz(r.allowed());
-                BigDecimal insPay    = nz(r.insPay());
+            // EOB Logic: Submitted - Allowed = Applied Write-off (discount)
+            BigDecimal appliedWO = submitted.subtract(allowed).max(BigDecimal.ZERO);
+            
+            // Patient Responsibility = Allowed - Insurance Paid
+            BigDecimal ptResp = allowed.subtract(insPay).max(BigDecimal.ZERO);
 
-                BigDecimal insWO  = submitted.subtract(allowed); if (insWO.signum() < 0) insWO = BigDecimal.ZERO;
-                BigDecimal ptResp = allowed.subtract(insPay);    if (ptResp.signum() < 0) ptResp = BigDecimal.ZERO;
+            line.setCharge(submitted);
+            line.setAllowed(allowed);
+            line.setInsWriteOff(appliedWO);
+            line.setInsPortion(BigDecimal.ZERO);
+            line.setPatientPortion(ptResp);
+            lineRepo.save(line);
 
-                line.setCharge(submitted);
-                line.setAllowed(allowed);
-                line.setInsWriteOff(insWO);
-                // insurer still owes ptResp? no, ptResp is patient, so insPortion becomes 0
-                line.setInsPortion(BigDecimal.ZERO);
-                line.setPatientPortion(ptResp);
-                lineRepo.save(line);
-            }
+            // Persist remit row
+            PatientInsuranceRemitLine e = new PatientInsuranceRemitLine();
+            e.setPatientId(patientId);
+            e.setInvoiceId(invoiceId);
+            e.setInvoiceLineId(r.invoiceLineId());
+            e.setSubmitted(submitted);
+            e.setAllowed(allowed);
+            e.setInsWriteOff(appliedWO);
+            e.setInsPay(insPay);
+            e.setBalance(ptResp);
+            e.setDeductible(nz(r.deductible()));
+            e.setUpdateAllowed(r.updateAllowed());
+            e.setUpdateFlatPortion(r.updateFlatPortion());
+            e.setApplyWriteoff(r.applyWriteoff());
+            remitRepo.save(e);
         }
 
         invoice.recalcTotals();
-        // advance claim state
+        
         claimRepo.findByInvoiceIdAndPatientId(invoiceId, patientId)
                 .ifPresent(c -> c.setStatus(
                         invoice.getPtBalance().compareTo(BigDecimal.ZERO) == 0
@@ -743,7 +741,7 @@ public class PatientBillingService {
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
         PatientInsuranceRemitLine remit = remitRepo.findById(remitId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Insurance remit not found with ID: %d. Please provide a valid remit ID.", remitId)
+                    String.format("Insurance remit not found with ID: %d", remitId)
                 ));
 
         if (dto.submitted() != null)    remit.setSubmitted(dto.submitted());
@@ -762,12 +760,12 @@ public class PatientBillingService {
                     .orElseThrow(() -> new IllegalArgumentException("Invoice line not found"));
             if (!line.getInvoice().getId().equals(invoiceId)) throw new IllegalArgumentException("Line not in invoice");
 
-            BigDecimal submitted = nz(dto.submitted());
-            BigDecimal allowed   = nz(dto.allowed());
-            BigDecimal insPay    = nz(dto.insPay());
+            BigDecimal submitted = nz(remit.getSubmitted());
+            BigDecimal allowed = nz(remit.getAllowed());
+            BigDecimal insPay = nz(remit.getInsPay());
 
-            BigDecimal insWO  = submitted.subtract(allowed); if (insWO.signum() < 0) insWO = BigDecimal.ZERO;
-            BigDecimal ptResp = allowed.subtract(insPay);    if (ptResp.signum() < 0) ptResp = BigDecimal.ZERO;
+            BigDecimal insWO = submitted.subtract(allowed).max(BigDecimal.ZERO);
+            BigDecimal ptResp = allowed.subtract(insPay).max(BigDecimal.ZERO);
 
             line.setCharge(submitted);
             line.setAllowed(allowed);
@@ -838,47 +836,33 @@ public class PatientBillingService {
             throw new IllegalStateException("No invoice lines to adjust");
         }
 
-        // Calculate total insurance balance across all lines
+        // Calculate total insurance balance
         BigDecimal totalInsPortion = invoice.getLines().stream()
                 .map(line -> nz(line.getInsPortion()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Validate that adjustment amount doesn't exceed total insurance balance
         if (amount.compareTo(totalInsPortion) > 0) {
             throw new IllegalArgumentException("Adjustment exceeds insurance balance. Requested: " + amount + ", Available: " + totalInsPortion);
         }
 
-        // Distribute the adjustment across lines proportionally
+        // Distribute adjustment proportionally across lines
         BigDecimal remaining = amount;
-        PatientInvoiceLine firstLineWithBalance = null;
-
         for (PatientInvoiceLine line : invoice.getLines()) {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
 
             BigDecimal lineInsPortion = nz(line.getInsPortion());
-            if (lineInsPortion.compareTo(BigDecimal.ZERO) > 0 && firstLineWithBalance == null) {
-                firstLineWithBalance = line;
-            }
-
             BigDecimal toAdjust = lineInsPortion.min(remaining);
+            
             if (toAdjust.compareTo(BigDecimal.ZERO) > 0) {
                 line.setInsPortion(lineInsPortion.subtract(toAdjust));
                 line.setInsWriteOff(nz(line.getInsWriteOff()).add(toAdjust));
-                line.setPatientPortion(nz(line.getPatientPortion()).add(toAdjust));
                 remaining = remaining.subtract(toAdjust);
                 lineRepo.save(line);
             }
         }
 
-        // audit: create remit row to record the overpayment adjustment
-        // Use the first line that had a balance for reference
-        PatientInsuranceRemitLine adj = new PatientInsuranceRemitLine();
-        adj.setPatientId(patientId);
-        adj.setInvoiceId(invoiceId);
-        adj.setInvoiceLineId(firstLineWithBalance != null ? firstLineWithBalance.getId() : invoice.getLines().get(0).getId());
-        adj.setInsPay(BigDecimal.ZERO);
-        adj.setInsWriteOff(amount);
-        remitRepo.save(adj);
+        // Add to patient account credit
+        addCredit(patientId, amount);
 
         invoice.recalcTotals();
         return toInvoiceDto(invoice);
@@ -1026,62 +1010,43 @@ public class PatientBillingService {
         
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
 
-        BigDecimal outstanding = nz(invoice.getInsBalance()).add(nz(invoice.getPtBalance()));
-        BigDecimal entered = (req == null || req.allocations() == null)
-                ? BigDecimal.ZERO
-                : req.allocations().stream()
+        BigDecimal totalPayment = req.allocations().stream()
                 .map(a -> nz(a.amount()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // If nothing is outstanding, entire payment becomes account credit
-        if (outstanding.compareTo(BigDecimal.ZERO) <= 0) {
-            addCredit(patientId, entered);
-            invoice.setPtBalance(BigDecimal.ZERO);
-            invoice.setInsBalance(BigDecimal.ZERO);
-            invoice.setStatus(PatientInvoice.Status.PAID);
-            invoiceRepo.save(invoice);
-            return toInvoiceDto(invoice);
-        }
-
-        BigDecimal cover = entered.min(outstanding);
-        BigDecimal remaining = outstanding.subtract(cover);
-
-        // Use account credit if available
-        PatientAccountCredit credit = creditRepo.findByPatientId(patientId).orElse(null);
-        if (credit != null && credit.getBalance().compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal usedCredit = credit.getBalance().min(cover);
-            credit.setBalance(credit.getBalance().subtract(usedCredit));
-            cover = cover.subtract(usedCredit);
-            creditRepo.save(credit);
-        }
-
-        // If fully paid, set balances to zero and status to PAID
-        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
-            invoice.setPtBalance(BigDecimal.ZERO);
-            invoice.setInsBalance(BigDecimal.ZERO);
-            invoice.setStatus(PatientInvoice.Status.PAID);
-        } else {
-            invoice.setPtBalance(remaining);
-            invoice.setStatus(PatientInvoice.Status.PARTIALLY_PAID);
-        }
-
-        BigDecimal over = entered.subtract(outstanding.max(BigDecimal.ZERO));
-        if (over.compareTo(BigDecimal.ZERO) > 0) addCredit(patientId, over);
-
-        // Persist payment
         PatientPayment savedPayment = paymentRepo.saveAndFlush(
-                new PatientPayment(patientId, PaymentMethod.valueOf(req.paymentMethod()), entered)
+                new PatientPayment(patientId, PaymentMethod.valueOf(req.paymentMethod()), totalPayment)
         );
 
-        // Persist allocations
-        if (req.allocations() != null) {
-            for (var allocReq : req.allocations()) {
-                PatientInvoiceLine line = invoiceLineRepo.findById(allocReq.invoiceLineId())
-                        .orElseThrow(() -> new RuntimeException("Invoice line not found: " + allocReq.invoiceLineId()));
+        for (var allocReq : req.allocations()) {
+            PatientInvoiceLine line = invoiceLineRepo.findById(allocReq.invoiceLineId())
+                    .orElseThrow(() -> new RuntimeException("Invoice line not found: " + allocReq.invoiceLineId()));
 
-                PatientPaymentAllocation alloc = new PatientPaymentAllocation(savedPayment, line, allocReq.amount());
-                allocationRepo.save(alloc);
-            }
+            BigDecimal paymentAmount = nz(allocReq.amount());
+            BigDecimal currentPtPortion = nz(line.getPatientPortion());
+            
+            BigDecimal newPtPortion = currentPtPortion.subtract(paymentAmount).max(BigDecimal.ZERO);
+            line.setPatientPortion(newPtPortion);
+            lineRepo.save(line);
+
+            PatientPaymentAllocation alloc = new PatientPaymentAllocation(savedPayment, line, paymentAmount);
+            allocationRepo.save(alloc);
+        }
+
+        invoice.recalcTotals();
+        
+        // Reduce account credit by payment amount
+        PatientAccountCredit credit = creditRepo.findByPatientId(patientId).orElse(null);
+        if (credit != null && credit.getBalance().compareTo(totalPayment) >= 0) {
+            credit.setBalance(credit.getBalance().subtract(totalPayment));
+            creditRepo.save(credit);
+        }
+        
+        BigDecimal totalOutstanding = nz(invoice.getPtBalance()).add(nz(invoice.getInsBalance()));
+        if (totalOutstanding.compareTo(BigDecimal.ZERO) <= 0) {
+            invoice.setStatus(PatientInvoice.Status.PAID);
+        } else if (nz(invoice.getPtBalance()).compareTo(invoice.getTotalCharge()) < 0) {
+            invoice.setStatus(PatientInvoice.Status.PARTIALLY_PAID);
         }
 
         invoiceRepo.save(invoice);
@@ -1488,12 +1453,10 @@ public class PatientBillingService {
         BigDecimal creditAmount = request.amount() != null ? request.amount() : BigDecimal.ZERO;
         BigDecimal currentPtBalance = nz(invoice.getPtBalance());
 
-        // Ensure we don't credit more than the patient balance
         if (creditAmount.compareTo(currentPtBalance) > 0) {
             creditAmount = currentPtBalance;
         }
 
-        // Create courtesy credit record in database
         InvoiceCourtesyCredit courtesyCredit = new InvoiceCourtesyCredit();
         courtesyCredit.setPatientId(patientId);
         courtesyCredit.setInvoiceId(invoiceId);
@@ -1502,26 +1465,35 @@ public class PatientBillingService {
         courtesyCredit.setDescription(request.description());
         courtesyCredit.setIsActive(true);
         courtesyCredit.setIsDeleted(false);
-
         invoiceCourtesyCreditRepo.save(courtesyCredit);
 
-        // Reduce patient balance
-        invoice.setPtBalance(currentPtBalance.subtract(creditAmount));
+        BigDecimal remaining = creditAmount;
+        for (PatientInvoiceLine line : invoice.getLines()) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
+            
+            BigDecimal linePtPortion = nz(line.getPatientPortion());
+            BigDecimal toCredit = linePtPortion.min(remaining);
+            
+            if (toCredit.compareTo(BigDecimal.ZERO) > 0) {
+                line.setPatientPortion(linePtPortion.subtract(toCredit));
+                remaining = remaining.subtract(toCredit);
+                lineRepo.save(line);
+            }
+        }
 
-        // Update invoice status if balance is zero and closeInvoice flag is true
+        invoice.recalcTotals();
+
         if (invoice.getPtBalance().compareTo(BigDecimal.ZERO) == 0
-                && nz(invoice.getInsBalance()).compareTo(BigDecimal.ZERO) == 0
-                && Boolean.TRUE.equals(request.closeInvoice())) {
+                && nz(invoice.getInsBalance()).compareTo(BigDecimal.ZERO) == 0) {
             invoice.setStatus(PatientInvoice.Status.PAID);
-        } else if (invoice.getPtBalance().compareTo(BigDecimal.ZERO) == 0
-                && nz(invoice.getInsBalance()).compareTo(BigDecimal.ZERO) > 0) {
+        } else if (invoice.getPtBalance().compareTo(BigDecimal.ZERO) == 0) {
             invoice.setStatus(PatientInvoice.Status.PARTIALLY_PAID);
         }
 
         invoiceRepo.save(invoice);
 
-        log.info("Courtesy credit applied to invoice: patientId={}, invoiceId={}, creditId={}, amount={}, type={}, newPtBalance={}",
-                patientId, invoiceId, courtesyCredit.getId(), creditAmount, request.adjustmentType(), invoice.getPtBalance());
+        log.info("Courtesy credit applied: patientId={}, invoiceId={}, amount={}, newPtBalance={}",
+                patientId, invoiceId, creditAmount, invoice.getPtBalance());
 
         return InvoiceCourtesyCreditDto.from(courtesyCredit);
     }
@@ -2246,9 +2218,14 @@ public class PatientBillingService {
 
     private PatientInvoiceDto toInvoiceDto(PatientInvoice inv) {
         var lines = inv.getLines().stream().map(this::toInvoiceLineDto).toList();
+        
+        BigDecimal appliedWO = remitRepo.findByInvoiceId(inv.getId()).stream()
+                .map(r -> nz(r.getInsWriteOff()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
         return new PatientInvoiceDto(
                 inv.getId(), inv.getPatientId(), inv.getStatus(),
-                inv.getInsWO(), inv.getPtBalance(), inv.getInsBalance(), inv.getTotalCharge(), lines
+                inv.getInsWO(), appliedWO, inv.getPtBalance(), inv.getInsBalance(), inv.getTotalCharge(), lines
         );
     }
 
@@ -2454,13 +2431,18 @@ public class PatientBillingService {
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
         List<PatientInsuranceRemitLine> remitLines = remitRepo.findByInvoiceId(invoiceId);
         
-        BigDecimal totalWriteOff = remitLines.stream()
-                .map(r -> nz(r.getInsWriteOff()))
+        BigDecimal totalInvoiceAmount = nz(invoice.getTotalCharge());
+        BigDecimal totalInsuranceAllowed = remitLines.stream()
+                .map(r -> nz(r.getAllowed()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        BigDecimal creditAdjustmentWriteOff = totalInvoiceAmount.subtract(totalInsuranceAllowed);
         
         BigDecimal insurancePayment = remitLines.stream()
                 .map(r -> nz(r.getInsPay()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        BigDecimal creditAdjustmentAmount = nz(invoice.getPtBalance()).add(nz(invoice.getInsBalance()));
         
         List<CreditAdjustmentDetailDto.LineDetail> lines = invoice.getLines().stream()
                 .map(line -> new CreditAdjustmentDetailDto.LineDetail(
@@ -2478,13 +2460,13 @@ public class PatientBillingService {
         return new CreditAdjustmentDetailDto(
                 invoice.getId(),
                 LocalDate.now(),
-                "Write Off $" + totalWriteOff,
+                "Write Off $" + creditAdjustmentWriteOff,
                 insurancePayment,
-                totalWriteOff,
+                creditAdjustmentWriteOff,
                 nz(invoice.getPtBalance()),
                 nz(invoice.getInsBalance()),
-                nz(invoice.getTotalCharge()),
-                totalWriteOff,
+                totalInvoiceAmount,
+                creditAdjustmentAmount,
                 lines
         );
     }
@@ -2493,9 +2475,7 @@ public class PatientBillingService {
         PatientInvoice invoice = getInvoiceOrThrow(patientId, invoiceId);
         List<PatientInsuranceRemitLine> remitLines = remitRepo.findByInvoiceId(invoiceId);
         
-        BigDecimal totalCredit = remitLines.stream()
-                .map(r -> nz(r.getInsPay()).add(nz(r.getInsWriteOff())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalCredit = nz(invoice.getTotalCharge());
         
         List<TransferOfCreditDetailDto.LineDetail> lines = invoice.getLines().stream()
                 .map(line -> new TransferOfCreditDetailDto.LineDetail(

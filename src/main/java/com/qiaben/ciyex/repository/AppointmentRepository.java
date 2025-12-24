@@ -28,6 +28,9 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
 
     Page<Appointment> findAllByPatientId(Long patientId, Pageable pageable);
 
+    // Get latest appointment for a patient
+    Optional<Appointment> findFirstByPatientIdOrderByAppointmentStartDateDescAppointmentStartTimeDesc(Long patientId);
+
     // -------- By ID --------
     Optional<Appointment> findById(Long id);
 

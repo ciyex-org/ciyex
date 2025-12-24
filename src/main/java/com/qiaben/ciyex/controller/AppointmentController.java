@@ -157,6 +157,32 @@ public class AppointmentController {
                     .build());
         }
     }
+
+    // -------- Get latest appointment for patient --------
+    @GetMapping("/patient/{patientId}/latest")
+    public ResponseEntity<ApiResponse<AppointmentDTO>> getLatestByPatient(@PathVariable Long patientId) {
+        try {
+            AppointmentDTO latest = service.getLatestByPatientId(patientId);
+            if (latest == null) {
+                return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+                        .success(true)
+                        .message("No appointments found for patient " + patientId)
+                        .data(null)
+                        .build());
+            }
+            return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
+                    .success(true)
+                    .message("Latest appointment retrieved successfully")
+                    .data(latest)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve latest appointment for patient {}", patientId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<AppointmentDTO>builder()
+                    .success(false)
+                    .message("Failed to retrieve latest appointment: " + e.getMessage())
+                    .build());
+        }
+    }
     // Count all appointments
     @GetMapping("/count")
     public ResponseEntity<ApiResponse<Long>> count() {
