@@ -117,57 +117,55 @@ jobs:
             exit 0
           fi
           
-          STATUS_COLOR="28a745"
+          STATUS_COLOR="good"
           if [ "${{ steps.status.outputs.status }}" == "failure" ]; then
-            STATUS_COLOR="dc3545"
+            STATUS_COLOR="attention"
           fi
           
           curl -H "Content-Type: application/json" -d '{
-            "@type": "MessageCard",
-            "@context": "https://schema.org/extensions",
-            "themeColor": "'"$STATUS_COLOR"'",
-            "summary": "Ciyex Backend Dev Deployment ${{ steps.status.outputs.status }}",
-            "sections": [{
-              "activityTitle": "${{ steps.status.outputs.emoji }} Ciyex Backend Dev Deployment ${{ steps.status.outputs.status }}",
-              "activitySubtitle": "Version ${{ env.VERSION }}",
-              "facts": [
-                {
-                  "name": "Environment:",
-                  "value": "Dev"
-                },
-                {
-                  "name": "Version:",
-                  "value": "${{ env.VERSION }}"
-                },
-                {
-                  "name": "Image:",
-                  "value": "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}"
-                },
-                {
-                  "name": "Deployed by:",
-                  "value": "${{ github.actor }}"
-                },
-                {
-                  "name": "URL:",
-                  "value": "https://ciyex-api.apps-dev.in.hinisoft.com/api"
-                }
-              ],
-              "markdown": true
-            }],
-            "potentialAction": [{
-              "@type": "OpenUri",
-              "name": "View Workflow",
-              "targets": [{
-                "os": "default",
-                "uri": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-              }]
-            },
-            {
-              "@type": "OpenUri",
-              "name": "View API",
-              "targets": [{
-                "os": "default",
-                "uri": "https://ciyex-api.apps-dev.in.hinisoft.com/api"
-              }]
+            "type": "message",
+            "attachments": [{
+              "contentType": "application/vnd.microsoft.card.adaptive",
+              "content": {
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                  {
+                    "type": "TextBlock",
+                    "size": "Large",
+                    "weight": "Bolder",
+                    "text": "${{ steps.status.outputs.emoji }} Ciyex Backend Dev Deployment",
+                    "style": "heading"
+                  },
+                  {
+                    "type": "TextBlock",
+                    "text": "Status: ${{ steps.status.outputs.status }}",
+                    "color": "'"$STATUS_COLOR"'"
+                  },
+                  {
+                    "type": "FactSet",
+                    "facts": [
+                      {"title": "Environment", "value": "Dev"},
+                      {"title": "Version", "value": "${{ env.VERSION }}"},
+                      {"title": "Image", "value": "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}"},
+                      {"title": "Deployed by", "value": "${{ github.actor }}"},
+                      {"title": "URL", "value": "https://ciyex-api.apps-dev.in.hinisoft.com"}
+                    ]
+                  }
+                ],
+                "actions": [
+                  {
+                    "type": "Action.OpenUrl",
+                    "title": "View Workflow",
+                    "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  },
+                  {
+                    "type": "Action.OpenUrl",
+                    "title": "View API",
+                    "url": "https://ciyex-api.apps-dev.in.hinisoft.com/api"
+                  }
+                ]
+              }
             }]
           }' "$TEAMS_WEBHOOK"
