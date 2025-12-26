@@ -1,11 +1,11 @@
 name: Build & Deploy Ciyex App Stage
 
-# Triggers: run for pull requests targeting main and pushes to main
+# Triggers: run for pull requests targeting stage and pushes to stage
 on:
   push:
-    branches: [ 'main' ]
+    branches: [ 'stage' ]
   pull_request:
-    branches: [ 'main' ]
+    branches: [ 'stage' ]
 
 env:
   IMAGE_NAME: ciyex-app-stage
@@ -31,7 +31,7 @@ jobs:
 
   build-and-deploy:
     name: Deploy to AKS (Staging)
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/stage'
     runs-on: ubuntu-latest
 
     steps:
