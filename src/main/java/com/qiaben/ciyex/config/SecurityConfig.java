@@ -22,6 +22,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import com.qiaben.ciyex.interceptor.SessionTimeoutInterceptor;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -110,16 +111,18 @@ public class SecurityConfig implements WebMvcConfigurer {
         return new BCryptPasswordEncoder();
     }
 
+    @Value("${cors.allowed-origins:http://localhost:3000}")
+    private String corsAllowedOrigins;
+
     /**
-     * ✅ Global CORS for local + staging + production
+     * ✅ Global CORS - configurable via cors.allowed-origins property (comma-separated)
      */
     @Bean
     public UrlBasedCorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.addAllowedOriginPattern("http://localhost:3000"); // Local frontend
-        config.addAllowedOriginPattern("https://aran-stg.zpoa.com"); // Keycloak
-        config.addAllowedOriginPattern("https://portal.ciyex.com"); // Production
-         config.addAllowedOriginPattern("https://portal-stg.ciyex.com"); // Staging
+        for (String origin : corsAllowedOrigins.split(",")) {
+            config.addAllowedOriginPattern(origin.trim());
+        }
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
         config.setAllowCredentials(true);

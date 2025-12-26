@@ -43,7 +43,7 @@ keycloak:
     username: ${KEYCLOAK_ADMIN_USERNAME:aran-admin}
     password: ${KEYCLOAK_ADMIN_PASSWORD:Kc@2024!Secure#Pass}
 cors:
-  allowed-origins: http://localhost:3000
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
 logging:
   level:
     root: info
