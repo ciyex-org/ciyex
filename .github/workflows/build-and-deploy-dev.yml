@@ -63,10 +63,10 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git pull --rebase origin main
-          sed -i "s|image: registry.apps-dev.in.hinisoft.com/ciyex-app:.*|image: $REGISTRY/$IMAGE_NAME:$VERSION|" k8s/overlays/dev/deployment-patch.yaml
+          sed -i "s|image: registry.apps-dev.in.hinisoft.com/ciyex-app:.*|image: $REGISTRY/$IMAGE_NAME:$VERSION|" k8s/overlays/dev-500/deployment-patch.yaml
           sed -i "s|image: registry.apps-dev.in.hinisoft.com/ciyex-app:.*|image: $REGISTRY/$IMAGE_NAME:$VERSION|" k8s/overlays/dev-501/deployment-patch.yaml
           sed -i "s|image: registry.apps-dev.in.hinisoft.com/ciyex-app:.*|image: $REGISTRY/$IMAGE_NAME:$VERSION|" k8s/overlays/dev-502/deployment-patch.yaml
-          git add k8s/overlays/dev/deployment-patch.yaml k8s/overlays/dev-501/deployment-patch.yaml k8s/overlays/dev-502/deployment-patch.yaml
+          git add k8s/overlays/dev-500/deployment-patch.yaml k8s/overlays/dev-501/deployment-patch.yaml k8s/overlays/dev-502/deployment-patch.yaml
           git commit -m "Update dev image to $VERSION [skip ci]" || echo "No changes to commit"
           git push
 
@@ -85,7 +85,7 @@ jobs:
 
       - name: Deploy to Kubernetes
         run: |
-          kubectl apply -k k8s/overlays/dev
+          kubectl apply -k k8s/overlays/dev-500
           kubectl apply -k k8s/overlays/dev-501
           kubectl apply -k k8s/overlays/dev-502
 
@@ -93,7 +93,7 @@ jobs:
         id: verify
         run: |
           FAILED=0
-          for DEPLOY in dev-ciyex-app dev-501-ciyex-app dev-502-ciyex-app; do
+          for DEPLOY in dev-500-ciyex-app dev-501-ciyex-app dev-502-ciyex-app; do
             if ! kubectl rollout status deployment/$DEPLOY -n ciyex-dev --timeout=5m; then
               echo "❌ $DEPLOY failed"
               FAILED=1
