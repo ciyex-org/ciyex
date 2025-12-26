@@ -64,8 +64,9 @@ jobs:
           git config user.email "actions@github.com"
           git pull --rebase origin main
           sed -i "s|image: registry.apps-dev.in.hinisoft.com/ciyex-app:.*|image: $REGISTRY/$IMAGE_NAME:$VERSION|" k8s/overlays/dev/deployment-patch.yaml
-          cat k8s/overlays/dev/deployment-patch.yaml
-          git add k8s/overlays/dev/deployment-patch.yaml
+          sed -i "s|image: registry.apps-dev.in.hinisoft.com/ciyex-app:.*|image: $REGISTRY/$IMAGE_NAME:$VERSION|" k8s/overlays/dev-501/deployment-patch.yaml
+          sed -i "s|image: registry.apps-dev.in.hinisoft.com/ciyex-app:.*|image: $REGISTRY/$IMAGE_NAME:$VERSION|" k8s/overlays/dev-502/deployment-patch.yaml
+          git add k8s/overlays/dev/deployment-patch.yaml k8s/overlays/dev-501/deployment-patch.yaml k8s/overlays/dev-502/deployment-patch.yaml
           git commit -m "Update dev image to $VERSION [skip ci]" || echo "No changes to commit"
           git push
 
@@ -85,19 +86,25 @@ jobs:
       - name: Deploy to Kubernetes
         run: |
           kubectl apply -k k8s/overlays/dev
+          kubectl apply -k k8s/overlays/dev-501
+          kubectl apply -k k8s/overlays/dev-502
 
       - name: Verify deployment
         id: verify
         run: |
-          if kubectl rollout status deployment/dev-ciyex-app -n ciyex-dev --timeout=5m; then
-            echo "deployment_status=success" >> $GITHUB_OUTPUT
-          else
+          FAILED=0
+          for DEPLOY in dev-ciyex-app dev-501-ciyex-app dev-502-ciyex-app; do
+            if ! kubectl rollout status deployment/$DEPLOY -n ciyex-dev --timeout=5m; then
+              echo "❌ $DEPLOY failed"
+              FAILED=1
+            fi
+          done
+          kubectl get pods -n ciyex-dev -l app=ciyex-app -o wide
+          if [ $FAILED -eq 1 ]; then
             echo "deployment_status=failed" >> $GITHUB_OUTPUT
-            kubectl get pods -n ciyex-dev -l app=ciyex-app -o wide
-            kubectl logs -n ciyex-dev -l app=ciyex-app --tail=50 || true
             exit 1
           fi
-          kubectl get pods -n ciyex-dev -l app=ciyex-app -o wide
+          echo "deployment_status=success" >> $GITHUB_OUTPUT
 
   notify:
     name: Notify Team
