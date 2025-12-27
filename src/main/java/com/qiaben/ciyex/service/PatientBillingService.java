@@ -2150,6 +2150,173 @@ public class PatientBillingService {
         return true;
     }
 
+    /**
+     * Auto-fetch EHR claim form data for printing/display
+     * Similar to dental claim form, fetches all necessary data from claim, patient, coverage, invoice
+     */
+    public EhrClaimFormDataDto getEhrClaimFormData(Long patientId, Long claimId) {
+        PatientClaim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new IllegalArgumentException("Claim not found: " + claimId));
+        
+        if (!claim.getPatientId().equals(patientId)) {
+            throw new IllegalArgumentException("Claim does not belong to patient");
+        }
+        
+        Patient patient = getPatientOrThrow(patientId);
+        PatientInvoice invoice = claim.getInvoiceId() != null 
+                ? invoiceRepo.findById(claim.getInvoiceId()).orElse(null) 
+                : null;
+        
+        // Get coverage/insurance info
+        List<Coverage> coverages = coverageRepo.findByPatientIdOrderByEffectiveDateDesc(patientId);
+        Coverage primaryCoverage = coverages.isEmpty() ? null : coverages.get(0);
+        
+        // Build Insurance Info
+        EhrClaimFormDataDto.InsuranceInfo insuranceInfo = null;
+        if (primaryCoverage != null) {
+            String insuranceAddress = primaryCoverage.getInsuranceCompany() != null 
+                    ? primaryCoverage.getInsuranceCompany().getAddress() : null;
+            insuranceInfo = EhrClaimFormDataDto.InsuranceInfo.builder()
+                    .companyName(primaryCoverage.getProvider())
+                    .planName(primaryCoverage.getPlanName())
+                    .payerId(primaryCoverage.getExternalId())
+                    .policyNumber(primaryCoverage.getPolicyNumber())
+                    .groupNumber(primaryCoverage.getGroupNumber())
+                    .address(insuranceAddress)
+                    .city(null)
+                    .state(null)
+                    .zipCode(null)
+                    .phone(null)
+                    .build();
+        }
+        
+        // Build Policyholder Info
+        EhrClaimFormDataDto.PolicyholderInfo policyholderInfo = null;
+        if (primaryCoverage != null) {
+            String byholderName = primaryCoverage.getByholderName() != null 
+                    ? primaryCoverage.getByholderName() : "";
+            String[] nameParts = byholderName.split(" ", 3);
+            String firstName = nameParts.length > 0 ? nameParts[0] : "";
+            String lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
+            String middleName = nameParts.length > 2 ? nameParts[1] : null;
+            
+            String address = primaryCoverage.getByholderAddressLine1();
+            if (primaryCoverage.getByholderAddressLine2() != null) {
+                address = address + " " + primaryCoverage.getByholderAddressLine2();
+            }
+            
+            policyholderInfo = EhrClaimFormDataDto.PolicyholderInfo.builder()
+                    .firstName(firstName)
+                    .middleName(middleName)
+                    .lastName(lastName)
+                    .fullName(byholderName)
+                    .dateOfBirth(null)
+                    .gender(null)
+                    .subscriberId(primaryCoverage.getPolicyNumber())
+                    .address(address)
+                    .city(primaryCoverage.getByholderCity())
+                    .state(primaryCoverage.getByholderState())
+                    .zipCode(primaryCoverage.getByholderZipCode())
+                    .phone(primaryCoverage.getByholderPhone())
+                    .relationshipToPatient(primaryCoverage.getByholderRelation())
+                    .build();
+        }
+        
+        // Build Patient Info
+        String patientFullName = patient.getFirstName() + " " + 
+                (patient.getMiddleName() != null ? patient.getMiddleName() + " " : "") +
+                patient.getLastName();
+        
+        LocalDate patientDob = null;
+        if (patient.getDateOfBirth() != null) {
+            try {
+                patientDob = LocalDate.parse(patient.getDateOfBirth());
+            } catch (Exception e) {
+                log.warn("Could not parse patient DOB: {}", patient.getDateOfBirth());
+            }
+        }
+        
+        EhrClaimFormDataDto.PatientInfo patientInfo = EhrClaimFormDataDto.PatientInfo.builder()
+                .patientId(patient.getId())
+                .firstName(patient.getFirstName())
+                .middleName(patient.getMiddleName())
+                .lastName(patient.getLastName())
+                .fullName(patientFullName.trim())
+                .dateOfBirth(patientDob)
+                .gender(patient.getGender())
+                .patientAccountNumber(patient.getId().toString())
+                .address(patient.getAddress())
+                .city(null)
+                .state(null)
+                .zipCode(null)
+                .phone(patient.getPhoneNumber())
+                .email(patient.getEmail())
+                .build();
+        
+        // Build Provider Info
+        Facility facility = getPrimaryFacility();
+        EhrClaimFormDataDto.ProviderInfo providerInfo = null;
+        if (facility != null) {
+            providerInfo = EhrClaimFormDataDto.ProviderInfo.builder()
+                    .providerName(claim.getTreatingProviderId() != null ? claim.getTreatingProviderId() : facility.getName())
+                    .npi(facility.getNpi())
+                    .licenseNumber(null)
+                    .taxId(facility.getTaxId())
+                    .facilityName(facility.getName())
+                    .address(facility.getPhysicalAddress())
+                    .city(facility.getPhysicalCity())
+                    .state(facility.getPhysicalState())
+                    .zipCode(facility.getPhysicalZipCode())
+                    .phone(facility.getPhone())
+                    .fax(facility.getFax())
+                    .email(facility.getEmail())
+                    .build();
+        }
+        
+        // Build Service Records from invoice lines
+        List<EhrClaimFormDataDto.ServiceRecord> serviceRecords = List.of();
+        if (invoice != null && invoice.getLines() != null) {
+            serviceRecords = invoice.getLines().stream()
+                    .map(line -> EhrClaimFormDataDto.ServiceRecord.builder()
+                            .lineId(line.getId())
+                            .serviceDate(line.getDos())
+                            .procedureCode(line.getCode())
+                            .description(line.getTreatment())
+                            .providerName(line.getProvider())
+                            .chargeAmount(line.getCharge())
+                            .units(1)
+                            .placeOfService("11")
+                            .diagnosisCode(null)
+                            .build())
+                    .toList();
+        }
+        
+        // Build Financial Summary
+        EhrClaimFormDataDto.FinancialSummary financialSummary = null;
+        if (invoice != null) {
+            financialSummary = EhrClaimFormDataDto.FinancialSummary.builder()
+                    .totalCharges(nz(invoice.getTotalCharge()))
+                    .totalSubmitted(nz(invoice.getTotalCharge()))
+                    .insuranceBalance(nz(invoice.getInsBalance()))
+                    .patientBalance(nz(invoice.getPtBalance()))
+                    .build();
+        }
+        
+        // Build complete EHR claim form data
+        return EhrClaimFormDataDto.builder()
+                .claimId(claim.getId())
+                .claimNumber(claim.getId().toString())
+                .claimStatus(claim.getStatus() != null ? claim.getStatus().name() : "DRAFT")
+                .claimDate(claim.getCreatedOn())
+                .insuranceInfo(insuranceInfo)
+                .policyholderInfo(policyholderInfo)
+                .patientInfo(patientInfo)
+                .providerInfo(providerInfo)
+                .serviceRecords(serviceRecords)
+                .financialSummary(financialSummary)
+                .build();
+    }
+
     /* ===================== Helpers ===================== */
 
     private PatientInvoice getInvoiceOrThrow(Long patientId, Long invoiceId) {
