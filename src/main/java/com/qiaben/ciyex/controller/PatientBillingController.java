@@ -1364,6 +1364,29 @@ public class PatientBillingController {
         }
     }
 
+    /**
+     * Auto-fetch EHR claim form data for printing/display
+     * GET /api/patient-billing/{patientId}/claims/{claimId}/ehr-form-data
+     */
+    @GetMapping("/claims/{claimId}/ehr-form-data")
+    public ResponseEntity<ApiResponse<EhrClaimFormDataDto>> getEhrClaimFormData(
+            @PathVariable Long patientId,
+            @PathVariable Long claimId) {
+        try {
+            EhrClaimFormDataDto data = service.getEhrClaimFormData(patientId, claimId);
+            return ResponseEntity.ok(ApiResponse.ok("EHR claim form data loaded", data));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error fetching EHR claim form data for claim {} patient {}", claimId, patientId, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error loading EHR claim form data: " + ex.getMessage()));
+        }
+    }
+    
+    
+
 
 }
 
