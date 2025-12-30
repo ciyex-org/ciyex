@@ -1,389 +1,192 @@
-//package com.qiaben.ciyex.service;
-//
-//import com.qiaben.ciyex.dto.PlanDto;
-//import com.qiaben.ciyex.entity.Plan;
-//import com.qiaben.ciyex.repository.PlanRepository;
-//import com.qiaben.ciyex.storage.ExternalPlanStorage;
-//import lombok.RequiredArgsConstructor;
-//import lombok.extern.slf4j.Slf4j;
-//import org.springframework.stereotype.Service;
-//
-//import java.time.ZoneId;
-//import java.time.format.DateTimeFormatter;
-//import java.util.List;
-//import java.util.Optional;
-//
-//@Service
-//@RequiredArgsConstructor
-//@Slf4j
-//public class PlanService {
-//
-//    private final PlanRepository repo;
-//    // wire later if needed; left as Optional to match your original stub
-//    private final Optional<ExternalPlanStorage> external = Optional.empty();
-//
-//    private static final DateTimeFormatter DTF = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
-//
-//    public PlanDto create(Long patientId, Long encounterId, PlanDto in) {
-//        Plan p = new Plan();
-//
-//        p.setPatientId(patientId);
-//        p.setEncounterId(encounterId);
-//        p.setDiagnosticPlan(in.getDiagnosticPlan());
-//        p.setPlan(in.getPlan());
-//        p.setNotes(in.getNotes());
-//        p.setFollowUpVisit(in.getFollowUpVisit());
-//        p.setReturnWorkSchool(in.getReturnWorkSchool());
-//        // ✅ direct JsonNode -> jsonb
-//        p.setSectionsJson(in.getSectionsJson());
-//
-//        final Plan saved = repo.save(p);
-//
-//        external.ifPresent(ext -> {
-//            String extId = ext.create(mapToDto(saved));
-//            saved.setExternalId(extId);
-//            repo.save(saved);
-//        });
-//
-//        return mapToDto(saved);
-//    }
-//
-//    public PlanDto update(Long patientId, Long encounterId, Long id, PlanDto in) {
-//        Plan p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
-//
-//        p.setDiagnosticPlan(in.getDiagnosticPlan());
-//        p.setPlan(in.getPlan());
-//        p.setNotes(in.getNotes());
-//        p.setFollowUpVisit(in.getFollowUpVisit());
-//        p.setReturnWorkSchool(in.getReturnWorkSchool());
-//        // ✅ direct JsonNode -> jsonb
-//        p.setSectionsJson(in.getSectionsJson());
-//
-//        final Plan updated = repo.save(p);
-//
-//        external.ifPresent(ext -> {
-//            if (updated.getExternalId() != null) {
-//                ext.update(updated.getExternalId(), mapToDto(updated));
-//            }
-//        });
-//
-//        return mapToDto(updated);
-//    }
-//
-//    public void delete(Long patientId, Long encounterId, Long id) {
-//        Plan p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
-//        repo.delete(p);
-//        external.ifPresent(ext -> {
-//            if (p.getExternalId() != null) {
-//                ext.delete(p.getExternalId());
-//            }
-//        });
-//    }
-//
-//    public PlanDto getOne(Long patientId, Long encounterId, Long id) {
-//        Plan p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
-//        return mapToDto(p);
-//    }
-//
-//    public List<PlanDto> getAllByPatient(Long patientId) {
-//        return repo.findByPatientId(patientId)
-//                .stream().map(this::mapToDto).toList();
-//    }
-//
-//    public List<PlanDto> getAllByEncounter(Long patientId, Long encounterId) {
-//        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
-//                .stream().map(this::mapToDto).toList();
-//    }
-//
-//    private PlanDto mapToDto(Plan e) {
-//        PlanDto dto = new PlanDto();
-//        dto.setId(e.getId());
-//        dto.setExternalId(e.getExternalId());
-//        dto.setOrgId(e.getOrgId());
-//        dto.setPatientId(e.getPatientId());
-//        dto.setEncounterId(e.getEncounterId());
-//        dto.setDiagnosticPlan(e.getDiagnosticPlan());
-//        dto.setPlan(e.getPlan());
-//        dto.setNotes(e.getNotes());
-//        dto.setFollowUpVisit(e.getFollowUpVisit());
-//        dto.setReturnWorkSchool(e.getReturnWorkSchool());
-//        // ✅ JsonNode passes straight through
-//        dto.setSectionsJson(e.getSectionsJson());
-//
-//        PlanDto.Audit a = new PlanDto.Audit();
-//        if (e.getCreatedAt() != null) {
-//            a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-//        }
-//        if (e.getUpdatedAt() != null) {
-//            a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
-//        }
-//        dto.setAudit(a);
-//        return dto;
-//    }
-//}
-
-
-
-
-
-
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import com.qiaben.ciyex.dto.PlanDto;
-import com.qiaben.ciyex.entity.Plan;
-import com.qiaben.ciyex.repository.PlanRepository;
-import com.qiaben.ciyex.repository.PatientRepository;
-import com.qiaben.ciyex.repository.EncounterRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.storage.fhir.FhirExternalPlanStorage;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import lombok.RequiredArgsConstructor;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.*;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
-@Service @RequiredArgsConstructor @Slf4j
+/**
+ * Plan Service - FHIR Only.
+ * All plan data is stored in HAPI FHIR server as CarePlan resources.
+ */
+@Service
+@Slf4j
 public class PlanService {
 
-    private final PlanRepository repo;
-    private final EncounterService encounterService;
-    private final PatientRepository patientRepository;
-    private final EncounterRepository encounterRepository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    @Autowired(required = false)
-    private FhirExternalPlanStorage fhirStorage;
+    // In-memory cache for e-sign/print metadata (keyed by FHIR ID)
+    private final Map<String, SignMetadata> signMetadataCache = new ConcurrentHashMap<>();
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
+    @Autowired
+    public PlanService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
+    }
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+    // Helper class for e-sign metadata
+    private static class SignMetadata {
+        Boolean eSigned = false;
+        OffsetDateTime signedAt;
+        String signedBy;
+        OffsetDateTime printedAt;
+    }
+
+    // ✅ Get all by patient
+    public List<PlanDto> getAllByPatient(Long patientId) {
+        log.debug("Getting FHIR CarePlans for patient: {}", patientId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(CarePlan.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractPlanDtos(bundle, patientId, null);
+    }
+
+    // ✅ Create Plan
     public PlanDto create(Long patientId, Long encounterId, PlanDto dto) {
-        // Validate patient existence
-        boolean patientExists = patientRepository.existsById(patientId);
-        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
-        if (!patientExists && !encounterExists) {
-            throw new IllegalArgumentException("Patient and Encounter not found");
-        } else if (!patientExists) {
-            throw new IllegalArgumentException("Patient not found");
-        } else if (!encounterExists) {
-            throw new IllegalArgumentException("Encounter not found");
-        }
-        // Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-        Plan e = new Plan(); e.setPatientId(patientId); e.setEncounterId(encounterId);
-        applyEditable(e, dto);
-        e = repo.save(e);
-        
-        // Step 5: Optional external FHIR sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("Plan create - storageType for current org: {}", storageType);
+        log.info("Creating Plan in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
-        if (storageType != null) {
-            try {
-                log.info("Attempting FHIR sync for Plan ID: {}", e.getId());
-                ExternalStorage<PlanDto> ext = storageResolver.resolve(PlanDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
+        CarePlan carePlan = toFhirCarePlan(dto, patientId, encounterId);
+        MethodOutcome outcome = fhirClientService.create(carePlan, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-                PlanDto snapshot = toDto(e);
-                String externalId = ext.create(snapshot);
-                log.info("FHIR create returned externalId: {}", externalId);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
 
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource for Plan ID: {} with externalId: {}", e.getId(), externalId);
-                } else {
-                    log.warn("FHIR create returned null or empty externalId for Plan ID: {}", e.getId());
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync Plan to external storage", ex);
-            }
-        } else if (fhirStorage != null) {
-            try {
-                log.info("No storage type configured, falling back to direct FHIR storage for Plan ID: {}", e.getId());
-                PlanDto snapshot = toDto(e);
-                String externalId = fhirStorage.create(snapshot);
-                log.info("FHIR fallback create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource (fallback) for Plan ID: {} with externalId: {}", e.getId(), externalId);
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync Plan to external storage (fallback)", ex);
-            }
-        } else {
-            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Plan ID: {}", e.getId());
-        }
-
-        if (e.getExternalId() == null) {
-            String generatedId = "PL-" + System.currentTimeMillis();
-            e.setExternalId(generatedId);
-            e.setFhirId(generatedId);
-            e = repo.save(e);
-            log.info("Auto-generated externalId: {}", generatedId);
-        } else {
-            e.setFhirId(e.getExternalId());
-            e = repo.save(e);
-        }
-
-        return toDto(e);
+        log.info("Created FHIR CarePlan with ID: {}", fhirId);
+        return dto;
     }
 
+    // ✅ List Plans for encounter
     public List<PlanDto> list(Long patientId, Long encounterId) {
-        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
-                .stream().map(this::toDto).toList();
+        log.debug("Listing FHIR CarePlans for patient: {}, encounter: {}", patientId, encounterId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(CarePlan.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractPlanDtos(bundle, patientId, encounterId);
     }
 
-        // GET ALL BY PATIENT
-        public List<PlanDto> getAllByPatient(Long patientId) {
-            return repo.findByPatientId(patientId)
-                    .stream().map(this::toDto).toList();
-        }
-
+    // ✅ Get one Plan
     public PlanDto getOne(Long patientId, Long encounterId, Long id) {
-        Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        // Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+        String fhirId = String.valueOf(id);
+        log.debug("Getting FHIR CarePlan with ID: {}", fhirId);
 
-        return toDto(e);
+        try {
+            CarePlan carePlan = fhirClientService.read(CarePlan.class, fhirId, getPracticeId());
+            return toPlanDto(carePlan, patientId, encounterId);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id));
+        }
     }
 
+    // ✅ Update Plan
     public PlanDto update(Long patientId, Long encounterId, Long id, PlanDto dto) {
-        // Validate patient existence
-        boolean patientExists = patientRepository.existsById(patientId);
-        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
-        if (!patientExists && !encounterExists) {
-            throw new IllegalArgumentException("Patient and Encounter not found");
-        } else if (!patientExists) {
-            throw new IllegalArgumentException("Patient not found");
-        } else if (!encounterExists) {
-            throw new IllegalArgumentException("Encounter not found");
-        }
-        Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed plan is read-only.");
-        applyEditable(e, dto);
-        e = repo.save(e);
+        String fhirId = String.valueOf(id);
+        log.info("Updating FHIR CarePlan with ID: {}", fhirId);
 
-        // Step 7: Optional external FHIR sync
-        if (e.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("Plan update - storageType for current org: {}", storageType);
-
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR sync for Plan ID: {}", e.getId());
-                    ExternalStorage<PlanDto> ext = storageResolver.resolve(PlanDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                    PlanDto snapshot = toDto(e);
-                    ext.update(snapshot, e.getExternalId());
-                    log.info("Updated FHIR resource for Plan ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Plan update to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for Plan ID: {}", e.getId());
-                    PlanDto snapshot = toDto(e);
-                    fhirStorage.update(snapshot, e.getExternalId());
-                    log.info("Updated FHIR resource (fallback) for Plan ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Plan update to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Plan ID: {}", e.getId());
-            }
+        // Check if signed
+        SignMetadata meta = signMetadataCache.get(fhirId);
+        if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
+            throw new IllegalStateException("Signed plan is read-only.");
         }
 
-        // Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-        return toDto(e);
+        CarePlan carePlan = toFhirCarePlan(dto, patientId, encounterId);
+        carePlan.setId(fhirId);
+        fhirClientService.update(carePlan, getPracticeId());
+
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        return dto;
     }
 
+    // ✅ Delete Plan
     public void delete(Long patientId, Long encounterId, Long id) {
-        Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (Boolean.TRUE.equals(e.getESigned())) throw new IllegalStateException("Signed plan cannot be deleted.");
+        String fhirId = String.valueOf(id);
+        log.info("Deleting FHIR CarePlan with ID: {}", fhirId);
 
-        // Optional external FHIR sync
-        if (e.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("Plan delete - storageType for current org: {}", storageType);
-
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR delete for Plan ID: {}", e.getId());
-                    ExternalStorage<PlanDto> ext = storageResolver.resolve(PlanDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                    ext.delete(e.getExternalId());
-                    log.info("Deleted FHIR resource for Plan ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Plan delete to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for Plan ID: {}", e.getId());
-                    fhirStorage.delete(e.getExternalId());
-                    log.info("Deleted FHIR resource (fallback) for Plan ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Plan delete to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Plan ID: {}", e.getId());
-            }
+        // Check if signed
+        SignMetadata meta = signMetadataCache.get(fhirId);
+        if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
+            throw new IllegalStateException("Signed plan cannot be deleted.");
         }
 
-        repo.delete(e);
+        fhirClientService.delete(CarePlan.class, fhirId, getPracticeId());
+        signMetadataCache.remove(fhirId);
     }
 
+    // ✅ eSign Plan
     public PlanDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
-        Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
+        String fhirId = String.valueOf(id);
+        log.info("E-signing FHIR CarePlan with ID: {}", fhirId);
 
-        e.setESigned(true);
-        e.setSignedBy(StringUtils.hasText(signedBy) ? signedBy : "system");
-        e.setSignedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        return toDto(repo.save(e));
+        SignMetadata meta = signMetadataCache.computeIfAbsent(fhirId, k -> new SignMetadata());
+
+        if (Boolean.TRUE.equals(meta.eSigned)) {
+            return getOne(patientId, encounterId, id);
+        }
+
+        meta.eSigned = true;
+        meta.signedBy = StringUtils.hasText(signedBy) ? signedBy : "system";
+        meta.signedAt = OffsetDateTime.now(ZoneOffset.UTC);
+
+        PlanDto dto = getOne(patientId, encounterId, id);
+        dto.setESigned(meta.eSigned);
+        dto.setSignedAt(meta.signedAt != null ? meta.signedAt.format(ISO) : null);
+        dto.setSignedBy(meta.signedBy);
+
+        return dto;
     }
 
+    // ✅ Render PDF
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
-        Plan e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        repo.save(e);
+        String fhirId = String.valueOf(id);
+        log.info("Rendering PDF for FHIR CarePlan with ID: {}", fhirId);
+
+        PlanDto dto = getOne(patientId, encounterId, id);
+
+        // Update print timestamp
+        SignMetadata meta = signMetadataCache.computeIfAbsent(fhirId, k -> new SignMetadata());
+        meta.printedAt = OffsetDateTime.now(ZoneOffset.UTC);
 
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             PDPage page = new PDPage(PDRectangle.LETTER);
@@ -394,39 +197,28 @@ public class PlanService {
 
                 // Title + meta
                 title(cs, x, y, "Encounter Plan"); y -= 26;
-                row(cs, x, y, "Patient ID:", String.valueOf(patientId));     y -= 16;
+                row(cs, x, y, "Patient ID:", String.valueOf(patientId)); y -= 16;
                 row(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 16;
-                row(cs, x, y, "Plan ID:", String.valueOf(id));               y -= 20;
+                row(cs, x, y, "Plan ID:", fhirId); y -= 20;
 
-                // FREE-TEXT BLOCKS – each returns updated y (no extra y-= after the call)
-                y = block(cs, x, y, "Diagnostic Plan", e.getDiagnosticPlan());
-                y = block(cs, x, y, "Plan",            e.getPlan());
-                y = block(cs, x, y, "Notes",           e.getNotes());
+                // FREE-TEXT BLOCKS
+                y = block(cs, x, y, "Diagnostic Plan", dto.getDiagnosticPlan());
+                y = block(cs, x, y, "Plan", dto.getPlan());
+                y = block(cs, x, y, "Notes", dto.getNotes());
 
                 // Rows
-                if (StringUtils.hasText(e.getFollowUpVisit())) {
-                    row(cs, x, y, "Follow-Up Visit:", e.getFollowUpVisit()); y -= 16;
+                if (StringUtils.hasText(dto.getFollowUpVisit())) {
+                    row(cs, x, y, "Follow-Up Visit:", dto.getFollowUpVisit()); y -= 16;
                 }
-                if (StringUtils.hasText(e.getReturnWorkSchool())) {
-                    row(cs, x, y, "Return Work/School:", e.getReturnWorkSchool()); y -= 16;
-                }
-
-                // Sections (render as wrapped blocks)
-                if (StringUtils.hasText(e.getSection1())) {
-                    y = block(cs, x, y, "Section 1", e.getSection1());
-                }
-                if (StringUtils.hasText(e.getSection2())) {
-                    y = block(cs, x, y, "Section 2", e.getSection2());
+                if (StringUtils.hasText(dto.getReturnWorkSchool())) {
+                    row(cs, x, y, "Return Work/School:", dto.getReturnWorkSchool()); y -= 16;
                 }
 
                 y -= 10;
-                row(cs, x, y, "eSigned:", Boolean.TRUE.equals(e.getESigned()) ? "Yes" : "No"); y -= 16;
-                if (e.getSignedAt() != null) { row(cs, x, y, "Signed At:", e.getSignedAt().format(ISO)); y -= 16; }
-                if (StringUtils.hasText(e.getSignedBy())) { row(cs, x, y, "Signed By:", e.getSignedBy()); y -= 16; }
-
-                y -= 10;
-                if (e.getCreatedAt() != null) { row(cs, x, y, "Created:", DAY.format(e.getCreatedAt())); y -= 16; }
-                if (e.getUpdatedAt() != null) { row(cs, x, y, "Updated:", DAY.format(e.getUpdatedAt())); y -= 16; }
+                row(cs, x, y, "eSigned:", Boolean.TRUE.equals(meta.eSigned) ? "Yes" : "No"); y -= 16;
+                if (meta.signedAt != null) { row(cs, x, y, "Signed At:", meta.signedAt.format(ISO)); y -= 16; }
+                if (StringUtils.hasText(meta.signedBy)) { row(cs, x, y, "Signed By:", meta.signedBy); y -= 16; }
+                if (meta.printedAt != null) { row(cs, x, y, "Printed At:", meta.printedAt.format(ISO)); y -= 16; }
             }
 
             doc.save(baos);
@@ -436,53 +228,124 @@ public class PlanService {
         }
     }
 
-    // ---- mapping / drawing helpers
-    private void applyEditable(Plan e, PlanDto d) {
-        e.setDiagnosticPlan(d.getDiagnosticPlan());
-        e.setPlan(d.getPlan());
-        e.setNotes(d.getNotes());
-        e.setFollowUpVisit(d.getFollowUpVisit());
-        e.setReturnWorkSchool(d.getReturnWorkSchool());
-        e.setSection1(d.getSection1());
-        e.setSection2(d.getSection2());
+    // ========== FHIR Mapping Methods ==========
+
+    private CarePlan toFhirCarePlan(PlanDto dto, Long patientId, Long encounterId) {
+        CarePlan carePlan = new CarePlan();
+
+        // Patient reference
+        carePlan.setSubject(new Reference("Patient/" + patientId));
+
+        // Encounter reference
+        if (encounterId != null) {
+            carePlan.setEncounter(new Reference("Encounter/" + encounterId));
+        }
+
+        // Status
+        carePlan.setStatus(CarePlan.CarePlanStatus.ACTIVE);
+
+        // Intent
+        carePlan.setIntent(CarePlan.CarePlanIntent.PLAN);
+
+        // Title
+        carePlan.setTitle("Encounter Plan");
+
+        // Description (combine plan fields)
+        StringBuilder description = new StringBuilder();
+        if (StringUtils.hasText(dto.getDiagnosticPlan())) {
+            description.append("Diagnostic Plan: ").append(dto.getDiagnosticPlan()).append("\n");
+        }
+        if (StringUtils.hasText(dto.getPlan())) {
+            description.append("Plan: ").append(dto.getPlan()).append("\n");
+        }
+        if (StringUtils.hasText(dto.getNotes())) {
+            description.append("Notes: ").append(dto.getNotes()).append("\n");
+        }
+        if (StringUtils.hasText(dto.getFollowUpVisit())) {
+            description.append("Follow-Up Visit: ").append(dto.getFollowUpVisit()).append("\n");
+        }
+        if (StringUtils.hasText(dto.getReturnWorkSchool())) {
+            description.append("Return Work/School: ").append(dto.getReturnWorkSchool()).append("\n");
+        }
+        carePlan.setDescription(description.toString());
+
+        return carePlan;
     }
 
-    private PlanDto toDto(Plan e) {
-        PlanDto d = new PlanDto();
-        d.setId(e.getId());
-        d.setExternalId(e.getExternalId());
-        d.setFhirId(e.getFhirId());
-        d.setPatientId(e.getPatientId()); d.setEncounterId(e.getEncounterId());
-        d.setDiagnosticPlan(e.getDiagnosticPlan()); d.setPlan(e.getPlan()); d.setNotes(e.getNotes());
-        d.setFollowUpVisit(e.getFollowUpVisit()); d.setReturnWorkSchool(e.getReturnWorkSchool());
-        d.setSection1(e.getSection1());
-        d.setSection2(e.getSection2());
-        d.setESigned(e.getESigned());
-        d.setSignedAt(e.getSignedAt() != null ? e.getSignedAt().format(ISO) : null);
-        d.setSignedBy(e.getSignedBy());
-        d.setPrintedAt(e.getPrintedAt() != null ? e.getPrintedAt().format(ISO) : null);
+    private PlanDto toPlanDto(CarePlan carePlan, Long patientId, Long encounterId) {
+        PlanDto dto = new PlanDto();
 
-        PlanDto.Audit a = new PlanDto.Audit();
-        if (e.getCreatedAt() != null) a.setCreatedDate(DAY.format(e.getCreatedAt()));
-        if (e.getUpdatedAt() != null) a.setLastModifiedDate(DAY.format(e.getUpdatedAt()));
-        d.setAudit(a);
-        return d;
+        if (carePlan.hasId()) {
+            dto.setFhirId(carePlan.getIdElement().getIdPart());
+            dto.setExternalId(carePlan.getIdElement().getIdPart());
+        }
+
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+
+        // Parse description back to fields
+        if (carePlan.hasDescription()) {
+            String desc = carePlan.getDescription();
+            for (String line : desc.split("\n")) {
+                if (line.startsWith("Diagnostic Plan: ")) {
+                    dto.setDiagnosticPlan(line.substring(17));
+                } else if (line.startsWith("Plan: ")) {
+                    dto.setPlan(line.substring(6));
+                } else if (line.startsWith("Notes: ")) {
+                    dto.setNotes(line.substring(7));
+                } else if (line.startsWith("Follow-Up Visit: ")) {
+                    dto.setFollowUpVisit(line.substring(17));
+                } else if (line.startsWith("Return Work/School: ")) {
+                    dto.setReturnWorkSchool(line.substring(20));
+                }
+            }
+        }
+
+        // Check sign metadata
+        String fhirId = dto.getFhirId();
+        if (fhirId != null) {
+            SignMetadata meta = signMetadataCache.get(fhirId);
+            if (meta != null) {
+                dto.setESigned(meta.eSigned);
+                dto.setSignedAt(meta.signedAt != null ? meta.signedAt.format(ISO) : null);
+                dto.setSignedBy(meta.signedBy);
+                dto.setPrintedAt(meta.printedAt != null ? meta.printedAt.format(ISO) : null);
+            }
+        }
+
+        return dto;
     }
+
+    private List<PlanDto> extractPlanDtos(Bundle bundle, Long patientId, Long encounterId) {
+        List<PlanDto> items = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof CarePlan) {
+                    items.add(toPlanDto((CarePlan) entry.getResource(), patientId, encounterId));
+                }
+            }
+        }
+        return items;
+    }
+
+    // ========== PDF Helpers ==========
 
     private static void title(PDPageContentStream cs, float x, float y, String t) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 18); cs.newLineAtOffset(x, y); cs.showText(t); cs.endText();
     }
+
     private static void row(PDPageContentStream cs, float x, float y, String k, String v) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(k); cs.endText();
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(v != null ? v : "-"); cs.endText();
     }
+
     private static void text(PDPageContentStream cs, float x, float y, String s) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x, y); cs.showText(s); cs.endText();
     }
+
     private static float block(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         if (!StringUtils.hasText(value)) return y;
 
-        // Label
         cs.beginText();
         cs.setFont(PDType1Font.HELVETICA_BOLD, 12);
         cs.newLineAtOffset(x, y);
@@ -490,18 +353,16 @@ public class PlanService {
         cs.endText();
         y -= 16;
 
-        // Content (indented + wrapped)
-        final float maxWidth = 612f - (64f * 2) - 16f; // pageWidth - margins - indent
+        final float maxWidth = 612f - (64f * 2) - 16f;
         for (String line : wrap(PDType1Font.HELVETICA, 12, value, maxWidth)) {
             text(cs, x + 16, y, line);
             y -= 14;
         }
-        return y - 6; // padding after block
+        return y - 6;
     }
 
-    /** Simple word-wrap for PDFBox (no hyphenation). */
-    private static java.util.List<String> wrap(PDType1Font font, int fontSize, String text, float maxWidth) throws IOException {
-        java.util.List<String> out = new java.util.ArrayList<>();
+    private static List<String> wrap(PDType1Font font, int fontSize, String text, float maxWidth) throws IOException {
+        List<String> out = new ArrayList<>();
         for (String para : text.split("\\R")) {
             if (!StringUtils.hasText(para)) { out.add(""); continue; }
             String[] words = para.split("\\s+");

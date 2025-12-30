@@ -1,126 +1,153 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.StringClientParam;
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.FacilityDto;
-import com.qiaben.ciyex.entity.Facility;
-import com.qiaben.ciyex.repository.FacilityRepository;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Facility Service - FHIR Only.
+ * All facility data is stored in HAPI FHIR server as Location resources.
+ */
 @Service
 @Slf4j
 public class FacilityService {
 
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    private final FacilityRepository repository;
+    private static final String IDENTIFIER_SYSTEM_FACILITY = "urn:ciyex:facility:id";
+    private static final String IDENTIFIER_SYSTEM_NPI = "http://hl7.org/fhir/sid/us-npi";
 
-    public FacilityService(FacilityRepository repository) {
-        this.repository = repository;
+    @Autowired
+    public FacilityService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
     }
 
-    @Transactional
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+    // ✅ Create facility in FHIR
     public FacilityDto create(FacilityDto dto) {
-        log.info("Creating new facility: {}", dto.getName());
-
-        // Generate externalId if not provided
-        if (dto.getExternalId() == null || dto.getExternalId().trim().isEmpty()) {
-            dto.setExternalId(UUID.randomUUID().toString());
-        }
-
-        // Generate fhirId if not provided
-        if (dto.getFhirId() == null || dto.getFhirId().trim().isEmpty()) {
-            dto.setFhirId(UUID.randomUUID().toString());
-        }
-
-        Facility entity = mapToEntity(dto);
-        Facility saved = repository.save(entity);
-
-        log.info("Facility created successfully with id: {}", saved.getId());
-        return mapToDto(saved);
+        log.info("Creating facility in FHIR: {}", dto.getName());
+        
+        Location fhirLocation = toFhirLocation(dto);
+        fhirLocation.setManagingOrganization(new Reference("Organization/" + getPracticeId()));
+        
+        MethodOutcome outcome = fhirClientService.create(fhirLocation, getPracticeId());
+        
+        String fhirId = outcome.getId().getIdPart();
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        
+        log.info("Created FHIR Location with ID: {}", fhirId);
+        return dto;
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Get facility by FHIR ID
     public FacilityDto getById(Long id) {
-        log.info("Fetching facility by id: {}", id);
-
-        Facility facility = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Facility not found with id: " + id));
-
-        return mapToDto(facility);
+        return getByFhirId(String.valueOf(id));
     }
 
-    @Transactional
+    public FacilityDto getByFhirId(String fhirId) {
+        log.debug("Reading FHIR Location with ID: {}", fhirId);
+        try {
+            Location fhirLocation = fhirClientService.read(Location.class, fhirId, getPracticeId());
+            return toFacilityDto(fhirLocation);
+        } catch (ResourceNotFoundException e) {
+            throw new RuntimeException("Facility not found with FHIR ID: " + fhirId);
+        }
+    }
+
+    // ✅ Update facility in FHIR
     public FacilityDto update(Long id, FacilityDto dto) {
-        log.info("Updating facility with id: {}", id);
-
-        Facility existing = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Facility not found with id: " + id));
-
-        updateEntityFromDto(existing, dto);
-        Facility updated = repository.save(existing);
-
-        log.info("Facility updated successfully: {}", id);
-        return mapToDto(updated);
+        return updateByFhirId(String.valueOf(id), dto);
     }
 
-    @Transactional
+    public FacilityDto updateByFhirId(String fhirId, FacilityDto dto) {
+        log.info("Updating FHIR Location with ID: {}", fhirId);
+        
+        Location fhirLocation = toFhirLocation(dto);
+        fhirLocation.setId(fhirId);
+        
+        fhirClientService.update(fhirLocation, getPracticeId());
+        
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        
+        log.info("Updated FHIR Location with ID: {}", fhirId);
+        return dto;
+    }
+
+    // ✅ Delete facility from FHIR
     public void delete(Long id) {
-        log.info("Deleting facility with id: {}", id);
-
-        Facility facility = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Facility not found with id: " + id));
-
-        repository.delete(facility);
-        log.info("Facility deleted successfully: {}", id);
+        deleteByFhirId(String.valueOf(id));
     }
 
-    @Transactional
+    public void deleteByFhirId(String fhirId) {
+        log.info("Deleting FHIR Location with ID: {}", fhirId);
+        fhirClientService.delete(Location.class, fhirId, getPracticeId());
+        log.info("Deleted FHIR Location with ID: {}", fhirId);
+    }
+
+    // ✅ Soft delete (set status to inactive)
     public void softDelete(Long id) {
-        log.info("Soft deleting facility with id: {}", id);
-
-        Facility facility = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Facility not found with id: " + id));
-
-        facility.setIsActive(false);
-        facility.setFacilityInactive(true);
-        repository.save(facility);
-
-        log.info("Facility soft deleted successfully: {}", id);
+        softDeleteByFhirId(String.valueOf(id));
     }
 
-    @Transactional(readOnly = true)
-    public ApiResponse<List<FacilityDto>> getAllFacilities() {
-        log.info("Fetching all facilities");
+    public void softDeleteByFhirId(String fhirId) {
+        log.info("Soft deleting FHIR Location with ID: {}", fhirId);
+        try {
+            Location fhirLocation = fhirClientService.read(Location.class, fhirId, getPracticeId());
+            fhirLocation.setStatus(Location.LocationStatus.INACTIVE);
+            fhirClientService.update(fhirLocation, getPracticeId());
+            log.info("Soft deleted FHIR Location with ID: {}", fhirId);
+        } catch (ResourceNotFoundException e) {
+            throw new RuntimeException("Facility not found with FHIR ID: " + fhirId);
+        }
+    }
 
-        List<Facility> facilities = repository.findAll();
-        List<FacilityDto> dtos = facilities.stream()
-                .map(this::mapToDto)
-                .collect(Collectors.toList());
+    // ✅ Get all facilities from FHIR
+    public ApiResponse<List<FacilityDto>> getAllFacilities() {
+        log.debug("Getting all FHIR Locations for practice {}", getPracticeId());
+        
+        Bundle bundle = fhirClientService.search(Location.class, getPracticeId());
+        List<FacilityDto> dtos = extractLocations(bundle);
 
         return ApiResponse.<List<FacilityDto>>builder()
                 .success(true)
-                .message("Facilities retrieved successfully")
+                .message("Facilities retrieved successfully from FHIR")
                 .data(dtos)
                 .build();
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Get active facilities
     public ApiResponse<List<FacilityDto>> getActiveFacilities() {
-        log.info("Fetching active facilities");
-
-        List<Facility> facilities = repository.findAllByIsActiveTrue();
-        List<FacilityDto> dtos = facilities.stream()
-                .map(this::mapToDto)
-                .collect(Collectors.toList());
+        log.debug("Getting active FHIR Locations");
+        
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Location.class)
+                .where(new StringClientParam("status").matches().value("active"))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+        
+        List<FacilityDto> dtos = extractLocations(bundle);
 
         return ApiResponse.<List<FacilityDto>>builder()
                 .success(true)
@@ -129,14 +156,19 @@ public class FacilityService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Get facilities by status
     public ApiResponse<List<FacilityDto>> getFacilitiesByStatus(Boolean isActive) {
-        log.info("Fetching facilities by status: {}", isActive);
-
-        List<Facility> facilities = repository.findAllByIsActive(isActive);
-        List<FacilityDto> dtos = facilities.stream()
-                .map(this::mapToDto)
-                .collect(Collectors.toList());
+        String status = Boolean.TRUE.equals(isActive) ? "active" : "inactive";
+        log.debug("Getting FHIR Locations by status: {}", status);
+        
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Location.class)
+                .where(new StringClientParam("status").matches().value(status))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+        
+        List<FacilityDto> dtos = extractLocations(bundle);
 
         return ApiResponse.<List<FacilityDto>>builder()
                 .success(true)
@@ -145,14 +177,18 @@ public class FacilityService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Search by name
     public ApiResponse<List<FacilityDto>> searchByName(String name) {
-        log.info("Searching facilities by name: {}", name);
-
-        List<Facility> facilities = repository.findByNameContainingIgnoreCase(name);
-        List<FacilityDto> dtos = facilities.stream()
-                .map(this::mapToDto)
-                .collect(Collectors.toList());
+        log.debug("Searching FHIR Locations by name: {}", name);
+        
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Location.class)
+                .where(new StringClientParam("name").matches().value(name))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+        
+        List<FacilityDto> dtos = extractLocations(bundle);
 
         return ApiResponse.<List<FacilityDto>>builder()
                 .success(true)
@@ -161,153 +197,154 @@ public class FacilityService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Get paginated
     public Page<FacilityDto> getAllPaginated(Pageable pageable) {
-        log.info("Fetching paginated facilities");
-
-        Page<Facility> facilities = repository.findAll(pageable);
-        return facilities.map(this::mapToDto);
+        log.debug("Getting paginated FHIR Locations");
+        
+        Bundle bundle = fhirClientService.search(Location.class, getPracticeId());
+        List<FacilityDto> allFacilities = extractLocations(bundle);
+        
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), allFacilities.size());
+        
+        List<FacilityDto> pageContent = start < allFacilities.size() 
+                ? allFacilities.subList(start, end) 
+                : new ArrayList<>();
+        
+        return new PageImpl<>(pageContent, pageable, allFacilities.size());
     }
 
-    @Transactional(readOnly = true)
     public long getTotalCount() {
-        return repository.count();
+        Bundle bundle = fhirClientService.search(Location.class, getPracticeId());
+        return bundle.getTotal();
     }
 
-    @Transactional(readOnly = true)
     public long getActiveCount() {
-        return repository.findAllByIsActiveTrue().size();
+        return getActiveFacilities().getData().size();
     }
 
-    @Transactional(readOnly = true)
     public long getInactiveCount() {
-        return repository.findAllByIsActive(false).size();
+        return getFacilitiesByStatus(false).getData().size();
     }
 
-    private Facility mapToEntity(FacilityDto dto) {
-        return Facility.builder()
-                .name(dto.getName())
-                .physicalAddress(dto.getPhysicalAddress())
-                .physicalCity(dto.getPhysicalCity())
-                .physicalState(dto.getPhysicalState())
-                .physicalZipCode(dto.getPhysicalZipCode())
-                .physicalCountry(dto.getPhysicalCountry())
-                .mailingAddress(dto.getMailingAddress())
-                .mailingCity(dto.getMailingCity())
-                .mailingState(dto.getMailingState())
-                .mailingZipCode(dto.getMailingZipCode())
-                .mailingCountry(dto.getMailingCountry())
-                .phone(dto.getPhone())
-                .fax(dto.getFax())
-                .website(dto.getWebsite())
-                .email(dto.getEmail())
-                .color(dto.getColor())
-                .iban(dto.getIban())
-                .posCode(dto.getPosCode())
-                .facilityTaxonomy(dto.getFacilityTaxonomy())
-                .cliaNumber(dto.getCliaNumber())
-                .taxIdType(dto.getTaxIdType())
-                .taxId(dto.getTaxId())
-                .billingAttn(dto.getBillingAttn())
-                .facilityLabCode(dto.getFacilityLabCode())
-                .npi(dto.getNpi())
-                .oid(dto.getOid())
-                .billingLocation(dto.getBillingLocation())
-                .acceptsAssignment(dto.getAcceptsAssignment())
-                .serviceLocation(dto.getServiceLocation())
-                .primaryBusinessEntity(dto.getPrimaryBusinessEntity())
-                .facilityInactive(dto.getFacilityInactive())
-                .info(dto.getInfo())
-                .isActive(dto.getIsActive() != null ? dto.getIsActive() : true)
-                .externalId(dto.getExternalId())
-                .fhirId(dto.getFhirId())
-                .build();
+    // ========== FHIR Mapping Methods ==========
+
+    private Location toFhirLocation(FacilityDto dto) {
+        Location location = new Location();
+
+        // Identifier
+        if (dto.getNpi() != null) {
+            location.addIdentifier()
+                    .setSystem(IDENTIFIER_SYSTEM_NPI)
+                    .setValue(dto.getNpi());
+        }
+
+        // Name
+        location.setName(dto.getName());
+
+        // Status
+        location.setStatus(Boolean.FALSE.equals(dto.getIsActive()) || Boolean.TRUE.equals(dto.getFacilityInactive())
+                ? Location.LocationStatus.INACTIVE 
+                : Location.LocationStatus.ACTIVE);
+
+        // Mode
+        location.setMode(Location.LocationMode.INSTANCE);
+
+        // Type
+        location.addType()
+                .addCoding()
+                .setSystem("http://terminology.hl7.org/CodeSystem/v3-RoleCode")
+                .setCode("HOSP")
+                .setDisplay("Hospital");
+
+        // Contact Info
+        if (dto.getPhone() != null) {
+            location.addTelecom()
+                    .setSystem(ContactPoint.ContactPointSystem.PHONE)
+                    .setValue(dto.getPhone())
+                    .setUse(ContactPoint.ContactPointUse.WORK);
+        }
+        if (dto.getFax() != null) {
+            location.addTelecom()
+                    .setSystem(ContactPoint.ContactPointSystem.FAX)
+                    .setValue(dto.getFax())
+                    .setUse(ContactPoint.ContactPointUse.WORK);
+        }
+        if (dto.getEmail() != null) {
+            location.addTelecom()
+                    .setSystem(ContactPoint.ContactPointSystem.EMAIL)
+                    .setValue(dto.getEmail())
+                    .setUse(ContactPoint.ContactPointUse.WORK);
+        }
+
+        // Physical Address
+        if (dto.getPhysicalAddress() != null || dto.getPhysicalCity() != null) {
+            Address address = location.getAddress().setUse(Address.AddressUse.WORK);
+            if (dto.getPhysicalAddress() != null) address.addLine(dto.getPhysicalAddress());
+            if (dto.getPhysicalCity() != null) address.setCity(dto.getPhysicalCity());
+            if (dto.getPhysicalState() != null) address.setState(dto.getPhysicalState());
+            if (dto.getPhysicalZipCode() != null) address.setPostalCode(dto.getPhysicalZipCode());
+            if (dto.getPhysicalCountry() != null) address.setCountry(dto.getPhysicalCountry());
+        }
+
+        return location;
     }
 
-    private void updateEntityFromDto(Facility entity, FacilityDto dto) {
-        entity.setName(dto.getName());
-        entity.setPhysicalAddress(dto.getPhysicalAddress());
-        entity.setPhysicalCity(dto.getPhysicalCity());
-        entity.setPhysicalState(dto.getPhysicalState());
-        entity.setPhysicalZipCode(dto.getPhysicalZipCode());
-        entity.setPhysicalCountry(dto.getPhysicalCountry());
-        entity.setMailingAddress(dto.getMailingAddress());
-        entity.setMailingCity(dto.getMailingCity());
-        entity.setMailingState(dto.getMailingState());
-        entity.setMailingZipCode(dto.getMailingZipCode());
-        entity.setMailingCountry(dto.getMailingCountry());
-        entity.setPhone(dto.getPhone());
-        entity.setFax(dto.getFax());
-        entity.setWebsite(dto.getWebsite());
-        entity.setEmail(dto.getEmail());
-        entity.setColor(dto.getColor());
-        entity.setIban(dto.getIban());
-        entity.setPosCode(dto.getPosCode());
-        entity.setFacilityTaxonomy(dto.getFacilityTaxonomy());
-        entity.setCliaNumber(dto.getCliaNumber());
-        entity.setTaxIdType(dto.getTaxIdType());
-        entity.setTaxId(dto.getTaxId());
-        entity.setBillingAttn(dto.getBillingAttn());
-        entity.setFacilityLabCode(dto.getFacilityLabCode());
-        entity.setNpi(dto.getNpi());
-        entity.setOid(dto.getOid());
-        entity.setBillingLocation(dto.getBillingLocation());
-        entity.setAcceptsAssignment(dto.getAcceptsAssignment());
-        entity.setServiceLocation(dto.getServiceLocation());
-        entity.setPrimaryBusinessEntity(dto.getPrimaryBusinessEntity());
-        entity.setFacilityInactive(dto.getFacilityInactive());
-        entity.setInfo(dto.getInfo());
-        entity.setIsActive(dto.getIsActive());
-        entity.setExternalId(dto.getExternalId());
-        entity.setFhirId(dto.getFhirId());
+    private FacilityDto toFacilityDto(Location location) {
+        FacilityDto dto = FacilityDto.builder().build();
+
+        // FHIR ID
+        if (location.hasId()) {
+            dto.setFhirId(location.getIdElement().getIdPart());
+            dto.setExternalId(location.getIdElement().getIdPart());
+        }
+
+        // Identifiers
+        for (Identifier identifier : location.getIdentifier()) {
+            if (IDENTIFIER_SYSTEM_NPI.equals(identifier.getSystem())) {
+                dto.setNpi(identifier.getValue());
+            }
+        }
+
+        // Name
+        dto.setName(location.getName());
+
+        // Status
+        dto.setIsActive(location.getStatus() == Location.LocationStatus.ACTIVE);
+        dto.setFacilityInactive(location.getStatus() == Location.LocationStatus.INACTIVE);
+
+        // Contact Info
+        for (ContactPoint telecom : location.getTelecom()) {
+            switch (telecom.getSystem()) {
+                case PHONE -> dto.setPhone(telecom.getValue());
+                case FAX -> dto.setFax(telecom.getValue());
+                case EMAIL -> dto.setEmail(telecom.getValue());
+                default -> {}
+            }
+        }
+
+        // Address
+        if (location.hasAddress()) {
+            Address address = location.getAddress();
+            if (address.hasLine()) dto.setPhysicalAddress(address.getLine().get(0).getValue());
+            dto.setPhysicalCity(address.getCity());
+            dto.setPhysicalState(address.getState());
+            dto.setPhysicalZipCode(address.getPostalCode());
+            dto.setPhysicalCountry(address.getCountry());
+        }
+
+        return dto;
     }
 
-    private FacilityDto mapToDto(Facility entity) {
-        FacilityDto.Audit audit = FacilityDto.Audit.builder()
-                .createdDate(entity.getCreatedDate() != null ? entity.getCreatedDate().format(DATE_FORMATTER) : null)
-                .lastModifiedDate(entity.getLastModifiedDate() != null ? entity.getLastModifiedDate().format(DATE_FORMATTER) : null)
-                .createdBy(entity.getCreatedBy())
-                .lastModifiedBy(entity.getLastModifiedBy())
-                .build();
-
-        return FacilityDto.builder()
-                .id(entity.getId())
-                .name(entity.getName())
-                .physicalAddress(entity.getPhysicalAddress())
-                .physicalCity(entity.getPhysicalCity())
-                .physicalState(entity.getPhysicalState())
-                .physicalZipCode(entity.getPhysicalZipCode())
-                .physicalCountry(entity.getPhysicalCountry())
-                .mailingAddress(entity.getMailingAddress())
-                .mailingCity(entity.getMailingCity())
-                .mailingState(entity.getMailingState())
-                .mailingZipCode(entity.getMailingZipCode())
-                .mailingCountry(entity.getMailingCountry())
-                .phone(entity.getPhone())
-                .fax(entity.getFax())
-                .website(entity.getWebsite())
-                .email(entity.getEmail())
-                .color(entity.getColor())
-                .iban(entity.getIban())
-                .posCode(entity.getPosCode())
-                .facilityTaxonomy(entity.getFacilityTaxonomy())
-                .cliaNumber(entity.getCliaNumber())
-                .taxIdType(entity.getTaxIdType())
-                .taxId(entity.getTaxId())
-                .billingAttn(entity.getBillingAttn())
-                .facilityLabCode(entity.getFacilityLabCode())
-                .npi(entity.getNpi())
-                .oid(entity.getOid())
-                .billingLocation(entity.getBillingLocation())
-                .acceptsAssignment(entity.getAcceptsAssignment())
-                .serviceLocation(entity.getServiceLocation())
-                .primaryBusinessEntity(entity.getPrimaryBusinessEntity())
-                .facilityInactive(entity.getFacilityInactive())
-                .info(entity.getInfo())
-                .isActive(entity.getIsActive())
-                .externalId(entity.getExternalId())
-                .fhirId(entity.getFhirId())
-                .audit(audit)
-                .build();
+    private List<FacilityDto> extractLocations(Bundle bundle) {
+        List<FacilityDto> facilities = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof Location) {
+                    facilities.add(toFacilityDto((Location) entry.getResource()));
+                }
+            }
+        }
+        return facilities;
     }
 }

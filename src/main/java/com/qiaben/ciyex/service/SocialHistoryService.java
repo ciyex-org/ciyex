@@ -1,446 +1,214 @@
-//package com.qiaben.ciyex.service;
-//
-//import com.qiaben.ciyex.dto.SocialHistoryDto;
-//import com.qiaben.ciyex.entity.SocialHistory;
-//import com.qiaben.ciyex.entity.SocialHistoryEntry;
-//import com.qiaben.ciyex.repository.SocialHistoryRepository;
-//import com.qiaben.ciyex.storage.ExternalSocialHistoryStorage;
-//import lombok.RequiredArgsConstructor;
-//import lombok.extern.slf4j.Slf4j;
-//import org.springframework.stereotype.Service;
-//
-//import java.time.ZoneId;
-//import java.time.format.DateTimeFormatter;
-//import java.util.List;
-//import java.util.Optional;
-//
-//@Service
-//@RequiredArgsConstructor
-//@Slf4j
-//public class SocialHistoryService {
-//
-//    private final SocialHistoryRepository repo;
-//    private final Optional<ExternalSocialHistoryStorage> external;
-//
-//    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-//
-//    public SocialHistoryDto create(Long patientId, Long encounterId, SocialHistoryDto in) {
-//        SocialHistory sh = new SocialHistory();
-//
-//        sh.setPatientId(patientId);
-//        sh.setEncounterId(encounterId);
-//
-//        if (in.getEntries() != null) {
-//            for (var e : in.getEntries()) {
-//                SocialHistoryEntry row = SocialHistoryEntry.builder()
-//                        .category(normalizeCategory(e.getCategory()))
-//                        .value(e.getValue())
-//                        .details(e.getDetails())
-//                        .socialHistory(sh)
-//                        .build();
-//                sh.getEntries().add(row);
-//            }
-//        }
-//
-//        final SocialHistory saved = repo.save(sh);
-//
-//        external.ifPresent(ext -> {
-//            final SocialHistory ref = saved;
-//            String externalId = ext.create(mapToDto(ref));
-//            ref.setExternalId(externalId);
-//            repo.save(ref);
-//        });
-//
-//        return mapToDto(saved);
-//    }
-//
-//    public SocialHistoryDto update(Long patientId, Long encounterId, Long id, SocialHistoryDto in) {
-//        SocialHistory sh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
-//
-//        sh.getEntries().clear();
-//        if (in.getEntries() != null) {
-//            for (var e : in.getEntries()) {
-//                SocialHistoryEntry row = SocialHistoryEntry.builder()
-//                        .category(normalizeCategory(e.getCategory()))
-//                        .value(e.getValue())
-//                        .details(e.getDetails())
-//                        .socialHistory(sh)
-//                        .build();
-//                sh.getEntries().add(row);
-//            }
-//        }
-//
-//        final SocialHistory updated = repo.save(sh);
-//
-//        external.ifPresent(ext -> {
-//            final SocialHistory ref = updated;
-//            if (ref.getExternalId() != null) {
-//                ext.update(ref.getExternalId(), mapToDto(ref));
-//            }
-//        });
-//
-//        return mapToDto(updated);
-//    }
-//
-//    public void delete(Long patientId, Long encounterId, Long id) {
-//        SocialHistory sh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
-//
-//        final SocialHistory toDelete = sh;
-//        external.ifPresent(ext -> {
-//            if (toDelete.getExternalId() != null) {
-//                ext.delete(toDelete.getExternalId());
-//            }
-//        });
-//
-//        repo.delete(toDelete);
-//    }
-//
-//    public SocialHistoryDto getOne(Long patientId, Long encounterId, Long id) {
-//        SocialHistory sh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Social History not found"));
-//        return mapToDto(sh);
-//    }
-//
-//    public List<SocialHistoryDto> getAllByPatient(Long patientId) {
-//        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
-//    }
-//
-//    public List<SocialHistoryDto> getAllByEncounter(Long patientId, Long encounterId) {
-//        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
-//    }
-//
-//    private SocialHistoryDto mapToDto(SocialHistory sh) {
-//        SocialHistoryDto dto = new SocialHistoryDto();
-//        dto.setId(sh.getId());
-//        dto.setExternalId(sh.getExternalId());
-//        dto.setOrgId(sh.getOrgId());
-//        dto.setPatientId(sh.getPatientId());
-//        dto.setEncounterId(sh.getEncounterId());
-//
-//        dto.setEntries(sh.getEntries().stream().map(e -> {
-//            SocialHistoryDto.EntryDto ed = new SocialHistoryDto.EntryDto();
-//            ed.setCategory(e.getCategory());
-//            ed.setValue(e.getValue());
-//            ed.setDetails(e.getDetails());
-//            return ed;
-//        }).toList());
-//
-//        SocialHistoryDto.Audit a = new SocialHistoryDto.Audit();
-//        if (sh.getCreatedAt() != null) a.setCreatedDate(sh.getCreatedAt().atZone(ZoneId.systemDefault()).toLocalDate().toString());
-//        if (sh.getUpdatedAt() != null) a.setLastModifiedDate(sh.getUpdatedAt().atZone(ZoneId.systemDefault()).toLocalDate().toString());
-//        dto.setAudit(a);
-//
-//        return dto;
-//    }
-//
-//    private String normalizeCategory(String c) {
-//        if (c == null) return "OTHER";
-//        String v = c.trim().toUpperCase().replace(' ', '_');
-//        return switch (v) {
-//            case "SMOKING", "ALCOHOL", "DRUGS", "OCCUPATION", "MARITAL_STATUS",
-//                 "EXERCISE", "DIET", "HOUSING", "EDUCATION", "SEXUAL_HISTORY" -> v;
-//            default -> "OTHER";
-//        };
-//    }
-//}
-
-
-
-
-
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
+import ca.uhn.fhir.rest.gclient.TokenClientParam;
 import com.qiaben.ciyex.dto.SocialHistoryDto;
 import com.qiaben.ciyex.dto.SocialHistoryEntryDto;
-import com.qiaben.ciyex.entity.SocialHistory;
-import com.qiaben.ciyex.entity.SocialHistoryEntry;
-import com.qiaben.ciyex.repository.SocialHistoryRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.storage.fhir.FhirExternalSocialHistoryStorage;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import lombok.RequiredArgsConstructor;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.springframework.stereotype.Service;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.*;
-import java.time.format.DateTimeFormatter;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * SocialHistory Service - FHIR Only.
+ * All social history data is stored in HAPI FHIR server as Observation resources.
+ */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class SocialHistoryService {
+
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
+
+    // In-memory cache for e-sign/print metadata (keyed by FHIR ID)
+    private final Map<String, SignMetadata> signMetadataCache = new ConcurrentHashMap<>();
+
+    @Autowired
+    public SocialHistoryService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
+    }
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+    // Helper class for e-sign metadata
+    private static class SignMetadata {
+        Boolean eSigned = false;
+        OffsetDateTime signedAt;
+        String signedBy;
+        OffsetDateTime printedAt;
+    }
+
+    // ✅ Get all by patient
     public List<SocialHistoryDto> getAllByPatient(Long patientId) {
-        return repo.findByPatientId(patientId)
-                .stream().map(this::toDto).toList();
+        log.debug("Getting FHIR Observations (social history) for patient: {}", patientId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Observation.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .where(new TokenClientParam("category").exactly()
+                        .systemAndCode("http://terminology.hl7.org/CodeSystem/observation-category", "social-history"))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractSocialHistoryDtos(bundle, patientId, null);
     }
-    private final SocialHistoryRepository repo;
-    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
-    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
-    private final EncounterService encounterService;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
 
-    @Autowired(required = false)
-    private FhirExternalSocialHistoryStorage fhirStorage;
-
-    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
-
-    // CREATE (container + entries)
+    // ✅ Create social history
     public SocialHistoryDto create(Long patientId, Long encounterId, SocialHistoryDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-        // Step 4: Create the social history
-        SocialHistory e = new SocialHistory();
-        e.setPatientId(patientId);
-        e.setEncounterId(encounterId);
-        applyEntries(e, dto.getEntries());
-        e = repo.save(e);
-        
-        // Step 5: Optional external FHIR sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("SocialHistory create - storageType for current org: {}", storageType);
+        log.info("Creating social history in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
-        if (storageType != null) {
-            try {
-                log.info("Attempting FHIR sync for SocialHistory ID: {}", e.getId());
-                ExternalStorage<SocialHistoryDto> ext = storageResolver.resolve(SocialHistoryDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
+        List<String> createdIds = new ArrayList<>();
 
-                SocialHistoryDto snapshot = toDto(e);
-                String externalId = ext.create(snapshot);
-                log.info("FHIR create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource for SocialHistory ID: {} with externalId: {}", e.getId(), externalId);
-                } else {
-                    log.warn("FHIR create returned null or empty externalId for SocialHistory ID: {}", e.getId());
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync SocialHistory to external storage", ex);
+        // Create one Observation per entry
+        if (dto.getEntries() != null) {
+            for (SocialHistoryEntryDto entry : dto.getEntries()) {
+                Observation obs = toFhirObservation(entry, patientId, encounterId);
+                MethodOutcome outcome = fhirClientService.create(obs, getPracticeId());
+                String fhirId = outcome.getId().getIdPart();
+                createdIds.add(fhirId);
+                log.info("Created FHIR Observation (social history) with ID: {}", fhirId);
             }
-        } else if (fhirStorage != null) {
-            try {
-                log.info("No storage type configured, falling back to direct FHIR storage for SocialHistory ID: {}", e.getId());
-                SocialHistoryDto snapshot = toDto(e);
-                String externalId = fhirStorage.create(snapshot);
-                log.info("FHIR fallback create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource (fallback) for SocialHistory ID: {} with externalId: {}", e.getId(), externalId);
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync SocialHistory to external storage (fallback)", ex);
-            }
-        } else {
-            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for SocialHistory ID: {}", e.getId());
         }
 
-        if (e.getExternalId() == null) {
-            String generatedId = "SH-" + System.currentTimeMillis();
-            e.setExternalId(generatedId);
-            e.setFhirId(generatedId);
-            e = repo.save(e);
-            log.info("Auto-generated externalId: {}", generatedId);
-        } else {
-            e.setFhirId(e.getExternalId());
-            e = repo.save(e);
-        }
+        // Return DTO with first ID as container ID
+        String containerId = createdIds.isEmpty() ? "SH-" + System.currentTimeMillis() : createdIds.get(0);
+        dto.setFhirId(containerId);
+        dto.setExternalId(containerId);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
 
-        return toDto(e);
+        return dto;
     }
 
-    // READ one container (first if multiple)
+    // ✅ Get one social history
     public SocialHistoryDto getOne(Long patientId, Long encounterId) {
-        List<SocialHistory> list = repo.findByPatientIdAndEncounterId(patientId, encounterId);
-        SocialHistory e = list.isEmpty() ? null : list.get(0);
-        if (e == null) throw new IllegalArgumentException(
-            String.format("Social History not found for Patient ID: %d, Encounter ID: %d", patientId, encounterId)
-        );
-        return toDto(e);
+        log.debug("Getting FHIR Observations (social history) for patient: {}, encounter: {}", patientId, encounterId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Observation.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .where(new TokenClientParam("category").exactly()
+                        .systemAndCode("http://terminology.hl7.org/CodeSystem/observation-category", "social-history"))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        List<SocialHistoryDto> results = extractSocialHistoryDtos(bundle, patientId, encounterId);
+        if (results.isEmpty()) {
+            throw new IllegalArgumentException(
+                    String.format("Social History not found for Patient ID: %d, Encounter ID: %d", patientId, encounterId));
+        }
+        return results.get(0);
     }
 
-    // READ by id
+    // ✅ Get by id
     public SocialHistoryDto getById(Long patientId, Long encounterId, Long id) {
-        SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        return toDto(e);
+        String fhirId = String.valueOf(id);
+        log.debug("Getting FHIR Observation (social history) with ID: {}", fhirId);
+
+        try {
+            Observation obs = fhirClientService.read(Observation.class, fhirId, getPracticeId());
+            return toSocialHistoryDto(obs, patientId, encounterId);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d",
+                            patientId, encounterId, id));
+        }
     }
 
-    // UPDATE container (blocked if signed)
+    // ✅ Update social history
     public SocialHistoryDto update(Long patientId, Long encounterId, Long id, SocialHistoryDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-        // Step 4: Find the social history
-        SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (Boolean.TRUE.equals(e.getESigned())) {
+        String fhirId = String.valueOf(id);
+        log.info("Updating FHIR Observation (social history) with ID: {}", fhirId);
+
+        // Check if signed
+        SignMetadata meta = signMetadataCache.get(fhirId);
+        if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed Social History is read-only.");
         }
-        applyEntries(e, dto.getEntries());
-        e = repo.save(e);
-        
-        // Step 5: Optional external FHIR sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("SocialHistory update - storageType for current org: {}", storageType);
 
-        if (storageType != null && e.getExternalId() != null) {
-            try {
-                log.info("Attempting FHIR sync for SocialHistory ID: {}", e.getId());
-                ExternalStorage<SocialHistoryDto> ext = storageResolver.resolve(SocialHistoryDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                SocialHistoryDto snapshot = toDto(e);
-                ext.update(snapshot, e.getExternalId());
-                log.info("Updated FHIR resource for SocialHistory ID: {} with externalId: {}", e.getId(), e.getExternalId());
-            } catch (Exception ex) {
-                log.error("Failed to sync SocialHistory to external storage", ex);
-            }
-        } else if (fhirStorage != null && e.getExternalId() != null) {
-            try {
-                log.info("No storage type configured, falling back to direct FHIR storage for SocialHistory ID: {}", e.getId());
-                SocialHistoryDto snapshot = toDto(e);
-                fhirStorage.update(snapshot, e.getExternalId());
-                log.info("Updated FHIR resource (fallback) for SocialHistory ID: {} with externalId: {}", e.getId(), e.getExternalId());
-            } catch (Exception ex) {
-                log.error("Failed to sync SocialHistory to external storage (fallback)", ex);
-            }
-        } else {
-            log.warn("No storage type configured or no externalId for current org - skipping FHIR sync for SocialHistory ID: {}", e.getId());
+        // Update first entry
+        if (dto.getEntries() != null && !dto.getEntries().isEmpty()) {
+            SocialHistoryEntryDto entry = dto.getEntries().get(0);
+            Observation obs = toFhirObservation(entry, patientId, encounterId);
+            obs.setId(fhirId);
+            fhirClientService.update(obs, getPracticeId());
         }
 
-        return toDto(e);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        return dto;
     }
 
-    // DELETE container (blocked if signed)
+    // ✅ Delete social history
     public void delete(Long patientId, Long encounterId, Long id) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-        // Step 4: Find the social history
-        SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (Boolean.TRUE.equals(e.getESigned())) {
+        String fhirId = String.valueOf(id);
+        log.info("Deleting FHIR Observation (social history) with ID: {}", fhirId);
+
+        // Check if signed
+        SignMetadata meta = signMetadataCache.get(fhirId);
+        if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed Social History cannot be deleted.");
         }
-        
-        // Step 5: Optional external FHIR sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("SocialHistory delete - storageType for current org: {}", storageType);
 
-        if (storageType != null && e.getExternalId() != null) {
-            try {
-                log.info("Attempting FHIR sync for SocialHistory ID: {}", e.getId());
-                ExternalStorage<SocialHistoryDto> ext = storageResolver.resolve(SocialHistoryDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
+        fhirClientService.delete(Observation.class, fhirId, getPracticeId());
+        signMetadataCache.remove(fhirId);
+    }
 
-                ext.delete(e.getExternalId());
-                log.info("Deleted FHIR resource for SocialHistory ID: {} with externalId: {}", e.getId(), e.getExternalId());
-            } catch (Exception ex) {
-                log.error("Failed to sync SocialHistory to external storage", ex);
-            }
-        } else if (fhirStorage != null && e.getExternalId() != null) {
-            try {
-                log.info("No storage type configured, falling back to direct FHIR storage for SocialHistory ID: {}", e.getId());
-                fhirStorage.delete(e.getExternalId());
-                log.info("Deleted FHIR resource (fallback) for SocialHistory ID: {} with externalId: {}", e.getId(), e.getExternalId());
-            } catch (Exception ex) {
-                log.error("Failed to sync SocialHistory to external storage (fallback)", ex);
-            }
-        } else {
-            log.warn("No storage type configured or no externalId for current org - skipping FHIR sync for SocialHistory ID: {}", e.getId());
+    // ✅ eSign social history
+    public SocialHistoryDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
+        String fhirId = String.valueOf(id);
+        log.info("E-signing FHIR Observation (social history) with ID: {}", fhirId);
+
+        SignMetadata meta = signMetadataCache.computeIfAbsent(fhirId, k -> new SignMetadata());
+
+        if (Boolean.TRUE.equals(meta.eSigned)) {
+            return getById(patientId, encounterId, id);
         }
 
-        repo.delete(e);
+        meta.eSigned = true;
+        meta.signedBy = StringUtils.hasText(signedBy) ? signedBy : "system";
+        meta.signedAt = OffsetDateTime.now(ZoneOffset.UTC);
+
+        SocialHistoryDto dto = getById(patientId, encounterId, id);
+        dto.setESigned(meta.eSigned);
+        dto.setSignedAt(meta.signedAt);
+        dto.setSignedBy(meta.signedBy);
+
+        return dto;
     }
 
-    // eSIGN (idempotent)
-    public SocialHistoryDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
-        SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
-        e.setESigned(true);
-        e.setSignedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        e.setSignedBy(StringUtils.hasText(signedBy) ? signedBy : "system");
-        e = repo.save(e);
-        return toDto(e);
-    }
-
-    // PRINT (PDF) — also stamps printedAt
+    // ✅ Render PDF
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
-        SocialHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        repo.save(e);
+        String fhirId = String.valueOf(id);
+        log.info("Rendering PDF for FHIR Observation (social history) with ID: {}", fhirId);
+
+        SocialHistoryDto dto = getById(patientId, encounterId, id);
+
+        // Update print timestamp
+        SignMetadata meta = signMetadataCache.computeIfAbsent(fhirId, k -> new SignMetadata());
+        meta.printedAt = OffsetDateTime.now(ZoneOffset.UTC);
 
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             PDPage page = new PDPage(PDRectangle.LETTER);
@@ -458,37 +226,33 @@ public class SocialHistoryService {
                 y -= 26;
                 draw(cs, x, y, "Patient ID:", String.valueOf(patientId)); y -= 16;
                 draw(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 16;
-                draw(cs, x, y, "Record ID:", String.valueOf(id)); y -= 22;
+                draw(cs, x, y, "Record ID:", fhirId); y -= 22;
 
-                if (e.getEntries() != null && !e.getEntries().isEmpty()) {
-                    for (int i = 0; i < e.getEntries().size(); i++) {
-                        SocialHistoryEntry it = e.getEntries().get(i);
+                List<SocialHistoryEntryDto> entries = dto.getEntries() == null ? List.of() : dto.getEntries();
+                if (entries.isEmpty()) {
+                    draw(cs, x, y, "Entries:", "(none)"); y -= 16;
+                } else {
+                    for (int i = 0; i < entries.size(); i++) {
+                        SocialHistoryEntryDto entry = entries.get(i);
                         cs.beginText();
                         cs.setFont(PDType1Font.HELVETICA_BOLD, 12);
                         cs.newLineAtOffset(x, y);
-                        cs.showText((i + 1) + ". " + (it.getCategory() != null ? it.getCategory() : "—"));
+                        cs.showText((i + 1) + ". " + (entry.getCategory() != null ? entry.getCategory() : "—"));
                         cs.endText();
                         y -= 14;
 
-                        if (StringUtils.hasText(it.getValue())) { draw(cs, x + 16, y, "Value:", it.getValue()); y -= 14; }
-                        if (StringUtils.hasText(it.getDetails())) {
-                            draw(cs, x + 16, y, "Details:", ""); y -= 14;
-                            for (String ln : it.getDetails().split("\\R")) {
-                                cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 16, y);
-                                cs.showText(ln); cs.endText();
-                                y -= 14;
-                            }
+                        if (StringUtils.hasText(entry.getValue())) { draw(cs, x + 16, y, "Value:", entry.getValue()); y -= 14; }
+                        if (StringUtils.hasText(entry.getDetails())) {
+                            draw(cs, x + 16, y, "Details:", entry.getDetails()); y -= 14;
                         }
                         y -= 8;
                     }
-                } else {
-                    draw(cs, x, y, "Entries:", "(none)"); y -= 16;
                 }
 
                 y -= 8;
-                draw(cs, x, y, "eSigned:", Boolean.TRUE.equals(e.getESigned()) ? "Yes" : "No"); y -= 16;
-                if (e.getSignedAt() != null) { draw(cs, x, y, "Signed At:", e.getSignedAt().toString()); y -= 16; }
-                if (StringUtils.hasText(e.getSignedBy())) { draw(cs, x, y, "Signed By:", e.getSignedBy()); y -= 16; }
+                draw(cs, x, y, "eSigned:", Boolean.TRUE.equals(meta.eSigned) ? "Yes" : "No"); y -= 16;
+                if (meta.signedAt != null) { draw(cs, x, y, "Signed At:", meta.signedAt.toString()); y -= 16; }
+                if (StringUtils.hasText(meta.signedBy)) { draw(cs, x, y, "Signed By:", meta.signedBy); y -= 16; }
             }
 
             doc.save(baos);
@@ -498,53 +262,108 @@ public class SocialHistoryService {
         }
     }
 
-    // ---- helpers ----
+    // ========== FHIR Mapping Methods ==========
+
+    private Observation toFhirObservation(SocialHistoryEntryDto entry, Long patientId, Long encounterId) {
+        Observation obs = new Observation();
+
+        // Patient reference
+        obs.setSubject(new Reference("Patient/" + patientId));
+
+        // Encounter reference
+        if (encounterId != null) {
+            obs.setEncounter(new Reference("Encounter/" + encounterId));
+        }
+
+        // Category: social-history
+        obs.addCategory()
+                .addCoding()
+                .setSystem("http://terminology.hl7.org/CodeSystem/observation-category")
+                .setCode("social-history")
+                .setDisplay("Social History");
+
+        // Status
+        obs.setStatus(Observation.ObservationStatus.FINAL);
+
+        // Code (category as code)
+        if (entry.getCategory() != null) {
+            obs.setCode(new CodeableConcept().setText(entry.getCategory()));
+        }
+
+        // Value
+        if (entry.getValue() != null) {
+            obs.setValue(new StringType(entry.getValue()));
+        }
+
+        // Note (details)
+        if (entry.getDetails() != null) {
+            obs.addNote().setText(entry.getDetails());
+        }
+
+        return obs;
+    }
+
+    private SocialHistoryDto toSocialHistoryDto(Observation obs, Long patientId, Long encounterId) {
+        SocialHistoryDto dto = new SocialHistoryDto();
+
+        if (obs.hasId()) {
+            dto.setFhirId(obs.getIdElement().getIdPart());
+            dto.setExternalId(obs.getIdElement().getIdPart());
+        }
+
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+
+        // Extract entry
+        List<SocialHistoryEntryDto> entries = new ArrayList<>();
+        SocialHistoryEntryDto entry = new SocialHistoryEntryDto();
+
+        if (obs.hasCode() && obs.getCode().hasText()) {
+            entry.setCategory(obs.getCode().getText());
+        }
+
+        if (obs.hasValueStringType()) {
+            entry.setValue(obs.getValueStringType().getValue());
+        }
+
+        if (obs.hasNote()) {
+            entry.setDetails(obs.getNoteFirstRep().getText());
+        }
+
+        entries.add(entry);
+        dto.setEntries(entries);
+
+        // Check sign metadata
+        String fhirId = dto.getFhirId();
+        if (fhirId != null) {
+            SignMetadata meta = signMetadataCache.get(fhirId);
+            if (meta != null) {
+                dto.setESigned(meta.eSigned);
+                dto.setSignedAt(meta.signedAt);
+                dto.setSignedBy(meta.signedBy);
+                dto.setPrintedAt(meta.printedAt);
+            }
+        }
+
+        return dto;
+    }
+
+    private List<SocialHistoryDto> extractSocialHistoryDtos(Bundle bundle, Long patientId, Long encounterId) {
+        List<SocialHistoryDto> items = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof Observation) {
+                    items.add(toSocialHistoryDto((Observation) entry.getResource(), patientId, encounterId));
+                }
+            }
+        }
+        return items;
+    }
+
+    // ========== PDF Helpers ==========
+
     private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
-    }
-
-    private SocialHistoryDto toDto(SocialHistory e) {
-        SocialHistoryDto d = new SocialHistoryDto();
-        d.setId(e.getId());
-        d.setExternalId(e.getFhirId());
-        d.setFhirId(e.getFhirId());
-        d.setPatientId(e.getPatientId());
-        d.setEncounterId(e.getEncounterId());
-
-        List<SocialHistoryEntryDto> list = new ArrayList<>();
-        for (SocialHistoryEntry it : e.getEntries()) {
-            SocialHistoryEntryDto ed = new SocialHistoryEntryDto();
-            ed.setId(it.getId());
-            ed.setCategory(it.getCategory());
-            ed.setDetails(it.getDetails());
-            ed.setValue(it.getValue());
-            list.add(ed);
-        }
-        d.setEntries(list);
-
-        d.setESigned(e.getESigned());
-        d.setSignedAt(e.getSignedAt());
-        d.setSignedBy(e.getSignedBy());
-        d.setPrintedAt(e.getPrintedAt());
-
-        SocialHistoryDto.Audit a = new SocialHistoryDto.Audit();
-        if (e.getCreatedAt() != null) a.setCreatedDate(DAY.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-        if (e.getUpdatedAt() != null) a.setLastModifiedDate(DAY.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
-        d.setAudit(a);
-        return d;
-    }
-
-    private void applyEntries(SocialHistory e, List<SocialHistoryEntryDto> dtos) {
-        e.getEntries().clear();
-        if (dtos == null) return;
-        for (SocialHistoryEntryDto d : dtos) {
-            SocialHistoryEntry it = new SocialHistoryEntry();
-            it.setCategory(d.getCategory());
-            it.setDetails(d.getDetails());
-            it.setValue(d.getValue());
-            it.setSocialHistory(e);
-            e.getEntries().add(it);
-        }
     }
 }

@@ -1,38 +1,50 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.StringClientParam;
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.PatientDto;
-import com.qiaben.ciyex.entity.Patient;
-import com.qiaben.ciyex.repository.PatientRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * Patient Service - FHIR Only.
+ * All patient data is stored in HAPI FHIR server.
+ */
 @Service
 @Slf4j
 public class PatientService {
 
-    private final PatientRepository repository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
+
+    private static final String IDENTIFIER_SYSTEM_MRN = "urn:ciyex:patient:mrn";
+    private static final String IDENTIFIER_SYSTEM_EXTERNAL = "urn:ciyex:patient:external-id";
 
     @Autowired
-    public PatientService(PatientRepository repository,
-                          ExternalStorageResolver storageResolver,
-                          OrgIntegrationConfigProvider configProvider) {
-        this.repository = repository;
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
+    public PatientService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
+    }
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
     // ✅ Manual validation for mandatory fields
@@ -54,17 +66,24 @@ public class PatientService {
             throw new IllegalArgumentException(errors.toString().trim());
     }
 
-    // ✅ Count all patients
-    @Transactional(readOnly = true)
+    // ✅ Count all patients from FHIR
     public long countPatientsForCurrentOrg() {
-        log.info("Counting all patients for single-tenant instance");
-        return repository.count();
+        log.info("Counting all patients from FHIR");
+        try {
+            Bundle bundle = fhirClientService.getClient().search()
+                    .forResource(Patient.class)
+                    .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                    .returnBundle(Bundle.class)
+                    .execute();
+            return bundle.getTotal();
+        } catch (Exception e) {
+            log.error("Failed to count patients from FHIR: {}", e.getMessage());
+            return 0;
+        }
     }
 
-    // ✅ Create a new patient with manual validation
-    @Transactional
+    // ✅ Create a new patient in FHIR
     public PatientDto create(PatientDto dto) {
-        // Validate all required fields
         validatePatientFields(dto);
 
         // Auto-generate MRN if missing
@@ -72,285 +91,329 @@ public class PatientService {
             dto.setMedicalRecordNumber(generateMrn());
         }
 
-        Patient patient = mapToEntity(dto);
-
-        String externalId = dto.getExternalId(); // Start with DTO's externalId
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("Storage type configured: {} (single-tenant mode, no tenant/org validation required)", storageType);
-        if (storageType != null) {
-            try {
-                ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
-
-                externalId = externalStorage.create(dto); // Override with external storage ID if available
-                log.info("Successfully created patient in external storage with externalId: {}", externalId);
-
-                externalId = externalStorage.create(dto);
-                log.info("Successfully created patient in external storage with externalId: {} (no tenant context required)", externalId);
-            } catch (IllegalStateException e) {
-                log.warn("External storage configuration issue, proceeding without external sync: {}", e.getMessage());
-                // Continue without external storage - don't fail the entire operation
-            } catch (RuntimeException e) {
-                if (e.getMessage() != null && (e.getMessage().contains("No FHIR configuration") ||
-                        e.getMessage().contains("No tenantName") || e.getMessage().contains("No orgId"))) {
-                    log.warn("External storage not configured or tenant context missing, proceeding without external sync: {}", e.getMessage());
-                    // Continue without external storage - don't fail the entire operation
-                } else {
-                    log.error("Unexpected external storage error. Error type: {}, Message: {}",
-                            e.getClass().getSimpleName(), e.getMessage(), e);
-                    log.warn("Proceeding without external sync due to unexpected error");
-                    // Continue without external storage rather than failing
-                }
-
-            } catch (Exception e) {
-                log.error("External storage sync failed but patient creation will continue. Error type: {}, Message: {}",
-                        e.getClass().getSimpleName(), e.getMessage(), e);
-                log.warn("Proceeding without external sync due to general error");
-                // Continue without external storage rather than failing
-            }
-        } else {
-            log.info("No external storage configured, saving patient to local database only");
-        }
-
-        // Auto-generate externalId if not provided
-        if (externalId == null) {
-            externalId = "PAT-" + System.currentTimeMillis();
-            log.info("Auto-generated externalId: {}", externalId);
-        }
-
-        patient.setFhirId(externalId);
-        patient.setExternalId(externalId);
-        patient = repository.save(patient);
-
-        if (patient.getId() == null) {
-            log.error("Database save failed to generate id for patient with externalId: {}", externalId);
-            throw new RuntimeException("Failed to generate id for new patient");
-        }
-
-        log.info("Created patient with id: {} and externalId: {}", patient.getId(), externalId);
-
-
-        // Map the saved entity to DTO to include audit fields
-
-        return mapToDto(patient);
-    }
-
-    // ✅ Retrieve patient by ID
-    @Transactional(readOnly = true)
-    public PatientDto getById(Long id) {
-        Patient patient = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
-
-        PatientDto patientDto = mapToDto(patient);
-        if (patient.getExternalId() != null) {
-            PatientDto fhirPatientDto = getPatientFromFhir(patient.getExternalId());
-            if (fhirPatientDto != null) {
-                patientDto.setPreferredName(fhirPatientDto.getPreferredName());
-                patientDto.setLicenseId(fhirPatientDto.getLicenseId());
-                patientDto.setSexualOrientation(fhirPatientDto.getSexualOrientation());
-                patientDto.setEmergencyContact(fhirPatientDto.getEmergencyContact());
-                patientDto.setRace(fhirPatientDto.getRace());
-                patientDto.setEthnicity(fhirPatientDto.getEthnicity());
-                patientDto.setGuardianName(fhirPatientDto.getGuardianName());
-                patientDto.setGuardianRelationship(fhirPatientDto.getGuardianRelationship());
-            }
-        }
-
-        return patientDto;
-    }
-
-    // ✅ Fetch patient from external storage (FHIR)
-    public PatientDto getPatientFromFhir(String externalId) {
-        if (externalId == null) return null;
-        ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
-        return externalStorage.get(externalId);
-    }
-
-    // ✅ Update patient with validation
-    @Transactional
-    public PatientDto update(Long id, PatientDto dto) {
-        // Validate before update
-        validatePatientFields(dto);
-
-        Patient patient = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
-
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && patient.getExternalId() != null) {
-            try {
-                ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
-                externalStorage.update(dto, patient.getExternalId());
-                log.info("Updated patient with id: {} and externalId: {} in external storage", id, patient.getExternalId());
-            } catch (Exception e) {
-                log.error("Failed to update patient in external storage: {}", e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e);
-            }
-        }
-
-        updateEntityFromDto(patient, dto);
-        patient = repository.save(patient);
-
-        dto.setId(patient.getId());
-        dto.setExternalId(patient.getExternalId());
-        log.info("Updated patient with id: {} and externalId: {}", id, patient.getExternalId());
-
+        log.info("Creating patient in FHIR for practice {}", getPracticeId());
+        
+        Patient fhirPatient = toFhirPatient(dto);
+        fhirPatient.setManagingOrganization(new Reference("Organization/" + getPracticeId()));
+        
+        MethodOutcome outcome = fhirClientService.create(fhirPatient, getPracticeId());
+        
+        String fhirId = outcome.getId().getIdPart();
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        
+        log.info("Created FHIR patient with ID: {}", fhirId);
         return dto;
     }
 
-    // ✅ Delete patient
-    @Transactional
-    public void delete(Long id) {
-        Patient patient = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
-
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && patient.getExternalId() != null) {
-            try {
-                ExternalStorage<PatientDto> externalStorage = storageResolver.resolve(PatientDto.class);
-                externalStorage.delete(patient.getExternalId());
-            } catch (Exception e) {
-                log.error("Failed to delete patient from external storage: {}", e.getMessage());
-                throw new RuntimeException("Failed to sync with external storage", e);
-            }
-        }
-
-        repository.delete(patient);
-        log.info("Deleted patient with id: {}", id);
+    // ✅ Retrieve patient by FHIR ID
+    public PatientDto getById(Long id) {
+        // For backward compatibility, treat Long id as string FHIR ID
+        return getByFhirId(String.valueOf(id));
     }
 
-    // ✅ Get all patients
-    @Transactional(readOnly = true)
+    // ✅ Retrieve patient by FHIR ID (string)
+    public PatientDto getByFhirId(String fhirId) {
+        log.debug("Reading FHIR patient with ID: {}", fhirId);
+        
+        try {
+            Patient fhirPatient = fhirClientService.read(Patient.class, fhirId, getPracticeId());
+            return toPatientDto(fhirPatient);
+        } catch (ResourceNotFoundException e) {
+            throw new RuntimeException("Patient not found with FHIR ID: " + fhirId);
+        }
+    }
+
+    // ✅ Update patient in FHIR
+    public PatientDto update(Long id, PatientDto dto) {
+        return updateByFhirId(String.valueOf(id), dto);
+    }
+
+    // ✅ Update patient by FHIR ID
+    public PatientDto updateByFhirId(String fhirId, PatientDto dto) {
+        validatePatientFields(dto);
+        
+        log.info("Updating FHIR patient with ID: {}", fhirId);
+        
+        Patient fhirPatient = toFhirPatient(dto);
+        fhirPatient.setId(fhirId);
+        
+        fhirClientService.update(fhirPatient, getPracticeId());
+        
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        
+        log.info("Updated FHIR patient with ID: {}", fhirId);
+        return dto;
+    }
+
+    // ✅ Delete patient from FHIR
+    public void delete(Long id) {
+        deleteByFhirId(String.valueOf(id));
+    }
+
+    // ✅ Delete patient by FHIR ID
+    public void deleteByFhirId(String fhirId) {
+        log.info("Deleting FHIR patient with ID: {}", fhirId);
+        fhirClientService.delete(Patient.class, fhirId, getPracticeId());
+        log.info("Deleted FHIR patient with ID: {}", fhirId);
+    }
+
+    // ✅ Get all patients from FHIR
     public ApiResponse<List<PatientDto>> getAllPatients() {
-        List<Patient> patients = repository.findAll();
-        List<PatientDto> dtos = patients.stream().map(this::mapToDto).collect(Collectors.toList());
+        log.debug("Getting all FHIR patients for practice {}", getPracticeId());
+        
+        Bundle bundle = fhirClientService.search(Patient.class, getPracticeId());
+        List<PatientDto> dtos = extractPatients(bundle);
 
         return ApiResponse.<List<PatientDto>>builder()
                 .success(true)
-                .message("Patients retrieved successfully")
+                .message("Patients retrieved successfully from FHIR")
                 .data(dtos)
                 .build();
     }
 
-    // ✅ Search and pagination
-    @Transactional(readOnly = true)
+    // ✅ Search patients in FHIR
     public Page<PatientDto> searchPatients(String query, Pageable pageable) {
-        if (query == null || query.isBlank()) {
-            return repository.findAll(pageable).map(this::mapToDto);
-        }
-        return repository.searchBy(query.toLowerCase(), pageable).map(this::mapToDto);
+        return getAllPatients(pageable, query);
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Get all patients with pagination and search
     public Page<PatientDto> getAllPatients(Pageable pageable, String search) {
-        Page<Patient> page;
+        log.debug("Searching FHIR patients with query: {}", search);
+        
+        List<PatientDto> allPatients;
+        
         if (search != null && !search.isBlank()) {
-            page = repository.searchBy(search.toLowerCase(), pageable);
+            Bundle bundle = fhirClientService.getClient().search()
+                    .forResource(Patient.class)
+                    .where(new StringClientParam("name").matches().value(search))
+                    .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                    .returnBundle(Bundle.class)
+                    .execute();
+            allPatients = extractPatients(bundle);
         } else {
-            page = repository.findAll(pageable);
+            Bundle bundle = fhirClientService.search(Patient.class, getPracticeId());
+            allPatients = extractPatients(bundle);
         }
-        return page.map(this::mapToDto);
+        
+        // Manual pagination
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), allPatients.size());
+        
+        List<PatientDto> pageContent = start < allPatients.size() 
+                ? allPatients.subList(start, end) 
+                : new ArrayList<>();
+        
+        return new PageImpl<>(pageContent, pageable, allPatients.size());
     }
 
     // ✅ Get patients with search and status filter
-    @Transactional(readOnly = true)
     public Page<PatientDto> getPatients(String search, String status, Pageable pageable) {
-        Page<Patient> page;
-        if (search != null && !search.isBlank()) {
-            page = repository.searchBy(search.toLowerCase(), pageable);
-        } else {
-            page = repository.findAll(pageable);
-        }
+        Page<PatientDto> page = getAllPatients(pageable, search);
         
-        Page<PatientDto> dtoPage = page.map(this::mapToDto);
-        
-        if (!"all".equalsIgnoreCase(status)) {
-            List<PatientDto> filtered = dtoPage.getContent().stream()
+        if (!"all".equalsIgnoreCase(status) && status != null) {
+            List<PatientDto> filtered = page.getContent().stream()
                     .filter(dto -> status.equalsIgnoreCase(dto.getStatus()))
                     .collect(Collectors.toList());
-            return new org.springframework.data.domain.PageImpl<>(filtered, pageable, filtered.size());
+            return new PageImpl<>(filtered, pageable, filtered.size());
         }
         
-        return dtoPage;
+        return page;
     }
 
-    // --- Mapping helpers ---
-    private Patient mapToEntity(PatientDto dto) {
+    // ========== FHIR Mapping Methods ==========
+
+    private Patient toFhirPatient(PatientDto dto) {
         Patient patient = new Patient();
 
-        // Use externalId if provided, otherwise use fhirId
-        String fhirIdValue = dto.getExternalId() != null ? dto.getExternalId() : dto.getFhirId();
-        patient.setFhirId(fhirIdValue);
-        patient.setExternalId(fhirIdValue);
+        // Identifiers
+        if (dto.getMedicalRecordNumber() != null) {
+            patient.addIdentifier()
+                    .setSystem(IDENTIFIER_SYSTEM_MRN)
+                    .setValue(dto.getMedicalRecordNumber())
+                    .setUse(Identifier.IdentifierUse.OFFICIAL);
+        }
 
-        patient.setFirstName(dto.getFirstName());
-        patient.setLastName(dto.getLastName());
-        patient.setMiddleName(dto.getMiddleName());
-        patient.setGender(dto.getGender());
-        patient.setDateOfBirth(dto.getDateOfBirth());
-        patient.setPhoneNumber(dto.getPhoneNumber());
-        patient.setEmail(dto.getEmail());
-        patient.setAddress(dto.getAddress());
-        patient.setStatus(dto.getStatus() != null ? dto.getStatus() : "Active");
-        patient.setMedicalRecordNumber(dto.getMedicalRecordNumber());
+        if (dto.getExternalId() != null) {
+            patient.addIdentifier()
+                    .setSystem(IDENTIFIER_SYSTEM_EXTERNAL)
+                    .setValue(dto.getExternalId())
+                    .setUse(Identifier.IdentifierUse.SECONDARY);
+        }
+
+        // Name
+        HumanName name = patient.addName()
+                .setUse(HumanName.NameUse.OFFICIAL)
+                .setFamily(dto.getLastName());
+        
+        if (dto.getFirstName() != null) {
+            name.addGiven(dto.getFirstName());
+        }
+        if (dto.getMiddleName() != null) {
+            name.addGiven(dto.getMiddleName());
+        }
+
+        // Gender
+        if (dto.getGender() != null) {
+            patient.setGender(mapGender(dto.getGender()));
+        }
+
+        // Birth Date
+        if (dto.getDateOfBirth() != null) {
+            patient.setBirthDate(parseDate(dto.getDateOfBirth()));
+        }
+
+        // Contact Info
+        if (dto.getPhoneNumber() != null) {
+            patient.addTelecom()
+                    .setSystem(ContactPoint.ContactPointSystem.PHONE)
+                    .setValue(dto.getPhoneNumber())
+                    .setUse(ContactPoint.ContactPointUse.MOBILE);
+        }
+
+        if (dto.getEmail() != null) {
+            patient.addTelecom()
+                    .setSystem(ContactPoint.ContactPointSystem.EMAIL)
+                    .setValue(dto.getEmail())
+                    .setUse(ContactPoint.ContactPointUse.HOME);
+        }
+
+        // Address
+        if (dto.getAddress() != null) {
+            patient.addAddress()
+                    .setUse(Address.AddressUse.HOME)
+                    .setText(dto.getAddress());
+        }
+
+        // Status
+        patient.setActive(!"inactive".equalsIgnoreCase(dto.getStatus()));
+
         return patient;
     }
 
-    private PatientDto mapToDto(Patient patient) {
+    private PatientDto toPatientDto(Patient fhirPatient) {
         PatientDto dto = new PatientDto();
-        dto.setId(patient.getId());
-        dto.setFhirId(patient.getFhirId());
-        dto.setExternalId(patient.getFhirId()); // externalId is an alias for fhirId
-        dto.setFirstName(patient.getFirstName());
-        dto.setLastName(patient.getLastName());
-        dto.setMiddleName(patient.getMiddleName());
-        dto.setGender(patient.getGender());
-        dto.setDateOfBirth(patient.getDateOfBirth());
-        dto.setPhoneNumber(patient.getPhoneNumber());
-        dto.setEmail(patient.getEmail());
-        dto.setAddress(patient.getAddress());
-        dto.setStatus(patient.getStatus());
-        dto.setMedicalRecordNumber(patient.getMedicalRecordNumber());
-        
-        // Map audit fields
-        if (patient.getCreatedDate() != null || patient.getLastModifiedDate() != null) {
-            PatientDto.Audit audit = new PatientDto.Audit();
-            if (patient.getCreatedDate() != null) {
-                audit.setCreatedDate(patient.getCreatedDate().toString());
+
+        // FHIR ID
+        if (fhirPatient.hasId()) {
+            dto.setFhirId(fhirPatient.getIdElement().getIdPart());
+            dto.setExternalId(fhirPatient.getIdElement().getIdPart());
+        }
+
+        // Identifiers
+        for (Identifier identifier : fhirPatient.getIdentifier()) {
+            if (IDENTIFIER_SYSTEM_MRN.equals(identifier.getSystem())) {
+                dto.setMedicalRecordNumber(identifier.getValue());
             }
-            if (patient.getLastModifiedDate() != null) {
-                audit.setLastModifiedDate(patient.getLastModifiedDate().toString());
+        }
+
+        // Name
+        if (fhirPatient.hasName()) {
+            HumanName name = fhirPatient.getNameFirstRep();
+            dto.setLastName(name.getFamily());
+            
+            List<StringType> given = name.getGiven();
+            if (!given.isEmpty()) {
+                dto.setFirstName(given.get(0).getValue());
             }
-            dto.setAudit(audit);
+            if (given.size() > 1) {
+                dto.setMiddleName(given.get(1).getValue());
+            }
         }
-        
 
-
-        // Set audit information
-        PatientDto.Audit audit = new PatientDto.Audit();
-        if (patient.getCreatedDate() != null) {
-            audit.setCreatedDate(patient.getCreatedDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        // Gender
+        if (fhirPatient.hasGender()) {
+            dto.setGender(mapGenderToString(fhirPatient.getGender()));
         }
-        if (patient.getLastModifiedDate() != null) {
-            audit.setLastModifiedDate(patient.getLastModifiedDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        }
-        dto.setAudit(audit);
 
+        // Birth Date
+        if (fhirPatient.hasBirthDate()) {
+            dto.setDateOfBirth(formatDate(fhirPatient.getBirthDate()));
+        }
+
+        // Contact Info
+        for (ContactPoint telecom : fhirPatient.getTelecom()) {
+            if (telecom.getSystem() == ContactPoint.ContactPointSystem.PHONE) {
+                dto.setPhoneNumber(telecom.getValue());
+            } else if (telecom.getSystem() == ContactPoint.ContactPointSystem.EMAIL) {
+                dto.setEmail(telecom.getValue());
+            }
+        }
+
+        // Address
+        if (fhirPatient.hasAddress()) {
+            Address address = fhirPatient.getAddressFirstRep();
+            if (address.hasText()) {
+                dto.setAddress(address.getText());
+            } else if (address.hasLine()) {
+                dto.setAddress(String.join(", ", 
+                        address.getLine().stream()
+                                .map(StringType::getValue)
+                                .toList()));
+            }
+        }
+
+        // Status
+        dto.setStatus(fhirPatient.getActive() ? "Active" : "Inactive");
 
         return dto;
     }
 
-    private void updateEntityFromDto(Patient patient, PatientDto dto) {
-        if (dto.getFirstName() != null) patient.setFirstName(dto.getFirstName());
-        if (dto.getLastName() != null) patient.setLastName(dto.getLastName());
-        if (dto.getMiddleName() != null) patient.setMiddleName(dto.getMiddleName());
-        if (dto.getGender() != null) patient.setGender(dto.getGender());
-        if (dto.getDateOfBirth() != null) patient.setDateOfBirth(dto.getDateOfBirth());
-        if (dto.getPhoneNumber() != null) patient.setPhoneNumber(dto.getPhoneNumber());
-        if (dto.getEmail() != null) patient.setEmail(dto.getEmail());
-        if (dto.getAddress() != null) patient.setAddress(dto.getAddress());
-        if (dto.getStatus() != null) patient.setStatus(dto.getStatus());
+    private List<PatientDto> extractPatients(Bundle bundle) {
+        List<PatientDto> patients = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof Patient) {
+                    patients.add(toPatientDto((Patient) entry.getResource()));
+                }
+            }
+        }
+        return patients;
+    }
+
+    private Enumerations.AdministrativeGender mapGender(String gender) {
+        if (gender == null) return Enumerations.AdministrativeGender.UNKNOWN;
+        
+        return switch (gender.toLowerCase()) {
+            case "male", "m" -> Enumerations.AdministrativeGender.MALE;
+            case "female", "f" -> Enumerations.AdministrativeGender.FEMALE;
+            case "other", "o" -> Enumerations.AdministrativeGender.OTHER;
+            default -> Enumerations.AdministrativeGender.UNKNOWN;
+        };
+    }
+
+    private String mapGenderToString(Enumerations.AdministrativeGender gender) {
+        return switch (gender) {
+            case MALE -> "Male";
+            case FEMALE -> "Female";
+            case OTHER -> "Other";
+            default -> "Unknown";
+        };
+    }
+
+    private Date parseDate(String dateStr) {
+        if (dateStr == null) return null;
+        try {
+            LocalDate localDate = LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE);
+            return Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
+        } catch (Exception e) {
+            try {
+                LocalDate localDate = LocalDate.parse(dateStr, DateTimeFormatter.ofPattern("MM/dd/yyyy"));
+                return Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
+            } catch (Exception ex) {
+                return null;
+            }
+        }
+    }
+
+    private String formatDate(Date date) {
+        if (date == null) return null;
+        return date.toInstant().atZone(ZoneId.systemDefault())
+                .toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
     }
 
     private String generateMrn() {
-        return "PAT" + System.currentTimeMillis();
+        return "MRN-" + System.currentTimeMillis();
     }
 }

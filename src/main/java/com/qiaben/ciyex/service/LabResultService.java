@@ -1,141 +1,267 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
+import ca.uhn.fhir.rest.gclient.TokenClientParam;
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.LabResultDto;
-import com.qiaben.ciyex.entity.LabResult;
-import com.qiaben.ciyex.repository.LabResultRepository;
-import lombok.RequiredArgsConstructor;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * LabResult Service - FHIR Only.
+ * All lab result data is stored in HAPI FHIR server as DiagnosticReport/Observation resources.
+ */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class LabResultService {
 
-    private final LabResultRepository repository;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+    @Autowired
+    public LabResultService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
+    }
 
-    // ---------- CRUD ----------
-    @Transactional(readOnly = true)
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+    // ✅ Get one lab result
     public LabResultDto getOne(Long id) {
-        return repository.findById(id).map(this::toDto).orElse(null);
+        String fhirId = String.valueOf(id);
+        try {
+            DiagnosticReport report = fhirClientService.read(DiagnosticReport.class, fhirId, getPracticeId());
+            return toLabResultDto(report);
+        } catch (ResourceNotFoundException e) {
+            return null;
+        }
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Get all lab results
     public List<LabResultDto> getAll() {
-        return repository.findAll().stream().map(this::toDto).collect(Collectors.toList());
+        log.debug("Getting all FHIR DiagnosticReports (lab results)");
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(DiagnosticReport.class)
+                .where(new TokenClientParam("category").exactly()
+                        .systemAndCode("http://terminology.hl7.org/CodeSystem/v2-0074", "LAB"))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractLabResults(bundle);
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Get lab results for patient
     public List<LabResultDto> getForPatient(Long patientId) {
-        return repository.findByPatientId(patientId).stream().map(this::toDto).collect(Collectors.toList());
+        log.debug("Getting FHIR DiagnosticReports for patient: {}", patientId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(DiagnosticReport.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .where(new TokenClientParam("category").exactly()
+                        .systemAndCode("http://terminology.hl7.org/CodeSystem/v2-0074", "LAB"))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractLabResults(bundle);
     }
 
-    @Transactional
+    // ✅ Create lab result
     public LabResultDto create(LabResultDto dto) {
-        LabResult e = new LabResult();
-        copy(dto, e, true);
-        e.setCreatedDate(now());
-        e.setLastModifiedDate(e.getCreatedDate());
-        repository.save(e);
-        log.debug("Created LabResult id={} patientId={} testName={}", e.getId(), e.getPatientId(), e.getTestName());
-        return toDto(e);
+        log.info("Creating lab result in FHIR for patient: {}", dto.getPatientId());
+
+        DiagnosticReport report = toFhirDiagnosticReport(dto);
+        MethodOutcome outcome = fhirClientService.create(report, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
+
+        dto.setExternalId(fhirId);
+        log.info("Created FHIR DiagnosticReport (lab result) with ID: {}", fhirId);
+        return dto;
     }
 
-    @Transactional
+    // ✅ Update lab result
     public LabResultDto update(Long id, LabResultDto dto) {
-        LabResult e = repository.findById(id).orElse(null);
-        if (e == null) return null;
-        copy(dto, e, false);
-        e.setLastModifiedDate(now());
-        repository.save(e);
-        log.debug("Updated LabResult id={}", id);
-        return toDto(e);
+        String fhirId = String.valueOf(id);
+        log.info("Updating FHIR DiagnosticReport (lab result) with ID: {}", fhirId);
+
+        DiagnosticReport report = toFhirDiagnosticReport(dto);
+        report.setId(fhirId);
+
+        fhirClientService.update(report, getPracticeId());
+
+        dto.setExternalId(fhirId);
+        return dto;
     }
 
-    @Transactional
+    // ✅ Delete lab result
     public void delete(Long id) {
-        repository.deleteById(id);
+        String fhirId = String.valueOf(id);
+        log.info("Deleting FHIR DiagnosticReport (lab result) with ID: {}", fhirId);
+        fhirClientService.delete(DiagnosticReport.class, fhirId, getPracticeId());
     }
 
-    // ---------- SEARCH (in-memory simple filter; can optimize later) ----------
-    @Transactional(readOnly = true)
+    // ✅ Search lab results
     public List<LabResultDto> search(String q) {
+        // For FHIR, we search by code or name
+        log.debug("Searching FHIR DiagnosticReports with query: {}", q);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(DiagnosticReport.class)
+                .where(new TokenClientParam("category").exactly()
+                        .systemAndCode("http://terminology.hl7.org/CodeSystem/v2-0074", "LAB"))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
         String qq = (q == null ? "" : q).trim().toLowerCase();
-        return repository.findAll().stream()
-                .filter(e -> {
-                    String code = safe(e.getCode());
-                    String testName = safe(e.getTestName());
-                    String specimen = safe(e.getSpecimen());
-                    String status = safe(e.getStatus());
-                    String abnormal = safe(e.getAbnormalFlag());
-                    String value = safe(e.getValue());
-                    String procedureName = safe(e.getProcedureName());
+        return extractLabResults(bundle).stream()
+                .filter(dto -> {
+                    String code = safe(dto.getCode());
+                    String testName = safe(dto.getTestName());
+                    String specimen = safe(dto.getSpecimen());
+                    String status = safe(dto.getStatus());
+                    String value = safe(dto.getValue());
                     return code.contains(qq) || testName.contains(qq) || specimen.contains(qq) ||
-                           status.contains(qq) || abnormal.contains(qq) || value.contains(qq) ||
-                           procedureName.contains(qq) || Objects.equals(String.valueOf(e.getPatientId()), qq);
+                           status.contains(qq) || value.contains(qq);
                 })
-                .map(this::toDto)
                 .collect(Collectors.toList());
     }
 
-    // ---------- Helpers ----------
-    private String safe(String s) { return (s == null ? "" : s).toLowerCase(); }
-    private String now() { return LocalDateTime.now().format(TS); }
+    // ========== FHIR Mapping Methods ==========
 
-    private LabResultDto toDto(LabResult e) {
-        if (e == null) return null;
-        LabResultDto d = new LabResultDto();
-        d.setId(e.getId());
-    d.setExternalId(e.getExternalId());
-        d.setPatientId(e.getPatientId());
-        d.setOrderDate(e.getOrderDate());
-        d.setProcedureName(e.getProcedureName());
-        d.setReportedDate(e.getReportedDate());
-        d.setCollectedDate(e.getCollectedDate());
-        d.setSpecimen(e.getSpecimen());
-        d.setStatus(e.getStatus());
-        d.setCode(e.getCode());
-        d.setTestName(e.getTestName());
-        d.setResultDate(e.getResultDate());
-        d.setEndDate(e.getEndDate());
-        d.setAbnormalFlag(e.getAbnormalFlag());
-        d.setValue(e.getValue());
-        d.setUnits(e.getUnits());
-        d.setReferenceRange(e.getReferenceRange());
-        d.setRecommendations(e.getRecommendations());
-        LabResultDto.Audit a = new LabResultDto.Audit();
-        a.setCreatedDate(e.getCreatedDate());
-        a.setLastModifiedDate(e.getLastModifiedDate());
-        d.setAudit(a);
-        return d;
+    private DiagnosticReport toFhirDiagnosticReport(LabResultDto dto) {
+        DiagnosticReport report = new DiagnosticReport();
+
+        // Category: LAB
+        report.addCategory()
+                .addCoding()
+                .setSystem("http://terminology.hl7.org/CodeSystem/v2-0074")
+                .setCode("LAB")
+                .setDisplay("Laboratory");
+
+        // Subject (Patient)
+        if (dto.getPatientId() != null) {
+            report.setSubject(new Reference("Patient/" + dto.getPatientId()));
+        }
+
+        // Status
+        report.setStatus(DiagnosticReport.DiagnosticReportStatus.FINAL);
+
+        // Code (test code/name)
+        if (dto.getCode() != null || dto.getTestName() != null) {
+            report.setCode(new CodeableConcept()
+                    .addCoding(new Coding().setCode(dto.getCode()))
+                    .setText(dto.getTestName()));
+        }
+
+        // Effective date (result date)
+        if (dto.getResultDate() != null) {
+            report.setEffective(new DateTimeType(dto.getResultDate()));
+        }
+
+        // Issued date (reported date)
+        if (dto.getReportedDate() != null) {
+            try {
+                report.setIssued(java.sql.Date.valueOf(dto.getReportedDate()));
+            } catch (Exception e) {
+                // Invalid date format
+            }
+        }
+
+        // Specimen
+        if (dto.getSpecimen() != null) {
+            report.addSpecimen(new Reference().setDisplay(dto.getSpecimen()));
+        }
+
+        // Conclusion (recommendations)
+        if (dto.getRecommendations() != null) {
+            report.setConclusion(dto.getRecommendations());
+        }
+
+        return report;
     }
 
-    private void copy(LabResultDto d, LabResult e, boolean creating) {
-        if (d.getPatientId() != null) e.setPatientId(d.getPatientId());
-        if (d.getOrderDate() != null) e.setOrderDate(d.getOrderDate());
-        if (d.getProcedureName() != null) e.setProcedureName(d.getProcedureName());
-        if (d.getReportedDate() != null) e.setReportedDate(d.getReportedDate());
-        if (d.getCollectedDate() != null) e.setCollectedDate(d.getCollectedDate());
-        if (d.getSpecimen() != null) e.setSpecimen(d.getSpecimen());
-        if (d.getStatus() != null) e.setStatus(d.getStatus());
-        if (d.getCode() != null) e.setCode(d.getCode());
-        if (d.getTestName() != null) e.setTestName(d.getTestName());
-        if (d.getResultDate() != null) e.setResultDate(d.getResultDate());
-        if (d.getEndDate() != null) e.setEndDate(d.getEndDate());
-        if (d.getAbnormalFlag() != null) e.setAbnormalFlag(d.getAbnormalFlag());
-        if (d.getValue() != null) e.setValue(d.getValue());
-        if (d.getUnits() != null) e.setUnits(d.getUnits());
-        if (d.getReferenceRange() != null) e.setReferenceRange(d.getReferenceRange());
-        if (d.getRecommendations() != null) e.setRecommendations(d.getRecommendations());
-    if (d.getExternalId() != null) e.setExternalId(d.getExternalId());
+    private LabResultDto toLabResultDto(DiagnosticReport report) {
+        LabResultDto dto = new LabResultDto();
+
+        // FHIR ID
+        if (report.hasId()) {
+            dto.setExternalId(report.getIdElement().getIdPart());
+        }
+
+        // Patient ID
+        if (report.hasSubject() && report.getSubject().hasReference()) {
+            String ref = report.getSubject().getReference();
+            if (ref.startsWith("Patient/")) {
+                try {
+                    dto.setPatientId(Long.parseLong(ref.substring(8)));
+                } catch (NumberFormatException e) {
+                    // Non-numeric FHIR ID
+                }
+            }
+        }
+
+        // Code and test name
+        if (report.hasCode()) {
+            if (report.getCode().hasCoding()) {
+                dto.setCode(report.getCode().getCodingFirstRep().getCode());
+            }
+            dto.setTestName(report.getCode().getText());
+        }
+
+        // Status
+        if (report.hasStatus()) {
+            dto.setStatus(report.getStatus().toCode());
+        }
+
+        // Result date
+        if (report.hasEffectiveDateTimeType()) {
+            dto.setResultDate(report.getEffectiveDateTimeType().getValueAsString());
+        }
+
+        // Reported date
+        if (report.hasIssued()) {
+            dto.setReportedDate(report.getIssued().toString());
+        }
+
+        // Specimen
+        if (report.hasSpecimen()) {
+            dto.setSpecimen(report.getSpecimenFirstRep().getDisplay());
+        }
+
+        // Recommendations
+        if (report.hasConclusion()) {
+            dto.setRecommendations(report.getConclusion());
+        }
+
+        return dto;
+    }
+
+    private List<LabResultDto> extractLabResults(Bundle bundle) {
+        List<LabResultDto> items = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof DiagnosticReport) {
+                    items.add(toLabResultDto((DiagnosticReport) entry.getResource()));
+                }
+            }
+        }
+        return items;
+    }
+
+    private String safe(String s) {
+        return (s == null ? "" : s).toLowerCase();
     }
 }

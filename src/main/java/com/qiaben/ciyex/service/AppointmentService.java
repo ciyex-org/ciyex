@@ -1,138 +1,191 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.DateClientParam;
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.AppointmentDTO;
-import com.qiaben.ciyex.entity.Appointment;
-import com.qiaben.ciyex.repository.AppointmentRepository;
-import com.qiaben.ciyex.storage.ExternalAppointmentStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+/**
+ * Appointment Service - FHIR Only.
+ * All appointment data is stored in HAPI FHIR server as Appointment resources.
+ */
 @Service
 @Slf4j
 public class AppointmentService {
 
-    private final AppointmentRepository repository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
     private static final int DEFAULT_DAYS_AHEAD = 7;
 
     private final DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("MM/dd/yyyy");
     private final DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("hh:mm a");
 
     @Autowired
-    public AppointmentService(AppointmentRepository repository,
-                              ExternalStorageResolver storageResolver,
-                              OrgIntegrationConfigProvider configProvider) {
-        this.repository = repository;
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
+    public AppointmentService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
     }
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
     private String normalizeStatus(String status) {
         return status == null ? null : status.trim().toUpperCase();
     }
 
-    // -------- Create --------
-    @Transactional
+    // ✅ Create appointment in FHIR
     public AppointmentDTO create(AppointmentDTO dto) {
-        // Validate mandatory fields
         validateMandatoryFields(dto);
+        log.info("Creating appointment in FHIR");
 
-        Appointment entity = mapToEntity(dto);
+        Appointment fhirAppointment = toFhirAppointment(dto);
 
-        // Auto-generate externalId if not provided
-        if (entity.getFhirId() == null) {
-            String generatedId = "APT-" + System.currentTimeMillis();
-            entity.setFhirId(generatedId);
-            entity.setExternalId(generatedId);
-            log.info("Auto-generated externalId: {}", generatedId);
-        }
+        MethodOutcome outcome = fhirClientService.create(fhirAppointment, getPracticeId());
 
-        entity = repository.save(entity);
-        syncExternalCreate(entity);
+        String fhirId = outcome.getId().getIdPart();
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
 
-        return mapToDto(entity);
+        log.info("Created FHIR Appointment with ID: {}", fhirId);
+        return dto;
     }
 
-    // -------- Retrieve --------
-    @Transactional(readOnly = true)
+    // ✅ Get appointment by FHIR ID
     public AppointmentDTO getById(Long id) {
-        Appointment entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
-        return mapToDto(entity);
+        return getByFhirId(String.valueOf(id));
     }
 
-    @Transactional(readOnly = true)
+    public AppointmentDTO getByFhirId(String fhirId) {
+        log.debug("Reading FHIR Appointment with ID: {}", fhirId);
+        try {
+            Appointment fhirAppointment = fhirClientService.read(Appointment.class, fhirId, getPracticeId());
+            return toAppointmentDto(fhirAppointment);
+        } catch (ResourceNotFoundException e) {
+            throw new RuntimeException("Appointment not found with FHIR ID: " + fhirId);
+        }
+    }
+
+    // ✅ Get all appointments with pagination
     public Page<AppointmentDTO> getAll(Pageable pageable) {
-        return repository.findAll(pageable).map(this::mapToDto);
+        log.debug("Getting all FHIR Appointments");
+
+        Bundle bundle = fhirClientService.search(Appointment.class, getPracticeId());
+        List<AppointmentDTO> allAppointments = extractAppointments(bundle);
+
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), allAppointments.size());
+
+        List<AppointmentDTO> pageContent = start < allAppointments.size()
+                ? allAppointments.subList(start, end)
+                : new ArrayList<>();
+
+        return new PageImpl<>(pageContent, pageable, allAppointments.size());
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Get appointments by patient
     public List<AppointmentDTO> getByPatientId(Long patientId) {
-        return repository.findAllByPatientId(patientId)
-                .stream().map(this::mapToDto).toList();
+        String patientFhirId = String.valueOf(patientId);
+        log.debug("Getting FHIR Appointments for patient: {}", patientFhirId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Appointment.class)
+                .where(new ReferenceClientParam("patient").hasId("Patient/" + patientFhirId))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractAppointments(bundle);
     }
 
-    @Transactional(readOnly = true)
     public Page<AppointmentDTO> getByPatientId(Long patientId, Pageable pageable) {
-        return repository.findAllByPatientId(patientId, pageable).map(this::mapToDto);
+        List<AppointmentDTO> all = getByPatientId(patientId);
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), all.size());
+        List<AppointmentDTO> pageContent = start < all.size() ? all.subList(start, end) : new ArrayList<>();
+        return new PageImpl<>(pageContent, pageable, all.size());
     }
 
-    @Transactional(readOnly = true)
     public AppointmentDTO getLatestByPatientId(Long patientId) {
-        return repository.findFirstByPatientIdOrderByAppointmentStartDateDescAppointmentStartTimeDesc(patientId)
-                .map(this::mapToDto)
+        List<AppointmentDTO> appointments = getByPatientId(patientId);
+        return appointments.stream()
+                .max(Comparator.comparing(a -> {
+                    if (a.getAppointmentStartDate() != null && a.getAppointmentStartTime() != null) {
+                        return LocalDateTime.of(a.getAppointmentStartDate(), a.getAppointmentStartTime());
+                    }
+                    return LocalDateTime.MIN;
+                }))
                 .orElse(null);
     }
 
-    // -------- Update --------
-    @Transactional
+    // ✅ Update appointment in FHIR
     public AppointmentDTO update(Long id, AppointmentDTO dto) {
-        Appointment entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
-
-        updateEntityFromDto(entity, dto);
-        entity.setLastModifiedDate(LocalDateTime.now());
-
-        // Validate mandatory fields after update
-        validateMandatoryFields(entity);
-
-        entity = repository.save(entity);
-        syncExternalUpdate(entity, dto);
-
-        return mapToDto(entity);
-
+        return updateByFhirId(String.valueOf(id), dto);
     }
 
-    // -------- Delete --------
-    @Transactional
+    public AppointmentDTO updateByFhirId(String fhirId, AppointmentDTO dto) {
+        log.info("Updating FHIR Appointment with ID: {}", fhirId);
+
+        Appointment fhirAppointment = toFhirAppointment(dto);
+        fhirAppointment.setId(fhirId);
+
+        fhirClientService.update(fhirAppointment, getPracticeId());
+
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+
+        log.info("Updated FHIR Appointment with ID: {}", fhirId);
+        return dto;
+    }
+
+    // ✅ Delete appointment from FHIR
     public void delete(Long id) {
-        Appointment entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
-
-        syncExternalDelete(entity);
-        repository.delete(entity);
-
+        deleteByFhirId(String.valueOf(id));
     }
 
-    // -------- First Available Slots --------
-    @Transactional(readOnly = true)
+    public void deleteByFhirId(String fhirId) {
+        log.info("Deleting FHIR Appointment with ID: {}", fhirId);
+        fhirClientService.delete(Appointment.class, fhirId, getPracticeId());
+        log.info("Deleted FHIR Appointment with ID: {}", fhirId);
+    }
+
+    // ✅ Update status only
+    public AppointmentDTO updateStatus(Long id, String newStatus) {
+        String fhirId = String.valueOf(id);
+        String normalized = normalizeStatus(newStatus);
+
+        if (!"CHECKED".equals(normalized) && !"UNCHECKED".equals(normalized)) {
+            throw new IllegalArgumentException("Invalid status: " + newStatus + ". Allowed: Checked, Unchecked.");
+        }
+
+        try {
+            Appointment fhirAppointment = fhirClientService.read(Appointment.class, fhirId, getPracticeId());
+            fhirAppointment.setStatus(mapToFhirStatus(normalized));
+            fhirClientService.update(fhirAppointment, getPracticeId());
+            return toAppointmentDto(fhirAppointment);
+        } catch (ResourceNotFoundException e) {
+            throw new RuntimeException("Appointment not found with FHIR ID: " + fhirId);
+        }
+    }
+
+    // ✅ Available slots (generated, not from FHIR)
     public List<AppointmentDTO> getFirstAvailableSlotsForProvider(Long providerId, int limit) {
         return getAvailableSlots(providerId, DEFAULT_DAYS_AHEAD, limit);
     }
 
-    // -------- Available Slots: N days ahead --------
-    @Transactional(readOnly = true)
     public List<AppointmentDTO> getAvailableSlots(Long providerId, int daysAhead, int limit) {
         List<AppointmentDTO> slots = new ArrayList<>();
         LocalDate today = LocalDate.now();
@@ -142,27 +195,22 @@ public class AppointmentService {
             slots.addAll(generateSlotsForDate(providerId, date, limit - slots.size()));
         }
         return slots.stream().limit(limit).toList();
-
     }
 
-    // -------- Available Slots: Single Date --------
-    @Transactional(readOnly = true)
     public List<AppointmentDTO> getAvailableSlotsForDate(Long providerId, LocalDate date, int limit) {
         return generateSlotsForDate(providerId, date, limit);
     }
 
-    // -------- Slot Generator --------
     private List<AppointmentDTO> generateSlotsForDate(Long providerId, LocalDate date, int limit) {
-        List<Appointment> existing = repository
-                .findAllByProviderIdAndAppointmentStartDate(providerId, date.toString());
+        // Get existing appointments for this provider on this date from FHIR
+        List<AppointmentDTO> existing = getAppointmentsByProviderAndDate(providerId, date);
 
         List<AppointmentDTO> slots = new ArrayList<>();
         LocalTime workStart = LocalTime.of(9, 0);
         LocalTime workEnd = LocalTime.of(17, 0);
         List<Integer> slotDurations = List.of(15, 30);
 
-        // Generate slots for each duration type, distributing across durations
-        int slotsPerDuration = (limit + slotDurations.size() - 1) / slotDurations.size(); // Ceiling division
+        int slotsPerDuration = (limit + slotDurations.size() - 1) / slotDurations.size();
 
         for (int durationMinutes : slotDurations) {
             if (slots.size() >= limit) break;
@@ -174,14 +222,12 @@ public class AppointmentService {
                 LocalTime slotStart = current;
                 LocalTime slotEnd = slotStart.plusMinutes(durationMinutes);
 
-                boolean booked = existing.stream().anyMatch(appt -> {
-                    try {
-                        return date.equals(LocalDate.parse(appt.getAppointmentStartDate())) &&
-                                slotStart.equals(LocalTime.parse(appt.getAppointmentStartTime()));
-                    } catch (Exception e) {
-                        return false;
-                    }
-                });
+                boolean booked = existing.stream().anyMatch(appt ->
+                        appt.getAppointmentStartDate() != null &&
+                        appt.getAppointmentStartTime() != null &&
+                        date.equals(appt.getAppointmentStartDate()) &&
+                        slotStart.equals(appt.getAppointmentStartTime())
+                );
 
                 if (!booked) {
                     AppointmentDTO slot = new AppointmentDTO();
@@ -196,7 +242,6 @@ public class AppointmentService {
                     slots.add(slot);
                 }
 
-                // Move to next potential slot time
                 current = slotEnd;
             }
         }
@@ -205,169 +250,199 @@ public class AppointmentService {
         return slots.stream().limit(limit).toList();
     }
 
-    @Transactional(readOnly = true)
+    private List<AppointmentDTO> getAppointmentsByProviderAndDate(Long providerId, LocalDate date) {
+        try {
+            Bundle bundle = fhirClientService.getClient().search()
+                    .forResource(Appointment.class)
+                    .where(new ReferenceClientParam("practitioner").hasId("Practitioner/" + providerId))
+                    .where(new DateClientParam("date").exactly().day(date.toString()))
+                    .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                    .returnBundle(Bundle.class)
+                    .execute();
+            return extractAppointments(bundle);
+        } catch (Exception e) {
+            log.warn("Could not fetch appointments for provider {} on {}: {}", providerId, date, e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
     public long count() {
-        return repository.count();
+        Bundle bundle = fhirClientService.search(Appointment.class, getPracticeId());
+        return bundle.getTotal();
     }
 
-    // -------- Mapping Helpers --------
-    private Appointment mapToEntity(AppointmentDTO dto) {
-        Appointment entity = new Appointment();
-        entity.setVisitType(dto.getVisitType());
-        entity.setPatientId(dto.getPatientId());
-        entity.setProviderId(dto.getProviderId());
-        entity.setAppointmentStartDate(dto.getAppointmentStartDate() != null ? dto.getAppointmentStartDate().toString() : null);
-        entity.setAppointmentEndDate(dto.getAppointmentEndDate() != null ? dto.getAppointmentEndDate().toString() : null);
-        entity.setAppointmentStartTime(dto.getAppointmentStartTime() != null ? dto.getAppointmentStartTime().toString() : null);
-        entity.setAppointmentEndTime(dto.getAppointmentEndTime() != null ? dto.getAppointmentEndTime().toString() : null);
-        entity.setPriority(dto.getPriority());
-        entity.setLocationId(dto.getLocationId());
-        entity.setStatus(dto.getStatus());
-        entity.setReason(dto.getReason());
+    // ========== FHIR Mapping Methods ==========
 
-        // Use externalId if provided, otherwise use fhirId
-        String fhirIdValue = dto.getExternalId() != null ? dto.getExternalId() : dto.getFhirId();
-        entity.setFhirId(fhirIdValue);
-        entity.setExternalId(fhirIdValue);
-        // entity.setMeetingUrl(dto.getMeetingUrl());
+    private Appointment toFhirAppointment(AppointmentDTO dto) {
+        Appointment appointment = new Appointment();
 
+        // Status
+        appointment.setStatus(mapToFhirStatus(dto.getStatus()));
 
-        return entity;
+        // Priority
+        if (dto.getPriority() != null) {
+            appointment.setPriority(mapPriorityToInt(dto.getPriority()));
+        }
+
+        // Start/End time
+        if (dto.getAppointmentStartDate() != null && dto.getAppointmentStartTime() != null) {
+            LocalDateTime startDateTime = LocalDateTime.of(dto.getAppointmentStartDate(), dto.getAppointmentStartTime());
+            appointment.setStart(Date.from(startDateTime.atZone(ZoneId.systemDefault()).toInstant()));
+        }
+        if (dto.getAppointmentEndDate() != null && dto.getAppointmentEndTime() != null) {
+            LocalDateTime endDateTime = LocalDateTime.of(dto.getAppointmentEndDate(), dto.getAppointmentEndTime());
+            appointment.setEnd(Date.from(endDateTime.atZone(ZoneId.systemDefault()).toInstant()));
+        }
+
+        // Patient participant
+        if (dto.getPatientId() != null) {
+            appointment.addParticipant()
+                    .setActor(new Reference("Patient/" + dto.getPatientId()))
+                    .setStatus(Appointment.ParticipationStatus.ACCEPTED);
+        }
+
+        // Provider participant
+        if (dto.getProviderId() != null) {
+            appointment.addParticipant()
+                    .setActor(new Reference("Practitioner/" + dto.getProviderId()))
+                    .setStatus(Appointment.ParticipationStatus.ACCEPTED);
+        }
+
+        // Location participant
+        if (dto.getLocationId() != null) {
+            appointment.addParticipant()
+                    .setActor(new Reference("Location/" + dto.getLocationId()))
+                    .setStatus(Appointment.ParticipationStatus.ACCEPTED);
+        }
+
+        // Visit type
+        if (dto.getVisitType() != null) {
+            appointment.addServiceType()
+                    .setText(dto.getVisitType());
+        }
+
+        // Reason
+        if (dto.getReason() != null) {
+            appointment.addReasonCode()
+                    .setText(dto.getReason());
+        }
+
+        return appointment;
     }
 
-    private AppointmentDTO mapToDto(Appointment entity) {
+    private AppointmentDTO toAppointmentDto(Appointment appointment) {
         AppointmentDTO dto = new AppointmentDTO();
-        dto.setId(entity.getId());
-        dto.setVisitType(entity.getVisitType());
-        dto.setPatientId(entity.getPatientId());
-        dto.setProviderId(entity.getProviderId());
-        dto.setAppointmentStartDate(entity.getAppointmentStartDate() != null ? LocalDate.parse(entity.getAppointmentStartDate()) : null);
-        dto.setAppointmentEndDate(entity.getAppointmentEndDate() != null ? LocalDate.parse(entity.getAppointmentEndDate()) : null);
-        dto.setAppointmentStartTime(entity.getAppointmentStartTime() != null ? LocalTime.parse(entity.getAppointmentStartTime()) : null);
-        dto.setAppointmentEndTime(entity.getAppointmentEndTime() != null ? LocalTime.parse(entity.getAppointmentEndTime()) : null);
-        dto.setPriority(entity.getPriority());
-        dto.setLocationId(entity.getLocationId());
-        dto.setStatus(entity.getStatus());
-        dto.setReason(entity.getReason());
-        dto.setFhirId(entity.getFhirId());
-        dto.setExternalId(entity.getFhirId()); // externalId is an alias for fhirId
-        // dto.setMeetingUrl(entity.getMeetingUrl());
 
-        AppointmentDTO.Audit audit = new AppointmentDTO.Audit();
-        if (entity.getCreatedDate() != null) {
-            audit.setCreatedDate(entity.getCreatedDate().toString());
+        // FHIR ID
+        if (appointment.hasId()) {
+            dto.setFhirId(appointment.getIdElement().getIdPart());
+            dto.setExternalId(appointment.getIdElement().getIdPart());
         }
-        if (entity.getLastModifiedDate() != null) {
-            audit.setLastModifiedDate(entity.getLastModifiedDate().toString());
-        }
-        dto.setAudit(audit);
 
+        // Status
+        dto.setStatus(mapFromFhirStatus(appointment.getStatus()));
+
+        // Priority
+        dto.setPriority(mapPriorityFromInt(appointment.getPriority()));
+
+        // Start/End time
+        if (appointment.hasStart()) {
+            LocalDateTime startDateTime = appointment.getStart().toInstant()
+                    .atZone(ZoneId.systemDefault()).toLocalDateTime();
+            dto.setAppointmentStartDate(startDateTime.toLocalDate());
+            dto.setAppointmentStartTime(startDateTime.toLocalTime());
+        }
+        if (appointment.hasEnd()) {
+            LocalDateTime endDateTime = appointment.getEnd().toInstant()
+                    .atZone(ZoneId.systemDefault()).toLocalDateTime();
+            dto.setAppointmentEndDate(endDateTime.toLocalDate());
+            dto.setAppointmentEndTime(endDateTime.toLocalTime());
+        }
+
+        // Extract participants
+        for (Appointment.AppointmentParticipantComponent participant : appointment.getParticipant()) {
+            if (participant.hasActor() && participant.getActor().hasReference()) {
+                String ref = participant.getActor().getReference();
+                try {
+                    if (ref.startsWith("Patient/")) {
+                        dto.setPatientId(Long.parseLong(ref.substring(8)));
+                    } else if (ref.startsWith("Practitioner/")) {
+                        dto.setProviderId(Long.parseLong(ref.substring(13)));
+                    } else if (ref.startsWith("Location/")) {
+                        dto.setLocationId(Long.parseLong(ref.substring(9)));
+                    }
+                } catch (NumberFormatException e) {
+                    // FHIR ID is not numeric, skip
+                }
+            }
+        }
+
+        // Visit type
+        if (appointment.hasServiceType()) {
+            dto.setVisitType(appointment.getServiceTypeFirstRep().getText());
+        }
+
+        // Reason
+        if (appointment.hasReasonCode()) {
+            dto.setReason(appointment.getReasonCodeFirstRep().getText());
+        }
+
+        // Formatted date/time
         if (dto.getAppointmentStartDate() != null && dto.getAppointmentStartTime() != null) {
             dto.setFormattedDate(dto.getAppointmentStartDate().format(dateFmt));
             dto.setFormattedTime(dto.getAppointmentStartTime().format(timeFmt));
         }
+
         return dto;
     }
 
-    private void updateEntityFromDto(Appointment entity, AppointmentDTO dto) {
-        if (dto.getVisitType() != null) entity.setVisitType(dto.getVisitType());
-        if (dto.getPatientId() != null) entity.setPatientId(dto.getPatientId());
-        if (dto.getProviderId() != null) entity.setProviderId(dto.getProviderId());
-        if (dto.getAppointmentStartDate() != null) entity.setAppointmentStartDate(dto.getAppointmentStartDate().toString());
-        if (dto.getAppointmentEndDate() != null) entity.setAppointmentEndDate(dto.getAppointmentEndDate().toString());
-        if (dto.getAppointmentStartTime() != null) entity.setAppointmentStartTime(dto.getAppointmentStartTime().toString());
-        if (dto.getAppointmentEndTime() != null) entity.setAppointmentEndTime(dto.getAppointmentEndTime().toString());
-        if (dto.getPriority() != null) entity.setPriority(dto.getPriority());
-        if (dto.getLocationId() != null) entity.setLocationId(dto.getLocationId());
-        if (dto.getStatus() != null) entity.setStatus(dto.getStatus());
-        if (dto.getReason() != null) entity.setReason(dto.getReason());
-
-        // Update fhirId if externalId or fhirId is provided
-        String fhirIdValue = dto.getExternalId() != null ? dto.getExternalId() : dto.getFhirId();
-        if (fhirIdValue != null) {
-            entity.setFhirId(fhirIdValue);
-            entity.setExternalId(fhirIdValue);
-        }
-        // if (dto.getMeetingUrl() != null) entity.setMeetingUrl(dto.getMeetingUrl());
-    }
-
-
-    // -------- External Sync Methods --------
-    private void syncExternalCreate(Appointment entity) {
-        try {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null && !"fhir".equals(storageType)) { // Temporarily disable FHIR sync
-                ExternalAppointmentStorage externalStorage =
-                        (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
-                externalStorage.create(mapToDto(entity));
-            }
-        } catch (Exception e) {
-            log.error("External sync create failed: {}", e.getMessage());
-            // Don't rethrow - external sync failure shouldn't fail the main transaction
-        }
-    }
-
-    private void syncExternalUpdate(Appointment entity, AppointmentDTO dto) {
-        try {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null && !"fhir".equals(storageType)) { // Temporarily disable FHIR sync
-                ExternalAppointmentStorage externalStorage =
-                        (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
-                externalStorage.update(dto, String.valueOf(entity.getId()));
-            }
-        } catch (Exception e) {
-            log.error("External sync update failed: {}", e.getMessage());
-            // Don't rethrow - external sync failure shouldn't fail the main transaction
-        }
-    }
-
-    private void syncExternalDelete(Appointment entity) {
-        try {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null && !"fhir".equals(storageType)) { // Temporarily disable FHIR sync
-                ExternalAppointmentStorage externalStorage =
-                        (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
-                externalStorage.delete(String.valueOf(entity.getId()));
-            }
-        } catch (Exception e) {
-            log.error("External sync delete failed: {}", e.getMessage());
-            // Don't rethrow - external sync failure shouldn't fail the main transaction
-        }
-    }
-    // =========================================================
-    // Update STATUS only (for the UI dropdown)
-    // =========================================================
-    @Transactional
-    public AppointmentDTO updateStatus(Long id, String newStatus) {
-        Appointment entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
-
-        String normalized = normalizeStatus(newStatus);
-
-        // Business rule: UI updates only to CHECKED / UNCHECKED. Relax if you want more.
-        if (!"CHECKED".equals(normalized) && !"UNCHECKED".equals(normalized)) {
-            throw new IllegalArgumentException("Invalid status: " + newStatus + ". Allowed: Checked, Unchecked.");
-        }
-
-        entity.setStatus(normalized);
-        entity.setLastModifiedDate(LocalDateTime.now());
-        entity = repository.save(entity);
-
-        // Optional sync to external systems
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && !"fhir".equals(storageType)) { // Temporarily disable FHIR sync
-            try {
-                ExternalAppointmentStorage externalStorage =
-                        (ExternalAppointmentStorage) storageResolver.resolve(AppointmentDTO.class);
-                externalStorage.update(mapToDto(entity), String.valueOf(entity.getId()));
-                log.info("Updated status for appointment {} in external storage", entity.getId());
-            } catch (Exception e) {
-                log.error("Failed to sync status to external storage: {}", e.getMessage());
-                // Don't fail the main transaction for external sync issues
+    private List<AppointmentDTO> extractAppointments(Bundle bundle) {
+        List<AppointmentDTO> appointments = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof Appointment) {
+                    appointments.add(toAppointmentDto((Appointment) entry.getResource()));
+                }
             }
         }
+        return appointments;
+    }
 
-        return mapToDto(entity);
+    private Appointment.AppointmentStatus mapToFhirStatus(String status) {
+        if (status == null) return Appointment.AppointmentStatus.PROPOSED;
+        return switch (status.toUpperCase()) {
+            case "CHECKED", "CONFIRMED" -> Appointment.AppointmentStatus.FULFILLED;
+            case "UNCHECKED", "PENDING" -> Appointment.AppointmentStatus.BOOKED;
+            case "CANCELLED" -> Appointment.AppointmentStatus.CANCELLED;
+            case "AVAILABLE" -> Appointment.AppointmentStatus.PROPOSED;
+            default -> Appointment.AppointmentStatus.BOOKED;
+        };
+    }
+
+    private String mapFromFhirStatus(Appointment.AppointmentStatus status) {
+        if (status == null) return "PENDING";
+        return switch (status) {
+            case FULFILLED, CHECKEDIN -> "CHECKED";
+            case BOOKED, PENDING -> "UNCHECKED";
+            case CANCELLED, NOSHOW -> "CANCELLED";
+            default -> "PENDING";
+        };
+    }
+
+    private int mapPriorityToInt(String priority) {
+        if (priority == null) return 5;
+        return switch (priority.toUpperCase()) {
+            case "URGENT", "HIGH" -> 1;
+            case "NORMAL", "MEDIUM" -> 5;
+            case "LOW" -> 9;
+            default -> 5;
+        };
+    }
+
+    private String mapPriorityFromInt(int priority) {
+        if (priority <= 2) return "HIGH";
+        if (priority <= 6) return "NORMAL";
+        return "LOW";
     }
 
     // ---- Validation helpers ----
@@ -380,17 +455,6 @@ public class AppointmentService {
         if (isBlank(dto.getPriority())) throw new IllegalArgumentException("priority is required");
         if (dto.getLocationId() == null) throw new IllegalArgumentException("locationId is required");
         if (isBlank(dto.getStatus())) throw new IllegalArgumentException("status is required");
-    }
-
-    private void validateMandatoryFields(Appointment entity) {
-        if (entity == null) throw new IllegalArgumentException("appointment is required");
-        if (isBlank(entity.getAppointmentStartDate())) throw new IllegalArgumentException("appointmentStartDate is required");
-        if (isBlank(entity.getAppointmentStartTime())) throw new IllegalArgumentException("appointmentStartTime is required");
-        if (isBlank(entity.getAppointmentEndDate())) throw new IllegalArgumentException("appointmentEndDate is required");
-        if (isBlank(entity.getAppointmentEndTime())) throw new IllegalArgumentException("appointmentEndTime is required");
-        if (isBlank(entity.getPriority())) throw new IllegalArgumentException("priority is required");
-        if (entity.getLocationId() == null) throw new IllegalArgumentException("locationId is required");
-        if (isBlank(entity.getStatus())) throw new IllegalArgumentException("status is required");
     }
 
     private boolean isBlank(String s) {

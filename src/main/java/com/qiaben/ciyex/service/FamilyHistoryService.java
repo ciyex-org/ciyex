@@ -1,477 +1,208 @@
-//package com.qiaben.ciyex.service;
-//
-//import com.qiaben.ciyex.dto.FamilyHistoryDto;
-//import com.qiaben.ciyex.entity.FamilyHistory;
-//import com.qiaben.ciyex.entity.FamilyHistoryEntry;
-//import com.qiaben.ciyex.repository.FamilyHistoryRepository;
-//import com.qiaben.ciyex.storage.ExternalFamilyHistoryStorage;
-//import lombok.RequiredArgsConstructor;
-//import lombok.extern.slf4j.Slf4j;
-//import org.springframework.stereotype.Service;
-//
-//import java.time.ZoneId;
-//import java.time.format.DateTimeFormatter;
-//import java.util.List;
-//import java.util.Optional;
-//
-//@Service
-//@RequiredArgsConstructor
-//@Slf4j
-//public class FamilyHistoryService {
-//
-//    private final FamilyHistoryRepository repo;
-//    private final Optional<ExternalFamilyHistoryStorage> external;
-//
-//    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-//
-//    // CREATE
-//    public FamilyHistoryDto create(Long patientId, Long encounterId, FamilyHistoryDto in) {
-//        FamilyHistory fh = new FamilyHistory();
-//
-//        fh.setPatientId(patientId);
-//        fh.setEncounterId(encounterId);
-//
-//        // map entries
-//        if (in.getEntries() != null) {
-//            for (var e : in.getEntries()) {
-//                FamilyHistoryEntry row = FamilyHistoryEntry.builder()
-//                        .relation(normalizeRelation(e.getRelation()))
-//                        .diagnosisCode(e.getDiagnosisCode())
-//                        .diagnosisText(e.getDiagnosisText())
-//                        .notes(e.getNotes())
-//                        .familyHistory(fh)
-//                        .build();
-//                fh.getEntries().add(row);
-//            }
-//        }
-//
-//        final FamilyHistory saved = repo.save(fh);
-//
-//        external.ifPresent(ext -> {
-//            final FamilyHistory ref = saved;
-//            String externalId = ext.create(mapToDto(ref));
-//            ref.setExternalId(externalId);
-//            repo.save(ref);
-//        });
-//
-//        return mapToDto(saved);
-//    }
-//
-//    // UPDATE (replace entries)
-//    public FamilyHistoryDto update(Long patientId, Long encounterId, Long id, FamilyHistoryDto in) {
-//        FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Family History not found"));
-//
-//        // full replace list
-//        fh.getEntries().clear();
-//        if (in.getEntries() != null) {
-//            for (var e : in.getEntries()) {
-//                FamilyHistoryEntry row = FamilyHistoryEntry.builder()
-//                        .relation(normalizeRelation(e.getRelation()))
-//                        .diagnosisCode(e.getDiagnosisCode())
-//                        .diagnosisText(e.getDiagnosisText())
-//                        .notes(e.getNotes())
-//                        .familyHistory(fh)
-//                        .build();
-//                fh.getEntries().add(row);
-//            }
-//        }
-//
-//        final FamilyHistory updated = repo.save(fh);
-//
-//        external.ifPresent(ext -> {
-//            final FamilyHistory ref = updated;
-//            if (ref.getExternalId() != null) {
-//                ext.update(ref.getExternalId(), mapToDto(ref));
-//            }
-//        });
-//
-//        return mapToDto(updated);
-//    }
-//
-//    // DELETE
-//    public void delete(Long patientId, Long encounterId, Long id) {
-//        FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Family History not found"));
-//
-//        final FamilyHistory toDelete = fh;
-//        external.ifPresent(ext -> {
-//            if (toDelete.getExternalId() != null) {
-//                ext.delete(toDelete.getExternalId());
-//            }
-//        });
-//
-//        repo.delete(toDelete);
-//    }
-//
-//    // GET ONE
-//    public FamilyHistoryDto getOne(Long patientId, Long encounterId, Long id) {
-//        FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Family History not found"));
-//        return mapToDto(fh);
-//    }
-//
-//    // GET ALL by patient
-//    public List<FamilyHistoryDto> getAllByPatient(Long patientId) {
-//        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
-//    }
-//
-//    // GET ALL by patient + encounter
-//    public List<FamilyHistoryDto> getAllByEncounter(Long patientId, Long encounterId) {
-//        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
-//    }
-//
-//    // --- mapping helpers ---
-//
-//    private FamilyHistoryDto mapToDto(FamilyHistory fh) {
-//        FamilyHistoryDto dto = new FamilyHistoryDto();
-//        dto.setId(fh.getId());
-//        dto.setExternalId(fh.getExternalId());
-//        dto.setOrgId(fh.getOrgId());
-//        dto.setPatientId(fh.getPatientId());
-//        dto.setEncounterId(fh.getEncounterId());
-//
-//        if (fh.getEntries() != null) {
-//            dto.setEntries(
-//                    fh.getEntries().stream().map(e -> {
-//                        FamilyHistoryDto.EntryDto ed = new FamilyHistoryDto.EntryDto();
-//                        ed.setId(e.getId());
-//                        ed.setRelation(e.getRelation());
-//                        ed.setDiagnosisCode(e.getDiagnosisCode());
-//                        ed.setDiagnosisText(e.getDiagnosisText());
-//                        ed.setNotes(e.getNotes());
-//                        return ed;
-//                    }).toList()
-//            );
-//        }
-//
-//        FamilyHistoryDto.Audit a = new FamilyHistoryDto.Audit();
-//        if (fh.getCreatedAt() != null) a.setCreatedDate(fh.getCreatedAt().atZone(ZoneId.systemDefault()).toLocalDate().toString());
-//        if (fh.getUpdatedAt() != null) a.setLastModifiedDate(fh.getUpdatedAt().atZone(ZoneId.systemDefault()).toLocalDate().toString());
-//        dto.setAudit(a);
-//
-//        return dto;
-//    }
-//
-//    private String normalizeRelation(String r) {
-//        if (r == null) return "OTHER";
-//        String v = r.trim().toUpperCase();
-//        return switch (v) {
-//            case "FATHER", "MOTHER", "SIBLING", "SPOUSE", "OFFSPRING" -> v;
-//            default -> "OTHER";
-//        };
-//    }
-//}
-
-
-
-
-
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import com.qiaben.ciyex.dto.EntryDto;
 import com.qiaben.ciyex.dto.FamilyHistoryDto;
-import com.qiaben.ciyex.entity.FamilyHistory;
-import com.qiaben.ciyex.entity.FamilyHistoryEntry;
-import com.qiaben.ciyex.repository.FamilyHistoryRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.storage.fhir.FhirExternalFamilyHistoryStorage;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import lombok.RequiredArgsConstructor;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.springframework.stereotype.Service;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.ZoneId;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * FamilyHistory Service - FHIR Only.
+ * All family history data is stored in HAPI FHIR server as FamilyMemberHistory resources.
+ */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class FamilyHistoryService {
+
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
+
+    // In-memory cache for e-sign/print metadata (keyed by FHIR ID)
+    private final Map<String, SignMetadata> signMetadataCache = new ConcurrentHashMap<>();
+
+    @Autowired
+    public FamilyHistoryService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
+    }
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+    // Helper class for e-sign metadata
+    private static class SignMetadata {
+        Boolean eSigned = false;
+        OffsetDateTime signedAt;
+        String signedBy;
+        OffsetDateTime printedAt;
+        Long signedEntryId;
+    }
+
+    // ✅ Get all by patient
     public List<FamilyHistoryDto> getAllByPatient(Long patientId) {
-        return repo.findByPatientId(patientId)
-            .stream().map(this::toDto).toList();
+        log.debug("Getting FHIR FamilyMemberHistory for patient: {}", patientId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(FamilyMemberHistory.class)
+                .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractFamilyHistoryDtos(bundle, patientId, null);
     }
 
-    private final FamilyHistoryRepository repo;
-    private final EncounterService encounterService;
-    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
-    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
-
-    @Autowired(required = false)
-    private FhirExternalFamilyHistoryStorage fhirStorage;
-
-    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-
-    // Create container (and optional entries)
+    // ✅ Create family history
     public FamilyHistoryDto create(Long patientId, Long encounterId, FamilyHistoryDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
+        log.info("Creating family history in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
+        List<String> createdIds = new ArrayList<>();
 
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-
-        // Step 4: Create the family history
-        FamilyHistory fh = new FamilyHistory();
-        fh.setPatientId(patientId);
-        fh.setEncounterId(encounterId);
-        applyEntries(fh, dto.getEntries());
-        fh = repo.save(fh);
-        
-        // Step 5: Optional external FHIR sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("FamilyHistory create - storageType for current org: {}", storageType);
-
-        if (storageType != null) {
-            try {
-                log.info("Attempting FHIR sync for FamilyHistory ID: {}", fh.getId());
-                ExternalStorage<FamilyHistoryDto> ext = storageResolver.resolve(FamilyHistoryDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                FamilyHistoryDto snapshot = toDto(fh);
-                String externalId = ext.create(snapshot);
-                log.info("FHIR create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    fh.setExternalId(externalId);
-                    fh = repo.save(fh);
-                    log.info("Created FHIR resource for FamilyHistory ID: {} with externalId: {}", fh.getId(), externalId);
-                } else {
-                    log.warn("FHIR create returned null or empty externalId for FamilyHistory ID: {}", fh.getId());
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync FamilyHistory to external storage", ex);
+        // Create one FamilyMemberHistory per entry
+        if (dto.getEntries() != null) {
+            for (EntryDto entry : dto.getEntries()) {
+                FamilyMemberHistory fmh = toFhirFamilyMemberHistory(entry, patientId, encounterId);
+                MethodOutcome outcome = fhirClientService.create(fmh, getPracticeId());
+                String fhirId = outcome.getId().getIdPart();
+                createdIds.add(fhirId);
+                log.info("Created FHIR FamilyMemberHistory with ID: {}", fhirId);
             }
-        } else if (fhirStorage != null) {
-            try {
-                log.info("No storage type configured, falling back to direct FHIR storage for FamilyHistory ID: {}", fh.getId());
-                FamilyHistoryDto snapshot = toDto(fh);
-                String externalId = fhirStorage.create(snapshot);
-                log.info("FHIR fallback create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    fh.setExternalId(externalId);
-                    fh = repo.save(fh);
-                    log.info("Created FHIR resource (fallback) for FamilyHistory ID: {} with externalId: {}", fh.getId(), externalId);
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync FamilyHistory to external storage (fallback)", ex);
-            }
-        } else {
-            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for FamilyHistory ID: {}", fh.getId());
         }
 
-        if (fh.getExternalId() == null) {
-            String generatedId = "FH-" + System.currentTimeMillis();
-            fh.setExternalId(generatedId);
-            fh.setFhirId(generatedId);
-            fh = repo.save(fh);
-            log.info("Auto-generated externalId: {}", generatedId);
-        } else {
-            fh.setFhirId(fh.getExternalId());
-            fh = repo.save(fh);
-        }
+        // Return DTO with first ID as container ID
+        String containerId = createdIds.isEmpty() ? "FH-" + System.currentTimeMillis() : createdIds.get(0);
+        dto.setFhirId(containerId);
+        dto.setExternalId(containerId);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
 
-        return toDto(fh);
+        return dto;
     }
 
-    // Get one container
+    // ✅ Get one family history
     public FamilyHistoryDto getOne(Long patientId, Long encounterId, Long id) {
-        FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Family History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-        return toDto(fh);
+        String fhirId = String.valueOf(id);
+        log.debug("Getting FHIR FamilyMemberHistory with ID: {}", fhirId);
+
+        try {
+            FamilyMemberHistory fmh = fhirClientService.read(FamilyMemberHistory.class, fhirId, getPracticeId());
+            return toFamilyHistoryDto(fmh, patientId, encounterId);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    String.format("Family History not found with ID: %d for Patient ID: %d and Encounter ID: %d",
+                            id, patientId, encounterId));
+        }
     }
 
-    // List containers (usually single per patient+enc)
+    // ✅ List family histories for encounter
     public List<FamilyHistoryDto> list(Long patientId, Long encounterId) {
-        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
-                .stream().map(this::toDto).toList();
+        log.debug("Listing FHIR FamilyMemberHistory for patient: {}, encounter: {}", patientId, encounterId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(FamilyMemberHistory.class)
+                .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractFamilyHistoryDtos(bundle, patientId, encounterId);
     }
 
-    // Replace entries (LOCKED if signed)
+    // ✅ Update family history
     public FamilyHistoryDto update(Long patientId, Long encounterId, Long id, FamilyHistoryDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
+        String fhirId = String.valueOf(id);
+        log.info("Updating FHIR FamilyMemberHistory with ID: {}", fhirId);
 
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
-
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-
-        // Step 4: Find the family history
-        FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Family History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-
-        // Step 5: Check if family history itself is signed
-        if (Boolean.TRUE.equals(fh.getESigned())) {
+        // Check if signed
+        SignMetadata meta = signMetadataCache.get(fhirId);
+        if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed family history is read-only.");
         }
 
-        // Step 6: Replace entries atomically
-        fh.getEntries().clear();
-        applyEntries(fh, dto.getEntries());
-        fh = repo.save(fh);
-        
-        // Step 7: Optional external sync
-        if (fh.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("FamilyHistory update - storageType for current org: {}", storageType);
-
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR sync for FamilyHistory ID: {}", fh.getId());
-                    ExternalStorage<FamilyHistoryDto> ext = storageResolver.resolve(FamilyHistoryDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                    FamilyHistoryDto snapshot = toDto(fh);
-                    ext.update(snapshot, fh.getExternalId());
-                    log.info("Updated FHIR resource for FamilyHistory ID: {} with externalId: {}", fh.getId(), fh.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync FamilyHistory update to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for FamilyHistory ID: {}", fh.getId());
-                    FamilyHistoryDto snapshot = toDto(fh);
-                    fhirStorage.update(snapshot, fh.getExternalId());
-                    log.info("Updated FHIR resource (fallback) for FamilyHistory ID: {} with externalId: {}", fh.getId(), fh.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync FamilyHistory update to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for FamilyHistory ID: {}", fh.getId());
-            }
+        // Update first entry (or create if entries provided)
+        if (dto.getEntries() != null && !dto.getEntries().isEmpty()) {
+            EntryDto entry = dto.getEntries().get(0);
+            FamilyMemberHistory fmh = toFhirFamilyMemberHistory(entry, patientId, encounterId);
+            fmh.setId(fhirId);
+            fhirClientService.update(fmh, getPracticeId());
         }
 
-        return toDto(fh);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        return dto;
     }
 
-    // Delete container (BLOCKED if signed)
+    // ✅ Delete family history
     public void delete(Long patientId, Long encounterId, Long id) {
-        // Step 1: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+        String fhirId = String.valueOf(id);
+        log.info("Deleting FHIR FamilyMemberHistory with ID: {}", fhirId);
 
-        // Step 2: Find the family history
-        FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Family History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-
-        // Step 3: Check if family history itself is signed
-        if (Boolean.TRUE.equals(fh.getESigned())) {
+        // Check if signed
+        SignMetadata meta = signMetadataCache.get(fhirId);
+        if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed family history cannot be deleted.");
         }
-        
-        // Step 4: Optional external delete
-        if (fh.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("FamilyHistory delete - storageType for current org: {}", storageType);
 
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR delete for FamilyHistory ID: {}", fh.getId());
-                    ExternalStorage<FamilyHistoryDto> ext = storageResolver.resolve(FamilyHistoryDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                    ext.delete(fh.getExternalId());
-                    log.info("Deleted FHIR resource for FamilyHistory ID: {} with externalId: {}", fh.getId(), fh.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync FamilyHistory delete to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for FamilyHistory ID: {}", fh.getId());
-                    fhirStorage.delete(fh.getExternalId());
-                    log.info("Deleted FHIR resource (fallback) for FamilyHistory ID: {} with externalId: {}", fh.getId(), fh.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync FamilyHistory delete to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for FamilyHistory ID: {}", fh.getId());
-            }
-        }
-
-        repo.delete(fh);
+        fhirClientService.delete(FamilyMemberHistory.class, fhirId, getPracticeId());
+        signMetadataCache.remove(fhirId);
     }
 
-    // eSign container (idempotent). Accepts optional entryId (which entry initiated sign)
+    // ✅ eSign family history
     public FamilyHistoryDto eSign(Long patientId, Long encounterId, Long id, String signedBy, Long entryId) {
-        FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Family History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
+        String fhirId = String.valueOf(id);
+        log.info("E-signing FHIR FamilyMemberHistory with ID: {}", fhirId);
 
-        if (Boolean.TRUE.equals(fh.getESigned())) {
-            // idempotent
-            return toDto(fh);
+        SignMetadata meta = signMetadataCache.computeIfAbsent(fhirId, k -> new SignMetadata());
+
+        if (Boolean.TRUE.equals(meta.eSigned)) {
+            // Idempotent
+            return getOne(patientId, encounterId, id);
         }
 
-        fh.setESigned(Boolean.TRUE);
-        fh.setSignedBy(StringUtils.hasText(signedBy) ? signedBy : "system");
-        fh.setSignedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
-        if (entryId != null) fh.setSignedEntryId(entryId);
-        fh = repo.save(fh);
+        meta.eSigned = true;
+        meta.signedBy = StringUtils.hasText(signedBy) ? signedBy : "system";
+        meta.signedAt = OffsetDateTime.now(ZoneOffset.UTC);
+        meta.signedEntryId = entryId;
 
-        return toDto(fh);
+        FamilyHistoryDto dto = getOne(patientId, encounterId, id);
+        dto.setESigned(meta.eSigned);
+        dto.setSignedAt(meta.signedAt);
+        dto.setSignedBy(meta.signedBy);
+        dto.setSignedEntryId(meta.signedEntryId);
+
+        return dto;
     }
 
-    // Print PDF (also stamps printedAt)
+    // ✅ Render PDF
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
-        FamilyHistory fh = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Family History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
+        String fhirId = String.valueOf(id);
+        log.info("Rendering PDF for FHIR FamilyMemberHistory with ID: {}", fhirId);
 
-        fh.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
-        repo.save(fh);
+        FamilyHistoryDto dto = getOne(patientId, encounterId, id);
+
+        // Update print timestamp
+        SignMetadata meta = signMetadataCache.computeIfAbsent(fhirId, k -> new SignMetadata());
+        meta.printedAt = OffsetDateTime.now(ZoneOffset.UTC);
 
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             PDPage page = new PDPage(PDRectangle.LETTER);
@@ -491,17 +222,17 @@ public class FamilyHistoryService {
                 y -= 26;
                 draw(cs, x, y, "Patient ID:", String.valueOf(patientId)); y -= 16;
                 draw(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 16;
-                draw(cs, x, y, "Container ID:", String.valueOf(id)); y -= 22;
+                draw(cs, x, y, "Record ID:", fhirId); y -= 22;
 
                 // Entries
-                var entries = fh.getEntries() == null ? List.<FamilyHistoryEntry>of() : fh.getEntries();
+                List<EntryDto> entries = dto.getEntries() == null ? List.of() : dto.getEntries();
                 if (entries.isEmpty()) {
                     draw(cs, x, y, "Entries:", "—"); y -= 16;
                 } else {
-                    for (FamilyHistoryEntry e : entries) {
+                    for (EntryDto e : entries) {
                         draw(cs, x, y, "Relation:", nullTo(e.getRelation(), "-")); y -= 16;
-                        var diag = (nullTo(e.getDiagnosisText(), "—")
-                                + (StringUtils.hasText(e.getDiagnosisCode()) ? " (" + e.getDiagnosisCode() + ")" : ""));
+                        String diag = nullTo(e.getDiagnosisText(), "—")
+                                + (StringUtils.hasText(e.getDiagnosisCode()) ? " (" + e.getDiagnosisCode() + ")" : "");
                         draw(cs, x, y, "Diagnosis:", diag); y -= 16;
                         if (StringUtils.hasText(e.getNotes())) { draw(cs, x, y, "Notes:", e.getNotes()); y -= 16; }
                         y -= 8;
@@ -510,10 +241,9 @@ public class FamilyHistoryService {
 
                 // eSign footer
                 y -= 8;
-                draw(cs, x, y, "eSigned:", Boolean.TRUE.equals(fh.getESigned()) ? "Yes" : "No"); y -= 16;
-                if (fh.getSignedAt() != null) { draw(cs, x, y, "Signed At:", fh.getSignedAt().toString()); y -= 16; }
-                if (StringUtils.hasText(fh.getSignedBy())) { draw(cs, x, y, "Signed By:", fh.getSignedBy()); y -= 16; }
-                if (fh.getSignedEntryId() != null) { draw(cs, x, y, "Signed Entry ID:", String.valueOf(fh.getSignedEntryId())); y -= 16; }
+                draw(cs, x, y, "eSigned:", Boolean.TRUE.equals(meta.eSigned) ? "Yes" : "No"); y -= 16;
+                if (meta.signedAt != null) { draw(cs, x, y, "Signed At:", meta.signedAt.toString()); y -= 16; }
+                if (StringUtils.hasText(meta.signedBy)) { draw(cs, x, y, "Signed By:", meta.signedBy); y -= 16; }
             }
 
             doc.save(baos);
@@ -523,62 +253,126 @@ public class FamilyHistoryService {
         }
     }
 
-    // --- helpers ---
+    // ========== FHIR Mapping Methods ==========
+
+    private FamilyMemberHistory toFhirFamilyMemberHistory(EntryDto entry, Long patientId, Long encounterId) {
+        FamilyMemberHistory fmh = new FamilyMemberHistory();
+
+        // Patient reference
+        fmh.setPatient(new Reference("Patient/" + patientId));
+
+        // Status
+        fmh.setStatus(FamilyMemberHistory.FamilyHistoryStatus.COMPLETED);
+
+        // Relationship
+        if (entry.getRelation() != null) {
+            fmh.setRelationship(new CodeableConcept()
+                    .addCoding(new Coding()
+                            .setSystem("http://terminology.hl7.org/CodeSystem/v3-RoleCode")
+                            .setCode(mapRelationToFhirCode(entry.getRelation()))
+                            .setDisplay(entry.getRelation())));
+        }
+
+        // Condition (diagnosis)
+        if (entry.getDiagnosisCode() != null || entry.getDiagnosisText() != null) {
+            FamilyMemberHistory.FamilyMemberHistoryConditionComponent condition = fmh.addCondition();
+            condition.setCode(new CodeableConcept()
+                    .addCoding(new Coding().setCode(entry.getDiagnosisCode()))
+                    .setText(entry.getDiagnosisText()));
+        }
+
+        // Notes
+        if (entry.getNotes() != null) {
+            fmh.addNote().setText(entry.getNotes());
+        }
+
+        return fmh;
+    }
+
+    private FamilyHistoryDto toFamilyHistoryDto(FamilyMemberHistory fmh, Long patientId, Long encounterId) {
+        FamilyHistoryDto dto = new FamilyHistoryDto();
+
+        if (fmh.hasId()) {
+            dto.setFhirId(fmh.getIdElement().getIdPart());
+            dto.setExternalId(fmh.getIdElement().getIdPart());
+        }
+
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+
+        // Extract entry
+        List<EntryDto> entries = new ArrayList<>();
+        EntryDto entry = new EntryDto();
+
+        if (fmh.hasRelationship()) {
+            entry.setRelation(fmh.getRelationship().getText() != null ?
+                    fmh.getRelationship().getText() :
+                    (fmh.getRelationship().hasCoding() ? fmh.getRelationship().getCodingFirstRep().getDisplay() : null));
+        }
+
+        if (fmh.hasCondition()) {
+            FamilyMemberHistory.FamilyMemberHistoryConditionComponent cond = fmh.getConditionFirstRep();
+            if (cond.hasCode()) {
+                entry.setDiagnosisCode(cond.getCode().hasCoding() ? cond.getCode().getCodingFirstRep().getCode() : null);
+                entry.setDiagnosisText(cond.getCode().getText());
+            }
+        }
+
+        if (fmh.hasNote()) {
+            entry.setNotes(fmh.getNoteFirstRep().getText());
+        }
+
+        entries.add(entry);
+        dto.setEntries(entries);
+
+        // Check sign metadata
+        String fhirId = dto.getFhirId();
+        if (fhirId != null) {
+            SignMetadata meta = signMetadataCache.get(fhirId);
+            if (meta != null) {
+                dto.setESigned(meta.eSigned);
+                dto.setSignedAt(meta.signedAt);
+                dto.setSignedBy(meta.signedBy);
+                dto.setPrintedAt(meta.printedAt);
+                dto.setSignedEntryId(meta.signedEntryId);
+            }
+        }
+
+        return dto;
+    }
+
+    private List<FamilyHistoryDto> extractFamilyHistoryDtos(Bundle bundle, Long patientId, Long encounterId) {
+        List<FamilyHistoryDto> items = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof FamilyMemberHistory) {
+                    items.add(toFamilyHistoryDto((FamilyMemberHistory) entry.getResource(), patientId, encounterId));
+                }
+            }
+        }
+        return items;
+    }
+
+    private String mapRelationToFhirCode(String relation) {
+        if (relation == null) return "FAMMEMB";
+        return switch (relation.toUpperCase()) {
+            case "FATHER" -> "FTH";
+            case "MOTHER" -> "MTH";
+            case "SIBLING" -> "SIB";
+            case "SPOUSE" -> "SPS";
+            case "OFFSPRING", "CHILD" -> "CHILD";
+            default -> "FAMMEMB";
+        };
+    }
+
+    // ========== PDF Helpers ==========
 
     private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 160, y); cs.showText(value != null ? value : "-"); cs.endText();
     }
 
-    private static String nullTo(String v, String fb) { return (v == null || v.isBlank()) ? fb : v; }
-
-    private FamilyHistoryDto toDto(FamilyHistory fh) {
-        FamilyHistoryDto d = new FamilyHistoryDto();
-        d.setId(fh.getId());
-        d.setExternalId(fh.getExternalId());
-        d.setFhirId(fh.getFhirId());
-        d.setPatientId(fh.getPatientId());
-        d.setEncounterId(fh.getEncounterId());
-
-        d.setESigned(fh.getESigned());
-        d.setSignedAt(fh.getSignedAt());
-        d.setSignedBy(fh.getSignedBy());
-        d.setPrintedAt(fh.getPrintedAt());
-        d.setSignedEntryId(fh.getSignedEntryId());
-
-        // entries
-        List<EntryDto> list = new ArrayList<>();
-        if (fh.getEntries() != null) {
-            for (FamilyHistoryEntry e : fh.getEntries()) {
-                EntryDto ed = new EntryDto();
-                ed.setId(e.getId());
-                ed.setRelation(e.getRelation());
-                ed.setDiagnosisCode(e.getDiagnosisCode());
-                ed.setDiagnosisText(e.getDiagnosisText());
-                ed.setNotes(e.getNotes());
-                list.add(ed);
-            }
-        }
-        d.setEntries(list);
-
-        FamilyHistoryDto.Audit a = new FamilyHistoryDto.Audit();
-        if (fh.getCreatedAt() != null) a.setCreatedDate(DAY.format(fh.getCreatedAt().atZone(ZoneId.systemDefault())));
-        if (fh.getUpdatedAt() != null) a.setLastModifiedDate(DAY.format(fh.getUpdatedAt().atZone(ZoneId.systemDefault())));
-        d.setAudit(a);
-
-        return d;
-    }
-
-    private void applyEntries(FamilyHistory fh, List<EntryDto> entries) {
-        if (entries == null) return;
-        for (EntryDto ed : entries) {
-            FamilyHistoryEntry e = new FamilyHistoryEntry();
-            e.setFamilyHistory(fh);
-            e.setRelation(ed.getRelation());
-            e.setDiagnosisCode(ed.getDiagnosisCode());
-            e.setDiagnosisText(ed.getDiagnosisText());
-            e.setNotes(ed.getNotes());
-            fh.getEntries().add(e);
-        }
+    private static String nullTo(String v, String fb) {
+        return (v == null || v.isBlank()) ? fb : v;
     }
 }

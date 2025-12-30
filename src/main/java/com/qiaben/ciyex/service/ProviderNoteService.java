@@ -1,455 +1,192 @@
-//package com.qiaben.ciyex.service;
-//
-//import com.qiaben.ciyex.dto.ProviderNoteDto;
-//import com.qiaben.ciyex.entity.ProviderNote;
-//import com.qiaben.ciyex.repository.ProviderNoteRepository;
-//import com.qiaben.ciyex.storage.ExternalProviderNoteStorage;
-//import lombok.RequiredArgsConstructor;
-//import lombok.extern.slf4j.Slf4j;
-//import org.springframework.stereotype.Service;
-//import org.springframework.transaction.annotation.Transactional;
-//import org.springframework.util.StringUtils;
-//
-//import java.time.LocalDate;
-//import java.time.LocalDateTime;
-//import java.time.format.DateTimeFormatter;
-//import java.time.format.DateTimeParseException;
-//import java.util.List;
-//
-//@Service
-//@RequiredArgsConstructor
-//@Slf4j
-//public class ProviderNoteService {
-//
-//    private final ProviderNoteRepository repo;
-//    private final ExternalProviderNoteStorage externalStorage; // FHIR bridge (no-op impl provided)
-//
-//    private static final DateTimeFormatter ISO_TS = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-//
-//    @Transactional
-//    public ProviderNoteDto create(Long patientId, Long encounterId, ProviderNoteDto d) {
-//        ProviderNote e = new ProviderNote();
-//        apply(e,  patientId, encounterId, d);
-//        ProviderNote saved = repo.save(e);
-//        safeExternalCreate(saved);
-//        return toDto(saved);
-//    }
-//
-//    @Transactional
-//    public ProviderNoteDto update(Long patientId, Long encounterId, Long id, ProviderNoteDto d) {
-//        ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
-//        apply(e,  patientId, encounterId, d);
-//        ProviderNote updated = repo.save(e);
-//        safeExternalUpdate(updated);
-//        return toDto(updated);
-//    }
-//
-//    @Transactional(readOnly = true)
-//    public ProviderNoteDto getOne(Long patientId, Long encounterId, Long id) {
-//        ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
-//        return toDto(e);
-//    }
-//
-//    @Transactional(readOnly = true)
-//    public List<ProviderNoteDto> getAllByEncounter(Long patientId, Long encounterId) {
-//        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
-//                .stream().map(this::toDto).toList();
-//    }
-//
-//    @Transactional
-//    public void delete(Long patientId, Long encounterId, Long id) {
-//        ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Provider note not found"));
-//        repo.delete(e);
-//        safeExternalDelete(e);
-//    }
-//
-//    /* ---------- mapping & parsing ---------- */
-//
-//    private void apply(ProviderNote e,  Long patientId, Long encounterId, ProviderNoteDto d) {
-//
-//        e.setPatientId(patientId);
-//        e.setEncounterId(encounterId);
-//
-//        e.setNoteTitle(trim(d.getNoteTitle()));
-//        e.setNoteTypeCode(trim(d.getNoteTypeCode()));
-//        e.setNoteStatus(trim(d.getNoteStatus()));
-//        e.setNoteDateTime(parseDateTime(d.getNoteDateTime()));
-//        e.setAuthorPractitionerId(parseLong(d.getAuthorPractitionerId()));
-//
-//        e.setSubjective(d.getSubjective());
-//        e.setObjective(d.getObjective());
-//        e.setAssessment(d.getAssessment());
-//        e.setPlan(d.getPlan());
-//        e.setNarrative(d.getNarrative());
-//        e.setExternalId(trim(d.getExternalId()));
-//    }
-//
-//    private ProviderNoteDto toDto(ProviderNote e) {
-//        return ProviderNoteDto.builder()
-//                .id(s(e.getId()))
-//
-//                .patientId(s(e.getPatientId()))
-//                .encounterId(s(e.getEncounterId()))
-//                .noteTitle(e.getNoteTitle())
-//                .noteTypeCode(e.getNoteTypeCode())
-//                .noteStatus(e.getNoteStatus())
-//                .noteDateTime(e.getNoteDateTime() != null ? e.getNoteDateTime().toString() : null)
-//                .authorPractitionerId(s(e.getAuthorPractitionerId()))
-//                .subjective(e.getSubjective())
-//                .objective(e.getObjective())
-//                .assessment(e.getAssessment())
-//                .plan(e.getPlan())
-//                .narrative(e.getNarrative())
-//                .externalId(e.getExternalId())
-//                .createdAt(e.getCreatedAt() != null ? e.getCreatedAt().toString() : null)
-//                .updatedAt(e.getUpdatedAt() != null ? e.getUpdatedAt().toString() : null)
-//                .build();
-//    }
-//
-//    private static String trim(String s){ return StringUtils.hasText(s) ? s.trim() : null; }
-//    private static String s(Object o){ return o == null ? null : String.valueOf(o); }
-//
-//    private static Long parseLong(String s){
-//        return StringUtils.hasText(s) ? Long.valueOf(s.trim()) : null;
-//    }
-//
-//    private static LocalDateTime parseDateTime(String s){
-//        if (!StringUtils.hasText(s)) return null;
-//        String v = s.trim();
-//        try {
-//            // "2025-09-09T12:34:56"
-//            return LocalDateTime.parse(v, ISO_TS);
-//        } catch (DateTimeParseException ignore) {
-//            // "2025-09-09"
-//            try { return LocalDate.parse(v).atStartOfDay(); }
-//            catch (DateTimeParseException ex) {
-//                throw new IllegalArgumentException("Invalid noteDateTime: " + v);
-//            }
-//        }
-//    }
-//
-//    /* ---------- external bridge safe wrappers ---------- */
-//
-//    private void safeExternalCreate(ProviderNote e){
-//        try { externalStorage.onCreated(e); }
-//        catch (Exception ex){ log.warn("external create failed: {}", ex.getMessage()); }
-//    }
-//    private void safeExternalUpdate(ProviderNote e){
-//        try { externalStorage.onUpdated(e); }
-//        catch (Exception ex){ log.warn("external update failed: {}", ex.getMessage()); }
-//    }
-//    private void safeExternalDelete(ProviderNote e){
-//        try { externalStorage.onDeleted(e); }
-//        catch (Exception ex){ log.warn("external delete failed: {}", ex.getMessage()); }
-//    }
-//}
-
-
-
-
-
-
-
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
+import ca.uhn.fhir.rest.gclient.TokenClientParam;
 import com.qiaben.ciyex.dto.ProviderNoteDto;
-import com.qiaben.ciyex.entity.ProviderNote;
-import com.qiaben.ciyex.repository.ProviderNoteRepository;
-import lombok.RequiredArgsConstructor;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.hl7.fhir.r4.model.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.storage.fhir.FhirExternalProviderNoteStorage;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import org.springframework.beans.factory.annotation.Autowired;
-
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.storage.fhir.FhirExternalProviderNoteStorage;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.*;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Provider Note Service - FHIR Only.
+ * All provider note data is stored in HAPI FHIR server as DocumentReference resources.
+ */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ProviderNoteService {
-    public List<ProviderNoteDto> getAllByPatient(Long patientId) {
-        return repo.findByPatientId(patientId)
-            .stream().map(this::toDto).toList();
-    }
 
-    private final ProviderNoteRepository repo;
-    private final EncounterService encounterService;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
-    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    // In-memory cache for e-sign/print metadata (keyed by FHIR ID)
+    private final Map<String, SignMetadata> signMetadataCache = new ConcurrentHashMap<>();
 
-    @Autowired(required = false)
-    private FhirExternalProviderNoteStorage fhirStorage;
-
-    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
-    // Create
+    @Autowired
+    public ProviderNoteService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
+    }
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+    // Helper class for e-sign metadata
+    private static class SignMetadata {
+        Boolean eSigned = false;
+        OffsetDateTime signedAt;
+        String signedBy;
+        OffsetDateTime printedAt;
+    }
+
+    // ✅ Get all by patient
+    public List<ProviderNoteDto> getAllByPatient(Long patientId) {
+        log.debug("Getting FHIR DocumentReferences for patient: {}", patientId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(DocumentReference.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractNoteDtos(bundle, patientId, null);
+    }
+
+    // ✅ Create Provider Note
     public ProviderNoteDto create(Long patientId, Long encounterId, ProviderNoteDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-        // Step 4: Create the provider note
-        ProviderNote e = new ProviderNote();
-        e.setPatientId(patientId);
-        e.setEncounterId(encounterId);
-        applyDto(e, dto);
-        e = repo.save(e);
-        
-        // Step 5: Optional external FHIR sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("ProviderNote create - storageType for current org: {}", storageType);
+        log.info("Creating Provider Note in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
-        if (storageType != null) {
-            try {
-                log.info("Attempting FHIR sync for ProviderNote ID: {}", e.getId());
-                ExternalStorage<ProviderNoteDto> ext = storageResolver.resolve(ProviderNoteDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
+        DocumentReference docRef = toFhirDocumentReference(dto, patientId, encounterId);
+        MethodOutcome outcome = fhirClientService.create(docRef, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-                ProviderNoteDto snapshot = toDto(e);
-                String externalId = ext.create(snapshot);
-                log.info("FHIR create returned externalId: {}", externalId);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
 
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource for ProviderNote ID: {} with externalId: {}", e.getId(), externalId);
-                } else {
-                    log.warn("FHIR create returned null or empty externalId for ProviderNote ID: {}", e.getId());
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync ProviderNote to external storage", ex);
-            }
-        } else if (fhirStorage != null) {
-            try {
-                log.info("No storage type configured, falling back to direct FHIR storage for ProviderNote ID: {}", e.getId());
-                ProviderNoteDto snapshot = toDto(e);
-                String externalId = fhirStorage.create(snapshot);
-                log.info("FHIR fallback create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource (fallback) for ProviderNote ID: {} with externalId: {}", e.getId(), externalId);
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync ProviderNote to external storage (fallback)", ex);
-            }
-        } else {
-            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ProviderNote ID: {}", e.getId());
-        }
-
-        if (e.getExternalId() == null) {
-            String generatedId = "PN-" + System.currentTimeMillis();
-            e.setExternalId(generatedId);
-            e.setFhirId(generatedId);
-            e = repo.save(e);
-            log.info("Auto-generated externalId: {}", generatedId);
-        } else {
-            e.setFhirId(e.getExternalId());
-            e = repo.save(e);
-        }
-
-        return toDto(e);
+        log.info("Created FHIR DocumentReference with ID: {}", fhirId);
+        return dto;
     }
 
-    // Read one
-    public ProviderNoteDto getOne(Long patientId, Long encounterId, Long id) {
-        ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Provider Note not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        return toDto(e);
-    }
-
-    // List
+    // ✅ List Provider Notes for encounter
     public List<ProviderNoteDto> list(Long patientId, Long encounterId) {
-        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
-                .stream().map(this::toDto).toList();
+        log.debug("Listing FHIR DocumentReferences for patient: {}, encounter: {}", patientId, encounterId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(DocumentReference.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractNoteDtos(bundle, patientId, encounterId);
     }
 
-    // Update (blocked if signed)
+    // ✅ Get one Provider Note
+    public ProviderNoteDto getOne(Long patientId, Long encounterId, Long id) {
+        String fhirId = String.valueOf(id);
+        log.debug("Getting FHIR DocumentReference with ID: {}", fhirId);
+
+        try {
+            DocumentReference docRef = fhirClientService.read(DocumentReference.class, fhirId, getPracticeId());
+            return toNoteDto(docRef, patientId, encounterId);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    String.format("Provider Note not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id));
+        }
+    }
+
+    // ✅ Update Provider Note
     public ProviderNoteDto update(Long patientId, Long encounterId, Long id, ProviderNoteDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-        // Step 4: Find the provider note
-        ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Provider Note not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (Boolean.TRUE.equals(e.getESigned())) {
+        String fhirId = String.valueOf(id);
+        log.info("Updating FHIR DocumentReference with ID: {}", fhirId);
+
+        // Check if signed
+        SignMetadata meta = signMetadataCache.get(fhirId);
+        if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed provider notes are read-only.");
         }
-        applyDto(e, dto);
-        e = repo.save(e);
 
-        // Optional external FHIR sync
-        if (e.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("ProviderNote update - storageType for current org: {}", storageType);
+        DocumentReference docRef = toFhirDocumentReference(dto, patientId, encounterId);
+        docRef.setId(fhirId);
+        fhirClientService.update(docRef, getPracticeId());
 
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR sync for ProviderNote ID: {}", e.getId());
-                    ExternalStorage<ProviderNoteDto> ext = storageResolver.resolve(ProviderNoteDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                    ProviderNoteDto snapshot = toDto(e);
-                    ext.update(snapshot, e.getExternalId());
-                    log.info("Updated FHIR resource for ProviderNote ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync ProviderNote update to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for ProviderNote ID: {}", e.getId());
-                    ProviderNoteDto snapshot = toDto(e);
-                    fhirStorage.update(snapshot, e.getExternalId());
-                    log.info("Updated FHIR resource (fallback) for ProviderNote ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync ProviderNote update to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ProviderNote ID: {}", e.getId());
-            }
-        }
-
-        return toDto(e);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        return dto;
     }
 
-    // Delete (blocked if signed)
+    // ✅ Delete Provider Note
     public void delete(Long patientId, Long encounterId, Long id) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-        // Step 4: Find the provider note
-        ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Provider Note not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (Boolean.TRUE.equals(e.getESigned())) {
+        String fhirId = String.valueOf(id);
+        log.info("Deleting FHIR DocumentReference with ID: {}", fhirId);
+
+        // Check if signed
+        SignMetadata meta = signMetadataCache.get(fhirId);
+        if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed provider notes cannot be deleted.");
         }
 
-        // Optional external FHIR sync
-        if (e.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("ProviderNote delete - storageType for current org: {}", storageType);
+        fhirClientService.delete(DocumentReference.class, fhirId, getPracticeId());
+        signMetadataCache.remove(fhirId);
+    }
 
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR delete for ProviderNote ID: {}", e.getId());
-                    ExternalStorage<ProviderNoteDto> ext = storageResolver.resolve(ProviderNoteDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
+    // ✅ eSign Provider Note
+    public ProviderNoteDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
+        String fhirId = String.valueOf(id);
+        log.info("E-signing FHIR DocumentReference with ID: {}", fhirId);
 
-                    ext.delete(e.getExternalId());
-                    log.info("Deleted FHIR resource for ProviderNote ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync ProviderNote delete to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for ProviderNote ID: {}", e.getId());
-                    fhirStorage.delete(e.getExternalId());
-                    log.info("Deleted FHIR resource (fallback) for ProviderNote ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync ProviderNote delete to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ProviderNote ID: {}", e.getId());
-            }
+        SignMetadata meta = signMetadataCache.computeIfAbsent(fhirId, k -> new SignMetadata());
+
+        if (Boolean.TRUE.equals(meta.eSigned)) {
+            return getOne(patientId, encounterId, id);
         }
 
-        repo.delete(e);
+        meta.eSigned = true;
+        meta.signedBy = StringUtils.hasText(signedBy) ? signedBy : "system";
+        meta.signedAt = OffsetDateTime.now(ZoneOffset.UTC);
+
+        ProviderNoteDto dto = getOne(patientId, encounterId, id);
+        dto.setESigned(meta.eSigned);
+        dto.setSignedAt(meta.signedAt != null ? meta.signedAt.format(ISO) : null);
+        dto.setSignedBy(meta.signedBy);
+
+        return dto;
     }
 
-    // eSign (idempotent)
-    public ProviderNoteDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
-        ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Provider Note not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
-
-        e.setESigned(true);
-        e.setSignedBy(StringUtils.hasText(signedBy) ? signedBy : "system");
-        e.setSignedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        e = repo.save(e);
-        return toDto(e);
-    }
+    // ✅ Render PDF
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
-        ProviderNote e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Provider Note not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
+        String fhirId = String.valueOf(id);
+        log.info("Rendering PDF for FHIR DocumentReference with ID: {}", fhirId);
 
-        e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        repo.save(e);
+        ProviderNoteDto dto = getOne(patientId, encounterId, id);
+
+        // Update print timestamp
+        SignMetadata meta = signMetadataCache.computeIfAbsent(fhirId, k -> new SignMetadata());
+        meta.printedAt = OffsetDateTime.now(ZoneOffset.UTC);
 
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             PDPage page = new PDPage(PDRectangle.LETTER);
@@ -469,27 +206,26 @@ public class ProviderNoteService {
                 y -= 30;
                 draw(cs, x, y, "Patient ID:", String.valueOf(patientId)); y -= 18;
                 draw(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 18;
-                draw(cs, x, y, "Note ID:", String.valueOf(id)); y -= 18;
-                if (e.getNoteDateTime() != null) { draw(cs, x, y, "Date/Time:", e.getNoteDateTime().toString()); y -= 18; }
-                if (e.getAuthorPractitionerId() != null) { draw(cs, x, y, "Author:", String.valueOf(e.getAuthorPractitionerId())); y -= 18; }
+                draw(cs, x, y, "Note ID:", fhirId); y -= 18;
 
-                if (StringUtils.hasText(e.getNoteTitle())) { draw(cs, x, y, "Title:", e.getNoteTitle()); y -= 18; }
-                if (StringUtils.hasText(e.getNoteTypeCode())) { draw(cs, x, y, "Type:", e.getNoteTypeCode()); y -= 18; }
-                if (StringUtils.hasText(e.getNoteStatus())) { draw(cs, x, y, "Status:", e.getNoteStatus()); y -= 18; }
+                if (StringUtils.hasText(dto.getNoteTitle())) { draw(cs, x, y, "Title:", dto.getNoteTitle()); y -= 18; }
+                if (StringUtils.hasText(dto.getNoteTypeCode())) { draw(cs, x, y, "Type:", dto.getNoteTypeCode()); y -= 18; }
+                if (StringUtils.hasText(dto.getNoteStatus())) { draw(cs, x, y, "Status:", dto.getNoteStatus()); y -= 18; }
 
-                // SOAP sections (using draw)
+                // SOAP sections
                 y -= 24;
-                if (StringUtils.hasText(e.getSubjective())) { draw(cs, x, y, "S (Subjective):", e.getSubjective()); y -= 18; }
-                if (StringUtils.hasText(e.getObjective())) { draw(cs, x, y, "O (Objective):", e.getObjective()); y -= 18; }
-                if (StringUtils.hasText(e.getAssessment())) { draw(cs, x, y, "A (Assessment):", e.getAssessment()); y -= 18; }
-                if (StringUtils.hasText(e.getPlan())) { draw(cs, x, y, "P (Plan):", e.getPlan()); y -= 18; }
-                if (StringUtils.hasText(e.getNarrative())) { draw(cs, x, y, "Narrative:", e.getNarrative()); y -= 18; }
+                if (StringUtils.hasText(dto.getSubjective())) { draw(cs, x, y, "S (Subjective):", dto.getSubjective()); y -= 18; }
+                if (StringUtils.hasText(dto.getObjective())) { draw(cs, x, y, "O (Objective):", dto.getObjective()); y -= 18; }
+                if (StringUtils.hasText(dto.getAssessment())) { draw(cs, x, y, "A (Assessment):", dto.getAssessment()); y -= 18; }
+                if (StringUtils.hasText(dto.getPlan())) { draw(cs, x, y, "P (Plan):", dto.getPlan()); y -= 18; }
+                if (StringUtils.hasText(dto.getNarrative())) { draw(cs, x, y, "Narrative:", dto.getNarrative()); y -= 18; }
 
                 // Signature info
                 y -= 20;
-                draw(cs, x, y, "eSigned:", Boolean.TRUE.equals(e.getESigned()) ? "Yes" : "No"); y -= 18;
-                if (e.getSignedAt() != null) { draw(cs, x, y, "Signed At:", e.getSignedAt().format(ISO)); y -= 18; }
-                if (StringUtils.hasText(e.getSignedBy())) { draw(cs, x, y, "Signed By:", e.getSignedBy()); y -= 18; }
+                draw(cs, x, y, "eSigned:", Boolean.TRUE.equals(meta.eSigned) ? "Yes" : "No"); y -= 18;
+                if (meta.signedAt != null) { draw(cs, x, y, "Signed At:", meta.signedAt.format(ISO)); y -= 18; }
+                if (StringUtils.hasText(meta.signedBy)) { draw(cs, x, y, "Signed By:", meta.signedBy); y -= 18; }
+                if (meta.printedAt != null) { draw(cs, x, y, "Printed At:", meta.printedAt.format(ISO)); y -= 18; }
             }
 
             doc.save(baos);
@@ -499,7 +235,131 @@ public class ProviderNoteService {
         }
     }
 
-    // Reuse draw for every field
+    // ========== FHIR Mapping Methods ==========
+
+    private DocumentReference toFhirDocumentReference(ProviderNoteDto dto, Long patientId, Long encounterId) {
+        DocumentReference docRef = new DocumentReference();
+
+        // Patient reference
+        docRef.setSubject(new Reference("Patient/" + patientId));
+
+        // Encounter reference
+        if (encounterId != null) {
+            DocumentReference.DocumentReferenceContextComponent context = new DocumentReference.DocumentReferenceContextComponent();
+            context.addEncounter(new Reference("Encounter/" + encounterId));
+            docRef.setContext(context);
+        }
+
+        // Status
+        docRef.setStatus(Enumerations.DocumentReferenceStatus.CURRENT);
+
+        // Type
+        if (StringUtils.hasText(dto.getNoteTypeCode())) {
+            docRef.setType(new CodeableConcept().setText(dto.getNoteTypeCode()));
+        }
+
+        // Description (title)
+        if (StringUtils.hasText(dto.getNoteTitle())) {
+            docRef.setDescription(dto.getNoteTitle());
+        }
+
+        // Content - store SOAP note as attachment
+        StringBuilder content = new StringBuilder();
+        if (StringUtils.hasText(dto.getSubjective())) {
+            content.append("S: ").append(dto.getSubjective()).append("\n");
+        }
+        if (StringUtils.hasText(dto.getObjective())) {
+            content.append("O: ").append(dto.getObjective()).append("\n");
+        }
+        if (StringUtils.hasText(dto.getAssessment())) {
+            content.append("A: ").append(dto.getAssessment()).append("\n");
+        }
+        if (StringUtils.hasText(dto.getPlan())) {
+            content.append("P: ").append(dto.getPlan()).append("\n");
+        }
+        if (StringUtils.hasText(dto.getNarrative())) {
+            content.append("Narrative: ").append(dto.getNarrative()).append("\n");
+        }
+
+        Attachment attachment = new Attachment();
+        attachment.setContentType("text/plain");
+        attachment.setData(content.toString().getBytes());
+        docRef.addContent().setAttachment(attachment);
+
+        return docRef;
+    }
+
+    private ProviderNoteDto toNoteDto(DocumentReference docRef, Long patientId, Long encounterId) {
+        ProviderNoteDto dto = new ProviderNoteDto();
+
+        if (docRef.hasId()) {
+            dto.setFhirId(docRef.getIdElement().getIdPart());
+            dto.setExternalId(docRef.getIdElement().getIdPart());
+        }
+
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+
+        // Type
+        if (docRef.hasType() && docRef.getType().hasText()) {
+            dto.setNoteTypeCode(docRef.getType().getText());
+        }
+
+        // Description (title)
+        if (docRef.hasDescription()) {
+            dto.setNoteTitle(docRef.getDescription());
+        }
+
+        // Parse content back to SOAP fields
+        if (docRef.hasContent()) {
+            Attachment attachment = docRef.getContentFirstRep().getAttachment();
+            if (attachment.hasData()) {
+                String content = new String(attachment.getData());
+                for (String line : content.split("\n")) {
+                    if (line.startsWith("S: ")) {
+                        dto.setSubjective(line.substring(3));
+                    } else if (line.startsWith("O: ")) {
+                        dto.setObjective(line.substring(3));
+                    } else if (line.startsWith("A: ")) {
+                        dto.setAssessment(line.substring(3));
+                    } else if (line.startsWith("P: ")) {
+                        dto.setPlan(line.substring(3));
+                    } else if (line.startsWith("Narrative: ")) {
+                        dto.setNarrative(line.substring(11));
+                    }
+                }
+            }
+        }
+
+        // Check sign metadata
+        String fhirId = dto.getFhirId();
+        if (fhirId != null) {
+            SignMetadata meta = signMetadataCache.get(fhirId);
+            if (meta != null) {
+                dto.setESigned(meta.eSigned);
+                dto.setSignedAt(meta.signedAt != null ? meta.signedAt.format(ISO) : null);
+                dto.setSignedBy(meta.signedBy);
+                dto.setPrintedAt(meta.printedAt != null ? meta.printedAt.format(ISO) : null);
+            }
+        }
+
+        return dto;
+    }
+
+    private List<ProviderNoteDto> extractNoteDtos(Bundle bundle, Long patientId, Long encounterId) {
+        List<ProviderNoteDto> items = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof DocumentReference) {
+                    items.add(toNoteDto((DocumentReference) entry.getResource(), patientId, encounterId));
+                }
+            }
+        }
+        return items;
+    }
+
+    // ========== PDF Helpers ==========
+
     private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         cs.beginText();
         cs.setFont(PDType1Font.HELVETICA_BOLD, 12);
@@ -512,74 +372,5 @@ public class ProviderNoteService {
         cs.newLineAtOffset(x + 140, y);
         cs.showText(value != null ? value : "-");
         cs.endText();
-    }
-
-
-    private static void multiline(PDPageContentStream cs, float x, float y, String label, String text) throws IOException {
-        if (!StringUtils.hasText(text)) return;
-        draw(cs, x, y, label, ""); y -= 14;
-        for (String ln : text.split("\\R")) {
-            cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x, y); cs.showText(ln); cs.endText();
-            y -= 14;
-        }
-    }
-
-    private ProviderNoteDto toDto(ProviderNote e) {
-        ProviderNoteDto d = new ProviderNoteDto();
-        d.setId(e.getId());
-        d.setPatientId(e.getPatientId());
-        d.setEncounterId(e.getEncounterId());
-
-        d.setNoteTitle(e.getNoteTitle());
-        d.setNoteTypeCode(e.getNoteTypeCode());
-        d.setNoteStatus(e.getNoteStatus());
-        d.setNoteDateTime(e.getNoteDateTime() != null ? e.getNoteDateTime().toString() : null);
-        d.setAuthorPractitionerId(e.getAuthorPractitionerId());
-
-        d.setSubjective(e.getSubjective());
-        d.setObjective(e.getObjective());
-        d.setAssessment(e.getAssessment());
-        d.setPlan(e.getPlan());
-        d.setNarrative(e.getNarrative());
-        d.setExternalId(e.getExternalId());
-        d.setFhirId(e.getFhirId());
-
-        d.setESigned(e.getESigned());
-        d.setSignedAt(e.getSignedAt() != null ? e.getSignedAt().format(ISO) : null);
-        d.setSignedBy(e.getSignedBy());
-        d.setPrintedAt(e.getPrintedAt() != null ? e.getPrintedAt().format(ISO) : null);
-
-        var a = new ProviderNoteDto.Audit();
-        if (e.getCreatedAt() != null) a.setCreatedDate(e.getCreatedAt().toLocalDate().format(DAY));
-        if (e.getUpdatedAt() != null) a.setLastModifiedDate(e.getUpdatedAt().toLocalDate().format(DAY));
-        d.setAudit(a);
-
-        return d;
-    }
-
-    private void applyDto(ProviderNote e, ProviderNoteDto d) {
-        e.setNoteTitle(d.getNoteTitle());
-        e.setNoteTypeCode(d.getNoteTypeCode());
-        e.setNoteStatus(d.getNoteStatus());
-        e.setNoteDateTime(parseDateTime(d.getNoteDateTime()));
-
-        e.setAuthorPractitionerId(d.getAuthorPractitionerId());
-        e.setSubjective(d.getSubjective());
-        e.setObjective(d.getObjective());
-        e.setAssessment(d.getAssessment());
-        e.setPlan(d.getPlan());
-        e.setNarrative(d.getNarrative());
-        e.setExternalId(d.getExternalId());
-        // eSign fields set only via eSign()
-    }
-
-    private static LocalDateTime parseDateTime(String s) {
-        if (!StringUtils.hasText(s)) return null;
-        try {
-            // accept '2025-09-11T08:30' or '2025-09-11T08:30:00'
-            return LocalDateTime.parse(s.replace("Z","").trim());
-        } catch (Exception ignore) {
-            return null;
-        }
     }
 }

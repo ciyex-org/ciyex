@@ -48,6 +48,12 @@ logging:
   level:
     root: info
     com.qiaben.ciyex.audit: debug
+fhir:
+  server:
+    url: ${FHIR_SERVER_URL:https://fhir.apps-dev.in.hinisoft.com/fhir}
+  client:
+    socket-timeout: 60000
+    connect-timeout: 10000
 ciyex:
   env: ${CIYEX_ENV:local}
   schema:

@@ -1,446 +1,282 @@
 package com.qiaben.ciyex.service;
 
-
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import com.qiaben.ciyex.dto.ProcedureDto;
-import com.qiaben.ciyex.entity.Procedure;
-import com.qiaben.ciyex.repository.ProcedureRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.storage.fhir.FhirExternalProcedureStorage;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.repository.PatientRepository;
-import com.qiaben.ciyex.repository.EncounterRepository;
-import lombok.RequiredArgsConstructor;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
+/**
+ * Procedure Service - FHIR Only.
+ * All procedure data is stored in HAPI FHIR server as Procedure resources.
+ */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ProcedureService {
-    private final ProcedureRepository repo;
-    private final EncounterService encounterService;
-    private final PatientBillingService billingService;
-    private final PatientRepository patientRepository;
-    private final EncounterRepository encounterRepository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
 
-    @Autowired(required = false)
-    private FhirExternalProcedureStorage fhirStorage;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
+    private final PatientBillingService billingService;
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-
-    public ProcedureDto create(Long patientId, Long encounterId, ProcedureDto in) {
-        boolean patientExists = patientRepository.existsById(patientId);
-        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
-        if (!patientExists && !encounterExists) {
-            throw new IllegalArgumentException("Patient and Encounter not found");
-        } else if (!patientExists) {
-            throw new IllegalArgumentException("Patient not found");
-        } else if (!encounterExists) {
-            throw new IllegalArgumentException("Encounter not found");
-        }
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-
-        // If codeItems exist, use first item for main procedure fields
-        if (in.getCodeItems() != null && !in.getCodeItems().isEmpty()) {
-            ProcedureDto.CodeItem firstItem = in.getCodeItems().get(0);
-            in.setCpt4(firstItem.getCpt4());
-            in.setDescription(firstItem.getDescription());
-            in.setUnits(firstItem.getUnits());
-            in.setRate(firstItem.getRate());
-            in.setRelatedIcds(firstItem.getRelatedIcds());
-            in.setModifier1(firstItem.getModifier1());
-        }
-
-        Procedure p = Procedure.builder()
-            .patientId(patientId)
-            .encounterId(encounterId)
-            .cpt4(in.getCpt4())
-            .description(in.getDescription())
-            .units(in.getUnits())
-            .rate(in.getRate())
-            .relatedIcds(in.getRelatedIcds())
-            .hospitalBillingStart(in.getHospitalBillingStart())
-            .hospitalBillingEnd(in.getHospitalBillingEnd())
-            .modifier1(in.getModifier1())
-
-            .note(in.getNote())
-            .priceLevelTitle(in.getPriceLevelTitle())
-            .priceLevelId(in.getPriceLevelId())
-            .providername(in.getProvidername())
-            .build();
-
-        // Handle multiple code items
-        if (in.getCodeItems() != null && !in.getCodeItems().isEmpty()) {
-            try {
-                String codeItemsJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(in.getCodeItems());
-                p.setCodeItems(codeItemsJson);
-            } catch (Exception e) {
-                log.error("Failed to serialize code items", e);
-            }
-        }
-
-        return saveProcedureWithFhirAndInvoice(patientId, p);
+    @Autowired
+    public ProcedureService(FhirClientService fhirClientService, PracticeContextService practiceContextService, PatientBillingService billingService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
+        this.billingService = billingService;
     }
 
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+
+    // ✅ Get all by patient
+    public List<ProcedureDto> getAllByPatient(Long patientId) {
+        log.debug("Getting FHIR Procedures for patient: {}", patientId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(org.hl7.fhir.r4.model.Procedure.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractProcedureDtos(bundle, patientId, null);
+    }
+
+    // ✅ Get all by encounter
+    public List<ProcedureDto> getAllByEncounter(Long patientId, Long encounterId) {
+        log.debug("Getting FHIR Procedures for patient: {}, encounter: {}", patientId, encounterId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(org.hl7.fhir.r4.model.Procedure.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .where(new ReferenceClientParam("encounter").hasId("Encounter/" + encounterId))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractProcedureDtos(bundle, patientId, encounterId);
+    }
+
+    // ✅ Create Procedure
+    public ProcedureDto create(Long patientId, Long encounterId, ProcedureDto dto) {
+        log.info("Creating Procedure in FHIR for patient: {}, encounter: {}", patientId, encounterId);
+
+        org.hl7.fhir.r4.model.Procedure procedure = toFhirProcedure(dto, patientId, encounterId);
+        MethodOutcome outcome = fhirClientService.create(procedure, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
+
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+
+        // Create invoice for the procedure
+        createInvoiceForProcedure(patientId, dto);
+
+        log.info("Created FHIR Procedure with ID: {}", fhirId);
+        return dto;
+    }
+
+    // ✅ Create multiple procedures
     public List<ProcedureDto> createMultiple(Long patientId, Long encounterId, ProcedureDto request) {
-        boolean patientExists = patientRepository.existsById(patientId);
-        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
-        if (!patientExists && !encounterExists) {
-            throw new IllegalArgumentException("Patient and Encounter not found");
-        } else if (!patientExists) {
-            throw new IllegalArgumentException("Patient not found");
-        } else if (!encounterExists) {
-            throw new IllegalArgumentException("Encounter not found");
+        List<ProcedureDto> createdProcedures = new ArrayList<>();
+
+        if (request.getCodeItems() != null && !request.getCodeItems().isEmpty()) {
+            for (ProcedureDto.CodeItem item : request.getCodeItems()) {
+                ProcedureDto dto = new ProcedureDto();
+                dto.setCpt4(item.getCpt4());
+                dto.setDescription(item.getDescription());
+                dto.setUnits(item.getUnits());
+                dto.setRate(item.getRate());
+                dto.setRelatedIcds(item.getRelatedIcds());
+                dto.setModifier1(item.getModifier1());
+                dto.setHospitalBillingStart(request.getHospitalBillingStart());
+                dto.setHospitalBillingEnd(request.getHospitalBillingEnd());
+                dto.setNote(request.getNote());
+                dto.setPriceLevelTitle(request.getPriceLevelTitle());
+                dto.setPriceLevelId(request.getPriceLevelId());
+                dto.setProvidername(request.getProvidername());
+
+                createdProcedures.add(create(patientId, encounterId, dto));
+            }
+        } else {
+            createdProcedures.add(create(patientId, encounterId, request));
         }
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
 
-        List<ProcedureDto> createdProcedures = new java.util.ArrayList<>();
-        List<ProcedureDto> itemsToProcess = request.getCodeItems() != null ? 
-            java.util.Collections.singletonList(request) : java.util.Collections.emptyList();
-        
-        for (ProcedureDto procedureItem : itemsToProcess) {
-            Procedure p = Procedure.builder()
-                .patientId(patientId)
-                .encounterId(encounterId)
-                .cpt4(procedureItem.getCpt4())
-                .description(procedureItem.getDescription())
-                .units(procedureItem.getUnits())
-                .rate(procedureItem.getRate())
-                .relatedIcds(procedureItem.getRelatedIcds())
-                .hospitalBillingStart(procedureItem.getHospitalBillingStart())
-                .hospitalBillingEnd(procedureItem.getHospitalBillingEnd())
-                .modifier1(procedureItem.getModifier1())
-
-                .note(procedureItem.getNote())
-                .priceLevelTitle(procedureItem.getPriceLevelTitle())
-                .priceLevelId(procedureItem.getPriceLevelId())
-                .providername(procedureItem.getProvidername())
-                .build();
-
-            ProcedureDto created = saveProcedureWithFhirAndInvoice(patientId, p);
-            createdProcedures.add(created);
-        }
         return createdProcedures;
     }
 
-    private ProcedureDto saveProcedureWithFhirAndInvoice(Long patientId, Procedure p) {
-        final Procedure saved = repo.save(p);
+    // ✅ Get one Procedure
+    public ProcedureDto getOne(Long patientId, Long encounterId, Long id) {
+        String fhirId = String.valueOf(id);
+        log.debug("Getting FHIR Procedure with ID: {}", fhirId);
 
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("Procedure create - storageType for current org: {}", storageType);
-
-        if (storageType != null) {
-            try {
-                log.info("Attempting FHIR sync for Procedure ID: {}", saved.getId());
-                ExternalStorage<ProcedureDto> ext = storageResolver.resolve(ProcedureDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                ProcedureDto snapshot = mapToDto(saved);
-                String externalId = ext.create(snapshot);
-                log.info("FHIR create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    saved.setExternalId(externalId);
-                    repo.save(saved);
-                    log.info("Created FHIR resource for Procedure ID: {} with externalId: {}", saved.getId(), externalId);
-                } else {
-                    log.warn("FHIR create returned null or empty externalId for Procedure ID: {}", saved.getId());
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync Procedure to external storage", ex);
-            }
-        } else if (fhirStorage != null) {
-            try {
-                log.info("No storage type configured, falling back to direct FHIR storage for Procedure ID: {}", saved.getId());
-                ProcedureDto snapshot = mapToDto(saved);
-                String externalId = fhirStorage.create(snapshot);
-                log.info("FHIR fallback create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    saved.setExternalId(externalId);
-                    repo.save(saved);
-                    log.info("Created FHIR resource (fallback) for Procedure ID: {} with externalId: {}", saved.getId(), externalId);
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync Procedure to external storage (fallback)", ex);
-            }
-        } else {
-            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Procedure ID: {}", saved.getId());
-        }
-
-        if (saved.getExternalId() == null) {
-            String generatedId = "P-" + System.currentTimeMillis();
-            saved.setExternalId(generatedId);
-            saved.setFhirId(generatedId);
-            repo.save(saved);
-            log.info("Auto-generated externalId: {}", generatedId);
-        } else {
-            saved.setFhirId(saved.getExternalId());
-            repo.save(saved);
-        }
-
-        // Automatically create invoice for the new procedure
         try {
-            List<PatientBillingService.ProcedureLineRequest> procedureLines = new java.util.ArrayList<>();
-            
-            // If codeItems exist, create invoice lines for each
-            if (saved.getCodeItems() != null && !saved.getCodeItems().isEmpty()) {
-                try {
-                    List<ProcedureDto.CodeItem> codeItems = new com.fasterxml.jackson.databind.ObjectMapper()
-                        .readValue(saved.getCodeItems(), new com.fasterxml.jackson.core.type.TypeReference<List<ProcedureDto.CodeItem>>(){});
-                    
-                    for (ProcedureDto.CodeItem item : codeItems) {
-                        java.math.BigDecimal rateValue;
-                        try {
-                            rateValue = new java.math.BigDecimal(item.getRate());
-                        } catch (Exception ex) {
-                            rateValue = java.math.BigDecimal.ZERO;
-                            log.warn("Invalid rate format for code item: {}. Defaulting to 0.", item.getCpt4());
-                        }
-                        procedureLines.add(new PatientBillingService.ProcedureLineRequest(
-                            item.getCpt4(),
-                            item.getDescription(),
-                            rateValue
-                        ));
-                    }
-                } catch (Exception ex) {
-                    log.error("Failed to parse code items for invoice", ex);
-                }
-            } else {
-                // Fallback to single procedure line
-                java.math.BigDecimal rateValue;
-                try {
-                    rateValue = new java.math.BigDecimal(saved.getRate());
-                } catch (Exception ex) {
-                    rateValue = java.math.BigDecimal.ZERO;
-                    log.warn("Invalid rate format for procedure ID: {}. Defaulting to 0.", saved.getId());
-                }
-                procedureLines.add(new PatientBillingService.ProcedureLineRequest(
-                    saved.getCpt4(),
-                    saved.getDescription(),
-                    rateValue
-                ));
+            org.hl7.fhir.r4.model.Procedure procedure = fhirClientService.read(
+                    org.hl7.fhir.r4.model.Procedure.class, fhirId, getPracticeId());
+            return toProcedureDto(procedure, patientId, encounterId);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    String.format("Procedure not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id));
+        }
+    }
+
+    // ✅ Update Procedure
+    public ProcedureDto update(Long patientId, Long encounterId, Long id, ProcedureDto dto) {
+        String fhirId = String.valueOf(id);
+        log.info("Updating FHIR Procedure with ID: {}", fhirId);
+
+        org.hl7.fhir.r4.model.Procedure procedure = toFhirProcedure(dto, patientId, encounterId);
+        procedure.setId(fhirId);
+        fhirClientService.update(procedure, getPracticeId());
+
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        return dto;
+    }
+
+    // ✅ Delete Procedure
+    public void delete(Long patientId, Long encounterId, Long id) {
+        String fhirId = String.valueOf(id);
+        log.info("Deleting FHIR Procedure with ID: {}", fhirId);
+
+        fhirClientService.delete(org.hl7.fhir.r4.model.Procedure.class, fhirId, getPracticeId());
+    }
+
+    // ========== Invoice Helper ==========
+
+    private void createInvoiceForProcedure(Long patientId, ProcedureDto dto) {
+        try {
+            List<PatientBillingService.ProcedureLineRequest> procedureLines = new ArrayList<>();
+
+            java.math.BigDecimal rateValue;
+            try {
+                rateValue = dto.getRate() != null ? new java.math.BigDecimal(dto.getRate()) : java.math.BigDecimal.ZERO;
+            } catch (Exception ex) {
+                rateValue = java.math.BigDecimal.ZERO;
+                log.warn("Invalid rate format for procedure. Defaulting to 0.");
             }
-            
+
+            procedureLines.add(new PatientBillingService.ProcedureLineRequest(
+                    dto.getCpt4(),
+                    dto.getDescription(),
+                    rateValue
+            ));
+
             PatientBillingService.CreateInvoiceRequest invoiceRequest = new PatientBillingService.CreateInvoiceRequest(
-                    saved.getProvidername(),
-                    saved.getHospitalBillingStart(),
+                    dto.getProvidername(),
+                    dto.getHospitalBillingStart(),
                     procedureLines
             );
             billingService.createInvoiceFromProcedure(patientId, invoiceRequest);
-            log.info("Invoice automatically created for procedure ID: {}", saved.getId());
+            log.info("Invoice automatically created for procedure");
         } catch (Exception e) {
-            log.error("Failed to create invoice for procedure ID: {}", saved.getId(), e);
+            log.error("Failed to create invoice for procedure", e);
         }
-
-        return mapToDto(saved);
     }
 
-    public ProcedureDto update(Long patientId, Long encounterId, Long id, ProcedureDto in) {
-        // Validate patient and encounter existence
-        boolean patientExists = patientRepository.existsById(patientId);
-        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
-        if (!patientExists && !encounterExists) {
-            throw new IllegalArgumentException("Patient and Encounter not found");
-        } else if (!patientExists) {
-            throw new IllegalArgumentException("Patient not found");
-        } else if (!encounterExists) {
-            throw new IllegalArgumentException("Encounter not found");
-        }
-        // Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+    // ========== FHIR Mapping Methods ==========
 
-        Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Procedure not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
+    private org.hl7.fhir.r4.model.Procedure toFhirProcedure(ProcedureDto dto, Long patientId, Long encounterId) {
+        org.hl7.fhir.r4.model.Procedure procedure = new org.hl7.fhir.r4.model.Procedure();
 
-        // If codeItems exist, use first item for main procedure fields
-        if (in.getCodeItems() != null && !in.getCodeItems().isEmpty()) {
-            ProcedureDto.CodeItem firstItem = in.getCodeItems().get(0);
-            in.setCpt4(firstItem.getCpt4());
-            in.setDescription(firstItem.getDescription());
-            in.setUnits(firstItem.getUnits());
-            in.setRate(firstItem.getRate());
-            in.setRelatedIcds(firstItem.getRelatedIcds());
-            in.setModifier1(firstItem.getModifier1());
+        // Patient reference
+        procedure.setSubject(new Reference("Patient/" + patientId));
+
+        // Encounter reference
+        if (encounterId != null) {
+            procedure.setEncounter(new Reference("Encounter/" + encounterId));
         }
 
-        p.setCpt4(in.getCpt4());
-        p.setDescription(in.getDescription());
-        p.setUnits(in.getUnits());
-        p.setRate(in.getRate());
-        p.setRelatedIcds(in.getRelatedIcds());
-        p.setHospitalBillingStart(in.getHospitalBillingStart());
-        p.setHospitalBillingEnd(in.getHospitalBillingEnd());
-        p.setModifier1(in.getModifier1());
-        p.setNote(in.getNote());
-        p.setPriceLevelTitle(in.getPriceLevelTitle());
-        p.setPriceLevelId(in.getPriceLevelId());
-        p.setProvidername(in.getProvidername());
+        // Status
+        procedure.setStatus(org.hl7.fhir.r4.model.Procedure.ProcedureStatus.COMPLETED);
 
-        // Handle multiple code items
-        if (in.getCodeItems() != null && !in.getCodeItems().isEmpty()) {
-            try {
-                String codeItemsJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(in.getCodeItems());
-                p.setCodeItems(codeItemsJson);
-            } catch (Exception e) {
-                log.error("Failed to serialize code items", e);
-            }
+        // Code (CPT4)
+        if (dto.getCpt4() != null) {
+            CodeableConcept code = new CodeableConcept();
+            code.addCoding()
+                    .setSystem("http://www.ama-assn.org/go/cpt")
+                    .setCode(dto.getCpt4())
+                    .setDisplay(dto.getDescription());
+            code.setText(dto.getDescription());
+            procedure.setCode(code);
         }
 
-        final Procedure updated = repo.save(p);
-
-        // Step 7: Optional external FHIR sync
-        if (updated.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("Procedure update - storageType for current org: {}", storageType);
-
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR sync for Procedure ID: {}", updated.getId());
-                    ExternalStorage<ProcedureDto> ext = storageResolver.resolve(ProcedureDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                    ProcedureDto snapshot = mapToDto(updated);
-                    ext.update(snapshot, updated.getExternalId());
-                    log.info("Updated FHIR resource for Procedure ID: {} with externalId: {}", updated.getId(), updated.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Procedure update to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for Procedure ID: {}", updated.getId());
-                    ProcedureDto snapshot = mapToDto(updated);
-                    fhirStorage.update(snapshot, updated.getExternalId());
-                    log.info("Updated FHIR resource (fallback) for Procedure ID: {} with externalId: {}", updated.getId(), updated.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Procedure update to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Procedure ID: {}", updated.getId());
-            }
+        // Note
+        if (dto.getNote() != null) {
+            procedure.addNote().setText(dto.getNote());
         }
 
-        return mapToDto(updated);
+        // Performer (provider)
+        if (dto.getProvidername() != null) {
+            org.hl7.fhir.r4.model.Procedure.ProcedurePerformerComponent performer = procedure.addPerformer();
+            performer.setActor(new Reference().setDisplay(dto.getProvidername()));
+        }
+
+        return procedure;
     }
 
-    public void delete(Long patientId, Long encounterId, Long id) {
-        // Validate patient and encounter existence
-        boolean patientExists = patientRepository.existsById(patientId);
-        boolean encounterExists = encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent();
-        if (!patientExists && !encounterExists) {
-            throw new IllegalArgumentException("Patient and Encounter not found");
-        } else if (!patientExists) {
-            throw new IllegalArgumentException("Patient not found");
-        } else if (!encounterExists) {
-            throw new IllegalArgumentException("Encounter not found");
-        }
-        // Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-
-        Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Procedure not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-
-        final Procedure toDelete = p;
-        // Step 7: Optional external FHIR sync
-        if (toDelete.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("Procedure delete - storageType for current org: {}", storageType);
-
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR sync for Procedure ID: {}", toDelete.getId());
-                    ExternalStorage<ProcedureDto> ext = storageResolver.resolve(ProcedureDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                    ext.delete(toDelete.getExternalId());
-                    log.info("Deleted FHIR resource for Procedure ID: {} with externalId: {}", toDelete.getId(), toDelete.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Procedure delete to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for Procedure ID: {}", toDelete.getId());
-                    fhirStorage.delete(toDelete.getExternalId());
-                    log.info("Deleted FHIR resource (fallback) for Procedure ID: {} with externalId: {}", toDelete.getId(), toDelete.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Procedure delete to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Procedure ID: {}", toDelete.getId());
-            }
-        }
-
-        repo.delete(toDelete);
-    }
-
-    public ProcedureDto getOne(Long patientId, Long encounterId, Long id) {
-        Procedure p = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Procedure not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        return mapToDto(p);
-    }
-
-    public List<ProcedureDto> getAllByPatient(Long patientId) {
-        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
-    }
-
-    public List<ProcedureDto> getAllByEncounter(Long patientId, Long encounterId) {
-        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
-    }
-
-    private ProcedureDto mapToDto(Procedure e) {
+    private ProcedureDto toProcedureDto(org.hl7.fhir.r4.model.Procedure procedure, Long patientId, Long encounterId) {
         ProcedureDto dto = new ProcedureDto();
-        dto.setId(e.getId());
-        dto.setExternalId(e.getExternalId());
-        dto.setFhirId(e.getFhirId());
-        dto.setPatientId(e.getPatientId());
-        dto.setEncounterId(e.getEncounterId());
 
-        dto.setCpt4(e.getCpt4());
-        dto.setDescription(e.getDescription());
-        dto.setUnits(e.getUnits());
-        dto.setRate(e.getRate());
-        dto.setRelatedIcds(e.getRelatedIcds());
-        dto.setHospitalBillingStart(e.getHospitalBillingStart());
-        dto.setHospitalBillingEnd(e.getHospitalBillingEnd());
-        dto.setModifier1(e.getModifier1());
+        if (procedure.hasId()) {
+            dto.setFhirId(procedure.getIdElement().getIdPart());
+            dto.setExternalId(procedure.getIdElement().getIdPart());
+        }
 
-        dto.setNote(e.getNote());
-        dto.setPriceLevelId(e.getPriceLevelId());
-        dto.setPriceLevelTitle(e.getPriceLevelTitle());
-        dto.setProvidername(e.getProvidername());
-        
-        // Deserialize code items
-        if (e.getCodeItems() != null && !e.getCodeItems().isEmpty()) {
-            try {
-                List<ProcedureDto.CodeItem> codeItems = new com.fasterxml.jackson.databind.ObjectMapper()
-                    .readValue(e.getCodeItems(), new com.fasterxml.jackson.core.type.TypeReference<List<ProcedureDto.CodeItem>>(){});
-                dto.setCodeItems(codeItems);
-            } catch (Exception ex) {
-                log.error("Failed to deserialize code items", ex);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+
+        // Code (CPT4)
+        if (procedure.hasCode()) {
+            CodeableConcept code = procedure.getCode();
+            if (code.hasCoding()) {
+                Coding coding = code.getCodingFirstRep();
+                dto.setCpt4(coding.getCode());
+                dto.setDescription(coding.getDisplay());
+            }
+            if (code.hasText()) {
+                dto.setDescription(code.getText());
             }
         }
-        
-        ProcedureDto.Audit a = new ProcedureDto.Audit();
-        if (e.getCreatedAt() != null) a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-        if (e.getUpdatedAt() != null) a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
-        dto.setAudit(a);
+
+        // Note
+        if (procedure.hasNote()) {
+            dto.setNote(procedure.getNoteFirstRep().getText());
+        }
+
+        // Performer (provider)
+        if (procedure.hasPerformer()) {
+            org.hl7.fhir.r4.model.Procedure.ProcedurePerformerComponent performer = procedure.getPerformerFirstRep();
+            if (performer.hasActor() && performer.getActor().hasDisplay()) {
+                dto.setProvidername(performer.getActor().getDisplay());
+            }
+        }
 
         return dto;
+    }
+
+    private List<ProcedureDto> extractProcedureDtos(Bundle bundle, Long patientId, Long encounterId) {
+        List<ProcedureDto> items = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof org.hl7.fhir.r4.model.Procedure) {
+                    items.add(toProcedureDto((org.hl7.fhir.r4.model.Procedure) entry.getResource(), patientId, encounterId));
+                }
+            }
+        }
+        return items;
     }
 }

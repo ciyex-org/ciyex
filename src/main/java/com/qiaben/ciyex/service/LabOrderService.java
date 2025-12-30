@@ -1,265 +1,284 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
+import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.LabOrderDto;
-import com.qiaben.ciyex.dto.integration.RequestContext;
-import com.qiaben.ciyex.entity.LabOrder;
-import com.qiaben.ciyex.repository.LabOrderRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import com.qiaben.ciyex.dto.ApiResponse;
 
+/**
+ * LabOrder Service - FHIR Only.
+ * All lab order data is stored in HAPI FHIR server as ServiceRequest resources.
+ */
 @Service
 @Slf4j
 public class LabOrderService {
 
-    private final LabOrderRepository repository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    public LabOrderService(LabOrderRepository repository,
-                           ExternalStorageResolver storageResolver,
-                           OrgIntegrationConfigProvider configProvider) {
-        this.repository = repository;
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
+    @Autowired
+    public LabOrderService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
     }
 
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
 
-    // ---- CREATE ----
-    @Transactional
+    // ✅ Create lab order
     public LabOrderDto create(LabOrderDto dto) {
         validateMandatory(dto);
-        LabOrder order = mapToEntity(dto);
-        
-        // Generate shared ID for both externalId and fhirId
-        String sharedId = java.util.UUID.randomUUID().toString();
-        order.setExternalId(sharedId);
-        order.setFhirId(sharedId);
-        
-        order.setCreatedDate(nowString());
-        order.setLastModifiedDate(nowString());
+        log.info("Creating lab order in FHIR for patient: {}", dto.getPatientId());
 
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            try {
-                ExternalStorage<LabOrderDto> es = storageResolver.resolve(LabOrderDto.class);
-                String externalId = es.create(dto);
-                // Don't override the shared ID we just set
-            } catch (Exception e) {
-                log.warn("External create skipped. reason={}", rootMessage(e));
-            }
-        }
-        LabOrder saved = repository.save(order);
-        return mapToDto(saved);
+        ServiceRequest fhirServiceRequest = toFhirServiceRequest(dto);
+        MethodOutcome outcome = fhirClientService.create(fhirServiceRequest, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
+
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+
+        log.info("Created FHIR ServiceRequest (lab order) with ID: {}", fhirId);
+        return dto;
     }
 
-    // ---- READ ONE ----
-    @Transactional(readOnly = true)
+    // ✅ Get one lab order
     public LabOrderDto getOne(Long id) {
-    LabOrder order = repository.findById(id)
-        .orElseThrow(() -> new IllegalArgumentException("LabOrder not found for id: " + id));
-    return mapToDto(order);
+        String fhirId = String.valueOf(id);
+        try {
+            ServiceRequest fhirServiceRequest = fhirClientService.read(ServiceRequest.class, fhirId, getPracticeId());
+            return toLabOrderDto(fhirServiceRequest);
+        } catch (ResourceNotFoundException e) {
+            throw new IllegalArgumentException("LabOrder not found for id: " + id);
+        }
     }
 
-    
-    // ---- READ ALL (org-scoped) ----
-    @Transactional(readOnly = true)
+    // ✅ Get all lab orders
     public List<LabOrderDto> getAll() {
-    List<LabOrder> orders = repository.findAll();
-    return orders.stream().map(this::mapToDto).collect(Collectors.toList());
+        log.debug("Getting all FHIR ServiceRequests (lab orders)");
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(ServiceRequest.class)
+                .where(new ca.uhn.fhir.rest.gclient.TokenClientParam("category").exactly()
+                        .systemAndCode("http://terminology.hl7.org/CodeSystem/service-category", "laboratory"))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractLabOrders(bundle);
     }
 
-    
-    // Org-scoped search returning ApiResponse (similar to AllergyIntoleranceService.searchAll)
-    @Transactional(readOnly = true)
+    // ✅ Search all lab orders
     public ApiResponse<List<LabOrderDto>> searchAll() {
-    List<LabOrderDto> data = repository.findAll().stream().map(this::mapToDto).collect(Collectors.toList());
-    return ApiResponse.<List<LabOrderDto>>builder()
-        .success(true)
-        .message("Lab orders retrieved successfully")
-        .data(data)
-        .build();
+        List<LabOrderDto> data = getAll();
+        return ApiResponse.<List<LabOrderDto>>builder()
+                .success(true)
+                .message("Lab orders retrieved successfully")
+                .data(data)
+                .build();
     }
 
-
-    // ---- UPDATE ----
-    @Transactional
+    // ✅ Update lab order
     public LabOrderDto update(Long id, LabOrderDto dto) {
-        LabOrder order = repository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("LabOrder not found for id: " + id));
-        // enforce non-blank for mandatory fields when provided in update;
-        // also ensure existing entity already has required values when not provided.
-        if (dto.getOrderNumber() != null) {
-            if (isBlank(dto.getOrderNumber())) throw new IllegalArgumentException("orderNumber cannot be blank");
-        } else if (isBlank(order.getOrderNumber())) {
-            throw new IllegalStateException("Existing lab order missing required orderNumber");
+        String fhirId = String.valueOf(id);
+        log.info("Updating FHIR ServiceRequest (lab order) with ID: {}", fhirId);
+
+        // Validate mandatory fields
+        if (dto.getOrderNumber() != null && isBlank(dto.getOrderNumber())) {
+            throw new IllegalArgumentException("orderNumber cannot be blank");
+        }
+        if (dto.getTestCode() != null && isBlank(dto.getTestCode())) {
+            throw new IllegalArgumentException("testCode cannot be blank");
         }
 
-        if (dto.getTestCode() != null) {
-            if (isBlank(dto.getTestCode())) throw new IllegalArgumentException("testCode cannot be blank");
-        } else if (isBlank(order.getTestCode())) {
-            throw new IllegalStateException("Existing lab order missing required testCode");
-        }
+        ServiceRequest fhirServiceRequest = toFhirServiceRequest(dto);
+        fhirServiceRequest.setId(fhirId);
 
-        if (dto.getPhysicianName() != null) {
-            if (isBlank(dto.getPhysicianName())) throw new IllegalArgumentException("physicianName cannot be blank");
-        } else if (isBlank(order.getPhysicianName())) {
-            throw new IllegalStateException("Existing lab order missing required physicianName");
-        }
+        fhirClientService.update(fhirServiceRequest, getPracticeId());
 
-        if (dto.getOrderingProvider() != null) {
-            if (isBlank(dto.getOrderingProvider())) throw new IllegalArgumentException("orderingProvider cannot be blank");
-        } else if (isBlank(order.getOrderingProvider())) {
-            throw new IllegalStateException("Existing lab order missing required orderingProvider");
-        }
-
-        if (dto.getDiagnosisCode() != null) {
-            if (isBlank(dto.getDiagnosisCode())) throw new IllegalArgumentException("diagnosisCode cannot be blank");
-        } else if (isBlank(order.getDiagnosisCode())) {
-            throw new IllegalStateException("Existing lab order missing required diagnosisCode");
-        }
-
-        if (dto.getProcedureCode() != null) {
-            if (isBlank(dto.getProcedureCode())) throw new IllegalArgumentException("procedureCode cannot be blank");
-        } else if (isBlank(order.getProcedureCode())) {
-            throw new IllegalStateException("Existing lab order missing required procedureCode");
-        }
-        updateEntityFromDto(order, dto);
-        order.setLastModifiedDate(nowString());
-        LabOrder saved = repository.save(order);
-        // External sync
-        if (order.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
-                ExternalStorage<LabOrderDto> ext = storageResolver.resolve(LabOrderDto.class);
-                ext.update(mapToDto(saved), order.getExternalId());
-            }
-        }
-        return mapToDto(saved);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        return dto;
     }
 
-    // ---- DELETE ----
-    @Transactional
+    // ✅ Delete lab order
     public void delete(Long id) {
-        LabOrder order = repository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("LabOrder not found for id: " + id));
-        String externalId = order.getExternalId();
-        repository.delete(order);
-        // External sync
-        if (externalId != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
-                ExternalStorage<LabOrderDto> ext = storageResolver.resolve(LabOrderDto.class);
-                ext.delete(externalId);
+        String fhirId = String.valueOf(id);
+        log.info("Deleting FHIR ServiceRequest (lab order) with ID: {}", fhirId);
+        fhirClientService.delete(ServiceRequest.class, fhirId, getPracticeId());
+    }
+
+    // ========== FHIR Mapping Methods ==========
+
+    private ServiceRequest toFhirServiceRequest(LabOrderDto dto) {
+        ServiceRequest sr = new ServiceRequest();
+
+        // Category: laboratory
+        sr.addCategory()
+                .addCoding()
+                .setSystem("http://terminology.hl7.org/CodeSystem/service-category")
+                .setCode("laboratory")
+                .setDisplay("Laboratory");
+
+        // Subject (Patient)
+        if (dto.getPatientId() != null) {
+            sr.setSubject(new Reference("Patient/" + dto.getPatientId()));
+        }
+
+        // Status
+        sr.setStatus(ServiceRequest.ServiceRequestStatus.ACTIVE);
+
+        // Intent
+        sr.setIntent(ServiceRequest.ServiceRequestIntent.ORDER);
+
+        // Code (test code)
+        if (dto.getTestCode() != null) {
+            sr.setCode(new CodeableConcept()
+                    .addCoding(new Coding().setCode(dto.getTestCode()))
+                    .setText(dto.getTestDisplay()));
+        }
+
+        // Identifier (order number)
+        if (dto.getOrderNumber() != null) {
+            sr.addIdentifier()
+                    .setSystem("http://hospital.example.org/order-number")
+                    .setValue(dto.getOrderNumber());
+        }
+
+        // Requester (ordering provider)
+        if (dto.getOrderingProvider() != null) {
+            sr.setRequester(new Reference().setDisplay(dto.getOrderingProvider()));
+        }
+
+        // Performer (physician)
+        if (dto.getPhysicianName() != null) {
+            sr.addPerformer(new Reference().setDisplay(dto.getPhysicianName()));
+        }
+
+        // Priority
+        if (dto.getPriority() != null) {
+            try {
+                sr.setPriority(ServiceRequest.ServiceRequestPriority.fromCode(dto.getPriority().toLowerCase()));
+            } catch (Exception e) {
+                sr.setPriority(ServiceRequest.ServiceRequestPriority.ROUTINE);
             }
         }
-    }
 
-    // ---- helpers ----
-
-    private String rootMessage(Throwable t) {
-        String last = null;
-        while (t != null) {
-            if (t.getMessage() != null) last = t.getMessage();
-            t = t.getCause();
+        // Reason code (diagnosis)
+        if (dto.getDiagnosisCode() != null) {
+            sr.addReasonCode(new CodeableConcept()
+                    .addCoding(new Coding().setCode(dto.getDiagnosisCode())));
         }
-        return last;
-    }
 
-    private String nowString() { return LocalDateTime.now().toString(); }
-
-    private LabOrder mapToEntity(LabOrderDto dto) {
-        LabOrder e = new LabOrder();
-        e.setPatientId(dto.getPatientId());
-        e.setExternalId(dto.getExternalId());
-        e.setFhirId(dto.getFhirId());
-        e.setPhysicianName(dto.getPhysicianName());
-        e.setOrderDateTime(dto.getOrderDateTime());
-        e.setOrderName(dto.getOrderName());
-        e.setLabName(dto.getLabName());
-        e.setOrderNumber(dto.getOrderNumber());
-        e.setTestCode(dto.getTestCode());
-        e.setTestDisplay(dto.getTestDisplay());
-        e.setStatus(dto.getStatus());
-        e.setPriority(dto.getPriority());
-        e.setOrderDate(dto.getOrderDate());
-        e.setSpecimenId(dto.getSpecimenId());
-        e.setNotes(dto.getNotes());
-        e.setOrderingProvider(dto.getOrderingProvider());
-        e.setDiagnosisCode(dto.getDiagnosisCode());
-        e.setProcedureCode(dto.getProcedureCode());
-        e.setResult(dto.getResult());
-        return e;
-    }
-
-    private LabOrderDto mapToDto(LabOrder e) {
-        // Migration: if fhirId is null, use externalId
-        if (e.getFhirId() == null && e.getExternalId() != null) {
-            e.setFhirId(e.getExternalId());
-            repository.save(e);
+        // Notes
+        if (dto.getNotes() != null) {
+            sr.addNote().setText(dto.getNotes());
         }
-        
-        LabOrderDto d = new LabOrderDto();
-        d.setId(e.getId());
-        d.setPatientId(e.getPatientId());
-        d.setExternalId(e.getExternalId());
-        d.setFhirId(e.getFhirId());
-        d.setPhysicianName(e.getPhysicianName());
-        d.setOrderDateTime(e.getOrderDateTime());
-        d.setOrderName(e.getOrderName());
-        d.setLabName(e.getLabName());
-        d.setOrderNumber(e.getOrderNumber());
-        d.setTestCode(e.getTestCode());
-        d.setTestDisplay(e.getTestDisplay());
-        d.setStatus(e.getStatus());
-        d.setPriority(e.getPriority());
-        d.setOrderDate(e.getOrderDate());
-        d.setSpecimenId(e.getSpecimenId());
-        d.setNotes(e.getNotes());
-        d.setOrderingProvider(e.getOrderingProvider());
-        d.setDiagnosisCode(e.getDiagnosisCode());
-        d.setProcedureCode(e.getProcedureCode());
-        d.setResult(e.getResult());
-        if (e.getCreatedDate() != null || e.getLastModifiedDate() != null) {
-            LabOrderDto.Audit a = new LabOrderDto.Audit();
-            a.setCreatedDate(e.getCreatedDate());
-            a.setLastModifiedDate(e.getLastModifiedDate());
-            d.setAudit(a);
+
+        // Occurrence (order date)
+        if (dto.getOrderDate() != null) {
+            sr.setOccurrence(new DateTimeType(dto.getOrderDate()));
         }
-        return d;
+
+        return sr;
     }
 
-    private void updateEntityFromDto(LabOrder e, LabOrderDto d) {
-        if (d.getPatientId() != null) e.setPatientId(d.getPatientId());
-        if (d.getFhirId() != null) e.setFhirId(d.getFhirId());
-        if (d.getPhysicianName() != null) e.setPhysicianName(d.getPhysicianName());
-        if (d.getOrderDateTime() != null) e.setOrderDateTime(d.getOrderDateTime());
-        if (d.getOrderName() != null) e.setOrderName(d.getOrderName());
-        if (d.getLabName() != null) e.setLabName(d.getLabName());
-        if (d.getOrderNumber() != null) e.setOrderNumber(d.getOrderNumber()); // mandatory validated earlier
-        if (d.getTestCode() != null) e.setTestCode(d.getTestCode());
-        if (d.getTestDisplay() != null) e.setTestDisplay(d.getTestDisplay());
-        if (d.getStatus() != null) e.setStatus(d.getStatus());
-        if (d.getPriority() != null) e.setPriority(d.getPriority());
-        if (d.getOrderDate() != null) e.setOrderDate(d.getOrderDate());
-        if (d.getSpecimenId() != null) e.setSpecimenId(d.getSpecimenId());
-        if (d.getNotes() != null) e.setNotes(d.getNotes());
-        if (d.getOrderingProvider() != null) e.setOrderingProvider(d.getOrderingProvider());
-        if (d.getDiagnosisCode() != null) e.setDiagnosisCode(d.getDiagnosisCode());
-        if (d.getProcedureCode() != null) e.setProcedureCode(d.getProcedureCode());
-        if (d.getResult() != null) e.setResult(d.getResult());
+    private LabOrderDto toLabOrderDto(ServiceRequest sr) {
+        LabOrderDto dto = new LabOrderDto();
+
+        // FHIR ID
+        if (sr.hasId()) {
+            dto.setFhirId(sr.getIdElement().getIdPart());
+            dto.setExternalId(sr.getIdElement().getIdPart());
+        }
+
+        // Patient ID
+        if (sr.hasSubject() && sr.getSubject().hasReference()) {
+            String ref = sr.getSubject().getReference();
+            if (ref.startsWith("Patient/")) {
+                try {
+                    dto.setPatientId(Long.parseLong(ref.substring(8)));
+                } catch (NumberFormatException e) {
+                    // Non-numeric FHIR ID
+                }
+            }
+        }
+
+        // Test code
+        if (sr.hasCode()) {
+            if (sr.getCode().hasCoding()) {
+                dto.setTestCode(sr.getCode().getCodingFirstRep().getCode());
+            }
+            dto.setTestDisplay(sr.getCode().getText());
+        }
+
+        // Order number
+        if (sr.hasIdentifier()) {
+            dto.setOrderNumber(sr.getIdentifierFirstRep().getValue());
+        }
+
+        // Ordering provider
+        if (sr.hasRequester()) {
+            dto.setOrderingProvider(sr.getRequester().getDisplay());
+        }
+
+        // Physician
+        if (sr.hasPerformer()) {
+            dto.setPhysicianName(sr.getPerformerFirstRep().getDisplay());
+        }
+
+        // Priority
+        if (sr.hasPriority()) {
+            dto.setPriority(sr.getPriority().toCode());
+        }
+
+        // Status
+        if (sr.hasStatus()) {
+            dto.setStatus(sr.getStatus().toCode());
+        }
+
+        // Diagnosis code
+        if (sr.hasReasonCode()) {
+            dto.setDiagnosisCode(sr.getReasonCodeFirstRep().getCodingFirstRep().getCode());
+        }
+
+        // Notes
+        if (sr.hasNote()) {
+            dto.setNotes(sr.getNoteFirstRep().getText());
+        }
+
+        // Order date
+        if (sr.hasOccurrenceDateTimeType()) {
+            dto.setOrderDate(sr.getOccurrenceDateTimeType().getValueAsString());
+        }
+
+        return dto;
     }
 
-    
-    // ---- validation helpers ----
+    private List<LabOrderDto> extractLabOrders(Bundle bundle) {
+        List<LabOrderDto> items = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof ServiceRequest) {
+                    items.add(toLabOrderDto((ServiceRequest) entry.getResource()));
+                }
+            }
+        }
+        return items;
+    }
+
+    // ========== Validation Helpers ==========
+
     private void validateMandatory(LabOrderDto dto) {
         if (dto == null) throw new IllegalArgumentException("lab order payload is required");
         if (isBlank(dto.getOrderNumber())) throw new IllegalArgumentException("orderNumber is required");
@@ -269,5 +288,8 @@ public class LabOrderService {
         if (isBlank(dto.getDiagnosisCode())) throw new IllegalArgumentException("diagnosisCode is required");
         if (isBlank(dto.getProcedureCode())) throw new IllegalArgumentException("procedureCode is required");
     }
-    private boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
+
+    private boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
 }

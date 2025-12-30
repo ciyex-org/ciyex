@@ -1,223 +1,185 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.AllergyIntoleranceDto;
-import com.qiaben.ciyex.dto.integration.RequestContext;
-import com.qiaben.ciyex.entity.AllergyIntolerance;
-import com.qiaben.ciyex.repository.AllergyIntoleranceRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * AllergyIntolerance Service - FHIR Only.
+ * All allergy data is stored in HAPI FHIR server as AllergyIntolerance resources.
+ */
 @Service
 @Slf4j
 public class AllergyIntoleranceService {
 
-    private final AllergyIntoleranceRepository repo;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    public AllergyIntoleranceService(AllergyIntoleranceRepository repo,
-                                     ExternalStorageResolver storageResolver,
-                                     OrgIntegrationConfigProvider configProvider) {
-        this.repo = repo;
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
+    @Autowired
+    public AllergyIntoleranceService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
     }
 
-    /* ---------------------- Top-level ops ---------------------- */
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
 
-    @Transactional
+    // ✅ Create allergies for a patient
     public AllergyIntoleranceDto create(AllergyIntoleranceDto dto) {
         if (dto.getPatientId() == null) throw new IllegalArgumentException("patientId is required");
+        log.info("Creating allergies in FHIR for patient: {}", dto.getPatientId());
 
-        String now = LocalDateTime.now().toString();
-        List<AllergyIntolerance> rows = new ArrayList<>();
+        List<AllergyIntoleranceDto.AllergyItem> createdItems = new ArrayList<>();
 
         if (dto.getAllergiesList() != null) {
-            for (var it : dto.getAllergiesList()) {
-                // Validate mandatory fields
-                validateMandatoryFields(it);
-                validateDates(it.getStartDate(), it.getEndDate());
+            for (var item : dto.getAllergiesList()) {
+                validateMandatoryFields(item);
+                validateDates(item.getStartDate(), item.getEndDate());
 
-                AllergyIntolerance row = AllergyIntolerance.builder()
-                        .patientId(dto.getPatientId())
-                        .allergyName(it.getAllergyName())
-                        .reaction(it.getReaction())
-                        .severity(it.getSeverity())
-                        .status(it.getStatus())
-                        .startDate(it.getStartDate())
-                        .endDate(it.getEndDate())
-                        .comments(it.getComments())       // NEW
-                        .build();
-                rows.add(repo.save(row));
+                AllergyIntolerance fhirAllergy = toFhirAllergyIntolerance(item, dto.getPatientId());
+                MethodOutcome outcome = fhirClientService.create(fhirAllergy, getPracticeId());
+                String fhirId = outcome.getId().getIdPart();
+
+                item.setFhirId(fhirId);
+                item.setExternalId(fhirId);
+                item.setPatientId(dto.getPatientId());
+                createdItems.add(item);
+
+                log.info("Created FHIR AllergyIntolerance with ID: {}", fhirId);
             }
         }
 
-        // Optional external sync with graceful fallback
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        String externalId = null;
-        if (storageType != null && !rows.isEmpty()) {
-            try {
-                ExternalStorage<AllergyIntoleranceDto> ext = storageResolver.resolve(AllergyIntoleranceDto.class);
-                AllergyIntoleranceDto snapshot = toDto(dto.getPatientId(), rows, true);
-                externalId = ext.create(snapshot);
-                
-                if (externalId != null) {
-                    for (AllergyIntolerance r : rows) {
-                        r.setFhirId(externalId);
-                        r.setExternalId(externalId);
-                        repo.save(r);
-                    }
-                    log.info("Successfully created allergy intolerance in external storage with externalId: {}", externalId);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to sync with external storage, falling back to local generation: {}", e.getMessage());
-                // Fall back to auto-generation if external storage fails
-                externalId = null;
-            }
+        AllergyIntoleranceDto result = new AllergyIntoleranceDto();
+        result.setAllergiesList(createdItems);
+        if (!createdItems.isEmpty()) {
+            result.setFhirId(createdItems.get(0).getFhirId());
+            result.setExternalId(createdItems.get(0).getFhirId());
         }
-
-        // Auto-generate externalId if not provided, no external storage, or external storage failed
-        if (externalId == null) {
-            externalId = "ALG-" + System.currentTimeMillis();
-            for (AllergyIntolerance r : rows) {
-                r.setFhirId(externalId);
-                r.setExternalId(externalId);
-                repo.save(r);
-            }
-            log.info("Auto-generated externalId: {}", externalId);
-        }
-
-        // API response: omit top-level patientId
-        return toDto(dto.getPatientId(), rows, false);
+        return result;
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Get all allergies for a patient
     public AllergyIntoleranceDto getByPatientId(Long patientId) {
-        List<AllergyIntolerance> rows = repo.findAllByPatientId(patientId);
+        log.debug("Getting FHIR AllergyIntolerances for patient: {}", patientId);
 
-        AllergyIntoleranceDto dto = toDto(patientId, rows, false);
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(AllergyIntolerance.class)
+                .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
 
-        if (!rows.isEmpty() && rows.get(0).getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
-                ExternalStorage<AllergyIntoleranceDto> ext = storageResolver.resolve(AllergyIntoleranceDto.class);
-                AllergyIntoleranceDto fromExt = ext.get(rows.get(0).getExternalId());
-                if (fromExt != null && fromExt.getExternalId() != null) dto.setExternalId(fromExt.getExternalId());
-            }
+        List<AllergyIntoleranceDto.AllergyItem> items = extractAllergyItems(bundle);
+
+        AllergyIntoleranceDto dto = new AllergyIntoleranceDto();
+        dto.setAllergiesList(items);
+        if (!items.isEmpty()) {
+            dto.setFhirId(items.get(0).getFhirId());
+            dto.setExternalId(items.get(0).getFhirId());
         }
         return dto;
     }
 
-    @Transactional
+    // ✅ Update allergies for a patient (replace all)
     public AllergyIntoleranceDto updateByPatientId(Long patientId, AllergyIntoleranceDto dto) {
-        repo.deleteAllByPatientId(patientId);
+        log.info("Updating allergies in FHIR for patient: {}", patientId);
+        deleteByPatientId(patientId);
         dto.setPatientId(patientId);
         return create(dto);
     }
 
-    @Transactional
+    // ✅ Delete all allergies for a patient
     public void deleteByPatientId(Long patientId) {
-        List<AllergyIntolerance> rows = repo.findAllByPatientId(patientId);
-        if (rows.isEmpty()) return;
+        log.info("Deleting all FHIR AllergyIntolerances for patient: {}", patientId);
 
-        String externalId = rows.get(0).getExternalId();
-        repo.deleteAllByPatientId(patientId);
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(AllergyIntolerance.class)
+                .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
 
-        if (externalId != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
-                ExternalStorage<AllergyIntoleranceDto> ext = storageResolver.resolve(AllergyIntoleranceDto.class);
-                ext.delete(externalId);
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof AllergyIntolerance) {
+                    String fhirId = entry.getResource().getIdElement().getIdPart();
+                    fhirClientService.delete(AllergyIntolerance.class, fhirId, getPracticeId());
+                    log.debug("Deleted FHIR AllergyIntolerance: {}", fhirId);
+                }
             }
         }
     }
 
-    /* ---------------------- Item-level ops ---------------------- */
-
-    @Transactional(readOnly = true)
+    // ✅ Get single allergy item
     public AllergyIntoleranceDto.AllergyItem getItem(Long patientId, Long intoleranceId) {
-        return repo.findAllByPatientId(patientId).stream()
-                .filter(r -> r.getId().equals(intoleranceId))
-                .findFirst()
-                .map(this::toItem)
-                .orElseThrow(() -> new RuntimeException(
-                        "Allergy not found for patientId=" + patientId + " intoleranceId=" + intoleranceId));
+        String fhirId = String.valueOf(intoleranceId);
+        try {
+            AllergyIntolerance fhirAllergy = fhirClientService.read(AllergyIntolerance.class, fhirId, getPracticeId());
+            return toAllergyItem(fhirAllergy);
+        } catch (ResourceNotFoundException e) {
+            throw new RuntimeException("Allergy not found for patientId=" + patientId + " intoleranceId=" + intoleranceId);
+        }
     }
 
-    @Transactional
+    // ✅ Update single allergy item
     public AllergyIntoleranceDto.AllergyItem updateItem(Long patientId, Long intoleranceId,
                                                         AllergyIntoleranceDto.AllergyItem patch) {
-        List<AllergyIntolerance> rows = repo.findAllByPatientId(patientId);
+        String fhirId = String.valueOf(intoleranceId);
+        log.info("Updating FHIR AllergyIntolerance with ID: {}", fhirId);
 
-        AllergyIntolerance row = rows.stream()
-                .filter(r -> r.getId().equals(intoleranceId))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Allergy not found id=" + intoleranceId));
+        validateMandatoryFields(patch);
+        validateDates(patch.getStartDate(), patch.getEndDate());
 
-        if (patch.getAllergyName() != null) row.setAllergyName(patch.getAllergyName());
-        if (patch.getReaction() != null)    row.setReaction(patch.getReaction());
-        if (patch.getSeverity() != null)    row.setSeverity(patch.getSeverity());
-        if (patch.getStatus() != null)      row.setStatus(patch.getStatus());
-        if (patch.getStartDate() != null)   row.setStartDate(patch.getStartDate());
-        if (patch.getEndDate() != null)     row.setEndDate(patch.getEndDate());
-        if (patch.getComments() != null)    row.setComments(patch.getComments()); // NEW
-        // Ensure mandatory fields are present after applying the patch
-        validateMandatoryFields(row);
-        validateDates(row.getStartDate(), row.getEndDate());
-        repo.save(row);
+        AllergyIntolerance fhirAllergy = toFhirAllergyIntolerance(patch, patientId);
+        fhirAllergy.setId(fhirId);
 
-        if (row.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
-                ExternalStorage<AllergyIntoleranceDto> ext = storageResolver.resolve(AllergyIntoleranceDto.class);
-                List<AllergyIntolerance> fresh = repo.findAllByPatientId(patientId);
-                ext.update(toDto(patientId, fresh, true), row.getExternalId());
-            }
-        }
-        return toItem(row);
+        fhirClientService.update(fhirAllergy, getPracticeId());
+
+        patch.setFhirId(fhirId);
+        patch.setExternalId(fhirId);
+        return patch;
     }
 
-    @Transactional
+    // ✅ Delete single allergy item
     public void deleteItem(Long patientId, Long intoleranceId) {
-        List<AllergyIntolerance> rows = repo.findAllByPatientId(patientId);
-        String externalId = rows.stream().findFirst().map(AllergyIntolerance::getExternalId).orElse(null);
-
-        int n = repo.deleteOneByIdAndPatientId(intoleranceId, patientId);
-        if (n == 0) throw new RuntimeException("Delete failed: not found");
-
-        if (externalId != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null) {
-                ExternalStorage<AllergyIntoleranceDto> ext = storageResolver.resolve(AllergyIntoleranceDto.class);
-                List<AllergyIntolerance> fresh = repo.findAllByPatientId(patientId);
-                if (fresh.isEmpty()) ext.delete(externalId);
-                else ext.update(toDto(patientId, fresh, true), externalId);
-            }
-        }
+        String fhirId = String.valueOf(intoleranceId);
+        log.info("Deleting FHIR AllergyIntolerance with ID: {}", fhirId);
+        fhirClientService.delete(AllergyIntolerance.class, fhirId, getPracticeId());
     }
 
-    /* ---------------------- Search all (by org, grouped by patient) ---------------------- */
-
-    @Transactional(readOnly = true)
+    // ✅ Search all allergies
     public ApiResponse<List<AllergyIntoleranceDto>> searchAll() {
+        log.debug("Searching all FHIR AllergyIntolerances");
 
-        List<AllergyIntolerance> all = repo.findAll();
-        Map<Long, List<AllergyIntolerance>> byPatient =
-                all.stream().collect(Collectors.groupingBy(AllergyIntolerance::getPatientId));
+        Bundle bundle = fhirClientService.search(AllergyIntolerance.class, getPracticeId());
+        List<AllergyIntoleranceDto.AllergyItem> allItems = extractAllergyItems(bundle);
+
+        // Group by patient
+        Map<Long, List<AllergyIntoleranceDto.AllergyItem>> byPatient = allItems.stream()
+                .filter(item -> item.getPatientId() != null)
+                .collect(Collectors.groupingBy(AllergyIntoleranceDto.AllergyItem::getPatientId));
 
         List<AllergyIntoleranceDto> dtos = new ArrayList<>();
-        for (var e : byPatient.entrySet()) {
-            dtos.add(toDto(e.getKey(), e.getValue(), false));
+        for (var entry : byPatient.entrySet()) {
+            AllergyIntoleranceDto dto = new AllergyIntoleranceDto();
+            dto.setAllergiesList(entry.getValue());
+            if (!entry.getValue().isEmpty()) {
+                dto.setFhirId(entry.getValue().get(0).getFhirId());
+                dto.setExternalId(entry.getValue().get(0).getFhirId());
+            }
+            dtos.add(dto);
         }
 
         return ApiResponse.<List<AllergyIntoleranceDto>>builder()
@@ -227,49 +189,184 @@ public class AllergyIntoleranceService {
                 .build();
     }
 
-    /* ---------------------- Helpers ---------------------- */
+    // ========== FHIR Mapping Methods ==========
 
-    private AllergyIntoleranceDto toDto(Long patientId, List<AllergyIntolerance> rows,
-                                        boolean includeTopLevelPatientId) {
-        AllergyIntoleranceDto dto = new AllergyIntoleranceDto();
-        if (includeTopLevelPatientId) {
-            dto.setPatientId(patientId);
-        }
-        if (!rows.isEmpty()) {
-            dto.setFhirId(rows.get(0).getFhirId());
-            dto.setExternalId(rows.get(0).getFhirId()); // externalId is an alias for fhirId
+    private AllergyIntolerance toFhirAllergyIntolerance(AllergyIntoleranceDto.AllergyItem item, Long patientId) {
+        AllergyIntolerance allergy = new AllergyIntolerance();
 
-            // Set audit information from the first row
-            AllergyIntoleranceDto.Audit audit = new AllergyIntoleranceDto.Audit();
-            if (rows.get(0).getCreatedDate() != null) {
-                audit.setCreatedDate(rows.get(0).getCreatedDate().toString());
-            }
-            if (rows.get(0).getLastModifiedDate() != null) {
-                audit.setLastModifiedDate(rows.get(0).getLastModifiedDate().toString());
-            }
-            dto.setAudit(audit);
+        // Patient reference
+        allergy.setPatient(new Reference("Patient/" + patientId));
+
+        // Clinical status
+        if (item.getStatus() != null) {
+            allergy.setClinicalStatus(new CodeableConcept()
+                    .addCoding(new Coding()
+                            .setSystem("http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical")
+                            .setCode(mapToFhirClinicalStatus(item.getStatus()))
+                            .setDisplay(item.getStatus())));
         }
-        dto.setAllergiesList(rows.stream().map(this::toItem).collect(Collectors.toList()));
-        return dto;
+
+        // Verification status
+        allergy.setVerificationStatus(new CodeableConcept()
+                .addCoding(new Coding()
+                        .setSystem("http://terminology.hl7.org/CodeSystem/allergyintolerance-verification")
+                        .setCode("confirmed")
+                        .setDisplay("Confirmed")));
+
+        // Allergy code (substance)
+        if (item.getAllergyName() != null) {
+            allergy.setCode(new CodeableConcept().setText(item.getAllergyName()));
+        }
+
+        // Criticality/Severity
+        if (item.getSeverity() != null) {
+            allergy.setCriticality(mapToFhirCriticality(item.getSeverity()));
+        }
+
+        // Reaction
+        if (item.getReaction() != null) {
+            AllergyIntolerance.AllergyIntoleranceReactionComponent reaction = allergy.addReaction();
+            reaction.addManifestation(new CodeableConcept().setText(item.getReaction()));
+            if (item.getSeverity() != null) {
+                reaction.setSeverity(mapToFhirReactionSeverity(item.getSeverity()));
+            }
+        }
+
+        // Onset (start date)
+        if (item.getStartDate() != null) {
+            try {
+                allergy.setOnset(new DateTimeType(item.getStartDate()));
+            } catch (Exception e) {
+                // Ignore invalid date format
+            }
+        }
+
+        // Notes/Comments
+        if (item.getComments() != null) {
+            allergy.addNote().setText(item.getComments());
+        }
+
+        return allergy;
     }
 
-    private AllergyIntoleranceDto.AllergyItem toItem(AllergyIntolerance r) {
-        AllergyIntoleranceDto.AllergyItem it = new AllergyIntoleranceDto.AllergyItem();
-        it.setId(r.getId());
-        it.setFhirId(r.getFhirId());
-        it.setExternalId(r.getFhirId()); // externalId is an alias for fhirId
-        it.setAllergyName(r.getAllergyName());
-        it.setReaction(r.getReaction());
-        it.setSeverity(r.getSeverity());
-        it.setStatus(r.getStatus());
-        it.setPatientId(r.getPatientId());
-        it.setStartDate(r.getStartDate());
-        it.setEndDate(r.getEndDate());
-        it.setComments(r.getComments()); // NEW
-        return it;
+    private AllergyIntoleranceDto.AllergyItem toAllergyItem(AllergyIntolerance fhirAllergy) {
+        AllergyIntoleranceDto.AllergyItem item = new AllergyIntoleranceDto.AllergyItem();
+
+        // FHIR ID
+        if (fhirAllergy.hasId()) {
+            item.setFhirId(fhirAllergy.getIdElement().getIdPart());
+            item.setExternalId(fhirAllergy.getIdElement().getIdPart());
+        }
+
+        // Patient ID
+        if (fhirAllergy.hasPatient() && fhirAllergy.getPatient().hasReference()) {
+            String ref = fhirAllergy.getPatient().getReference();
+            if (ref.startsWith("Patient/")) {
+                try {
+                    item.setPatientId(Long.parseLong(ref.substring(8)));
+                } catch (NumberFormatException e) {
+                    // Non-numeric FHIR ID
+                }
+            }
+        }
+
+        // Allergy name
+        if (fhirAllergy.hasCode()) {
+            item.setAllergyName(fhirAllergy.getCode().getText());
+        }
+
+        // Clinical status
+        if (fhirAllergy.hasClinicalStatus() && fhirAllergy.getClinicalStatus().hasCoding()) {
+            item.setStatus(mapFromFhirClinicalStatus(fhirAllergy.getClinicalStatus().getCodingFirstRep().getCode()));
+        }
+
+        // Severity from criticality
+        if (fhirAllergy.hasCriticality()) {
+            item.setSeverity(mapFromFhirCriticality(fhirAllergy.getCriticality()));
+        }
+
+        // Reaction
+        if (fhirAllergy.hasReaction()) {
+            AllergyIntolerance.AllergyIntoleranceReactionComponent reaction = fhirAllergy.getReactionFirstRep();
+            if (reaction.hasManifestation()) {
+                item.setReaction(reaction.getManifestationFirstRep().getText());
+            }
+        }
+
+        // Onset date
+        if (fhirAllergy.hasOnsetDateTimeType()) {
+            item.setStartDate(fhirAllergy.getOnsetDateTimeType().getValueAsString().substring(0, 10));
+        }
+
+        // Notes
+        if (fhirAllergy.hasNote()) {
+            item.setComments(fhirAllergy.getNoteFirstRep().getText());
+        }
+
+        return item;
     }
 
-    /** Validate only when both are ISO yyyy-MM-dd. */
+    private List<AllergyIntoleranceDto.AllergyItem> extractAllergyItems(Bundle bundle) {
+        List<AllergyIntoleranceDto.AllergyItem> items = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof AllergyIntolerance) {
+                    items.add(toAllergyItem((AllergyIntolerance) entry.getResource()));
+                }
+            }
+        }
+        return items;
+    }
+
+    private String mapToFhirClinicalStatus(String status) {
+        if (status == null) return "active";
+        return switch (status.toLowerCase()) {
+            case "active" -> "active";
+            case "inactive" -> "inactive";
+            case "resolved" -> "resolved";
+            default -> "active";
+        };
+    }
+
+    private String mapFromFhirClinicalStatus(String code) {
+        if (code == null) return "active";
+        return switch (code.toLowerCase()) {
+            case "active" -> "active";
+            case "inactive" -> "inactive";
+            case "resolved" -> "resolved";
+            default -> "active";
+        };
+    }
+
+    private AllergyIntolerance.AllergyIntoleranceCriticality mapToFhirCriticality(String severity) {
+        if (severity == null) return AllergyIntolerance.AllergyIntoleranceCriticality.UNABLETOASSESS;
+        return switch (severity.toLowerCase()) {
+            case "high", "severe" -> AllergyIntolerance.AllergyIntoleranceCriticality.HIGH;
+            case "low", "mild" -> AllergyIntolerance.AllergyIntoleranceCriticality.LOW;
+            default -> AllergyIntolerance.AllergyIntoleranceCriticality.UNABLETOASSESS;
+        };
+    }
+
+    private String mapFromFhirCriticality(AllergyIntolerance.AllergyIntoleranceCriticality criticality) {
+        if (criticality == null) return "moderate";
+        return switch (criticality) {
+            case HIGH -> "severe";
+            case LOW -> "mild";
+            default -> "moderate";
+        };
+    }
+
+    private AllergyIntolerance.AllergyIntoleranceSeverity mapToFhirReactionSeverity(String severity) {
+        if (severity == null) return AllergyIntolerance.AllergyIntoleranceSeverity.MODERATE;
+        return switch (severity.toLowerCase()) {
+            case "high", "severe" -> AllergyIntolerance.AllergyIntoleranceSeverity.SEVERE;
+            case "low", "mild" -> AllergyIntolerance.AllergyIntoleranceSeverity.MILD;
+            default -> AllergyIntolerance.AllergyIntoleranceSeverity.MODERATE;
+        };
+    }
+
+    // ========== Validation Helpers ==========
+
     private void validateDates(String start, String end) {
         if (start == null || end == null) return;
         try {
@@ -278,25 +375,18 @@ public class AllergyIntoleranceService {
                     throw new IllegalArgumentException("endDate cannot be before startDate");
                 }
             }
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception ignore) {
-            // tolerate non-ISO inputs since we store strings
+            // tolerate non-ISO inputs
         }
     }
 
-    /** Ensure mandatory fields allergyName and reaction are present on incoming items. */
     private void validateMandatoryFields(AllergyIntoleranceDto.AllergyItem it) {
         if (it == null) throw new IllegalArgumentException("allergy item is required");
         if (isBlank(it.getAllergyName())) throw new IllegalArgumentException("allergyName is required");
-        if (isBlank(it.getReaction()))    throw new IllegalArgumentException("reaction is required");
+        if (isBlank(it.getReaction())) throw new IllegalArgumentException("reaction is required");
     }
-
-    /** Ensure mandatory fields on entity after applying patches. */
-    private void validateMandatoryFields(AllergyIntolerance r) {
-        if (r == null) throw new IllegalArgumentException("allergy item is required");
-        if (isBlank(r.getAllergyName())) throw new IllegalArgumentException("allergyName is required");
-        if (isBlank(r.getReaction()))    throw new IllegalArgumentException("reaction is required");
-    }
-
 
     private boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();

@@ -1,140 +1,196 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.ImmunizationDto;
-import com.qiaben.ciyex.entity.Immunization;
-import com.qiaben.ciyex.repository.ImmunizationRepository;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Immunization Service - FHIR Only.
+ * All immunization data is stored in HAPI FHIR server as Immunization resources.
+ */
 @Service
 @Slf4j
 public class ImmunizationService {
 
-    private final ImmunizationRepository repository;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    public ImmunizationService(ImmunizationRepository repository) {
-        this.repository = repository;
+    @Autowired
+    public ImmunizationService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
     }
 
-    // ---------- Patient-level ----------
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
 
-    @Transactional
+    // ✅ Create immunization
     public ImmunizationDto create(ImmunizationDto dto) {
-
         if (dto == null || dto.getImmunizations() == null || dto.getImmunizations().isEmpty()) {
             throw new IllegalArgumentException("No immunization data provided");
         }
 
-        ImmunizationDto.ImmunizationItem item = dto.getImmunizations().get(0);
-        // Validate mandatory fields
-        validateMandatoryFields(item);
-        Immunization entity = mapToEntity(dto.getPatientId(), item);
+        log.info("Creating immunization in FHIR for patient: {}", dto.getPatientId());
 
-        // Auto-generate externalId if not provided
-        if (entity.getFhirId() == null) {
-            String generatedId = "IMM-" + System.currentTimeMillis();
-            entity.setFhirId(generatedId);
-            entity.setExternalId(generatedId);
-            log.info("Auto-generated externalId: {}", generatedId);
+        List<ImmunizationDto.ImmunizationItem> createdItems = new ArrayList<>();
+
+        for (ImmunizationDto.ImmunizationItem item : dto.getImmunizations()) {
+            validateMandatoryFields(item);
+
+            Immunization fhirImmunization = toFhirImmunization(item, dto.getPatientId());
+            MethodOutcome outcome = fhirClientService.create(fhirImmunization, getPracticeId());
+            String fhirId = outcome.getId().getIdPart();
+
+            item.setFhirId(fhirId);
+            item.setExternalId(fhirId);
+            item.setPatientId(dto.getPatientId());
+            createdItems.add(item);
+
+            log.info("Created FHIR Immunization with ID: {}", fhirId);
         }
 
-        entity = repository.save(entity);
-        item.setId(entity.getId());
-        item.setExternalId(entity.getExternalId());
-        item.setPatientId(entity.getPatientId());
-
-        return buildDtoFromEntity(entity);
+        ImmunizationDto result = new ImmunizationDto();
+        result.setPatientId(dto.getPatientId());
+        result.setImmunizations(createdItems);
+        return result;
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Get all immunizations for a patient
     public ImmunizationDto getByPatientId(Long patientId) {
+        log.debug("Getting FHIR Immunizations for patient: {}", patientId);
 
-        List<Immunization> entities = repository.findByPatientId(patientId);
-        return buildDtoFromEntities(patientId, entities);
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Immunization.class)
+                .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        List<ImmunizationDto.ImmunizationItem> items = extractImmunizationItems(bundle);
+
+        ImmunizationDto dto = new ImmunizationDto();
+        dto.setPatientId(patientId);
+        dto.setImmunizations(items);
+        return dto;
     }
 
-    @Transactional
+    // ✅ Update immunization by patient
     public ImmunizationDto updateByPatientId(Long patientId, ImmunizationDto dto) {
-
-
         if (dto.getImmunizations() == null || dto.getImmunizations().isEmpty()) {
             throw new IllegalArgumentException("No immunization data provided");
         }
 
         ImmunizationDto.ImmunizationItem patch = dto.getImmunizations().get(0);
+        String fhirId = patch.getFhirId() != null ? patch.getFhirId() : String.valueOf(patch.getId());
 
-        Immunization entity = repository.findOneByIdAndPatientId(patch.getId(), patientId);
-        if (entity == null) {
-            throw new RuntimeException("Immunization not found with id: " + patch.getId() + " for patientId: " + patientId);
-        }
+        log.info("Updating FHIR Immunization with ID: {}", fhirId);
 
-        applyPatch(entity, patch);
-        // Ensure mandatory fields remain present after patch
-        validateMandatoryFields(entity);
-        repository.save(entity);
-        return buildDtoFromEntity(entity);
+        validateMandatoryFields(patch);
+
+        Immunization fhirImmunization = toFhirImmunization(patch, patientId);
+        fhirImmunization.setId(fhirId);
+
+        fhirClientService.update(fhirImmunization, getPracticeId());
+
+        patch.setFhirId(fhirId);
+        patch.setExternalId(fhirId);
+
+        ImmunizationDto result = new ImmunizationDto();
+        result.setPatientId(patientId);
+        result.setImmunizations(List.of(patch));
+        return result;
     }
 
-
-    @Transactional
+    // ✅ Delete all immunizations for a patient
     public void deleteByPatientId(Long patientId) {
-        List<Immunization> entities = repository.findByPatientId(patientId);
-        repository.deleteAll(entities);
+        log.info("Deleting all FHIR Immunizations for patient: {}", patientId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Immunization.class)
+                .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof Immunization) {
+                    String fhirId = entry.getResource().getIdElement().getIdPart();
+                    fhirClientService.delete(Immunization.class, fhirId, getPracticeId());
+                    log.debug("Deleted FHIR Immunization: {}", fhirId);
+                }
+            }
+        }
     }
 
-    // ---------- Item-level ----------
-
-    @Transactional(readOnly = true)
+    // ✅ Get single immunization item
     public ImmunizationDto.ImmunizationItem getItem(Long patientId, Long immunizationId) {
-        Immunization entity = repository.findOneByIdAndPatientId(immunizationId, patientId);
-        if (entity == null) {
+        String fhirId = String.valueOf(immunizationId);
+        try {
+            Immunization fhirImmunization = fhirClientService.read(Immunization.class, fhirId, getPracticeId());
+            return toImmunizationItem(fhirImmunization);
+        } catch (ResourceNotFoundException e) {
             throw new RuntimeException("Immunization not found with id: " + immunizationId + " for patientId: " + patientId);
         }
-        return mapToItem(entity);
     }
 
-    @Transactional
+    // ✅ Update single immunization item
     public ImmunizationDto.ImmunizationItem updateItem(Long patientId, Long immunizationId, ImmunizationDto.ImmunizationItem patch) {
+        String fhirId = String.valueOf(immunizationId);
+        log.info("Updating FHIR Immunization with ID: {}", fhirId);
 
-        Immunization entity = repository.findOneByIdAndPatientId(immunizationId, patientId);
-        if (entity == null) {
-            throw new RuntimeException("Immunization not found with id: " + immunizationId + " for patientId: " + patientId);
-        }
+        validateMandatoryFields(patch);
 
-        applyPatch(entity, patch);
-        // Validate mandatory fields after applying patch
-        validateMandatoryFields(entity);
-        repository.save(entity);
-        return mapToItem(entity);
+        Immunization fhirImmunization = toFhirImmunization(patch, patientId);
+        fhirImmunization.setId(fhirId);
+
+        fhirClientService.update(fhirImmunization, getPracticeId());
+
+        patch.setFhirId(fhirId);
+        patch.setExternalId(fhirId);
+        return patch;
     }
 
-    @Transactional
+    // ✅ Delete single immunization item
     public void deleteItem(Long patientId, Long immunizationId) {
-        Immunization entity = repository.findOneByIdAndPatientId(immunizationId, patientId);
-        if (entity == null) {
-            throw new RuntimeException("Immunization not found with id: " + immunizationId + " for patientId: " + patientId);
-        }
-        repository.delete(entity);
+        String fhirId = String.valueOf(immunizationId);
+        log.info("Deleting FHIR Immunization with ID: {}", fhirId);
+        fhirClientService.delete(Immunization.class, fhirId, getPracticeId());
     }
 
-    // ---------- Search All ----------
-
-    @Transactional(readOnly = true)
+    // ✅ Search all immunizations
     public ApiResponse<List<ImmunizationDto>> searchAll() {
+        log.debug("Searching all FHIR Immunizations");
 
-        List<Immunization> entities = repository.findAll();
+        Bundle bundle = fhirClientService.search(Immunization.class, getPracticeId());
+        List<ImmunizationDto.ImmunizationItem> allItems = extractImmunizationItems(bundle);
 
-        var grouped = entities.stream()
-                .collect(Collectors.groupingBy(Immunization::getPatientId));
+        // Group by patient
+        Map<Long, List<ImmunizationDto.ImmunizationItem>> byPatient = allItems.stream()
+                .filter(item -> item.getPatientId() != null)
+                .collect(Collectors.groupingBy(ImmunizationDto.ImmunizationItem::getPatientId));
 
-        List<ImmunizationDto> result = grouped.entrySet().stream()
-                .map(entry -> buildDtoFromEntities(entry.getKey(), entry.getValue()))
-                .collect(Collectors.toList());
+        List<ImmunizationDto> result = new ArrayList<>();
+        for (var entry : byPatient.entrySet()) {
+            ImmunizationDto dto = new ImmunizationDto();
+            dto.setPatientId(entry.getKey());
+            dto.setImmunizations(entry.getValue());
+            result.add(dto);
+        }
 
         return ApiResponse.<List<ImmunizationDto>>builder()
                 .success(true)
@@ -143,92 +199,181 @@ public class ImmunizationService {
                 .build();
     }
 
-    // ---------- Helpers ----------
+    // ========== FHIR Mapping Methods ==========
 
-    private Immunization mapToEntity(Long patientId, ImmunizationDto.ImmunizationItem item) {
-        // Use externalId if provided, otherwise use fhirId
-        String fhirIdValue = item.getExternalId() != null ? item.getExternalId() : item.getFhirId();
+    private Immunization toFhirImmunization(ImmunizationDto.ImmunizationItem item, Long patientId) {
+        Immunization immunization = new Immunization();
 
-        return Immunization.builder()
-                .patientId(patientId)
-                .fhirId(fhirIdValue)
-                .externalId(fhirIdValue)
-                .cvxCode(item.getCvxCode())
-                .dateTimeAdministered(item.getDateTimeAdministered())
-                .amountAdministered(item.getAmountAdministered())
-                .expirationDate(item.getExpirationDate())
-                .manufacturer(item.getManufacturer())
-                .lotNumber(item.getLotNumber())
-                .administratorName(item.getAdministratorName())
-                .administratorTitle(item.getAdministratorTitle())
-                .dateVisGiven(item.getDateVisGiven())
-                .dateVisStatement(item.getDateVisStatement())
-                .route(item.getRoute())
-                .administrationSite(item.getAdministrationSite())
-                .notes(item.getNotes())
-                .informationSource(item.getInformationSource())
-                .completionStatus(item.getCompletionStatus())
-                .substanceRefusalReason(item.getSubstanceRefusalReason())
-                .reasonCode(item.getReasonCode())
-                .orderingProvider(item.getOrderingProvider())
-                .build();
+        // Patient reference
+        immunization.setPatient(new Reference("Patient/" + patientId));
+
+        // Status
+        immunization.setStatus(Immunization.ImmunizationStatus.COMPLETED);
+
+        // Vaccine code (CVX)
+        if (item.getCvxCode() != null) {
+            immunization.setVaccineCode(new CodeableConcept()
+                    .addCoding(new Coding()
+                            .setSystem("http://hl7.org/fhir/sid/cvx")
+                            .setCode(item.getCvxCode())));
+        }
+
+        // Occurrence date
+        if (item.getDateTimeAdministered() != null) {
+            immunization.setOccurrence(new DateTimeType(item.getDateTimeAdministered()));
+        }
+
+        // Manufacturer
+        if (item.getManufacturer() != null) {
+            immunization.setManufacturer(new Reference().setDisplay(item.getManufacturer()));
+        }
+
+        // Lot number
+        if (item.getLotNumber() != null) {
+            immunization.setLotNumber(item.getLotNumber());
+        }
+
+        // Expiration date
+        if (item.getExpirationDate() != null) {
+            immunization.setExpirationDate(java.sql.Date.valueOf(item.getExpirationDate()));
+        }
+
+        // Route
+        if (item.getRoute() != null) {
+            immunization.setRoute(new CodeableConcept().setText(item.getRoute()));
+        }
+
+        // Site
+        if (item.getAdministrationSite() != null) {
+            immunization.setSite(new CodeableConcept().setText(item.getAdministrationSite()));
+        }
+
+        // Dose quantity
+        if (item.getAmountAdministered() != null) {
+            immunization.setDoseQuantity(new Quantity().setValue(Double.parseDouble(item.getAmountAdministered())));
+        }
+
+        // Performer (administrator)
+        if (item.getAdministratorName() != null) {
+            Immunization.ImmunizationPerformerComponent performer = immunization.addPerformer();
+            performer.setActor(new Reference().setDisplay(item.getAdministratorName()));
+            if (item.getAdministratorTitle() != null) {
+                performer.setFunction(new CodeableConcept().setText(item.getAdministratorTitle()));
+            }
+        }
+
+        // Notes
+        if (item.getNotes() != null) {
+            immunization.addNote().setText(item.getNotes());
+        }
+
+        // Reason code
+        if (item.getReasonCode() != null) {
+            immunization.addReasonCode(new CodeableConcept().setText(item.getReasonCode()));
+        }
+
+        return immunization;
     }
 
-    private ImmunizationDto.ImmunizationItem mapToItem(Immunization entity) {
+    private ImmunizationDto.ImmunizationItem toImmunizationItem(Immunization fhirImmunization) {
         ImmunizationDto.ImmunizationItem item = new ImmunizationDto.ImmunizationItem();
-        item.setId(entity.getId());
-        item.setFhirId(entity.getFhirId());
-        item.setExternalId(entity.getFhirId()); // externalId is an alias for fhirId
-        item.setPatientId(entity.getPatientId());
-        item.setCvxCode(entity.getCvxCode());
-        item.setDateTimeAdministered(entity.getDateTimeAdministered());
-        item.setAmountAdministered(entity.getAmountAdministered());
-        item.setExpirationDate(entity.getExpirationDate());
-        item.setManufacturer(entity.getManufacturer());
-        item.setLotNumber(entity.getLotNumber());
-        item.setAdministratorName(entity.getAdministratorName());
-        item.setAdministratorTitle(entity.getAdministratorTitle());
-        item.setDateVisGiven(entity.getDateVisGiven());
-        item.setDateVisStatement(entity.getDateVisStatement());
-        item.setRoute(entity.getRoute());
-        item.setAdministrationSite(entity.getAdministrationSite());
-        item.setNotes(entity.getNotes());
-        item.setInformationSource(entity.getInformationSource());
-        item.setCompletionStatus(entity.getCompletionStatus());
-        item.setSubstanceRefusalReason(entity.getSubstanceRefusalReason());
-        item.setReasonCode(entity.getReasonCode());
-        item.setOrderingProvider(entity.getOrderingProvider());
+
+        // FHIR ID
+        if (fhirImmunization.hasId()) {
+            item.setFhirId(fhirImmunization.getIdElement().getIdPart());
+            item.setExternalId(fhirImmunization.getIdElement().getIdPart());
+        }
+
+        // Patient ID
+        if (fhirImmunization.hasPatient() && fhirImmunization.getPatient().hasReference()) {
+            String ref = fhirImmunization.getPatient().getReference();
+            if (ref.startsWith("Patient/")) {
+                try {
+                    item.setPatientId(Long.parseLong(ref.substring(8)));
+                } catch (NumberFormatException e) {
+                    // Non-numeric FHIR ID
+                }
+            }
+        }
+
+        // CVX code
+        if (fhirImmunization.hasVaccineCode() && fhirImmunization.getVaccineCode().hasCoding()) {
+            item.setCvxCode(fhirImmunization.getVaccineCode().getCodingFirstRep().getCode());
+        }
+
+        // Occurrence date
+        if (fhirImmunization.hasOccurrenceDateTimeType()) {
+            item.setDateTimeAdministered(fhirImmunization.getOccurrenceDateTimeType().getValueAsString());
+        }
+
+        // Manufacturer
+        if (fhirImmunization.hasManufacturer()) {
+            item.setManufacturer(fhirImmunization.getManufacturer().getDisplay());
+        }
+
+        // Lot number
+        if (fhirImmunization.hasLotNumber()) {
+            item.setLotNumber(fhirImmunization.getLotNumber());
+        }
+
+        // Expiration date
+        if (fhirImmunization.hasExpirationDate()) {
+            item.setExpirationDate(fhirImmunization.getExpirationDate().toString());
+        }
+
+        // Route
+        if (fhirImmunization.hasRoute()) {
+            item.setRoute(fhirImmunization.getRoute().getText());
+        }
+
+        // Site
+        if (fhirImmunization.hasSite()) {
+            item.setAdministrationSite(fhirImmunization.getSite().getText());
+        }
+
+        // Dose quantity
+        if (fhirImmunization.hasDoseQuantity()) {
+            item.setAmountAdministered(String.valueOf(fhirImmunization.getDoseQuantity().getValue()));
+        }
+
+        // Performer
+        if (fhirImmunization.hasPerformer()) {
+            Immunization.ImmunizationPerformerComponent performer = fhirImmunization.getPerformerFirstRep();
+            if (performer.hasActor()) {
+                item.setAdministratorName(performer.getActor().getDisplay());
+            }
+            if (performer.hasFunction()) {
+                item.setAdministratorTitle(performer.getFunction().getText());
+            }
+        }
+
+        // Notes
+        if (fhirImmunization.hasNote()) {
+            item.setNotes(fhirImmunization.getNoteFirstRep().getText());
+        }
+
+        // Reason code
+        if (fhirImmunization.hasReasonCode()) {
+            item.setReasonCode(fhirImmunization.getReasonCodeFirstRep().getText());
+        }
+
         return item;
     }
 
-    private void applyPatch(Immunization entity, ImmunizationDto.ImmunizationItem patch) {
-        // Update fhirId if externalId or fhirId is provided
-        String fhirIdValue = patch.getExternalId() != null ? patch.getExternalId() : patch.getFhirId();
-        if (fhirIdValue != null) {
-            entity.setFhirId(fhirIdValue);
-            entity.setExternalId(fhirIdValue);
+    private List<ImmunizationDto.ImmunizationItem> extractImmunizationItems(Bundle bundle) {
+        List<ImmunizationDto.ImmunizationItem> items = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof Immunization) {
+                    items.add(toImmunizationItem((Immunization) entry.getResource()));
+                }
+            }
         }
-        if (patch.getCvxCode() != null) entity.setCvxCode(patch.getCvxCode());
-        if (patch.getDateTimeAdministered() != null) entity.setDateTimeAdministered(patch.getDateTimeAdministered());
-        if (patch.getAmountAdministered() != null) entity.setAmountAdministered(patch.getAmountAdministered());
-        if (patch.getExpirationDate() != null) entity.setExpirationDate(patch.getExpirationDate());
-        if (patch.getManufacturer() != null) entity.setManufacturer(patch.getManufacturer());
-        if (patch.getLotNumber() != null) entity.setLotNumber(patch.getLotNumber());
-        if (patch.getAdministratorName() != null) entity.setAdministratorName(patch.getAdministratorName());
-        if (patch.getAdministratorTitle() != null) entity.setAdministratorTitle(patch.getAdministratorTitle());
-        if (patch.getDateVisGiven() != null) entity.setDateVisGiven(patch.getDateVisGiven());
-        if (patch.getDateVisStatement() != null) entity.setDateVisStatement(patch.getDateVisStatement());
-        if (patch.getRoute() != null) entity.setRoute(patch.getRoute());
-        if (patch.getAdministrationSite() != null) entity.setAdministrationSite(patch.getAdministrationSite());
-        if (patch.getNotes() != null) entity.setNotes(patch.getNotes());
-        if (patch.getInformationSource() != null) entity.setInformationSource(patch.getInformationSource());
-        if (patch.getCompletionStatus() != null) entity.setCompletionStatus(patch.getCompletionStatus());
-        if (patch.getSubstanceRefusalReason() != null) entity.setSubstanceRefusalReason(patch.getSubstanceRefusalReason());
-        if (patch.getReasonCode() != null) entity.setReasonCode(patch.getReasonCode());
-        if (patch.getOrderingProvider() != null) entity.setOrderingProvider(patch.getOrderingProvider());
+        return items;
     }
 
-    // ---- Validation helpers ----
+    // ========== Validation Helpers ==========
+
     private void validateMandatoryFields(ImmunizationDto.ImmunizationItem item) {
         if (item == null) throw new IllegalArgumentException("immunization item is required");
         if (isBlank(item.getCvxCode())) throw new IllegalArgumentException("cvxCode is required");
@@ -237,53 +382,7 @@ public class ImmunizationService {
         if (isBlank(item.getAdministratorName())) throw new IllegalArgumentException("administratorName is required");
     }
 
-    private void validateMandatoryFields(Immunization entity) {
-        if (entity == null) throw new IllegalArgumentException("immunization is required");
-        if (isBlank(entity.getCvxCode())) throw new IllegalArgumentException("cvxCode is required");
-        if (isBlank(entity.getAmountAdministered())) throw new IllegalArgumentException("amountAdministered is required");
-        if (isBlank(entity.getManufacturer())) throw new IllegalArgumentException("manufacturer is required");
-        if (isBlank(entity.getAdministratorName())) throw new IllegalArgumentException("administratorName is required");
-    }
-
     private boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
-    }
-
-    private ImmunizationDto buildDtoFromEntity(Immunization entity) {
-        ImmunizationDto dto = new ImmunizationDto();
-        dto.setPatientId(entity.getPatientId());
-
-        ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
-        if (entity.getCreatedDate() != null) {
-            audit.setCreatedDate(entity.getCreatedDate().toString());
-        }
-        if (entity.getLastModifiedDate() != null) {
-            audit.setLastModifiedDate(entity.getLastModifiedDate().toString());
-        }
-        dto.setAudit(audit);
-
-        dto.setImmunizations(List.of(mapToItem(entity)));
-        return dto;
-    }
-
-    private ImmunizationDto buildDtoFromEntities(Long patientId, List<Immunization> entities) {
-        ImmunizationDto dto = new ImmunizationDto();
-        dto.setPatientId(patientId);
-
-        // Always create audit object, even for empty results
-        ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
-        if (!entities.isEmpty()) {
-            Immunization firstEntity = entities.get(0);
-            if (firstEntity.getCreatedDate() != null) {
-                audit.setCreatedDate(firstEntity.getCreatedDate().toString());
-            }
-            if (firstEntity.getLastModifiedDate() != null) {
-                audit.setLastModifiedDate(firstEntity.getLastModifiedDate().toString());
-            }
-        }
-        dto.setAudit(audit);
-
-        dto.setImmunizations(entities.stream().map(this::mapToItem).collect(Collectors.toList()));
-        return dto;
     }
 }

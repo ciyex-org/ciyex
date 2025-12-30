@@ -6,8 +6,7 @@ import lombok.Data;
 public class RequestContext {
     private static final ThreadLocal<RequestContext> context = new ThreadLocal<>();
     private String authToken;
-    private String tenantName;  // Tenant name (e.g., "practice_1", "hinisoft")
-    private String schemaName;  // Database schema name from Keycloak group attribute
+    private String orgName;  // Organization/Practice name (e.g., "practice_1", "hinisoft")
 
     public static void set(RequestContext ctx) {
         context.set(ctx);
@@ -26,5 +25,16 @@ public class RequestContext {
 
     public static void clear() {
         context.remove();
+    }
+
+    // Backward compatibility - deprecated, use getOrgName()
+    @Deprecated
+    public String getTenantName() {
+        return orgName;
+    }
+
+    @Deprecated
+    public void setTenantName(String tenantName) {
+        this.orgName = tenantName;
     }
 }

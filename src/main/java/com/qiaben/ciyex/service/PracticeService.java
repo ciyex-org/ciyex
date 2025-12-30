@@ -1,395 +1,267 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.StringClientParam;
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.PracticeDto;
-import com.qiaben.ciyex.entity.Practice;
-import com.qiaben.ciyex.repository.PracticeRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Practice Service - FHIR Only.
+ * All practice data is stored in HAPI FHIR server as Organization resources.
+ */
 @Service
 @Slf4j
 public class PracticeService {
 
-    private final PracticeRepository repository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
+
+    private static final String IDENTIFIER_SYSTEM_PRACTICE = "urn:ciyex:practice:id";
+    private static final String IDENTIFIER_SYSTEM_NPI = "http://hl7.org/fhir/sid/us-npi";
+    private static final String IDENTIFIER_SYSTEM_TAX = "urn:oid:2.16.840.1.113883.4.4";
 
     @Autowired
-    public PracticeService(PracticeRepository repository, ExternalStorageResolver storageResolver, OrgIntegrationConfigProvider configProvider) {
-        this.repository = repository;
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
+    public PracticeService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
     }
 
-    @Transactional
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+    // ✅ Create practice in FHIR
     public PracticeDto create(PracticeDto dto) {
-        // Validate the required fields
         if (dto.getName() == null || dto.getName().trim().isEmpty()) {
             throw new IllegalArgumentException("Practice name is required");
         }
 
-        // Generate externalId if not provided
-        if (dto.getExternalId() == null || dto.getExternalId().trim().isEmpty()) {
-            dto.setExternalId(UUID.randomUUID().toString());
-        }
-
-        // Generate fhirId if not provided
-        if (dto.getFhirId() == null || dto.getFhirId().trim().isEmpty()) {
-            dto.setFhirId(UUID.randomUUID().toString());
-        }
-
-        // Map DTO to Entity
-        Practice practice = mapToEntity(dto);
-
-        String externalId = null;
-
-        // Attempt external storage creation first (FHIR)
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            try {
-                ExternalStorage<PracticeDto> externalStorage = storageResolver.resolve(PracticeDto.class);
-                externalId = externalStorage.create(dto);  // Create in external storage
-                log.info("Successfully created practice in external storage with externalId: {}", externalId);
-            } catch (Exception e) {
-                log.error("Failed to create practice in external storage, error: {}", e.getMessage());
-                // Don't throw exception - continue with database save even if external storage fails
-                log.warn("Continuing with database save despite external storage failure");
-            }
-        }
-
-        // Ensure externalId is set
-        practice.setExternalId(externalId);
-
-        // Save to database
-        practice = repository.save(practice);
-        log.info("Created practice with id: {} and externalId: {} in DB", practice.getId(), externalId);
-
-        // Return the DTO of the practice (with externalId)
-        return mapToDto(practice);
+        log.info("Creating practice in FHIR: {}", dto.getName());
+        
+        Organization fhirOrg = toFhirOrganization(dto);
+        
+        MethodOutcome outcome = fhirClientService.create(fhirOrg, getPracticeId());
+        
+        String fhirId = outcome.getId().getIdPart();
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        
+        log.info("Created FHIR Organization with ID: {}", fhirId);
+        return dto;
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Get practice by FHIR ID
     public PracticeDto getById(Long id) {
-        // Fetch practice from the database
-        Practice practice = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Practice not found with id: " + id));
-        log.debug("Fetched practice from DB: id={}, externalId={}", practice.getId(), practice.getExternalId());
-
-        // Default mapping from DB data
-        PracticeDto resultDto = mapToDto(practice);
-
-        // If external storage is available, attempt to fetch extended practice details
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && practice.getExternalId() != null) {
-            log.debug("Attempting to fetch extended details for practice id: {} with externalId: {}", id, practice.getExternalId());
-            ExternalStorage<PracticeDto> externalStorage = storageResolver.resolve(PracticeDto.class);
-
-            try {
-                PracticeDto extendedPracticeDto = externalStorage.get(practice.getExternalId());
-
-                if (extendedPracticeDto != null) {
-                    log.info("Successfully loaded extended details for practice id: {} from external storage", id);
-                    log.debug("Extended PracticeDto: id={}, fhirId={}", extendedPracticeDto.getId(), extendedPracticeDto.getFhirId());
-
-                    extendedPracticeDto.setId(practice.getId()); // Preserve DB ID
-                    // Manually map fields from Practice to extendedPracticeDto
-                    populatePracticeSettings(practice, extendedPracticeDto);
-                    populateRegionalSettings(practice, extendedPracticeDto);
-                    populateContact(practice, extendedPracticeDto);
-
-                    // Ensure name is set if missing from extended data
-                    if (extendedPracticeDto.getName() == null) {
-                        extendedPracticeDto.setName(practice.getName());
-                    }
-
-                    resultDto = extendedPracticeDto;
-                } else {
-                    log.warn("No extended details found in external storage for practice id: {} with externalId: {}", id, practice.getExternalId());
-                }
-            } catch (Exception e) {
-                log.error("Failed to fetch extended details from external storage for practice id: {} with externalId: {}, error: {}", id, practice.getExternalId(), e.getMessage());
-            }
-        }
-
-        log.info("Returning practice dto for id: {}", id);
-        log.debug("Returning PracticeDto: id={}, fhirId={}", resultDto.getId(), resultDto.getFhirId());
-
-        return resultDto;
+        return getByFhirId(String.valueOf(id));
     }
 
-    @Transactional
+    public PracticeDto getByFhirId(String fhirId) {
+        log.debug("Reading FHIR Organization with ID: {}", fhirId);
+        try {
+            Organization fhirOrg = fhirClientService.read(Organization.class, fhirId, getPracticeId());
+            return toPracticeDto(fhirOrg);
+        } catch (ResourceNotFoundException e) {
+            throw new RuntimeException("Practice not found with FHIR ID: " + fhirId);
+        }
+    }
+
+    // ✅ Update practice in FHIR
     public PracticeDto update(Long id, PracticeDto dto) {
-        Practice practice = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Practice not found with id: " + id));
-
-        // Update fields
-        practice.setName(dto.getName());
-        practice.setDescription(dto.getDescription());
-
-        if (dto.getPracticeSettings() != null) {
-            practice.setEnablePatientPractice(dto.getPracticeSettings().getEnablePatientPractice());
-            if (dto.getPracticeSettings().getTokenExpiryMinutes() != null) {
-                practice.setTokenExpiryMinutes(dto.getPracticeSettings().getTokenExpiryMinutes());
-                practice.setSessionTimeoutMinutes(dto.getPracticeSettings().getTokenExpiryMinutes());
-            }
-        }
-
-        if (dto.getRegionalSettings() != null) {
-            PracticeDto.RegionalSettings regional = dto.getRegionalSettings();
-            practice.setUnitsForVisitForms(regional.getUnitsForVisitForms());
-            practice.setDisplayFormatUSWeights(regional.getDisplayFormatUSWeights());
-            practice.setTelephoneCountryCode(regional.getTelephoneCountryCode());
-            practice.setDateDisplayFormat(regional.getDateDisplayFormat());
-            practice.setTimeDisplayFormat(regional.getTimeDisplayFormat());
-            practice.setTimeZone(regional.getTimeZone());
-            practice.setCurrencyDesignator(regional.getCurrencyDesignator());
-        }
-
-        if (dto.getContact() != null) {
-            PracticeDto.Contact contact = dto.getContact();
-            practice.setEmail(contact.getEmail());
-            practice.setPhoneNumber(contact.getPhoneNumber());
-            practice.setFaxNumber(contact.getFaxNumber());
-
-            if (contact.getAddress() != null) {
-                PracticeDto.Contact.Address address = contact.getAddress();
-                practice.setAddressLine1(address.getLine1());
-                practice.setAddressLine2(address.getLine2());
-                practice.setCity(address.getCity());
-                practice.setState(address.getState());
-                practice.setPostalCode(address.getPostalCode());
-                practice.setCountry(address.getCountry());
-            }
-        }
-
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && practice.getExternalId() != null) {
-            try {
-                ExternalStorage<PracticeDto> externalStorage = storageResolver.resolve(PracticeDto.class);
-                externalStorage.update(dto, practice.getExternalId());
-                log.info("Successfully updated practice with id: {} and externalId: {} in external storage", practice.getId(), practice.getExternalId());
-            } catch (Exception e) {
-                log.error("Failed to update practice in external storage, error: {}", e.getMessage());
-                // Don't throw exception - continue with database save even if external storage fails
-                log.warn("Continuing with database update despite external storage failure");
-            }
-        }
-
-        Practice updatedPractice = repository.save(practice);
-        return mapToDto(updatedPractice);
+        return updateByFhirId(String.valueOf(id), dto);
     }
 
-    @Transactional
+    public PracticeDto updateByFhirId(String fhirId, PracticeDto dto) {
+        log.info("Updating FHIR Organization with ID: {}", fhirId);
+        
+        Organization fhirOrg = toFhirOrganization(dto);
+        fhirOrg.setId(fhirId);
+        
+        fhirClientService.update(fhirOrg, getPracticeId());
+        
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        
+        log.info("Updated FHIR Organization with ID: {}", fhirId);
+        return dto;
+    }
+
+    // ✅ Delete practice from FHIR
     public void delete(Long id) {
-        Practice practice = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Practice not found with id: " + id));
-
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && practice.getExternalId() != null) {
-            try {
-                ExternalStorage<PracticeDto> externalStorage = storageResolver.resolve(PracticeDto.class);
-                externalStorage.delete(practice.getExternalId());
-                log.info("Successfully deleted practice with id: {} and externalId: {} from external storage", practice.getId(), practice.getExternalId());
-            } catch (Exception e) {
-                log.error("Failed to delete practice from external storage, error: {}", e.getMessage());
-                // Don't throw exception - continue with database deletion even if external storage fails
-                log.warn("Continuing with database deletion despite external storage failure");
-            }
-        }
-
-        // Delete from database
-        repository.delete(practice);
-        log.info("Deleted practice with id: {} from DB", id);
+        deleteByFhirId(String.valueOf(id));
     }
 
-    @Transactional(readOnly = true)
+    public void deleteByFhirId(String fhirId) {
+        log.info("Deleting FHIR Organization with ID: {}", fhirId);
+        fhirClientService.delete(Organization.class, fhirId, getPracticeId());
+        log.info("Deleted FHIR Organization with ID: {}", fhirId);
+    }
+
+    // ✅ Get all practices from FHIR
     public ApiResponse<List<PracticeDto>> getAllPractices() {
-        // Fetch all practices directly from the database
-        List<Practice> practices = repository.findAll();
-        log.info("Retrieved {} practices from DB", practices.size());
-        List<PracticeDto> practiceDtos = practices.stream().map(this::mapToDto).collect(Collectors.toList());
+        log.debug("Getting all FHIR Organizations for practice {}", getPracticeId());
+        
+        Bundle bundle = fhirClientService.search(Organization.class, getPracticeId());
+        List<PracticeDto> dtos = extractOrganizations(bundle);
 
         return ApiResponse.<List<PracticeDto>>builder()
                 .success(true)
-                .message("Practices retrieved successfully")
-                .data(practiceDtos)
+                .message("Practices retrieved successfully from FHIR")
+                .data(dtos)
                 .build();
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Get practice count
     public long getPracticeCount() {
-        return repository.count();
+        Bundle bundle = fhirClientService.search(Organization.class, getPracticeId());
+        return bundle.getTotal();
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Search by name
     public ApiResponse<List<PracticeDto>> getPracticesByName(String name) {
-        List<Practice> practices = repository.findByNameContaining(name);
-        log.info("Retrieved {} practices matching name '{}'", practices.size(), name);
-        List<PracticeDto> practiceDtos = practices.stream().map(this::mapToDto).collect(Collectors.toList());
+        log.debug("Searching FHIR Organizations by name: {}", name);
+        
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Organization.class)
+                .where(new StringClientParam("name").matches().value(name))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+        
+        List<PracticeDto> dtos = extractOrganizations(bundle);
 
         return ApiResponse.<List<PracticeDto>>builder()
                 .success(true)
                 .message("Practices retrieved successfully")
-                .data(practiceDtos)
+                .data(dtos)
                 .build();
     }
 
-    // Helper methods to populate nested objects
-    private void populatePracticeSettings(Practice practice, PracticeDto extendedPracticeDto) {
-        PracticeDto.PracticeSettings practiceSettings = new PracticeDto.PracticeSettings();
-        practiceSettings.setEnablePatientPractice(practice.getEnablePatientPractice());
-        practiceSettings.setSessionTimeoutMinutes(practice.getSessionTimeoutMinutes());
-        practiceSettings.setTokenExpiryMinutes(practice.getTokenExpiryMinutes());
-        extendedPracticeDto.setPracticeSettings(practiceSettings);
-    }
+    // ========== FHIR Mapping Methods ==========
 
-    private void populateRegionalSettings(Practice practice, PracticeDto extendedPracticeDto) {
-        PracticeDto.RegionalSettings regionalSettings = new PracticeDto.RegionalSettings();
-        regionalSettings.setUnitsForVisitForms(practice.getUnitsForVisitForms());
-        regionalSettings.setDisplayFormatUSWeights(practice.getDisplayFormatUSWeights());
-        regionalSettings.setTelephoneCountryCode(practice.getTelephoneCountryCode());
-        regionalSettings.setDateDisplayFormat(practice.getDateDisplayFormat());
-        regionalSettings.setTimeDisplayFormat(practice.getTimeDisplayFormat());
-        regionalSettings.setTimeZone(practice.getTimeZone());
-        regionalSettings.setCurrencyDesignator(practice.getCurrencyDesignator());
-        extendedPracticeDto.setRegionalSettings(regionalSettings);
-    }
+    private Organization toFhirOrganization(PracticeDto dto) {
+        Organization org = new Organization();
 
-    private void populateContact(Practice practice, PracticeDto extendedPracticeDto) {
-        PracticeDto.Contact contact = new PracticeDto.Contact();
-        contact.setEmail(practice.getEmail());
-        contact.setPhoneNumber(practice.getPhoneNumber());
-        contact.setFaxNumber(practice.getFaxNumber());
+        // Name
+        org.setName(dto.getName());
 
-        if (practice.getAddressLine1() != null || practice.getCity() != null) {
-            PracticeDto.Contact.Address address = new PracticeDto.Contact.Address();
-            address.setLine1(practice.getAddressLine1());
-            address.setLine2(practice.getAddressLine2());
-            address.setCity(practice.getCity());
-            address.setState(practice.getState());
-            address.setPostalCode(practice.getPostalCode());
-            address.setCountry(practice.getCountry());
-            contact.setAddress(address);
-        }
+        // Type - Healthcare Provider
+        org.addType()
+                .addCoding()
+                .setSystem("http://terminology.hl7.org/CodeSystem/organization-type")
+                .setCode("prov")
+                .setDisplay("Healthcare Provider");
 
-        extendedPracticeDto.setContact(contact);
-    }
+        // Active
+        org.setActive(true);
 
-    private Practice mapToEntity(PracticeDto dto) {
-        Practice practice = new Practice();
-        practice.setName(dto.getName());
-        practice.setDescription(dto.getDescription());
-        practice.setExternalId(dto.getExternalId());
-        practice.setFhirId(dto.getFhirId());
-
-        if (dto.getPracticeSettings() != null) {
-            practice.setEnablePatientPractice(dto.getPracticeSettings().getEnablePatientPractice());
-            if (dto.getPracticeSettings().getTokenExpiryMinutes() != null) {
-                practice.setTokenExpiryMinutes(dto.getPracticeSettings().getTokenExpiryMinutes());
-                practice.setSessionTimeoutMinutes(dto.getPracticeSettings().getTokenExpiryMinutes());
-            }
-        }
-
-        if (dto.getRegionalSettings() != null) {
-            PracticeDto.RegionalSettings regional = dto.getRegionalSettings();
-            practice.setUnitsForVisitForms(regional.getUnitsForVisitForms());
-            practice.setDisplayFormatUSWeights(regional.getDisplayFormatUSWeights());
-            practice.setTelephoneCountryCode(regional.getTelephoneCountryCode());
-            practice.setDateDisplayFormat(regional.getDateDisplayFormat());
-            practice.setTimeDisplayFormat(regional.getTimeDisplayFormat());
-            practice.setTimeZone(regional.getTimeZone());
-            practice.setCurrencyDesignator(regional.getCurrencyDesignator());
-        }
-
+        // Contact Info
         if (dto.getContact() != null) {
             PracticeDto.Contact contact = dto.getContact();
-            practice.setEmail(contact.getEmail());
-            practice.setPhoneNumber(contact.getPhoneNumber());
-            practice.setFaxNumber(contact.getFaxNumber());
+            
+            if (contact.getPhoneNumber() != null) {
+                org.addTelecom()
+                        .setSystem(ContactPoint.ContactPointSystem.PHONE)
+                        .setValue(contact.getPhoneNumber())
+                        .setUse(ContactPoint.ContactPointUse.WORK);
+            }
+            if (contact.getFaxNumber() != null) {
+                org.addTelecom()
+                        .setSystem(ContactPoint.ContactPointSystem.FAX)
+                        .setValue(contact.getFaxNumber())
+                        .setUse(ContactPoint.ContactPointUse.WORK);
+            }
+            if (contact.getEmail() != null) {
+                org.addTelecom()
+                        .setSystem(ContactPoint.ContactPointSystem.EMAIL)
+                        .setValue(contact.getEmail())
+                        .setUse(ContactPoint.ContactPointUse.WORK);
+            }
 
+            // Address
             if (contact.getAddress() != null) {
-                PracticeDto.Contact.Address address = contact.getAddress();
-                practice.setAddressLine1(address.getLine1());
-                practice.setAddressLine2(address.getLine2());
-                practice.setCity(address.getCity());
-                practice.setState(address.getState());
-                practice.setPostalCode(address.getPostalCode());
-                practice.setCountry(address.getCountry());
+                PracticeDto.Contact.Address addr = contact.getAddress();
+                Address fhirAddr = org.addAddress().setUse(Address.AddressUse.WORK);
+                if (addr.getLine1() != null) fhirAddr.addLine(addr.getLine1());
+                if (addr.getLine2() != null) fhirAddr.addLine(addr.getLine2());
+                if (addr.getCity() != null) fhirAddr.setCity(addr.getCity());
+                if (addr.getState() != null) fhirAddr.setState(addr.getState());
+                if (addr.getPostalCode() != null) fhirAddr.setPostalCode(addr.getPostalCode());
+                if (addr.getCountry() != null) fhirAddr.setCountry(addr.getCountry());
             }
         }
 
-        return practice;
+        return org;
     }
 
-    private PracticeDto mapToDto(Practice practice) {
+    private PracticeDto toPracticeDto(Organization org) {
         PracticeDto dto = new PracticeDto();
-        dto.setId(practice.getId());
-        dto.setName(practice.getName());
-        dto.setDescription(practice.getDescription());
-        dto.setExternalId(practice.getExternalId());
-        dto.setFhirId(practice.getFhirId());
 
-        // Practice Settings
-        if (practice.getEnablePatientPractice() != null || practice.getSessionTimeoutMinutes() != null || practice.getTokenExpiryMinutes() != null) {
-            PracticeDto.PracticeSettings practiceSettings = new PracticeDto.PracticeSettings();
-            practiceSettings.setEnablePatientPractice(practice.getEnablePatientPractice());
-            practiceSettings.setSessionTimeoutMinutes(practice.getSessionTimeoutMinutes());
-            practiceSettings.setTokenExpiryMinutes(practice.getTokenExpiryMinutes());
-            dto.setPracticeSettings(practiceSettings);
+        // FHIR ID
+        if (org.hasId()) {
+            dto.setFhirId(org.getIdElement().getIdPart());
+            dto.setExternalId(org.getIdElement().getIdPart());
         }
 
-        // Regional Settings
-        PracticeDto.RegionalSettings regionalSettings = new PracticeDto.RegionalSettings();
-        regionalSettings.setUnitsForVisitForms(practice.getUnitsForVisitForms());
-        regionalSettings.setDisplayFormatUSWeights(practice.getDisplayFormatUSWeights());
-        regionalSettings.setTelephoneCountryCode(practice.getTelephoneCountryCode());
-        regionalSettings.setDateDisplayFormat(practice.getDateDisplayFormat());
-        regionalSettings.setTimeDisplayFormat(practice.getTimeDisplayFormat());
-        regionalSettings.setTimeZone(practice.getTimeZone());
-        regionalSettings.setCurrencyDesignator(practice.getCurrencyDesignator());
-        dto.setRegionalSettings(regionalSettings);
+        // Name
+        dto.setName(org.getName());
 
-        // Contact Information
-        if (practice.getEmail() != null || practice.getPhoneNumber() != null || practice.getAddressLine1() != null) {
-            PracticeDto.Contact contact = new PracticeDto.Contact();
-            contact.setEmail(practice.getEmail());
-            contact.setPhoneNumber(practice.getPhoneNumber());
-            contact.setFaxNumber(practice.getFaxNumber());
-
-            if (practice.getAddressLine1() != null || practice.getCity() != null) {
-                PracticeDto.Contact.Address address = new PracticeDto.Contact.Address();
-                address.setLine1(practice.getAddressLine1());
-                address.setLine2(practice.getAddressLine2());
-                address.setCity(practice.getCity());
-                address.setState(practice.getState());
-                address.setPostalCode(practice.getPostalCode());
-                address.setCountry(practice.getCountry());
-                contact.setAddress(address);
+        // Contact Info
+        PracticeDto.Contact contact = new PracticeDto.Contact();
+        boolean hasContact = false;
+        
+        for (ContactPoint telecom : org.getTelecom()) {
+            switch (telecom.getSystem()) {
+                case PHONE -> { contact.setPhoneNumber(telecom.getValue()); hasContact = true; }
+                case FAX -> { contact.setFaxNumber(telecom.getValue()); hasContact = true; }
+                case EMAIL -> { contact.setEmail(telecom.getValue()); hasContact = true; }
+                default -> {}
             }
+        }
+
+        // Address
+        if (org.hasAddress()) {
+            Address fhirAddr = org.getAddressFirstRep();
+            PracticeDto.Contact.Address addr = new PracticeDto.Contact.Address();
+            if (fhirAddr.hasLine() && !fhirAddr.getLine().isEmpty()) {
+                addr.setLine1(fhirAddr.getLine().get(0).getValue());
+                if (fhirAddr.getLine().size() > 1) {
+                    addr.setLine2(fhirAddr.getLine().get(1).getValue());
+                }
+            }
+            addr.setCity(fhirAddr.getCity());
+            addr.setState(fhirAddr.getState());
+            addr.setPostalCode(fhirAddr.getPostalCode());
+            addr.setCountry(fhirAddr.getCountry());
+            contact.setAddress(addr);
+            hasContact = true;
+        }
+
+        if (hasContact) {
             dto.setContact(contact);
         }
 
-        // Audit Information
-        if (practice.getCreatedDate() != null || practice.getLastModifiedDate() != null) {
-            PracticeDto.Audit audit = new PracticeDto.Audit();
-            audit.setCreatedDate(practice.getCreatedDate() != null ? practice.getCreatedDate().toString() : null);
-            audit.setLastModifiedDate(practice.getLastModifiedDate() != null ? practice.getLastModifiedDate().toString() : null);
-            audit.setCreatedBy(practice.getCreatedBy());
-            audit.setLastModifiedBy(practice.getLastModifiedBy());
-            dto.setAudit(audit);
-        }
-
         return dto;
+    }
+
+    private List<PracticeDto> extractOrganizations(Bundle bundle) {
+        List<PracticeDto> practices = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof Organization) {
+                    practices.add(toPracticeDto((Organization) entry.getResource()));
+                }
+            }
+        }
+        return practices;
     }
 }

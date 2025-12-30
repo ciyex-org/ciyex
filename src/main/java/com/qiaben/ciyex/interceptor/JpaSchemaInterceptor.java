@@ -46,15 +46,10 @@ public class JpaSchemaInterceptor implements Interceptor {
 
     private void setTenantSchema() {
         RequestContext context = RequestContext.get();
-        if (context != null) {
-            // Prefer schemaName from Keycloak group attribute, fallback to generated from
-            // tenantName
-            String schemaName = context.getSchemaName();
-            if (schemaName == null && context.getTenantName() != null) {
-                schemaName = sanitize(context.getTenantName());
-            }
+        if (context != null && context.getOrgName() != null) {
+            String schemaName = sanitize(context.getOrgName());
 
-            if (schemaName != null) {
+            if (schemaName != null && !schemaName.isBlank()) {
                 try (Connection connection = dataSource.getConnection();
                         Statement statement = connection.createStatement()) {
 
@@ -66,8 +61,7 @@ public class JpaSchemaInterceptor implements Interceptor {
                     statement.execute(
                             "SET search_path TO " + com.qiaben.ciyex.util.SqlIdentifier.quote(schemaName) + ", public");
 
-                    log.debug("JPA Interceptor: Set search_path to: {}, public (from Keycloak: {})",
-                            schemaName, context.getSchemaName() != null);
+                    log.debug("JPA Interceptor: Set search_path to: {}, public", schemaName);
 
                 } catch (SQLException e) {
                     log.error("JPA Interceptor: Failed to set schema: {}", schemaName, e);

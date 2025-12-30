@@ -109,4 +109,28 @@ public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, Abstra
         List<String> groups = jwt.getClaimAsStringList("groups");
         return groups != null ? groups : Collections.emptyList();
     }
+
+    /**
+     * ✅ Extract organization/practice ID from JWT token.
+     * Keycloak organization claim format: ["org-alias", {"org-alias": {"id": "uuid"}}]
+     * or [{"org-alias": {"id": "uuid"}}, "org-alias"]
+     */
+    public static String extractOrganizationId(Jwt jwt) {
+        Object orgClaim = jwt.getClaim("organization");
+        if (orgClaim instanceof List<?> orgArray && !orgArray.isEmpty()) {
+            for (Object elem : orgArray) {
+                if (elem instanceof Map<?, ?> orgDetails) {
+                    for (Object details : orgDetails.values()) {
+                        if (details instanceof Map<?, ?> detailMap) {
+                            Object orgId = detailMap.get("id");
+                            if (orgId instanceof String id && !id.isBlank()) {
+                                return id;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
 }

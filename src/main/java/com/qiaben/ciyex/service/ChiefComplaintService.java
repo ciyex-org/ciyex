@@ -1,507 +1,194 @@
-////package com.qiaben.ciyex.service;
-////
-////import com.qiaben.ciyex.dto.ChiefComplaintDto;
-////import com.qiaben.ciyex.entity.ChiefComplaint;
-////import com.qiaben.ciyex.repository.ChiefComplaintRepository;
-////import org.springframework.stereotype.Service;
-////import org.springframework.transaction.annotation.Transactional;
-////
-////import java.util.List;
-////import java.util.stream.Collectors;
-////
-////@Service
-////public class ChiefComplaintService {
-////
-////    private final ChiefComplaintRepository chiefComplaintRepository;
-////
-////    public ChiefComplaintService(ChiefComplaintRepository chiefComplaintRepository) {
-////        this.chiefComplaintRepository = chiefComplaintRepository;
-////    }
-////
-////    // Create Chief Complaint for a specific encounter
-////    @Transactional
-////    public ChiefComplaintDto create(ChiefComplaintDto dto) {
-////        ChiefComplaint chiefComplaint = new ChiefComplaint();
-////        chiefComplaint.setComplaint(dto.getComplaint());
-////        chiefComplaint.setDetails(dto.getDetails());
-////        chiefComplaint.setEncounterId(dto.getEncounterId());
-
-////        chiefComplaint.setPatientId(dto.getPatientId());
-////        chiefComplaint = chiefComplaintRepository.save(chiefComplaint);
-////        return mapToDto(chiefComplaint);
-////    }
-////
-////    // Get all Chief Complaints for a specific encounter
-////    @Transactional(readOnly = true)
-////    public List<ChiefComplaintDto> getByEncounterId(Long encounterId) {
-////        List<ChiefComplaint> complaints = chiefComplaintRepository.findByEncounterId(encounterId);
-////        return complaints.stream().map(this::mapToDto).collect(Collectors.toList());
-////    }
-////
-////    // Update Chief Complaint
-////    @Transactional
-////    public ChiefComplaintDto update(Long encounterId, Long id, ChiefComplaintDto dto) {
-////        ChiefComplaint chiefComplaint = chiefComplaintRepository.findById(id)
-////                .orElseThrow(() -> new RuntimeException("Chief Complaint not found"));
-////
-////        // Ensure the encounterId matches
-////        if (!chiefComplaint.getEncounterId().equals(encounterId)) {
-////            throw new RuntimeException("Encounter ID mismatch");
-////        }
-////
-////        // Set the updated data
-////        chiefComplaint.setComplaint(dto.getComplaint());
-////        chiefComplaint.setDetails(dto.getDetails());
-
-////        chiefComplaint.setPatientId(dto.getPatientId());
-////
-////        // Save the updated chief complaint
-////        chiefComplaint = chiefComplaintRepository.save(chiefComplaint);
-////
-////        // Return the updated DTO
-////        return mapToDto(chiefComplaint);
-////    }
-////
-////
-////    // Delete Chief Complaint
-////    @Transactional
-////    public void delete(Long encounterId, Long id) {
-////        ChiefComplaint chiefComplaint = chiefComplaintRepository.findById(id)
-////                .orElseThrow(() -> new RuntimeException("Chief Complaint not found"));
-////        if (!chiefComplaint.getEncounterId().equals(encounterId)) {
-////            throw new RuntimeException("Encounter ID mismatch");
-////        }
-////        chiefComplaintRepository.delete(chiefComplaint);
-////    }
-////
-////    private ChiefComplaintDto mapToDto(ChiefComplaint chiefComplaint) {
-////        ChiefComplaintDto dto = new ChiefComplaintDto();
-////        dto.setId(chiefComplaint.getId());
-////        dto.setComplaint(chiefComplaint.getComplaint());
-////        dto.setDetails(chiefComplaint.getDetails());
-////        dto.setEncounterId(chiefComplaint.getEncounterId());
-////        dto.setOrgId(chiefComplaint.getOrgId());
-////        dto.setCreatedAt(chiefComplaint.getCreatedAt());
-////        dto.setUpdatedAt(chiefComplaint.getUpdatedAt());
-////        dto.setPatientId(chiefComplaint.getPatientId());
-////        return dto;
-////    }
-////}
-//
-//
-//package com.qiaben.ciyex.service;
-//
-//import com.qiaben.ciyex.dto.ChiefComplaintDto;
-//import com.qiaben.ciyex.entity.ChiefComplaint;
-//import com.qiaben.ciyex.repository.ChiefComplaintRepository;
-//import com.qiaben.ciyex.storage.ExternalChiefComplaintStorage;
-//import org.springframework.stereotype.Service;
-//
-//import java.util.List;
-//import java.util.stream.Collectors;
-//
-//@Service
-//public class ChiefComplaintService {
-//
-//    private final ChiefComplaintRepository chiefComplaintRepository;
-//    private final ExternalChiefComplaintStorage externalChiefComplaintStorage;
-//
-//    public ChiefComplaintService(ChiefComplaintRepository chiefComplaintRepository, ExternalChiefComplaintStorage externalChiefComplaintStorage) {
-//        this.chiefComplaintRepository = chiefComplaintRepository;
-//        this.externalChiefComplaintStorage = externalChiefComplaintStorage;
-//    }
-//
-//    // Create a new Chief Complaint
-//    public ChiefComplaintDto create(ChiefComplaintDto dto) {
-//        // Convert DTO to entity
-//        ChiefComplaint chiefComplaint = new ChiefComplaint();
-//        chiefComplaint.setComplaint(dto.getComplaint());
-//        chiefComplaint.setDetails(dto.getDetails());
-//        chiefComplaint.setEncounterId(dto.getEncounterId());
-//        chiefComplaint.setOrgId(RequestContext.get().getTenantName());
-//        chiefComplaint.setPatientId(dto.getPatientId());
-//        chiefComplaint.setCreatedAt(dto.getCreatedAt());
-//        chiefComplaint.setUpdatedAt(dto.getUpdatedAt());
-//
-//        // Save to database
-//        ChiefComplaint savedComplaint = chiefComplaintRepository.save(chiefComplaint);
-//
-//        // Save to external storage (e.g., FHIR)
-//        externalChiefComplaintStorage.saveChiefComplaint(dto);
-//
-//        // Return the DTO with the saved data
-//        dto.setId(savedComplaint.getId());
-//        return dto;
-//    }
-//
-//    // Get all Chief Complaints for a patient by encounter
-//    public List<ChiefComplaintDto> getByPatientIdAndEncounterId(Long patientId, Long encounterId) {
-//        List<ChiefComplaint> complaints = chiefComplaintRepository.findByPatientId(patientId);
-//        return complaints.stream()
-//                .filter(complaint -> complaint.getEncounterId().equals(encounterId))
-//                .map(this::mapToDto)
-//                .collect(Collectors.toList());
-//    }
-//
-//    // Get a specific Chief Complaint by ID, patient ID, and encounter ID
-//    public ChiefComplaintDto getById(Long patientId, Long encounterId, Long id) {
-//        ChiefComplaint complaint = chiefComplaintRepository.findByIdAndPatientId(id, patientId)
-//                .orElseThrow(() -> new RuntimeException("Chief Complaint not found"));
-//
-//        if (!complaint.getEncounterId().equals(encounterId)) {
-//            throw new RuntimeException("Encounter ID mismatch");
-//        }
-//
-//        return mapToDto(complaint);
-//    }
-//
-//    // Update a Chief Complaint
-//    public ChiefComplaintDto update(Long patientId, Long encounterId, Long id, ChiefComplaintDto dto) {
-//        ChiefComplaint complaint = chiefComplaintRepository.findByIdAndPatientId(id, patientId)
-//                .orElseThrow(() -> new RuntimeException("Chief Complaint not found"));
-//
-//        if (!complaint.getEncounterId().equals(encounterId)) {
-//            throw new RuntimeException("Encounter ID mismatch");
-//        }
-//
-//        // Update fields
-//        complaint.setComplaint(dto.getComplaint());
-//        complaint.setDetails(dto.getDetails());
-//        complaint.setUpdatedAt(dto.getUpdatedAt());
-//
-//        // Save to database
-//        ChiefComplaint updatedComplaint = chiefComplaintRepository.save(complaint);
-//
-//        // Save to external storage (e.g., FHIR)
-//        externalChiefComplaintStorage.saveChiefComplaint(dto);
-//
-//        return mapToDto(updatedComplaint);
-//    }
-//
-//    // Delete a Chief Complaint
-//    public void delete(Long patientId, Long encounterId, Long id) {
-//        ChiefComplaint complaint = chiefComplaintRepository.findByIdAndPatientId(id, patientId)
-//                .orElseThrow(() -> new RuntimeException("Chief Complaint not found"));
-//
-//        if (!complaint.getEncounterId().equals(encounterId)) {
-//            throw new RuntimeException("Encounter ID mismatch");
-//        }
-//
-//        chiefComplaintRepository.delete(complaint);
-//
-//        // Optionally delete from external storage (e.g., FHIR)
-//        externalChiefComplaintStorage.saveChiefComplaint(null);
-//    }
-//
-//    // Helper method to map entity to DTO
-//    private ChiefComplaintDto mapToDto(ChiefComplaint complaint) {
-//        ChiefComplaintDto dto = new ChiefComplaintDto();
-//        dto.setId(complaint.getId());
-//        dto.setComplaint(complaint.getComplaint());
-//        dto.setDetails(complaint.getDetails());
-//        dto.setEncounterId(complaint.getEncounterId());
-//        dto.setOrgId(complaint.getOrgId());
-//        dto.setPatientId(complaint.getPatientId());
-//        dto.setCreatedAt(complaint.getCreatedAt());
-//        dto.setUpdatedAt(complaint.getUpdatedAt());
-//        return dto;
-//    }
-//}
-//
-//
-//
-
-
-
-
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
+import ca.uhn.fhir.rest.gclient.TokenClientParam;
 import com.qiaben.ciyex.dto.ChiefComplaintDto;
-import com.qiaben.ciyex.entity.ChiefComplaint;
-import com.qiaben.ciyex.repository.ChiefComplaintRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.storage.fhir.FhirExternalChiefComplaintStorage;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import lombok.RequiredArgsConstructor;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.*;
-import java.time.format.DateTimeFormatter;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * ChiefComplaint Service - FHIR Only.
+ * All chief complaint data is stored in HAPI FHIR server as Condition resources.
+ */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ChiefComplaintService {
+
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
+
+    // In-memory cache for e-sign/print metadata (keyed by FHIR ID)
+    private final Map<String, SignMetadata> signMetadataCache = new ConcurrentHashMap<>();
+
+    @Autowired
+    public ChiefComplaintService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
+    }
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+    // Helper class for e-sign metadata
+    private static class SignMetadata {
+        Boolean eSigned = false;
+        OffsetDateTime signedAt;
+        String signedBy;
+        OffsetDateTime printedAt;
+    }
+
+    // ✅ Get all by patient
     public List<ChiefComplaintDto> getAllByPatient(Long patientId) {
-        return repo.findByPatientId(patientId)
-            .stream().map(this::toDto).toList();
+        log.debug("Getting FHIR Conditions (chief complaint) for patient: {}", patientId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Condition.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .where(new TokenClientParam("category").exactly()
+                        .systemAndCode("http://terminology.hl7.org/CodeSystem/condition-category", "encounter-diagnosis"))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractChiefComplaintDtos(bundle, patientId, null);
     }
 
-    private final ChiefComplaintRepository repo;
-    private final EncounterService encounterService;
-    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
-    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
-
-    @Autowired(required = false)
-    private FhirExternalChiefComplaintStorage fhirStorage;
-
-    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
-
-    // CREATE
+    // ✅ Create chief complaint
     public ChiefComplaintDto create(Long patientId, Long encounterId, ChiefComplaintDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
+        log.info("Creating chief complaint in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
+        Condition condition = toFhirCondition(dto, patientId, encounterId);
+        MethodOutcome outcome = fhirClientService.create(condition, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
 
-        // Step 4: Create the chief complaint
-        ChiefComplaint e = new ChiefComplaint();
-        e.setPatientId(patientId);
-        e.setEncounterId(encounterId);
-        applyEditable(e, dto);
-        e = repo.save(e);
-        
-        // Step 5: Optional external FHIR sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("ChiefComplaint create - storageType for current org: {}", storageType);
-
-        if (storageType != null) {
-            try {
-                log.info("Attempting FHIR sync for ChiefComplaint ID: {}", e.getId());
-                ExternalStorage<ChiefComplaintDto> ext = storageResolver.resolve(ChiefComplaintDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                ChiefComplaintDto snapshot = toDto(e);
-                String externalId = ext.create(snapshot);
-                log.info("FHIR create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource for ChiefComplaint ID: {} with externalId: {}", e.getId(), externalId);
-                } else {
-                    log.warn("FHIR create returned null or empty externalId for ChiefComplaint ID: {}", e.getId());
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync ChiefComplaint to external storage", ex);
-            }
-        } else if (fhirStorage != null) {
-            try {
-                log.info("No storage type configured, falling back to direct FHIR storage for ChiefComplaint ID: {}", e.getId());
-                ChiefComplaintDto snapshot = toDto(e);
-                String externalId = fhirStorage.create(snapshot);
-                log.info("FHIR fallback create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource (fallback) for ChiefComplaint ID: {} with externalId: {}", e.getId(), externalId);
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync ChiefComplaint to external storage (fallback)", ex);
-            }
-        } else {
-            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ChiefComplaint ID: {}", e.getId());
-        }
-
-        if (e.getExternalId() == null) {
-            String generatedId = "CC-" + System.currentTimeMillis();
-            e.setExternalId(generatedId);
-            e.setFhirId(generatedId);
-            e = repo.save(e);
-            log.info("Auto-generated externalId: {}", generatedId);
-        } else {
-            e.setFhirId(e.getExternalId());
-            e = repo.save(e);
-        }
-
-        return toDto(e);
+        log.info("Created FHIR Condition (chief complaint) with ID: {}", fhirId);
+        return dto;
     }
 
-    // LIST
+    // ✅ List chief complaints for encounter
     public List<ChiefComplaintDto> list(Long patientId, Long encounterId) {
-        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
-                .stream().map(this::toDto).toList();
+        log.debug("Listing FHIR Conditions (chief complaint) for patient: {}, encounter: {}", patientId, encounterId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Condition.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .where(new TokenClientParam("category").exactly()
+                        .systemAndCode("http://terminology.hl7.org/CodeSystem/condition-category", "encounter-diagnosis"))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        return extractChiefComplaintDtos(bundle, patientId, encounterId);
     }
 
-    // GET ONE
+    // ✅ Get one chief complaint
     public ChiefComplaintDto getOne(Long patientId, Long encounterId, Long id) {
-        ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Chief Complaint not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-        return toDto(e);
+        String fhirId = String.valueOf(id);
+        log.debug("Getting FHIR Condition (chief complaint) with ID: {}", fhirId);
+
+        try {
+            Condition condition = fhirClientService.read(Condition.class, fhirId, getPracticeId());
+            return toChiefComplaintDto(condition, patientId, encounterId);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    String.format("Chief Complaint not found with ID: %d for Patient ID: %d and Encounter ID: %d",
+                            id, patientId, encounterId));
+        }
     }
 
-    // UPDATE (blocked if signed)
+    // ✅ Update chief complaint
     public ChiefComplaintDto update(Long patientId, Long encounterId, Long id, ChiefComplaintDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
+        String fhirId = String.valueOf(id);
+        log.info("Updating FHIR Condition (chief complaint) with ID: {}", fhirId);
 
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
-
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-
-        // Step 4: Find the chief complaint
-        ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Chief Complaint not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-
-        // Step 5: Check if chief complaint itself is signed
-        if (Boolean.TRUE.equals(e.getESigned())) {
+        // Check if signed
+        SignMetadata meta = signMetadataCache.get(fhirId);
+        if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed chief complaint is read-only.");
         }
 
-        // Step 6: Update the chief complaint
-        applyEditable(e, dto);
-        e = repo.save(e);
+        Condition condition = toFhirCondition(dto, patientId, encounterId);
+        condition.setId(fhirId);
+        fhirClientService.update(condition, getPracticeId());
 
-        // Step 7: Optional external FHIR sync
-        if (e.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("ChiefComplaint update - storageType for current org: {}", storageType);
-
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR sync for ChiefComplaint ID: {}", e.getId());
-                    ExternalStorage<ChiefComplaintDto> ext = storageResolver.resolve(ChiefComplaintDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                    ChiefComplaintDto snapshot = toDto(e);
-                    ext.update(snapshot, e.getExternalId());
-                    log.info("Updated FHIR resource for ChiefComplaint ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync ChiefComplaint update to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for ChiefComplaint ID: {}", e.getId());
-                    ChiefComplaintDto snapshot = toDto(e);
-                    fhirStorage.update(snapshot, e.getExternalId());
-                    log.info("Updated FHIR resource (fallback) for ChiefComplaint ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync ChiefComplaint update to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ChiefComplaint ID: {}", e.getId());
-            }
-        }
-
-        return toDto(e);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        return dto;
     }
 
-    // DELETE (blocked if signed)
+    // ✅ Delete chief complaint
     public void delete(Long patientId, Long encounterId, Long id) {
-        ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Chief Complaint not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-        if (Boolean.TRUE.equals(e.getESigned())) {
+        String fhirId = String.valueOf(id);
+        log.info("Deleting FHIR Condition (chief complaint) with ID: {}", fhirId);
+
+        // Check if signed
+        SignMetadata meta = signMetadataCache.get(fhirId);
+        if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed chief complaint cannot be deleted.");
         }
 
-        // Optional external FHIR sync
-        if (e.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("ChiefComplaint delete - storageType for current org: {}", storageType);
+        fhirClientService.delete(Condition.class, fhirId, getPracticeId());
+        signMetadataCache.remove(fhirId);
+    }
 
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR delete for ChiefComplaint ID: {}", e.getId());
-                    ExternalStorage<ChiefComplaintDto> ext = storageResolver.resolve(ChiefComplaintDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
+    // ✅ eSign chief complaint
+    public ChiefComplaintDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
+        String fhirId = String.valueOf(id);
+        log.info("E-signing FHIR Condition (chief complaint) with ID: {}", fhirId);
 
-                    ext.delete(e.getExternalId());
-                    log.info("Deleted FHIR resource for ChiefComplaint ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync ChiefComplaint delete to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for ChiefComplaint ID: {}", e.getId());
-                    fhirStorage.delete(e.getExternalId());
-                    log.info("Deleted FHIR resource (fallback) for ChiefComplaint ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync ChiefComplaint delete to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ChiefComplaint ID: {}", e.getId());
-            }
+        SignMetadata meta = signMetadataCache.computeIfAbsent(fhirId, k -> new SignMetadata());
+
+        if (Boolean.TRUE.equals(meta.eSigned)) {
+            return getOne(patientId, encounterId, id);
         }
 
-        repo.delete(e);
+        meta.eSigned = true;
+        meta.signedBy = StringUtils.hasText(signedBy) ? signedBy : "system";
+        meta.signedAt = OffsetDateTime.now(ZoneOffset.UTC);
+
+        ChiefComplaintDto dto = getOne(patientId, encounterId, id);
+        dto.setESigned(meta.eSigned);
+        dto.setSignedAt(meta.signedAt.toString());
+        dto.setSignedBy(meta.signedBy);
+
+        return dto;
     }
 
-    // ESIGN (no request body; idempotent)
-    public ChiefComplaintDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
-        ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Chief Complaint not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
-
-        e.setESigned(true);
-        e.setSignedBy(StringUtils.hasText(signedBy) ? signedBy : "system");
-        e.setSignedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        e = repo.save(e);
-        return toDto(e);
-    }
-
-    // PRINT (PDF) — stamps printedAt
+    // ✅ Render PDF
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
-        ChiefComplaint e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Chief Complaint not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
+        String fhirId = String.valueOf(id);
+        log.info("Rendering PDF for FHIR Condition (chief complaint) with ID: {}", fhirId);
 
-        e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        repo.save(e);
+        ChiefComplaintDto dto = getOne(patientId, encounterId, id);
+
+        // Update print timestamp
+        SignMetadata meta = signMetadataCache.computeIfAbsent(fhirId, k -> new SignMetadata());
+        meta.printedAt = OffsetDateTime.now(ZoneOffset.UTC);
 
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             PDPage page = new PDPage(PDRectangle.LETTER);
@@ -519,29 +206,21 @@ public class ChiefComplaintService {
                 y -= 26;
                 draw(cs, x, y, "Patient ID:", String.valueOf(patientId)); y -= 16;
                 draw(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 16;
-                draw(cs, x, y, "Record ID:", String.valueOf(id)); y -= 20;
+                draw(cs, x, y, "Record ID:", fhirId); y -= 20;
 
-                if (StringUtils.hasText(e.getComplaint())) { draw(cs, x, y, "Complaint:", e.getComplaint()); y -= 16; }
-                if (StringUtils.hasText(e.getSeverity()))  { draw(cs, x, y, "Severity:", e.getSeverity());   y -= 16; }
-                if (StringUtils.hasText(e.getStatus()))    { draw(cs, x, y, "Status:", e.getStatus());       y -= 16; }
+                if (StringUtils.hasText(dto.getComplaint())) { draw(cs, x, y, "Complaint:", dto.getComplaint()); y -= 16; }
+                if (StringUtils.hasText(dto.getSeverity()))  { draw(cs, x, y, "Severity:", dto.getSeverity());   y -= 16; }
+                if (StringUtils.hasText(dto.getStatus()))    { draw(cs, x, y, "Status:", dto.getStatus());       y -= 16; }
 
-                if (StringUtils.hasText(e.getDetails())) {
+                if (StringUtils.hasText(dto.getDetails())) {
                     y -= 8;
-                    draw(cs, x, y, "Details:", ""); y -= 14;
-                    for (String ln : e.getDetails().split("\\R")) {
-                        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12);
-                        cs.newLineAtOffset(x + 16, y); cs.showText(ln); cs.endText(); y -= 14;
-                    }
+                    draw(cs, x, y, "Details:", dto.getDetails()); y -= 14;
                 }
 
                 y -= 10;
-                draw(cs, x, y, "eSigned:", Boolean.TRUE.equals(e.getESigned()) ? "Yes" : "No"); y -= 16;
-                if (e.getSignedAt() != null) { draw(cs, x, y, "Signed At:", e.getSignedAt().format(ISO)); y -= 16; }
-                if (StringUtils.hasText(e.getSignedBy())) { draw(cs, x, y, "Signed By:", e.getSignedBy()); y -= 16; }
-
-                y -= 10;
-                if (e.getCreatedAt() != null) { draw(cs, x, y, "Created:", e.getCreatedAt().toString()); y -= 16; }
-                if (e.getUpdatedAt() != null) { draw(cs, x, y, "Updated:", e.getUpdatedAt().toString()); y -= 16; }
+                draw(cs, x, y, "eSigned:", Boolean.TRUE.equals(meta.eSigned) ? "Yes" : "No"); y -= 16;
+                if (meta.signedAt != null) { draw(cs, x, y, "Signed At:", meta.signedAt.toString()); y -= 16; }
+                if (StringUtils.hasText(meta.signedBy)) { draw(cs, x, y, "Signed By:", meta.signedBy); y -= 16; }
             }
 
             doc.save(baos);
@@ -551,41 +230,119 @@ public class ChiefComplaintService {
         }
     }
 
-    // helpers
+    // ========== FHIR Mapping Methods ==========
+
+    private Condition toFhirCondition(ChiefComplaintDto dto, Long patientId, Long encounterId) {
+        Condition condition = new Condition();
+
+        // Patient reference
+        condition.setSubject(new Reference("Patient/" + patientId));
+
+        // Encounter reference
+        if (encounterId != null) {
+            condition.setEncounter(new Reference("Encounter/" + encounterId));
+        }
+
+        // Category: encounter-diagnosis (for chief complaint)
+        condition.addCategory()
+                .addCoding()
+                .setSystem("http://terminology.hl7.org/CodeSystem/condition-category")
+                .setCode("encounter-diagnosis")
+                .setDisplay("Encounter Diagnosis");
+
+        // Clinical status
+        String status = dto.getStatus() != null ? dto.getStatus().toLowerCase() : "active";
+        condition.setClinicalStatus(new CodeableConcept()
+                .addCoding(new Coding()
+                        .setSystem("http://terminology.hl7.org/CodeSystem/condition-clinical")
+                        .setCode(status)));
+
+        // Verification status
+        condition.setVerificationStatus(new CodeableConcept()
+                .addCoding(new Coding()
+                        .setSystem("http://terminology.hl7.org/CodeSystem/condition-ver-status")
+                        .setCode("confirmed")));
+
+        // Code (complaint as text)
+        if (dto.getComplaint() != null) {
+            condition.setCode(new CodeableConcept().setText(dto.getComplaint()));
+        }
+
+        // Severity
+        if (dto.getSeverity() != null) {
+            condition.setSeverity(new CodeableConcept().setText(dto.getSeverity()));
+        }
+
+        // Note (details)
+        if (dto.getDetails() != null) {
+            condition.addNote().setText(dto.getDetails());
+        }
+
+        return condition;
+    }
+
+    private ChiefComplaintDto toChiefComplaintDto(Condition condition, Long patientId, Long encounterId) {
+        ChiefComplaintDto dto = new ChiefComplaintDto();
+
+        if (condition.hasId()) {
+            dto.setFhirId(condition.getIdElement().getIdPart());
+            dto.setExternalId(condition.getIdElement().getIdPart());
+        }
+
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+
+        // Complaint from code text
+        if (condition.hasCode() && condition.getCode().hasText()) {
+            dto.setComplaint(condition.getCode().getText());
+        }
+
+        // Severity
+        if (condition.hasSeverity() && condition.getSeverity().hasText()) {
+            dto.setSeverity(condition.getSeverity().getText());
+        }
+
+        // Status from clinical status
+        if (condition.hasClinicalStatus() && condition.getClinicalStatus().hasCoding()) {
+            dto.setStatus(condition.getClinicalStatus().getCodingFirstRep().getCode());
+        }
+
+        // Details from note
+        if (condition.hasNote()) {
+            dto.setDetails(condition.getNoteFirstRep().getText());
+        }
+
+        // Check sign metadata
+        String fhirId = dto.getFhirId();
+        if (fhirId != null) {
+            SignMetadata meta = signMetadataCache.get(fhirId);
+            if (meta != null) {
+                dto.setESigned(meta.eSigned);
+                dto.setSignedAt(meta.signedAt != null ? meta.signedAt.toString() : null);
+                dto.setSignedBy(meta.signedBy);
+                dto.setPrintedAt(meta.printedAt != null ? meta.printedAt.toString() : null);
+            }
+        }
+
+        return dto;
+    }
+
+    private List<ChiefComplaintDto> extractChiefComplaintDtos(Bundle bundle, Long patientId, Long encounterId) {
+        List<ChiefComplaintDto> items = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof Condition) {
+                    items.add(toChiefComplaintDto((Condition) entry.getResource(), patientId, encounterId));
+                }
+            }
+        }
+        return items;
+    }
+
+    // ========== PDF Helpers ==========
+
     private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
-    }
-
-    private ChiefComplaintDto toDto(ChiefComplaint e) {
-        ChiefComplaintDto d = new ChiefComplaintDto();
-        d.setId(e.getId());
-        d.setExternalId(e.getExternalId());
-        d.setFhirId(e.getFhirId());
-        d.setPatientId(e.getPatientId());
-        d.setEncounterId(e.getEncounterId());
-        d.setComplaint(e.getComplaint());
-        d.setDetails(e.getDetails());
-        d.setSeverity(e.getSeverity());
-        d.setStatus(e.getStatus());
-        d.setESigned(e.getESigned());
-        d.setSignedAt(e.getSignedAt() != null ? e.getSignedAt().format(ISO) : null);
-        d.setSignedBy(e.getSignedBy());
-        d.setPrintedAt(e.getPrintedAt() != null ? e.getPrintedAt().format(ISO) : null);
-
-        ChiefComplaintDto.Audit a = new ChiefComplaintDto.Audit();
-        if (e.getCreatedAt() != null) a.setCreatedDate(DAY.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-        if (e.getUpdatedAt() != null) a.setLastModifiedDate(DAY.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
-        d.setAudit(a);
-
-        return d;
-    }
-
-    private void applyEditable(ChiefComplaint e, ChiefComplaintDto d) {
-        e.setComplaint(d.getComplaint());
-        e.setDetails(d.getDetails());
-        e.setSeverity(d.getSeverity());
-        e.setStatus(d.getStatus());
-        // eSign fields are set only by eSign()
     }
 }

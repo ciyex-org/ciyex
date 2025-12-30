@@ -1,431 +1,345 @@
-
-
-
-
-
-
-
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.EncounterDto;
-import com.qiaben.ciyex.entity.Encounter;
 import com.qiaben.ciyex.entity.EncounterStatus;
-import com.qiaben.ciyex.repository.EncounterRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
-import java.util.stream.Collectors;
 
+/**
+ * Encounter Service - FHIR Only.
+ * All encounter data is stored in HAPI FHIR server as Encounter resources.
+ */
 @Service
 @Slf4j
 public class EncounterService {
 
-    private final EncounterRepository encounterRepository;
-    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
-    private final ExternalStorageResolver externalStorageResolver;
-    private final OrgIntegrationConfigProvider orgIntegrationConfigProvider;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     @Autowired
-    public EncounterService(EncounterRepository encounterRepository, 
-                           com.qiaben.ciyex.repository.PatientRepository patientRepository,
-                           ExternalStorageResolver externalStorageResolver, 
-                           OrgIntegrationConfigProvider orgIntegrationConfigProvider) {
-        this.encounterRepository = encounterRepository;
-        this.patientRepository = patientRepository;
-        this.externalStorageResolver = externalStorageResolver;
-        this.orgIntegrationConfigProvider = orgIntegrationConfigProvider;
+    public EncounterService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
     }
 
-    @Transactional
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+    // ✅ Create encounter in FHIR
     public EncounterDto createEncounter(Long patientId, EncounterDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
-
-        Encounter encounter = mapToEntity(dto);
-        encounter.setId(null);
-        encounter.setPatientId(patientId);
-        long now = System.currentTimeMillis();
-        encounter.setEncounterDate(dto.getEncounterDate());
-
-        encounter = encounterRepository.save(encounter);
-
-        // External sync
-        String storageType = orgIntegrationConfigProvider.getStorageType();
-        if (!"none".equals(storageType)) {
-            try {
-                log.info("Attempting FHIR sync for Encounter ID: {}", encounter.getId());
-                ExternalStorage<EncounterDto> ext = externalStorageResolver.resolve(EncounterDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                EncounterDto snapshot = mapToDto(encounter);
-                String externalId = ext.create(snapshot);
-                log.info("FHIR create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    encounter.setExternalId(externalId);
-                    encounter = encounterRepository.save(encounter);
-                    log.info("Created FHIR resource for Encounter ID: {} with externalId: {}", encounter.getId(), externalId);
-                } else {
-                    log.warn("FHIR create returned null or empty externalId for Encounter ID: {}", encounter.getId());
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync Encounter to external storage", ex);
-            }
-        }
-
-        if (encounter.getExternalId() == null) {
-            String generatedId = "ENC-" + System.currentTimeMillis();
-            encounter.setExternalId(generatedId);
-            encounter.setFhirId(generatedId);
-            encounter = encounterRepository.save(encounter);
-            log.info("Auto-generated externalId: {}", generatedId);
-        } else {
-            encounter.setFhirId(encounter.getExternalId());
-            encounter = encounterRepository.save(encounter);
-        }
-
-        return mapToDto(encounter);
-    }
-
-    @Transactional(readOnly = true)
-    public List<EncounterDto> listByPatient(Long patientId) {
-        // Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
-        return encounterRepository.findByPatientId(patientId)
-                .stream().map(this::mapToDto).toList();
-    }
-
-    @Transactional(readOnly = true)
-    public EncounterDto getByIdForPatient(Long id, Long patientId) {
-        // Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
-
-        Encounter encounter = encounterRepository
-                .findByIdAndPatientId(id, patientId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct.",
-                        id, patientId)
-                ));
-        return mapToDto(encounter);
-    }
-
-    @Transactional
-    public EncounterDto updateEncounter(Long id, Long patientId, EncounterDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
-
-        // Step 2: Find encounter
-        Encounter encounter = encounterRepository
-                .findByIdAndPatientId(id, patientId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct.",
-                        id, patientId)
-                ));
-
-        // Step 3: Check if encounter is signed - prevent modification
-        validateEncounterNotSigned(id, patientId);
+        String patientFhirId = String.valueOf(patientId);
+        log.info("Creating encounter in FHIR for patient: {}", patientFhirId);
         
-        encounter.setVisitCategory(dto.getVisitCategory());
-        encounter.setEncounterProvider(dto.getEncounterProvider());
-        encounter.setType(dto.getType());
-        encounter.setSensitivity(dto.getSensitivity());
-        encounter.setDischargeDisposition(dto.getDischargeDisposition());
-        encounter.setReasonForVisit(dto.getReasonForVisit());
-        encounter.setEncounterDate(dto.getEncounterDate());
-        encounter = encounterRepository.save(encounter);
-
-        // External sync
-        String storageType = orgIntegrationConfigProvider.getStorageType();
-        if (!"none".equals(storageType)) {
-            ExternalStorage<EncounterDto> ext = externalStorageResolver.resolve(EncounterDto.class);
-            EncounterDto snapshot = mapToDto(encounter);
-            if (encounter.getExternalId() != null) {
-                ext.update(snapshot, encounter.getExternalId());
-            }
-        }
-
-        if (encounter.getExternalId() == null) {
-            String generatedId = "ENC-" + System.currentTimeMillis();
-            encounter.setExternalId(generatedId);
-            encounter.setFhirId(generatedId);
-            encounter = encounterRepository.save(encounter);
-            log.info("Auto-generated externalId for update: {}", generatedId);
-        }
-
-        return mapToDto(encounter);
+        Encounter fhirEncounter = toFhirEncounter(dto, patientFhirId);
+        
+        MethodOutcome outcome = fhirClientService.create(fhirEncounter, getPracticeId());
+        
+        String fhirId = outcome.getId().getIdPart();
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        dto.setPatientId(patientId);
+        
+        log.info("Created FHIR Encounter with ID: {}", fhirId);
+        return dto;
     }
 
-    @Transactional
+    // ✅ List encounters by patient
+    public List<EncounterDto> listByPatient(Long patientId) {
+        String patientFhirId = String.valueOf(patientId);
+        log.debug("Listing FHIR Encounters for patient: {}", patientFhirId);
+        
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Encounter.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientFhirId))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+        
+        return extractEncounters(bundle);
+    }
+
+    // ✅ Get encounter by FHIR ID for patient
+    public EncounterDto getByIdForPatient(Long id, Long patientId) {
+        return getByFhirId(String.valueOf(id));
+    }
+
+    public EncounterDto getByFhirId(String fhirId) {
+        log.debug("Reading FHIR Encounter with ID: {}", fhirId);
+        try {
+            Encounter fhirEncounter = fhirClientService.read(Encounter.class, fhirId, getPracticeId());
+            return toEncounterDto(fhirEncounter);
+        } catch (ResourceNotFoundException e) {
+            throw new IllegalArgumentException("Encounter not found with FHIR ID: " + fhirId);
+        }
+    }
+
+    // ✅ Update encounter in FHIR
+    public EncounterDto updateEncounter(Long id, Long patientId, EncounterDto dto) {
+        String fhirId = String.valueOf(id);
+        String patientFhirId = String.valueOf(patientId);
+        
+        // Check if signed
+        EncounterDto existing = getByFhirId(fhirId);
+        if (existing.getStatus() == EncounterStatus.SIGNED) {
+            throw new IllegalStateException("Cannot modify data for a signed encounter. Please unsign the encounter first.");
+        }
+        
+        log.info("Updating FHIR Encounter with ID: {}", fhirId);
+        
+        Encounter fhirEncounter = toFhirEncounter(dto, patientFhirId);
+        fhirEncounter.setId(fhirId);
+        
+        fhirClientService.update(fhirEncounter, getPracticeId());
+        
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        dto.setPatientId(patientId);
+        
+        log.info("Updated FHIR Encounter with ID: {}", fhirId);
+        return dto;
+    }
+
+    // ✅ Delete encounter from FHIR
     public void deleteEncounter(Long id, Long patientId) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
+        String fhirId = String.valueOf(id);
+        
+        // Check if signed
+        EncounterDto existing = getByFhirId(fhirId);
+        if (existing.getStatus() == EncounterStatus.SIGNED) {
+            throw new IllegalStateException("Cannot delete a signed encounter. Please unsign the encounter first.");
         }
-
-        // Step 2: Find encounter
-        Encounter encounter = encounterRepository
-                .findByIdAndPatientId(id, patientId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct.",
-                        id, patientId)
-                ));
-
-        // Step 3: Check if encounter is signed - prevent modification
-        validateEncounterNotSigned(id, patientId);
-
-        // External sync
-        String storageType = orgIntegrationConfigProvider.getStorageType();
-        if (!"none".equals(storageType) && encounter.getExternalId() != null) {
-            ExternalStorage<EncounterDto> ext = externalStorageResolver.resolve(EncounterDto.class);
-            ext.delete(encounter.getExternalId());
-        }
-
-        encounterRepository.deleteByIdAndPatientId(id, patientId);
+        
+        log.info("Deleting FHIR Encounter with ID: {}", fhirId);
+        fhirClientService.delete(Encounter.class, fhirId, getPracticeId());
+        log.info("Deleted FHIR Encounter with ID: {}", fhirId);
     }
-    @Transactional
+
+    // ✅ Sign encounter
     public EncounterDto signEncounter(Long id, Long patientId) {
-        return updateStatus(id, patientId,  EncounterStatus.SIGNED);
+        return updateEncounterStatus(id, patientId, EncounterStatus.SIGNED);
     }
 
-    @Transactional
+    // ✅ Unsign encounter
     public EncounterDto unsignEncounter(Long id, Long patientId) {
-        return updateStatus(id, patientId,  EncounterStatus.UNSIGNED);
+        return updateEncounterStatus(id, patientId, EncounterStatus.UNSIGNED);
     }
 
-    @Transactional
+    // ✅ Mark incomplete
     public EncounterDto markIncomplete(Long id, Long patientId) {
-        return updateStatus(id, patientId,  EncounterStatus.INCOMPLETE);
+        return updateEncounterStatus(id, patientId, EncounterStatus.INCOMPLETE);
     }
 
-    private EncounterDto updateStatus(Long id, Long patientId,  EncounterStatus status) {
-        // Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
+    private EncounterDto updateEncounterStatus(Long id, Long patientId, EncounterStatus status) {
+        String fhirId = String.valueOf(id);
+        log.info("Updating status for FHIR Encounter with ID: {} to {}", fhirId, status);
+        
+        try {
+            Encounter fhirEncounter = fhirClientService.read(Encounter.class, fhirId, getPracticeId());
+            fhirEncounter.setStatus(mapToFhirStatus(status));
+            fhirClientService.update(fhirEncounter, getPracticeId());
+            return toEncounterDto(fhirEncounter);
+        } catch (ResourceNotFoundException e) {
+            throw new IllegalArgumentException("Encounter not found with FHIR ID: " + fhirId);
         }
-
-        Encounter encounter = encounterRepository
-                .findByIdAndPatientId(id, patientId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct.",
-                        id, patientId)
-                ));
-        encounter.setStatus(status);
-        encounter = encounterRepository.save(encounter);
-
-        // External sync if externalId exists
-        if (encounter.getExternalId() != null) {
-            String storageType = orgIntegrationConfigProvider.getStorageType();
-            if (!"none".equals(storageType)) {
-                try {
-                    ExternalStorage<EncounterDto> ext = externalStorageResolver.resolve(EncounterDto.class);
-                    EncounterDto snapshot = mapToDto(encounter);
-                    ext.update(snapshot, encounter.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync status update to external storage", ex);
-                }
-            }
-        }
-
-        return mapToDto(encounter);
     }
 
-    /**
-     * Checks if an encounter is signed and throws an exception if it is.
-     * This prevents modifications to signed encounters.
-     * @param encounterId the encounter ID to check
-     * @param patientId the patient ID for scoping
-     * @throws IllegalStateException if the encounter is signed
-     * @throws RuntimeException if the encounter is not found
-     */
-    @Transactional(readOnly = true)
+    // ✅ Validate encounter not signed
     public void validateEncounterNotSigned(Long encounterId, Long patientId) {
-        Encounter encounter = encounterRepository
-                .findByIdAndPatientId(encounterId, patientId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct.",
-                        encounterId, patientId)
-                ));
-
-        if (encounter.getStatus() == EncounterStatus.SIGNED) {
+        EncounterDto dto = getByFhirId(String.valueOf(encounterId));
+        if (dto.getStatus() == EncounterStatus.SIGNED) {
             throw new IllegalStateException("Cannot modify data for a signed encounter. Please unsign the encounter first.");
         }
     }
 
-    /**
-     * Gets the status of an encounter
-     * @param encounterId the encounter ID
-     * @param patientId the patient ID for scoping
-     * @return the encounter status
-     */
-    @Transactional(readOnly = true)
+    // ✅ Get encounter status
     public EncounterStatus getEncounterStatus(Long encounterId, Long patientId) {
-        Encounter encounter = encounterRepository
-                .findByIdAndPatientId(encounterId, patientId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct.",
-                        encounterId, patientId)
-                ));
-        return encounter.getStatus() != null ? encounter.getStatus() : EncounterStatus.UNSIGNED;
+        EncounterDto dto = getByFhirId(String.valueOf(encounterId));
+        return dto.getStatus() != null ? dto.getStatus() : EncounterStatus.UNSIGNED;
     }
 
+    // ========== FHIR Mapping Methods ==========
 
+    private Encounter toFhirEncounter(EncounterDto dto, String patientFhirId) {
+        Encounter encounter = new Encounter();
 
+        // Status
+        encounter.setStatus(mapToFhirStatus(dto.getStatus()));
 
+        // Class - ambulatory by default
+        encounter.setClass_(new Coding()
+                .setSystem("http://terminology.hl7.org/CodeSystem/v3-ActCode")
+                .setCode("AMB")
+                .setDisplay("ambulatory"));
 
+        // Subject (Patient reference)
+        encounter.setSubject(new Reference("Patient/" + patientFhirId));
 
+        // Type
+        if (dto.getType() != null) {
+            encounter.addType()
+                    .addCoding()
+                    .setSystem("http://snomed.info/sct")
+                    .setDisplay(dto.getType());
+        }
 
-    // ----- Mappers -----
+        // Visit Category
+        if (dto.getVisitCategory() != null) {
+            encounter.addType()
+                    .setText(dto.getVisitCategory());
+        }
 
-    private Encounter mapToEntity(EncounterDto dto) {
-        Encounter e = new Encounter();
-        e.setId(dto.getId());
-        e.setPatientId(dto.getPatientId()); // will be enforced from path on create
-        e.setVisitCategory(dto.getVisitCategory());
-        e.setEncounterProvider(dto.getEncounterProvider());
-        e.setType(dto.getType());
-        e.setSensitivity(dto.getSensitivity());
-        e.setDischargeDisposition(dto.getDischargeDisposition());
-        e.setReasonForVisit(dto.getReasonForVisit());
-        e.setEncounterDate(dto.getEncounterDate());
-        e.setStatus(dto.getStatus());
-        e.setExternalId(dto.getExternalId());
-        e.setFhirId(dto.getFhirId());
-        return e;
+        // Reason for visit
+        if (dto.getReasonForVisit() != null) {
+            encounter.addReasonCode()
+                    .setText(dto.getReasonForVisit());
+        }
+
+        // Provider (Participant)
+        if (dto.getEncounterProvider() != null) {
+            encounter.addParticipant()
+                    .setIndividual(new Reference().setDisplay(dto.getEncounterProvider()));
+        }
+
+        // Encounter date (Period)
+        if (dto.getEncounterDate() != null) {
+            Period period = new Period();
+            Date encounterDate = Date.from(dto.getEncounterDate().atZone(ZoneId.systemDefault()).toInstant());
+            period.setStart(encounterDate);
+            encounter.setPeriod(period);
+        }
+
+        // Discharge disposition
+        if (dto.getDischargeDisposition() != null) {
+            encounter.getHospitalization()
+                    .getDischargeDisposition()
+                    .setText(dto.getDischargeDisposition());
+        }
+
+        return encounter;
     }
 
-    private EncounterDto mapToDto(Encounter e) {
+    private EncounterDto toEncounterDto(Encounter encounter) {
         EncounterDto dto = new EncounterDto();
-        dto.setId(e.getId());
-        dto.setPatientId(e.getPatientId());
-        dto.setVisitCategory(e.getVisitCategory());
-        dto.setEncounterProvider(e.getEncounterProvider());
-        dto.setType(e.getType());
-        dto.setSensitivity(e.getSensitivity());
-        dto.setDischargeDisposition(e.getDischargeDisposition());
-        dto.setReasonForVisit(e.getReasonForVisit());
-        dto.setEncounterDate(e.getEncounterDate());
 
-        dto.setStatus(e.getStatus());
-        String idValue = e.getFhirId() != null ? e.getFhirId() : ("ENC-" + e.getId());
-        dto.setExternalId(idValue);
-        dto.setFhirId(idValue);
+        // FHIR ID
+        if (encounter.hasId()) {
+            dto.setFhirId(encounter.getIdElement().getIdPart());
+            dto.setExternalId(encounter.getIdElement().getIdPart());
+        }
 
-        EncounterDto.Audit a = new EncounterDto.Audit();
-        if (e.getCreatedDate() != null) a.setCreatedDate(DAY.format(e.getCreatedDate().atZone(ZoneId.systemDefault())));
-        if (e.getLastModifiedDate() != null) a.setLastModifiedDate(DAY.format(e.getLastModifiedDate().atZone(ZoneId.systemDefault())));
-        dto.setAudit(a);
+        // Status
+        dto.setStatus(mapFromFhirStatus(encounter.getStatus()));
+
+        // Patient ID from subject reference
+        if (encounter.hasSubject() && encounter.getSubject().hasReference()) {
+            String ref = encounter.getSubject().getReference();
+            if (ref.startsWith("Patient/")) {
+                try {
+                    dto.setPatientId(Long.parseLong(ref.substring(8)));
+                } catch (NumberFormatException e) {
+                    // FHIR ID is not numeric
+                }
+            }
+        }
+
+        // Type and Visit Category
+        if (encounter.hasType()) {
+            for (CodeableConcept type : encounter.getType()) {
+                if (type.hasCoding()) {
+                    dto.setType(type.getCodingFirstRep().getDisplay());
+                } else if (type.hasText()) {
+                    dto.setVisitCategory(type.getText());
+                }
+            }
+        }
+
+        // Reason for visit
+        if (encounter.hasReasonCode()) {
+            dto.setReasonForVisit(encounter.getReasonCodeFirstRep().getText());
+        }
+
+        // Provider
+        if (encounter.hasParticipant()) {
+            Encounter.EncounterParticipantComponent participant = encounter.getParticipantFirstRep();
+            if (participant.hasIndividual() && participant.getIndividual().hasDisplay()) {
+                dto.setEncounterProvider(participant.getIndividual().getDisplay());
+            }
+        }
+
+        // Encounter date
+        if (encounter.hasPeriod() && encounter.getPeriod().hasStart()) {
+            dto.setEncounterDate(encounter.getPeriod().getStart().toInstant()
+                    .atZone(ZoneId.systemDefault()).toLocalDateTime());
+        }
+
+        // Discharge disposition
+        if (encounter.hasHospitalization() && 
+            encounter.getHospitalization().hasDischargeDisposition()) {
+            dto.setDischargeDisposition(encounter.getHospitalization().getDischargeDisposition().getText());
+        }
 
         return dto;
     }
+
+    private List<EncounterDto> extractEncounters(Bundle bundle) {
+        List<EncounterDto> encounters = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof Encounter) {
+                    encounters.add(toEncounterDto((Encounter) entry.getResource()));
+                }
+            }
+        }
+        return encounters;
+    }
+
+    private Encounter.EncounterStatus mapToFhirStatus(EncounterStatus status) {
+        if (status == null) return Encounter.EncounterStatus.INPROGRESS;
+        return switch (status) {
+            case SIGNED -> Encounter.EncounterStatus.FINISHED;
+            case UNSIGNED -> Encounter.EncounterStatus.INPROGRESS;
+            case INCOMPLETE -> Encounter.EncounterStatus.TRIAGED;
+        };
+    }
+
+    private EncounterStatus mapFromFhirStatus(Encounter.EncounterStatus status) {
+        if (status == null) return EncounterStatus.UNSIGNED;
+        return switch (status) {
+            case FINISHED -> EncounterStatus.SIGNED;
+            case INPROGRESS, ARRIVED, PLANNED -> EncounterStatus.UNSIGNED;
+            default -> EncounterStatus.INCOMPLETE;
+        };
+    }
+
+    private Date parseDate(String dateStr) {
+        if (dateStr == null) return null;
+        try {
+            LocalDate localDate = LocalDate.parse(dateStr, DAY);
+            return Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String formatDate(Date date) {
+        if (date == null) return null;
+        return date.toInstant().atZone(ZoneId.systemDefault())
+                .toLocalDate().format(DAY);
+    }
 }
-
-
-//package com.qiaben.ciyex.service;
-//
-//import com.qiaben.ciyex.dto.EncounterDto;
-//import com.qiaben.ciyex.dto.EncounterReviewRowDto;
-//import com.qiaben.ciyex.entity.Encounter;
-//import com.qiaben.ciyex.entity.EncounterStatus;
-//import com.qiaben.ciyex.mapper.EncounterMapper;
-//import com.qiaben.ciyex.repository.EncounterRepository;
-//import lombok.RequiredArgsConstructor;
-//import org.springframework.data.domain.*;
-//import org.springframework.stereotype.Service;
-//
-//import java.time.Instant;
-//import java.util.*;
-//
-//@Service
-//@RequiredArgsConstructor
-//public class EncounterService {
-//
-//    private final EncounterRepository repo;
-//
-//    public List<EncounterDto> list(Long patientId, EncounterStatus status) {
-//        List<Encounter> list = (status == null)
-
-//                : repo.findByPatientIdAndStatusOrderByIdDesc(patientId, status);
-//        return list.stream().map(EncounterMapper::toDto).toList();
-//    }
-//
-//    public EncounterDto create(Long patientId, EncounterDto dto) {
-//        Encounter e = EncounterMapper.toEntity(dto);
-//        e.setId(null);
-//
-//        e.setPatientId(patientId);
-//        if (e.getStatus() == null) e.setStatus(EncounterStatus.UNSIGNED);
-//        return EncounterMapper.toDto(repo.save(e));
-//    }
-//
-//    public EncounterDto update(Long patientId, Long id, EncounterDto dto) {
-//        Encounter e = repo.findByIdAndPatientId(id, patientId)
-//                .orElseThrow(() -> new NoSuchElementException("Encounter not found"));
-//        e.setVisitCategory(dto.getVisitCategory());
-//        e.setEncounterProvider(dto.getEncounterProvider());
-//        e.setType(dto.getType());
-//        e.setSensitivity(dto.getSensitivity());
-//        e.setDischargeDisposition(dto.getDischargeDisposition());
-//        e.setReasonForVisit(dto.getReasonForVisit());
-//        e.setEncounterDate(dto.getEncounterDate());
-//        return EncounterMapper.toDto(repo.save(e));
-//    }
-//
-//    public void delete(Long patientId, Long id) {
-//        long n = repo.deleteByIdAndPatientId(id, patientId);
-//        if (n == 0) throw new NoSuchElementException("Encounter not found");
-//    }
-//
-//    public EncounterDto mark(Long patientId, Long id, EncounterStatus s) {
-//        Encounter e = repo.findByIdAndPatientId(id, patientId)
-//                .orElseThrow(() -> new NoSuchElementException("Encounter not found"));
-//        e.setStatus(s);
-//        return EncounterMapper.toDto(repo.save(e));
-//    }
-//
-//    public Map<EncounterStatus, Long> reviewCounts(String provider, Instant from, Instant to) {
-//        Map<EncounterStatus, Long> m = new EnumMap<>(EncounterStatus.class);
-
-//            m.put((EncounterStatus) row[0], (Long) row[1]);
-//        }
-//        for (EncounterStatus s : EncounterStatus.values()) m.putIfAbsent(s, 0L);
-//        return m;
-//    }
-//
-//    public Page<EncounterReviewRowDto> reviewList(EncounterStatus status, String provider,
-//                                                  Instant from, Instant to, Pageable pageable) {
-
-//                .map(EncounterMapper::toReviewRow);
-//    }
-//
-//    private static String emptyToNull(String s) { return (s == null || s.isBlank()) ? null : s; }
-//}

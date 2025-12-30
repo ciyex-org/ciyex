@@ -33,4 +33,13 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
     // ✅ Lookup patient by externalId + orgId
     @Query("SELECT p FROM Patient p WHERE p.externalId = :externalId")
     Optional<Patient> findByExternalId(String externalId);
+
+    // ✅ Find patients without FHIR ID (for migration)
+    Page<Patient> findByFhirIdIsNull(Pageable pageable);
+
+    // ✅ Count patients with FHIR ID
+    long countByFhirIdIsNotNull();
+
+    // ✅ Count patients without FHIR ID
+    long countByFhirIdIsNull();
 }

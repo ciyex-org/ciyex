@@ -1,443 +1,421 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.StringClientParam;
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.ProviderDto;
-import com.qiaben.ciyex.entity.Provider;
 import com.qiaben.ciyex.entity.ProviderStatus;
-import com.qiaben.ciyex.repository.ProviderRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Provider Service - FHIR Only.
+ * All provider data is stored in HAPI FHIR server as Practitioner resources.
+ */
 @Service
 @Slf4j
 public class ProviderService {
 
-    private final ProviderRepository repository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
+
+    private static final String IDENTIFIER_SYSTEM_NPI = "http://hl7.org/fhir/sid/us-npi";
+    private static final String IDENTIFIER_SYSTEM_LICENSE = "urn:ciyex:provider:license";
 
     @Autowired
-    public ProviderService(ProviderRepository repository, ExternalStorageResolver storageResolver, OrgIntegrationConfigProvider configProvider) {
-        this.repository = repository;
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
+    public ProviderService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
     }
 
-    @Transactional
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+    // ✅ Create provider in FHIR
     public ProviderDto create(ProviderDto dto) {
-        // Validate the required fields with detailed error message
         validateMandatoryFields(dto);
 
-        // Map DTO to Entity
-        Provider provider = mapToEntity(dto);
-
-
-        String externalId = null;
-
-        String tenantName = getTenantNameSafely();
-
-        // Attempt external storage creation first (FHIR)
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            try {
-                ExternalStorage<ProviderDto> externalStorage = storageResolver.resolve(ProviderDto.class);
-                externalId = externalStorage.create(dto);  // Create in external storage
-                log.info("Successfully created provider in external storage with externalId: {} for orgId: {}", externalId, tenantName);
-            } catch (Exception e) {
-                log.error("Failed to create provider in external storage for orgId: {}, error: {}", tenantName, e.getMessage());
-                // Don't throw exception - continue with database save even if external storage fails
-                log.warn("Continuing with database save despite external storage failure for tenant: {}", tenantName);
-            }
-        }
-
-        // Ensure externalId is set - use from external storage, incoming DTO, or generate fallback
-        if (externalId != null) {
-            provider.setExternalId(externalId);
-        } else if (provider.getExternalId() == null || provider.getExternalId().trim().isEmpty()) {
-            // Generate fallback fhirId if none provided and external storage failed
-            provider.setExternalId("Pd-" + java.util.UUID.randomUUID().toString());
-        }
-
-        // Set audit timestamps for new provider
-        String currentTimestamp = java.time.LocalDateTime.now().toString();
-        provider.setCreatedDate(currentTimestamp);
-        provider.setLastModifiedDate(currentTimestamp);
-
-        // Save to database
-        provider = repository.save(provider);
-        log.info("Created provider with id: {} and externalId: {} in DB for orgId: {}", provider.getId(), externalId, tenantName);
-
-        // Return the DTO of the provider (with externalId)
-        return mapToDto(provider);
+        log.info("Creating provider in FHIR: {} {}", 
+                dto.getIdentification() != null ? dto.getIdentification().getFirstName() : "",
+                dto.getIdentification() != null ? dto.getIdentification().getLastName() : "");
+        
+        Practitioner fhirPractitioner = toFhirPractitioner(dto);
+        
+        MethodOutcome outcome = fhirClientService.create(fhirPractitioner, getPracticeId());
+        
+        String fhirId = outcome.getId().getIdPart();
+        dto.setFhirId(fhirId);
+        
+        log.info("Created FHIR Practitioner with ID: {}", fhirId);
+        return dto;
     }
 
-    @Transactional(readOnly = true)
+    // ✅ Get provider by FHIR ID
     public ProviderDto getById(Long id) {
-        // Fetch provider from the database
-        Provider provider = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
-        String tenantName = getTenantNameSafely();
-        log.debug("Fetched provider from DB: id={}, externalId={}, Tenant={}", provider.getId(), provider.getExternalId(), tenantName);
+        return getByFhirId(String.valueOf(id));
+    }
 
-        // Default mapping from DB data
-        ProviderDto resultDto = mapToDto(provider);
-
-        // If external storage is available, attempt to fetch extended provider details
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && provider.getExternalId() != null) {
-            log.debug("Attempting to fetch extended details for provider id: {} with externalId: {} for orgId: {}", id, provider.getExternalId(), tenantName);
-            ExternalStorage<ProviderDto> externalStorage = storageResolver.resolve(ProviderDto.class);
-
-            try {
-                ProviderDto extendedProviderDto = externalStorage.get(provider.getExternalId());
-
-                if (extendedProviderDto != null) {
-                    log.info("Successfully loaded extended details for provider id: {} from external storage for orgId: {}", id, tenantName);
-                    log.debug("Extended ProviderDto: id={}, fhirId={}={}", extendedProviderDto.getId(), extendedProviderDto.getFhirId(), tenantName);
-
-                    extendedProviderDto.setId(provider.getId()); // Preserve DB ID
-                    // Manually map fields from Provider to extendedProviderDto
-                    populateIdentification(provider, extendedProviderDto);
-                    populateProfessionalDetails(provider, extendedProviderDto);
-
-                    // Ensure NPI is set if missing from extended data
-                    if (extendedProviderDto.getNpi() == null) {
-                        extendedProviderDto.setNpi(provider.getNpi());
-                    }
-
-                    resultDto = extendedProviderDto;
-                } else {
-                    log.warn("No extended details found in external storage for provider id: {} with externalId: {} for orgId: {}", id, provider.getExternalId(), tenantName);
-                }
-            } catch (Exception e) {
-                log.error("Failed to fetch extended details from external storage for provider id: {} with externalId: {}, error: {}", id, provider.getExternalId(), e.getMessage());
-            }
+    public ProviderDto getByFhirId(String fhirId) {
+        log.debug("Reading FHIR Practitioner with ID: {}", fhirId);
+        try {
+            Practitioner fhirPractitioner = fhirClientService.read(Practitioner.class, fhirId, getPracticeId());
+            return toProviderDto(fhirPractitioner);
+        } catch (ResourceNotFoundException e) {
+            throw new RuntimeException("Provider not found with FHIR ID: " + fhirId);
         }
-
-        log.info("Returning provider dto for id: {} and orgId: {}", id, tenantName);
-        log.debug("Returning ProviderDto: id={}, fhirId={}={}", resultDto.getId(), resultDto.getFhirId(), tenantName);
-
-        return resultDto;
     }
 
-    // Method to populate identification fields
-    private void populateIdentification(Provider provider, ProviderDto extendedProviderDto) {
-        ProviderDto.Identification identification = new ProviderDto.Identification();
-        identification.setFirstName(provider.getFirstName());
-        identification.setLastName(provider.getLastName());
-        identification.setMiddleName(provider.getMiddleName());
-        identification.setPrefix(provider.getPrefix());
-        identification.setSuffix(provider.getSuffix());
-        identification.setGender(provider.getGender());
-        identification.setDateOfBirth(provider.getDateOfBirth());
-        identification.setPhoto(provider.getPhoto());
-
-        extendedProviderDto.setIdentification(identification);
-    }
-
-    // Method to populate professional details fields
-    private void populateProfessionalDetails(Provider provider, ProviderDto extendedProviderDto) {
-        ProviderDto.ProfessionalDetails professionalDetails = new ProviderDto.ProfessionalDetails();
-        professionalDetails.setSpecialty(provider.getSpecialty());
-        professionalDetails.setProviderType(provider.getProviderType());
-        professionalDetails.setLicenseNumber(provider.getLicenseNumber());
-        professionalDetails.setLicenseState(provider.getLicenseState());
-        professionalDetails.setLicenseExpiry(provider.getLicenseExpiry());
-
-        extendedProviderDto.setProfessionalDetails(professionalDetails);
-    }
-
-    @Transactional
+    // ✅ Update provider in FHIR
     public ProviderDto update(Long id, ProviderDto dto) {
-        Provider provider = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
-
-        // Update NPI only if provided
-        if (dto.getNpi() != null) {
-            provider.setNpi(dto.getNpi());
-        }
-
-        if (dto.getIdentification() != null) {
-            if (dto.getIdentification().getFirstName() != null) provider.setFirstName(dto.getIdentification().getFirstName());
-            if (dto.getIdentification().getLastName() != null) provider.setLastName(dto.getIdentification().getLastName());
-            if (dto.getIdentification().getMiddleName() != null) provider.setMiddleName(dto.getIdentification().getMiddleName());
-            if (dto.getIdentification().getPrefix() != null) provider.setPrefix(dto.getIdentification().getPrefix());
-            if (dto.getIdentification().getSuffix() != null) provider.setSuffix(dto.getIdentification().getSuffix());
-            if (dto.getIdentification().getGender() != null) provider.setGender(dto.getIdentification().getGender());
-            if (dto.getIdentification().getDateOfBirth() != null) provider.setDateOfBirth(dto.getIdentification().getDateOfBirth());
-            if (dto.getIdentification().getPhoto() != null) provider.setPhoto(dto.getIdentification().getPhoto());
-        }
-        if (dto.getContact() != null) {
-            if (dto.getContact().getEmail() != null) provider.setEmail(dto.getContact().getEmail());
-            if (dto.getContact().getPhoneNumber() != null) provider.setPhoneNumber(dto.getContact().getPhoneNumber());
-            if (dto.getContact().getMobileNumber() != null) provider.setMobileNumber(dto.getContact().getMobileNumber());
-            if (dto.getContact().getFaxNumber() != null) provider.setFaxNumber(dto.getContact().getFaxNumber());
-            if (dto.getContact().getAddress() != null) provider.setAddress(dto.getContact().getAddress().toString());
-        }
-        if (dto.getProfessionalDetails() != null) {
-            if (dto.getProfessionalDetails().getSpecialty() != null) provider.setSpecialty(dto.getProfessionalDetails().getSpecialty());
-            if (dto.getProfessionalDetails().getProviderType() != null) provider.setProviderType(dto.getProfessionalDetails().getProviderType());
-            if (dto.getProfessionalDetails().getLicenseNumber() != null) provider.setLicenseNumber(dto.getProfessionalDetails().getLicenseNumber());
-            if (dto.getProfessionalDetails().getLicenseState() != null) provider.setLicenseState(dto.getProfessionalDetails().getLicenseState());
-            if (dto.getProfessionalDetails().getLicenseExpiry() != null) provider.setLicenseExpiry(dto.getProfessionalDetails().getLicenseExpiry());
-        }
-
-        // Update SystemAccess status if provided
-        if (dto.getSystemAccess() != null && dto.getSystemAccess().getStatus() != null) {
-            provider.setStatus(dto.getSystemAccess().getStatus());
-        }
-
-        String tenantName = getTenantNameSafely();
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && provider.getExternalId() != null) {
-            try {
-                ExternalStorage<ProviderDto> externalStorage = storageResolver.resolve(ProviderDto.class);
-                externalStorage.update(dto, provider.getExternalId());
-                log.info("Successfully updated provider with id: {} and externalId: {} in external storage for orgId: {}", provider.getId(), provider.getExternalId(), tenantName);
-            } catch (Exception e) {
-                log.error("Failed to update provider in external storage for orgId: {}, error: {}", tenantName, e.getMessage());
-                // Don't throw exception - continue with database save even if external storage fails
-                log.warn("Continuing with database update despite external storage failure for tenant: {}", tenantName);
-            }
-        }
-
-        Provider updatedProvider = repository.save(provider);
-        return mapToDto(updatedProvider);
+        return updateByFhirId(String.valueOf(id), dto);
     }
 
-    @Transactional
+    public ProviderDto updateByFhirId(String fhirId, ProviderDto dto) {
+        log.info("Updating FHIR Practitioner with ID: {}", fhirId);
+        
+        Practitioner fhirPractitioner = toFhirPractitioner(dto);
+        fhirPractitioner.setId(fhirId);
+        
+        fhirClientService.update(fhirPractitioner, getPracticeId());
+        
+        dto.setFhirId(fhirId);
+        
+        log.info("Updated FHIR Practitioner with ID: {}", fhirId);
+        return dto;
+    }
+
+    // ✅ Delete provider from FHIR
     public void delete(Long id) {
-        Provider provider = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
-
-        String tenantName = getTenantNameSafely();
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && provider.getExternalId() != null) {
-            try {
-                ExternalStorage<ProviderDto> externalStorage = storageResolver.resolve(ProviderDto.class);
-                externalStorage.delete(provider.getExternalId());
-                log.info("Successfully deleted provider with id: {} and externalId: {} from external storage for orgId: {}", provider.getId(), provider.getExternalId(), tenantName);
-            } catch (Exception e) {
-                log.error("Failed to delete provider from external storage for orgId: {}, error: {}", tenantName, e.getMessage());
-                // Don't throw exception - continue with database deletion even if external storage fails
-                log.warn("Continuing with database deletion despite external storage failure for tenant: {}", tenantName);
-            }
-        }
-
-        // Delete from database
-        repository.delete(provider);
-        log.info("Deleted provider with id: {} from DB for orgId: {}", id, tenantName);
+        deleteByFhirId(String.valueOf(id));
     }
 
-    @Transactional(readOnly = true)
+    public void deleteByFhirId(String fhirId) {
+        log.info("Deleting FHIR Practitioner with ID: {}", fhirId);
+        fhirClientService.delete(Practitioner.class, fhirId, getPracticeId());
+        log.info("Deleted FHIR Practitioner with ID: {}", fhirId);
+    }
+
+    // ✅ Get all providers from FHIR
     public ApiResponse<List<ProviderDto>> getAllProviders() {
-        // Fetch all providers directly from the database
-        List<Provider> providers = repository.findAll();
-        String tenantName = getTenantNameSafely();
-        log.info("Retrieved {} providers from DB for orgId: {}", providers.size(), tenantName);
-        List<ProviderDto> providerDtos = providers.stream().map(this::mapToDto).collect(Collectors.toList());
+        log.debug("Getting all FHIR Practitioners for practice {}", getPracticeId());
+        
+        Bundle bundle = fhirClientService.search(Practitioner.class, getPracticeId());
+        List<ProviderDto> dtos = extractPractitioners(bundle);
 
         return ApiResponse.<List<ProviderDto>>builder()
                 .success(true)
-                .message("Providers retrieved successfully")
-                .data(providerDtos)
+                .message("Providers retrieved successfully from FHIR")
+                .data(dtos)
                 .build();
     }
 
-    private Provider mapToEntity(ProviderDto dto) {
-        Provider provider = new Provider();
-        provider.setNpi(dto.getNpi());
-        if (dto.getIdentification() != null) {
-            provider.setFirstName(dto.getIdentification().getFirstName());
-            provider.setLastName(dto.getIdentification().getLastName());
-            provider.setMiddleName(dto.getIdentification().getMiddleName());
-            provider.setPrefix(dto.getIdentification().getPrefix());
-            provider.setSuffix(dto.getIdentification().getSuffix());
-            provider.setGender(dto.getIdentification().getGender());
-            provider.setDateOfBirth(dto.getIdentification().getDateOfBirth());
-            provider.setPhoto(dto.getIdentification().getPhoto());
-        }
-        if (dto.getContact() != null) {
-            provider.setEmail(dto.getContact().getEmail());
-            provider.setPhoneNumber(dto.getContact().getPhoneNumber());
-            provider.setMobileNumber(dto.getContact().getMobileNumber());
-            provider.setFaxNumber(dto.getContact().getFaxNumber());
-            
-            // Serialize address object to JSON string for storage
-            if (dto.getContact().getAddress() != null) {
-                try {
-                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                    provider.setAddress(mapper.writeValueAsString(dto.getContact().getAddress()));
-                } catch (Exception e) {
-                    provider.setAddress(null);
-                }
-            } else {
-                provider.setAddress(null);
-            }
-        }
-        if (dto.getProfessionalDetails() != null) {
-            provider.setSpecialty(dto.getProfessionalDetails().getSpecialty());
-            provider.setProviderType(dto.getProfessionalDetails().getProviderType());
-            provider.setLicenseNumber(dto.getProfessionalDetails().getLicenseNumber());
-            provider.setLicenseState(dto.getProfessionalDetails().getLicenseState());
-            provider.setLicenseExpiry(dto.getProfessionalDetails().getLicenseExpiry());
-        }
-        
-        // Handle incoming fhirId
-        if (dto.getFhirId() != null && !dto.getFhirId().trim().isEmpty()) {
-            provider.setExternalId(dto.getFhirId());
-        }
-        
-        return provider;
+    // ✅ Get provider count
+    public long getProviderCount() {
+        Bundle bundle = fhirClientService.search(Practitioner.class, getPracticeId());
+        return bundle.getTotal();
     }
 
-    private ProviderDto mapToDto(Provider provider) {
-        ProviderDto dto = new ProviderDto();
-        dto.setId(provider.getId());
-        dto.setNpi(provider.getNpi());
+    // ✅ Update status (active/inactive in FHIR)
+    public ProviderDto updateStatus(Long id, ProviderStatus status) {
+        String fhirId = String.valueOf(id);
+        log.info("Updating status for FHIR Practitioner with ID: {} to {}", fhirId, status);
+        
+        try {
+            Practitioner fhirPractitioner = fhirClientService.read(Practitioner.class, fhirId, getPracticeId());
+            fhirPractitioner.setActive(status == ProviderStatus.ACTIVE);
+            fhirClientService.update(fhirPractitioner, getPracticeId());
+            return toProviderDto(fhirPractitioner);
+        } catch (ResourceNotFoundException e) {
+            throw new RuntimeException("Provider not found with FHIR ID: " + fhirId);
+        }
+    }
 
-        // ✅ Always populate Identification (avoid nulls)
+    public boolean resetProviderPassword(Long providerId, String newPassword) {
+        log.info("Password reset requested for provider id: {}", providerId);
+        return true;
+    }
+
+    // ========== FHIR Mapping Methods ==========
+
+    private Practitioner toFhirPractitioner(ProviderDto dto) {
+        Practitioner practitioner = new Practitioner();
+
+        // NPI Identifier
+        if (dto.getNpi() != null) {
+            practitioner.addIdentifier()
+                    .setSystem(IDENTIFIER_SYSTEM_NPI)
+                    .setValue(dto.getNpi())
+                    .setUse(Identifier.IdentifierUse.OFFICIAL);
+        }
+
+        // License Identifier
+        if (dto.getProfessionalDetails() != null && dto.getProfessionalDetails().getLicenseNumber() != null) {
+            practitioner.addIdentifier()
+                    .setSystem(IDENTIFIER_SYSTEM_LICENSE)
+                    .setValue(dto.getProfessionalDetails().getLicenseNumber());
+        }
+
+        // Name
+        if (dto.getIdentification() != null) {
+            HumanName name = practitioner.addName().setUse(HumanName.NameUse.OFFICIAL);
+            if (dto.getIdentification().getLastName() != null) {
+                name.setFamily(dto.getIdentification().getLastName());
+            }
+            if (dto.getIdentification().getFirstName() != null) {
+                name.addGiven(dto.getIdentification().getFirstName());
+            }
+            if (dto.getIdentification().getMiddleName() != null) {
+                name.addGiven(dto.getIdentification().getMiddleName());
+            }
+            if (dto.getIdentification().getPrefix() != null) {
+                name.addPrefix(dto.getIdentification().getPrefix());
+            }
+            if (dto.getIdentification().getSuffix() != null) {
+                name.addSuffix(dto.getIdentification().getSuffix());
+            }
+
+            // Gender
+            if (dto.getIdentification().getGender() != null) {
+                practitioner.setGender(mapGender(dto.getIdentification().getGender()));
+            }
+
+            // Birth Date
+            if (dto.getIdentification().getDateOfBirth() != null) {
+                practitioner.setBirthDate(parseDate(dto.getIdentification().getDateOfBirth()));
+            }
+        }
+
+        // Contact Info
+        if (dto.getContact() != null) {
+            if (dto.getContact().getPhoneNumber() != null) {
+                practitioner.addTelecom()
+                        .setSystem(ContactPoint.ContactPointSystem.PHONE)
+                        .setValue(dto.getContact().getPhoneNumber())
+                        .setUse(ContactPoint.ContactPointUse.WORK);
+            }
+            if (dto.getContact().getMobileNumber() != null) {
+                practitioner.addTelecom()
+                        .setSystem(ContactPoint.ContactPointSystem.PHONE)
+                        .setValue(dto.getContact().getMobileNumber())
+                        .setUse(ContactPoint.ContactPointUse.MOBILE);
+            }
+            if (dto.getContact().getFaxNumber() != null) {
+                practitioner.addTelecom()
+                        .setSystem(ContactPoint.ContactPointSystem.FAX)
+                        .setValue(dto.getContact().getFaxNumber())
+                        .setUse(ContactPoint.ContactPointUse.WORK);
+            }
+            if (dto.getContact().getEmail() != null) {
+                practitioner.addTelecom()
+                        .setSystem(ContactPoint.ContactPointSystem.EMAIL)
+                        .setValue(dto.getContact().getEmail())
+                        .setUse(ContactPoint.ContactPointUse.WORK);
+            }
+
+            // Address
+            if (dto.getContact().getAddress() != null) {
+                ProviderDto.Contact.Address addr = dto.getContact().getAddress();
+                Address fhirAddr = practitioner.addAddress().setUse(Address.AddressUse.WORK);
+                if (addr.getStreet() != null) fhirAddr.addLine(addr.getStreet());
+                if (addr.getCity() != null) fhirAddr.setCity(addr.getCity());
+                if (addr.getState() != null) fhirAddr.setState(addr.getState());
+                if (addr.getPostalCode() != null) fhirAddr.setPostalCode(addr.getPostalCode());
+                if (addr.getCountry() != null) fhirAddr.setCountry(addr.getCountry());
+            }
+        }
+
+        // Qualification (specialty, license)
+        if (dto.getProfessionalDetails() != null) {
+            Practitioner.PractitionerQualificationComponent qual = practitioner.addQualification();
+            CodeableConcept code = qual.getCode();
+            if (dto.getProfessionalDetails().getSpecialty() != null) {
+                code.setText(dto.getProfessionalDetails().getSpecialty());
+            }
+            if (dto.getProfessionalDetails().getLicenseState() != null) {
+                qual.setIssuer(new Reference().setDisplay(dto.getProfessionalDetails().getLicenseState()));
+            }
+        }
+
+        // Status
+        if (dto.getSystemAccess() != null && dto.getSystemAccess().getStatus() != null) {
+            practitioner.setActive(dto.getSystemAccess().getStatus() == ProviderStatus.ACTIVE);
+        } else {
+            practitioner.setActive(true);
+        }
+
+        return practitioner;
+    }
+
+    private ProviderDto toProviderDto(Practitioner practitioner) {
+        ProviderDto dto = new ProviderDto();
+
+        // FHIR ID
+        if (practitioner.hasId()) {
+            dto.setFhirId(practitioner.getIdElement().getIdPart());
+        }
+
+        // Identifiers
+        for (Identifier identifier : practitioner.getIdentifier()) {
+            if (IDENTIFIER_SYSTEM_NPI.equals(identifier.getSystem())) {
+                dto.setNpi(identifier.getValue());
+            }
+        }
+
+        // Name
         ProviderDto.Identification identification = new ProviderDto.Identification();
-        identification.setFirstName(provider.getFirstName() != null ? provider.getFirstName() : "");
-        identification.setLastName(provider.getLastName() != null ? provider.getLastName() : "");
-        identification.setMiddleName(provider.getMiddleName());
-        identification.setPrefix(provider.getPrefix());
-        identification.setSuffix(provider.getSuffix());
-        identification.setGender(provider.getGender());
-        identification.setDateOfBirth(provider.getDateOfBirth());
-        identification.setPhoto(provider.getPhoto());
+        if (practitioner.hasName()) {
+            HumanName name = practitioner.getNameFirstRep();
+            identification.setLastName(name.getFamily());
+            if (!name.getGiven().isEmpty()) {
+                identification.setFirstName(name.getGiven().get(0).getValue());
+            }
+            if (name.getGiven().size() > 1) {
+                identification.setMiddleName(name.getGiven().get(1).getValue());
+            }
+            if (!name.getPrefix().isEmpty()) {
+                identification.setPrefix(name.getPrefix().get(0).getValue());
+            }
+            if (!name.getSuffix().isEmpty()) {
+                identification.setSuffix(name.getSuffix().get(0).getValue());
+            }
+        }
+
+        // Gender
+        if (practitioner.hasGender()) {
+            identification.setGender(mapGenderToString(practitioner.getGender()));
+        }
+
+        // Birth Date
+        if (practitioner.hasBirthDate()) {
+            identification.setDateOfBirth(formatDate(practitioner.getBirthDate()));
+        }
         dto.setIdentification(identification);
 
-        // ✅ Contact - Always create contact object to avoid null
+        // Contact Info
         ProviderDto.Contact contact = new ProviderDto.Contact();
-        contact.setEmail(provider.getEmail());
-        contact.setPhoneNumber(provider.getPhoneNumber());
-        contact.setMobileNumber(provider.getMobileNumber());
-        contact.setFaxNumber(provider.getFaxNumber());
-
-        // Deserialize address JSON back to individual fields
-        ProviderDto.Contact.Address address = new ProviderDto.Contact.Address();
-        if (provider.getAddress() != null && !provider.getAddress().isEmpty()) {
-            try {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                ProviderDto.Contact.Address savedAddress = mapper.readValue(provider.getAddress(), ProviderDto.Contact.Address.class);
-                address.setStreet(savedAddress.getStreet());
-                address.setCity(savedAddress.getCity());
-                address.setState(savedAddress.getState());
-                address.setPostalCode(savedAddress.getPostalCode());
-                address.setCountry(savedAddress.getCountry());
-            } catch (Exception e) {
-                // If JSON parsing fails, set all fields to null
-                address.setStreet(null);
-                address.setCity(null);
-                address.setState(null);
-                address.setPostalCode(null);
-                address.setCountry(null);
+        for (ContactPoint telecom : practitioner.getTelecom()) {
+            switch (telecom.getSystem()) {
+                case PHONE -> {
+                    if (telecom.getUse() == ContactPoint.ContactPointUse.MOBILE) {
+                        contact.setMobileNumber(telecom.getValue());
+                    } else {
+                        contact.setPhoneNumber(telecom.getValue());
+                    }
+                }
+                case FAX -> contact.setFaxNumber(telecom.getValue());
+                case EMAIL -> contact.setEmail(telecom.getValue());
+                default -> {}
             }
-        } else {
-            address.setStreet(null);
-            address.setCity(null);
-            address.setState(null);
-            address.setPostalCode(null);
-            address.setCountry(null);
         }
-        contact.setAddress(address);
-        
+
+        // Address
+        if (practitioner.hasAddress()) {
+            Address fhirAddr = practitioner.getAddressFirstRep();
+            ProviderDto.Contact.Address addr = new ProviderDto.Contact.Address();
+            if (fhirAddr.hasLine() && !fhirAddr.getLine().isEmpty()) {
+                addr.setStreet(fhirAddr.getLine().get(0).getValue());
+            }
+            addr.setCity(fhirAddr.getCity());
+            addr.setState(fhirAddr.getState());
+            addr.setPostalCode(fhirAddr.getPostalCode());
+            addr.setCountry(fhirAddr.getCountry());
+            contact.setAddress(addr);
+        }
         dto.setContact(contact);
 
-        // ✅ Professional Details
-        if (provider.getSpecialty() != null || provider.getLicenseNumber() != null) {
-            ProviderDto.ProfessionalDetails professionalDetails = new ProviderDto.ProfessionalDetails();
-            professionalDetails.setSpecialty(provider.getSpecialty());
-            professionalDetails.setProviderType(provider.getProviderType());
-            professionalDetails.setLicenseNumber(provider.getLicenseNumber());
-            professionalDetails.setLicenseState(provider.getLicenseState());
-            professionalDetails.setLicenseExpiry(provider.getLicenseExpiry());
-            dto.setProfessionalDetails(professionalDetails);
+        // Professional Details
+        ProviderDto.ProfessionalDetails profDetails = new ProviderDto.ProfessionalDetails();
+        if (practitioner.hasQualification()) {
+            Practitioner.PractitionerQualificationComponent qual = practitioner.getQualificationFirstRep();
+            if (qual.hasCode() && qual.getCode().hasText()) {
+                profDetails.setSpecialty(qual.getCode().getText());
+            }
+            if (qual.hasIssuer() && qual.getIssuer().hasDisplay()) {
+                profDetails.setLicenseState(qual.getIssuer().getDisplay());
+            }
         }
+        for (Identifier identifier : practitioner.getIdentifier()) {
+            if (IDENTIFIER_SYSTEM_LICENSE.equals(identifier.getSystem())) {
+                profDetails.setLicenseNumber(identifier.getValue());
+            }
+        }
+        dto.setProfessionalDetails(profDetails);
 
-        // ✅ FHIR/External ID - Always set, even if null
-        dto.setFhirId(provider.getExternalId());
-
-        // ✅ Audit - Always create audit object to avoid null
-        ProviderDto.Audit audit = new ProviderDto.Audit();
-        audit.setCreatedDate(provider.getCreatedDate());
-        audit.setLastModifiedDate(provider.getLastModifiedDate());
-        dto.setAudit(audit);
-
-        // ✅ System Access
+        // System Access
         ProviderDto.SystemAccess systemAccess = new ProviderDto.SystemAccess();
-        systemAccess.setStatus(provider.getStatus());
+        systemAccess.setStatus(practitioner.getActive() ? ProviderStatus.ACTIVE : ProviderStatus.ARCHIVED);
         dto.setSystemAccess(systemAccess);
 
         return dto;
     }
 
-
-
-
-    @Transactional(readOnly = true)
-    public long getProviderCount() {
-        // You might want to add security checks here if needed
-        return repository.count();
+    private List<ProviderDto> extractPractitioners(Bundle bundle) {
+        List<ProviderDto> providers = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof Practitioner) {
+                    providers.add(toProviderDto((Practitioner) entry.getResource()));
+                }
+            }
+        }
+        return providers;
     }
 
-    @Transactional
-
-    public ProviderDto updateStatus(Long id, ProviderStatus status) {
-        Provider provider = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Provider not found with id: " + id));
-        provider.setStatus(status);
-        return mapToDto(repository.save(provider));
+    private Enumerations.AdministrativeGender mapGender(String gender) {
+        if (gender == null) return Enumerations.AdministrativeGender.UNKNOWN;
+        return switch (gender.toLowerCase()) {
+            case "male", "m" -> Enumerations.AdministrativeGender.MALE;
+            case "female", "f" -> Enumerations.AdministrativeGender.FEMALE;
+            case "other", "o" -> Enumerations.AdministrativeGender.OTHER;
+            default -> Enumerations.AdministrativeGender.UNKNOWN;
+        };
     }
 
-    @Transactional
-    public boolean resetProviderPassword(Long providerId, String newPassword) {
-
-        Provider provider = repository.findById(providerId)
-                .orElseThrow(() -> new RuntimeException("Provider not found with id: " + providerId));
-        // Implementation depends on your password storage strategy
-        // This is a placeholder - you should implement proper password hashing
-        log.info("Password reset requested for provider id: {} in org: {}", providerId, getTenantNameSafely());
-
-        return true; // Return success status
+    private String mapGenderToString(Enumerations.AdministrativeGender gender) {
+        return switch (gender) {
+            case MALE -> "Male";
+            case FEMALE -> "Female";
+            case OTHER -> "Other";
+            default -> "Unknown";
+        };
     }
 
-    /**
-     * Safely get tenant name from RequestContext, returning a default value if context is null
-     */
-    private String getTenantNameSafely() {
+    private Date parseDate(String dateStr) {
+        if (dateStr == null) return null;
         try {
-            RequestContext context = RequestContext.get();
-            return (context != null && context.getTenantName() != null) ? context.getTenantName() : "default";
+            LocalDate localDate = LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE);
+            return Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
         } catch (Exception e) {
-            log.warn("Failed to get tenant name from RequestContext: {}", e.getMessage());
-            return "default";
+            return null;
         }
     }
 
-    /**
-     * Validate mandatory fields for Provider creation
-     */
+    private String formatDate(Date date) {
+        if (date == null) return null;
+        return date.toInstant().atZone(ZoneId.systemDefault())
+                .toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
+    }
+
     private void validateMandatoryFields(ProviderDto dto) {
         StringBuilder errors = new StringBuilder();
 
-        // Check NPI first
         if (dto.getNpi() == null || dto.getNpi().trim().isEmpty()) {
             errors.append("npi, ");
         }
 
-        // Check identification fields
         if (dto.getIdentification() == null) {
             errors.append("firstName, lastName, ");
         } else {
@@ -449,25 +427,14 @@ public class ProviderService {
             }
         }
 
-        // Check contact fields
-        if (dto.getContact() == null) {
+        if (dto.getContact() == null || dto.getContact().getMobileNumber() == null || dto.getContact().getMobileNumber().trim().isEmpty()) {
             errors.append("mobileNumber, ");
-        } else {
-            if (dto.getContact().getMobileNumber() == null || dto.getContact().getMobileNumber().trim().isEmpty()) {
-                errors.append("mobileNumber, ");
-            }
         }
 
-        // Check system access fields
-        if (dto.getSystemAccess() == null) {
+        if (dto.getSystemAccess() == null || dto.getSystemAccess().getStatus() == null) {
             errors.append("status, ");
-        } else {
-            if (dto.getSystemAccess().getStatus() == null) {
-                errors.append("status, ");
-            }
         }
 
-        // Check professional details fields
         if (dto.getProfessionalDetails() == null) {
             errors.append("specialty, providertype, licenseNumber, ");
         } else {
@@ -483,10 +450,8 @@ public class ProviderService {
         }
 
         if (errors.length() > 0) {
-            // Remove trailing comma and space
             String missingFields = errors.substring(0, errors.length() - 2);
             throw new IllegalArgumentException("Missing mandatory fields: " + missingFields);
         }
     }
-
 }

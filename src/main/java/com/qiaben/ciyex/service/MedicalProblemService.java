@@ -1,138 +1,197 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
+import ca.uhn.fhir.rest.gclient.TokenClientParam;
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.ApiResponse;
-import com.qiaben.ciyex.exception.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.MedicalProblemDto;
-import com.qiaben.ciyex.entity.MedicalProblem;
-import com.qiaben.ciyex.repository.MedicalProblemRepository;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * MedicalProblem Service - FHIR Only.
+ * All medical problem data is stored in HAPI FHIR server as Condition resources.
+ */
 @Service
 @Slf4j
 public class MedicalProblemService {
 
-    private final MedicalProblemRepository repo;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    public MedicalProblemService(MedicalProblemRepository repo) {
-        this.repo = repo;
+    private static final String CONDITION_CATEGORY_PROBLEM = "problem-list-item";
+
+    @Autowired
+    public MedicalProblemService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
+        this.fhirClientService = fhirClientService;
+        this.practiceContextService = practiceContextService;
     }
 
-    /* -------- Create -------- */
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
 
-    @Transactional
+    // ✅ Create medical problems for a patient
     public MedicalProblemDto create(MedicalProblemDto dto) {
         if (dto.getPatientId() == null)
             throw new IllegalArgumentException("patientId is required");
 
-        List<MedicalProblem> rows = new ArrayList<>();
+        log.info("Creating medical problems in FHIR for patient: {}", dto.getPatientId());
+
+        List<MedicalProblemDto.MedicalProblemItem> createdItems = new ArrayList<>();
 
         if (dto.getProblemsList() != null) {
-            for (var it : dto.getProblemsList()) {
-                // Auto-generate external ID if not provided
-                String externalId = it.getExternalId();
-                if (externalId == null || externalId.isBlank()) {
-                    externalId = "MP-" + java.util.UUID.randomUUID().toString();
-                }
-                
-                MedicalProblem row = MedicalProblem.builder()
-                        .patientId(dto.getPatientId())
-                        .title(it.getTitle())
-                        .outcome(it.getOutcome())
-                        .verificationStatus(it.getVerificationStatus())
-                        .occurrence(it.getOccurrence())
-                        .note(it.getNote())
-                        .externalId(externalId)
-                        .build();
-                rows.add(repo.save(row));
+            for (var item : dto.getProblemsList()) {
+                Condition fhirCondition = toFhirCondition(item, dto.getPatientId());
+                MethodOutcome outcome = fhirClientService.create(fhirCondition, getPracticeId());
+                String fhirId = outcome.getId().getIdPart();
+
+                item.setFhirId(fhirId);
+                item.setExternalId(fhirId);
+                item.setPatientId(dto.getPatientId());
+                createdItems.add(item);
+
+                log.info("Created FHIR Condition (problem) with ID: {}", fhirId);
             }
         }
 
-        return toDto(dto.getPatientId(), rows, true);
+        MedicalProblemDto result = new MedicalProblemDto();
+        result.setPatientId(dto.getPatientId());
+        result.setProblemsList(createdItems);
+        if (!createdItems.isEmpty()) {
+            result.setFhirId(createdItems.get(0).getFhirId());
+            result.setExternalId(createdItems.get(0).getFhirId());
+        }
+        return result;
     }
 
-    /* -------- Get by Patient -------- */
-
-    @Transactional(readOnly = true)
+    // ✅ Get all medical problems for a patient
     public MedicalProblemDto getByPatientId(Long patientId) {
-        List<MedicalProblem> rows = repo.findAllByPatientId(patientId);
-        if (rows.isEmpty())
-            throw new RuntimeException("No medical problems found for patientId=" + patientId);
+        log.debug("Getting FHIR Conditions (problems) for patient: {}", patientId);
 
-        return toDto(patientId, rows, true);
-    }
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Condition.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .where(new TokenClientParam("category").exactly()
+                        .systemAndCode("http://terminology.hl7.org/CodeSystem/condition-category", CONDITION_CATEGORY_PROBLEM))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
 
-    /* -------- Update by Patient -------- */
+        List<MedicalProblemDto.MedicalProblemItem> items = extractProblemItems(bundle);
 
-    @Transactional
-    public MedicalProblemDto updateByPatientId(Long patientId, MedicalProblemDto dto) {
-        repo.deleteAllByPatientId(patientId);
+        MedicalProblemDto dto = new MedicalProblemDto();
         dto.setPatientId(patientId);
-        return create(dto); // replace strategy
+        dto.setProblemsList(items);
+        if (!items.isEmpty()) {
+            dto.setFhirId(items.get(0).getFhirId());
+            dto.setExternalId(items.get(0).getFhirId());
+        }
+        return dto;
     }
 
-    /* -------- Delete by Patient -------- */
+    // ✅ Update medical problems for a patient (replace all)
+    public MedicalProblemDto updateByPatientId(Long patientId, MedicalProblemDto dto) {
+        log.info("Updating medical problems in FHIR for patient: {}", patientId);
+        deleteByPatientId(patientId);
+        dto.setPatientId(patientId);
+        return create(dto);
+    }
 
-    @Transactional
+    // ✅ Delete all medical problems for a patient
     public void deleteByPatientId(Long patientId) {
-        repo.deleteAllByPatientId(patientId);
+        log.info("Deleting all FHIR Conditions (problems) for patient: {}", patientId);
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Condition.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .where(new TokenClientParam("category").exactly()
+                        .systemAndCode("http://terminology.hl7.org/CodeSystem/condition-category", CONDITION_CATEGORY_PROBLEM))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof Condition) {
+                    String fhirId = entry.getResource().getIdElement().getIdPart();
+                    fhirClientService.delete(Condition.class, fhirId, getPracticeId());
+                    log.debug("Deleted FHIR Condition: {}", fhirId);
+                }
+            }
+        }
     }
 
-    /* -------- Single Item Operations -------- */
-
-    @Transactional(readOnly = true)
+    // ✅ Get single problem item
     public MedicalProblemDto.MedicalProblemItem getItem(Long patientId, Long problemId) {
-        return repo.findAllByPatientId(patientId).stream()
-                .filter(r -> r.getId().equals(problemId))
-                .findFirst()
-                .map(this::toItem)
-                .orElseThrow(() -> new RuntimeException("Not found"));
+        String fhirId = String.valueOf(problemId);
+        try {
+            Condition fhirCondition = fhirClientService.read(Condition.class, fhirId, getPracticeId());
+            return toProblemItem(fhirCondition);
+        } catch (ResourceNotFoundException e) {
+            throw new RuntimeException("Medical problem not found for patientId=" + patientId + " problemId=" + problemId);
+        }
     }
 
-    @Transactional
-    public MedicalProblemDto.MedicalProblemItem updateItem(
-            Long patientId, Long problemId, MedicalProblemDto.MedicalProblemItem patch) {
+    // ✅ Update single problem item
+    public MedicalProblemDto.MedicalProblemItem updateItem(Long patientId, Long problemId,
+                                                           MedicalProblemDto.MedicalProblemItem patch) {
+        String fhirId = String.valueOf(problemId);
+        log.info("Updating FHIR Condition (problem) with ID: {}", fhirId);
 
-        List<MedicalProblem> rows = repo.findAllByPatientId(patientId);
+        Condition fhirCondition = toFhirCondition(patch, patientId);
+        fhirCondition.setId(fhirId);
 
-        MedicalProblem row = rows.stream()
-                .filter(r -> r.getId().equals(problemId))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Not found"));
+        fhirClientService.update(fhirCondition, getPracticeId());
 
-        if (patch.getTitle() != null) row.setTitle(patch.getTitle());
-        if (patch.getOutcome() != null) row.setOutcome(patch.getOutcome());
-        if (patch.getVerificationStatus() != null) row.setVerificationStatus(patch.getVerificationStatus());
-        if (patch.getOccurrence() != null) row.setOccurrence(patch.getOccurrence());
-        if (patch.getNote() != null) row.setNote(patch.getNote());
-
-        repo.save(row);
-        return toItem(row);
+        patch.setFhirId(fhirId);
+        patch.setExternalId(fhirId);
+        return patch;
     }
 
-    @Transactional
+    // ✅ Delete single problem item
     public void deleteItem(Long patientId, Long problemId) {
-        int n = repo.deleteByIdAndPatientId(problemId, patientId);
-        if (n == 0)
-            throw new RuntimeException("Delete failed — record not found");
+        String fhirId = String.valueOf(problemId);
+        log.info("Deleting FHIR Condition (problem) with ID: {}", fhirId);
+        fhirClientService.delete(Condition.class, fhirId, getPracticeId());
     }
 
-    /* -------- Search All -------- */
-
-    @Transactional(readOnly = true)
+    // ✅ Search all medical problems
     public ApiResponse<List<MedicalProblemDto>> searchAll() {
-        List<MedicalProblem> all = repo.findAll();
-        Map<Long, List<MedicalProblem>> byPatient = all.stream()
-                .collect(Collectors.groupingBy(MedicalProblem::getPatientId));
+        log.debug("Searching all FHIR Conditions (problems)");
+
+        Bundle bundle = fhirClientService.getClient().search()
+                .forResource(Condition.class)
+                .where(new TokenClientParam("category").exactly()
+                        .systemAndCode("http://terminology.hl7.org/CodeSystem/condition-category", CONDITION_CATEGORY_PROBLEM))
+                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                .returnBundle(Bundle.class)
+                .execute();
+
+        List<MedicalProblemDto.MedicalProblemItem> allItems = extractProblemItems(bundle);
+
+        // Group by patient
+        Map<Long, List<MedicalProblemDto.MedicalProblemItem>> byPatient = allItems.stream()
+                .filter(item -> item.getPatientId() != null)
+                .collect(Collectors.groupingBy(MedicalProblemDto.MedicalProblemItem::getPatientId));
 
         List<MedicalProblemDto> dtos = new ArrayList<>();
-        for (var e : byPatient.entrySet()) {
-            dtos.add(toDto(e.getKey(), e.getValue(), true));
+        for (var entry : byPatient.entrySet()) {
+            MedicalProblemDto dto = new MedicalProblemDto();
+            dto.setPatientId(entry.getKey());
+            dto.setProblemsList(entry.getValue());
+            if (!entry.getValue().isEmpty()) {
+                dto.setFhirId(entry.getValue().get(0).getFhirId());
+                dto.setExternalId(entry.getValue().get(0).getFhirId());
+            }
+            dtos.add(dto);
         }
 
         return ApiResponse.<List<MedicalProblemDto>>builder()
@@ -142,45 +201,150 @@ public class MedicalProblemService {
                 .build();
     }
 
-    /* -------- Helpers -------- */
+    // ========== FHIR Mapping Methods ==========
 
-    private MedicalProblemDto toDto(Long patientId, List<MedicalProblem> rows, boolean includeTopLevelPatientId) {
-        MedicalProblemDto dto = new MedicalProblemDto();
-        if (includeTopLevelPatientId) dto.setPatientId(patientId);
+    private Condition toFhirCondition(MedicalProblemDto.MedicalProblemItem item, Long patientId) {
+        Condition condition = new Condition();
 
-        if (!rows.isEmpty()) {
-            MedicalProblem firstRow = rows.get(0);
-            dto.setExternalId(firstRow.getExternalId());
-            dto.setFhirId(firstRow.getExternalId());
-            
-            // Always create audit object and populate with timestamps
-            MedicalProblemDto.Audit audit = new MedicalProblemDto.Audit();
-            audit.setCreatedDate(firstRow.getCreatedDate());
-            audit.setLastModifiedDate(firstRow.getLastModifiedDate());
-            dto.setAudit(audit);
-        } else {
-            // Even if no rows, create empty audit object to avoid null
-            MedicalProblemDto.Audit audit = new MedicalProblemDto.Audit();
-            audit.setCreatedDate(null);
-            audit.setLastModifiedDate(null);
-            dto.setAudit(audit);
+        // Category: problem-list-item
+        condition.addCategory()
+                .addCoding()
+                .setSystem("http://terminology.hl7.org/CodeSystem/condition-category")
+                .setCode(CONDITION_CATEGORY_PROBLEM)
+                .setDisplay("Problem List Item");
+
+        // Subject (Patient)
+        condition.setSubject(new Reference("Patient/" + patientId));
+
+        // Code (title/problem name)
+        if (item.getTitle() != null) {
+            condition.setCode(new CodeableConcept().setText(item.getTitle()));
         }
 
-        dto.setProblemsList(rows.stream().map(this::toItem).collect(Collectors.toList()));
-        return dto;
+        // Clinical status (outcome)
+        if (item.getOutcome() != null) {
+            condition.setClinicalStatus(new CodeableConcept()
+                    .addCoding(new Coding()
+                            .setSystem("http://terminology.hl7.org/CodeSystem/condition-clinical")
+                            .setCode(mapToFhirClinicalStatus(item.getOutcome()))
+                            .setDisplay(item.getOutcome())));
+        }
+
+        // Verification status
+        if (item.getVerificationStatus() != null) {
+            condition.setVerificationStatus(new CodeableConcept()
+                    .addCoding(new Coding()
+                            .setSystem("http://terminology.hl7.org/CodeSystem/condition-ver-status")
+                            .setCode(mapToFhirVerificationStatus(item.getVerificationStatus()))
+                            .setDisplay(item.getVerificationStatus())));
+        }
+
+        // Onset (occurrence)
+        if (item.getOccurrence() != null) {
+            condition.setOnset(new StringType(item.getOccurrence()));
+        }
+
+        // Note
+        if (item.getNote() != null) {
+            condition.addNote().setText(item.getNote());
+        }
+
+        return condition;
     }
 
-    private MedicalProblemDto.MedicalProblemItem toItem(MedicalProblem r) {
-        MedicalProblemDto.MedicalProblemItem it = new MedicalProblemDto.MedicalProblemItem();
-        it.setId(r.getId());
-        it.setTitle(r.getTitle());
-        it.setOutcome(r.getOutcome());
-        it.setVerificationStatus(r.getVerificationStatus());
-        it.setOccurrence(r.getOccurrence());
-        it.setNote(r.getNote());
-        it.setPatientId(r.getPatientId());
-        it.setExternalId(r.getExternalId());
-        it.setFhirId(r.getExternalId());
-        return it;
+    private MedicalProblemDto.MedicalProblemItem toProblemItem(Condition condition) {
+        MedicalProblemDto.MedicalProblemItem item = new MedicalProblemDto.MedicalProblemItem();
+
+        // FHIR ID
+        if (condition.hasId()) {
+            item.setFhirId(condition.getIdElement().getIdPart());
+            item.setExternalId(condition.getIdElement().getIdPart());
+        }
+
+        // Patient ID
+        if (condition.hasSubject() && condition.getSubject().hasReference()) {
+            String ref = condition.getSubject().getReference();
+            if (ref.startsWith("Patient/")) {
+                try {
+                    item.setPatientId(Long.parseLong(ref.substring(8)));
+                } catch (NumberFormatException e) {
+                    // Non-numeric FHIR ID
+                }
+            }
+        }
+
+        // Title (code)
+        if (condition.hasCode()) {
+            item.setTitle(condition.getCode().getText());
+        }
+
+        // Outcome (clinical status)
+        if (condition.hasClinicalStatus() && condition.getClinicalStatus().hasCoding()) {
+            item.setOutcome(mapFromFhirClinicalStatus(condition.getClinicalStatus().getCodingFirstRep().getCode()));
+        }
+
+        // Verification status
+        if (condition.hasVerificationStatus() && condition.getVerificationStatus().hasCoding()) {
+            item.setVerificationStatus(mapFromFhirVerificationStatus(
+                    condition.getVerificationStatus().getCodingFirstRep().getCode()));
+        }
+
+        // Occurrence (onset)
+        if (condition.hasOnsetStringType()) {
+            item.setOccurrence(condition.getOnsetStringType().getValue());
+        }
+
+        // Note
+        if (condition.hasNote()) {
+            item.setNote(condition.getNoteFirstRep().getText());
+        }
+
+        return item;
+    }
+
+    private List<MedicalProblemDto.MedicalProblemItem> extractProblemItems(Bundle bundle) {
+        List<MedicalProblemDto.MedicalProblemItem> items = new ArrayList<>();
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof Condition) {
+                    items.add(toProblemItem((Condition) entry.getResource()));
+                }
+            }
+        }
+        return items;
+    }
+
+    private String mapToFhirClinicalStatus(String outcome) {
+        if (outcome == null) return "active";
+        return switch (outcome.toLowerCase()) {
+            case "active", "ongoing" -> "active";
+            case "recurrence" -> "recurrence";
+            case "relapse" -> "relapse";
+            case "inactive" -> "inactive";
+            case "remission" -> "remission";
+            case "resolved" -> "resolved";
+            default -> "active";
+        };
+    }
+
+    private String mapFromFhirClinicalStatus(String code) {
+        if (code == null) return "active";
+        return code; // FHIR codes are already readable
+    }
+
+    private String mapToFhirVerificationStatus(String status) {
+        if (status == null) return "confirmed";
+        return switch (status.toLowerCase()) {
+            case "unconfirmed", "provisional" -> "unconfirmed";
+            case "confirmed" -> "confirmed";
+            case "refuted" -> "refuted";
+            case "entered-in-error" -> "entered-in-error";
+            default -> "confirmed";
+        };
+    }
+
+    private String mapFromFhirVerificationStatus(String code) {
+        if (code == null) return "confirmed";
+        return code; // FHIR codes are already readable
     }
 }
