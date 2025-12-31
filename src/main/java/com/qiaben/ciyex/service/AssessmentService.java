@@ -60,10 +60,10 @@ public class AssessmentService {
     public List<AssessmentDto> getAllByPatient(Long patientId) {
         log.debug("Getting FHIR ClinicalImpressions (assessment) for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(ClinicalImpression.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -106,10 +106,10 @@ public class AssessmentService {
     public List<AssessmentDto> getAllByEncounter(Long patientId, Long encounterId) {
         log.debug("Listing FHIR ClinicalImpressions (assessment) for patient: {}, encounter: {}", patientId, encounterId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(ClinicalImpression.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

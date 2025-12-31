@@ -61,12 +61,12 @@ public class HistoryOfPresentIllnessService {
     public List<HistoryOfPresentIllnessDto> getAllByPatient(Long patientId) {
         log.debug("Getting FHIR Conditions (HPI) for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Condition.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
                 .where(new TokenClientParam("category").exactly()
                         .systemAndCode("http://hl7.org/fhir/us/core/CodeSystem/condition-category", "health-concern"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -94,12 +94,12 @@ public class HistoryOfPresentIllnessService {
     public List<HistoryOfPresentIllnessDto> list(Long patientId, Long encounterId) {
         log.debug("Listing FHIR Conditions (HPI) for patient: {}, encounter: {}", patientId, encounterId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Condition.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
                 .where(new TokenClientParam("category").exactly()
                         .systemAndCode("http://hl7.org/fhir/us/core/CodeSystem/condition-category", "health-concern"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

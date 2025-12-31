@@ -64,12 +64,12 @@ public class ReviewOfSystemService {
     public List<ReviewOfSystemDto> getAllByPatient(Long patientId) {
         log.debug("Getting FHIR Observations (ROS) for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Observation.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
                 .where(new TokenClientParam("category").exactly()
                         .systemAndCode("http://terminology.hl7.org/CodeSystem/observation-category", "survey"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -97,12 +97,12 @@ public class ReviewOfSystemService {
     public List<ReviewOfSystemDto> list(Long patientId, Long encounterId) {
         log.debug("Listing FHIR Observations (ROS) for patient: {}, encounter: {}", patientId, encounterId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Observation.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
                 .where(new TokenClientParam("category").exactly()
                         .systemAndCode("http://terminology.hl7.org/CodeSystem/observation-category", "survey"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

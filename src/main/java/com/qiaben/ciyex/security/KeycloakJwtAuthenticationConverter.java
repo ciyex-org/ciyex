@@ -111,9 +111,8 @@ public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, Abstra
     }
 
     /**
-     * ✅ Extract organization/practice ID from JWT token.
+     * Extract organization/practice ID (UUID) from JWT token.
      * Keycloak organization claim format: ["org-alias", {"org-alias": {"id": "uuid"}}]
-     * or [{"org-alias": {"id": "uuid"}}, "org-alias"]
      */
     public static String extractOrganizationId(Jwt jwt) {
         Object orgClaim = jwt.getClaim("organization");
@@ -126,6 +125,34 @@ public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, Abstra
                             if (orgId instanceof String id && !id.isBlank()) {
                                 return id;
                             }
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extract organization alias/name from JWT token for FHIR partition URL.
+     * Keycloak organization claim format: ["org-alias", {"org-alias": {"id": "uuid"}}]
+     * Returns the org alias (e.g., "sunrise-family-medicine") used in FHIR URL path.
+     */
+    public static String extractOrganizationAlias(Jwt jwt) {
+        Object orgClaim = jwt.getClaim("organization");
+        if (orgClaim instanceof List<?> orgArray && !orgArray.isEmpty()) {
+            // First, try to find the string element (org alias)
+            for (Object elem : orgArray) {
+                if (elem instanceof String alias && !alias.isBlank()) {
+                    return alias;
+                }
+            }
+            // Fallback: extract the key from the map element
+            for (Object elem : orgArray) {
+                if (elem instanceof Map<?, ?> orgDetails) {
+                    for (Object key : orgDetails.keySet()) {
+                        if (key instanceof String alias && !alias.isBlank()) {
+                            return alias;
                         }
                     }
                 }

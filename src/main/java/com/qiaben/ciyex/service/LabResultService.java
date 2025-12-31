@@ -51,11 +51,11 @@ public class LabResultService {
     public List<LabResultDto> getAll() {
         log.debug("Getting all FHIR DiagnosticReports (lab results)");
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(DiagnosticReport.class)
                 .where(new TokenClientParam("category").exactly()
                         .systemAndCode("http://terminology.hl7.org/CodeSystem/v2-0074", "LAB"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -66,12 +66,12 @@ public class LabResultService {
     public List<LabResultDto> getForPatient(Long patientId) {
         log.debug("Getting FHIR DiagnosticReports for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(DiagnosticReport.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
                 .where(new TokenClientParam("category").exactly()
                         .systemAndCode("http://terminology.hl7.org/CodeSystem/v2-0074", "LAB"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -117,11 +117,11 @@ public class LabResultService {
         // For FHIR, we search by code or name
         log.debug("Searching FHIR DiagnosticReports with query: {}", q);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(DiagnosticReport.class)
                 .where(new TokenClientParam("category").exactly()
                         .systemAndCode("http://terminology.hl7.org/CodeSystem/v2-0074", "LAB"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

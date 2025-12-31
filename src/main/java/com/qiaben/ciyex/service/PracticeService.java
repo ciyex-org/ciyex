@@ -130,10 +130,10 @@ public class PracticeService {
     public ApiResponse<List<PracticeDto>> getPracticesByName(String name) {
         log.debug("Searching FHIR Organizations by name: {}", name);
         
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Organization.class)
                 .where(new StringClientParam("name").matches().value(name))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
         

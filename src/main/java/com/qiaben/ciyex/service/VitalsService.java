@@ -121,11 +121,11 @@ public class VitalsService {
     public List<VitalsDto> getByEncounter(Long patientId, Long encounterId) {
         log.debug("Getting FHIR Observations (vitals) for encounter: {}", encounterId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Observation.class)
                 .where(new ReferenceClientParam("encounter").hasId("Encounter/" + encounterId))
                 .where(Observation.CATEGORY.exactly().systemAndCode("http://terminology.hl7.org/CodeSystem/observation-category", "vital-signs"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -246,11 +246,11 @@ public class VitalsService {
     public List<VitalsDto> getVitalsByPatient(Long patientId) {
         log.info("Getting vitals for patient {} in org {}", patientId, RequestContext.get().getOrgName());
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Observation.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
                 .where(Observation.CATEGORY.exactly().systemAndCode("http://terminology.hl7.org/CodeSystem/observation-category", "vital-signs"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

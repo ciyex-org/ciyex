@@ -76,12 +76,12 @@ public class MedicalProblemService {
     public MedicalProblemDto getByPatientId(Long patientId) {
         log.debug("Getting FHIR Conditions (problems) for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Condition.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
                 .where(new TokenClientParam("category").exactly()
                         .systemAndCode("http://terminology.hl7.org/CodeSystem/condition-category", CONDITION_CATEGORY_PROBLEM))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -109,12 +109,12 @@ public class MedicalProblemService {
     public void deleteByPatientId(Long patientId) {
         log.info("Deleting all FHIR Conditions (problems) for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Condition.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
                 .where(new TokenClientParam("category").exactly()
                         .systemAndCode("http://terminology.hl7.org/CodeSystem/condition-category", CONDITION_CATEGORY_PROBLEM))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -167,11 +167,11 @@ public class MedicalProblemService {
     public ApiResponse<List<MedicalProblemDto>> searchAll() {
         log.debug("Searching all FHIR Conditions (problems)");
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Condition.class)
                 .where(new TokenClientParam("category").exactly()
                         .systemAndCode("http://terminology.hl7.org/CodeSystem/condition-category", CONDITION_CATEGORY_PROBLEM))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

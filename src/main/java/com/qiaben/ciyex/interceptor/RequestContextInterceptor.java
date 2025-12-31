@@ -23,17 +23,18 @@ public class RequestContextInterceptor implements HandlerInterceptor {
         RequestContext ctx = new RequestContext();
         ctx.setAuthToken(authHeader);
 
-        // Extract org from Keycloak JWT token
+        // Extract org alias from Keycloak JWT token for FHIR partition URL
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth instanceof JwtAuthenticationToken jwtAuth) {
                 Jwt jwt = jwtAuth.getToken();
-                String orgId = KeycloakJwtAuthenticationConverter.extractOrganizationId(jwt);
-                if (orgId != null && !orgId.isBlank()) {
-                    ctx.setOrgName(orgId);
-                    log.debug("Extracted org '{}' from JWT token", orgId);
+                // Use org alias (e.g., "sunrise-family-medicine") for FHIR URL path partitioning
+                String orgAlias = KeycloakJwtAuthenticationConverter.extractOrganizationAlias(jwt);
+                if (orgAlias != null && !orgAlias.isBlank()) {
+                    ctx.setOrgName(orgAlias);
+                    log.debug("Extracted org alias '{}' from JWT token", orgAlias);
                 } else {
-                    log.warn("No organization found in JWT token");
+                    log.warn("No organization alias found in JWT token");
                 }
             }
         } catch (Exception e) {

@@ -73,10 +73,10 @@ public class ImmunizationService {
     public ImmunizationDto getByPatientId(Long patientId) {
         log.debug("Getting FHIR Immunizations for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Immunization.class)
                 .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -119,10 +119,10 @@ public class ImmunizationService {
     public void deleteByPatientId(Long patientId) {
         log.info("Deleting all FHIR Immunizations for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Immunization.class)
                 .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

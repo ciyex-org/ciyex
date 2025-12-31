@@ -74,10 +74,10 @@ public class AllergyIntoleranceService {
     public AllergyIntoleranceDto getByPatientId(Long patientId) {
         log.debug("Getting FHIR AllergyIntolerances for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(AllergyIntolerance.class)
                 .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -104,10 +104,10 @@ public class AllergyIntoleranceService {
     public void deleteByPatientId(Long patientId) {
         log.info("Deleting all FHIR AllergyIntolerances for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(AllergyIntolerance.class)
                 .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

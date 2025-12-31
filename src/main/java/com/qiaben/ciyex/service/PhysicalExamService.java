@@ -62,12 +62,12 @@ public class PhysicalExamService {
     public List<PhysicalExamDto> getAllByPatient(Long patientId) {
         log.debug("Getting FHIR Observations (Physical Exam) for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Observation.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
                 .where(new TokenClientParam("category").exactly()
                         .systemAndCode("http://terminology.hl7.org/CodeSystem/observation-category", "exam"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -95,12 +95,12 @@ public class PhysicalExamService {
     public List<PhysicalExamDto> list(Long patientId, Long encounterId) {
         log.debug("Listing FHIR Observations (Physical Exam) for patient: {}, encounter: {}", patientId, encounterId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Observation.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
                 .where(new TokenClientParam("category").exactly()
                         .systemAndCode("http://terminology.hl7.org/CodeSystem/observation-category", "exam"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

@@ -101,10 +101,10 @@ public class AppointmentService {
         String patientFhirId = String.valueOf(patientId);
         log.debug("Getting FHIR Appointments for patient: {}", patientFhirId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Appointment.class)
                 .where(new ReferenceClientParam("patient").hasId("Patient/" + patientFhirId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -252,11 +252,11 @@ public class AppointmentService {
 
     private List<AppointmentDTO> getAppointmentsByProviderAndDate(Long providerId, LocalDate date) {
         try {
-            Bundle bundle = fhirClientService.getClient().search()
+            Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                     .forResource(Appointment.class)
                     .where(new ReferenceClientParam("practitioner").hasId("Practitioner/" + providerId))
                     .where(new DateClientParam("date").exactly().day(date.toString()))
-                    .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                    
                     .returnBundle(Bundle.class)
                     .execute();
             return extractAppointments(bundle);

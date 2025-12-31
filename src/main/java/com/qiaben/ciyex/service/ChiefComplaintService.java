@@ -61,12 +61,12 @@ public class ChiefComplaintService {
     public List<ChiefComplaintDto> getAllByPatient(Long patientId) {
         log.debug("Getting FHIR Conditions (chief complaint) for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Condition.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
                 .where(new TokenClientParam("category").exactly()
                         .systemAndCode("http://terminology.hl7.org/CodeSystem/condition-category", "encounter-diagnosis"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -94,12 +94,12 @@ public class ChiefComplaintService {
     public List<ChiefComplaintDto> list(Long patientId, Long encounterId) {
         log.debug("Listing FHIR Conditions (chief complaint) for patient: {}, encounter: {}", patientId, encounterId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Condition.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
                 .where(new TokenClientParam("category").exactly()
                         .systemAndCode("http://terminology.hl7.org/CodeSystem/condition-category", "encounter-diagnosis"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

@@ -70,9 +70,9 @@ public class PatientService {
     public long countPatientsForCurrentOrg() {
         log.info("Counting all patients from FHIR");
         try {
-            Bundle bundle = fhirClientService.getClient().search()
+            Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                     .forResource(Patient.class)
-                    .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                    
                     .returnBundle(Bundle.class)
                     .execute();
             return bundle.getTotal();
@@ -185,10 +185,10 @@ public class PatientService {
         List<PatientDto> allPatients;
         
         if (search != null && !search.isBlank()) {
-            Bundle bundle = fhirClientService.getClient().search()
+            Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                     .forResource(Patient.class)
                     .where(new StringClientParam("name").matches().value(search))
-                    .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                    
                     .returnBundle(Bundle.class)
                     .execute();
             allPatients = extractPatients(bundle);

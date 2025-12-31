@@ -67,11 +67,11 @@ public class LabOrderService {
     public List<LabOrderDto> getAll() {
         log.debug("Getting all FHIR ServiceRequests (lab orders)");
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(ServiceRequest.class)
                 .where(new ca.uhn.fhir.rest.gclient.TokenClientParam("category").exactly()
                         .systemAndCode("http://terminology.hl7.org/CodeSystem/service-category", "laboratory"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

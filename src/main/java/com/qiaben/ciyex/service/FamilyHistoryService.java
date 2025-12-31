@@ -62,10 +62,10 @@ public class FamilyHistoryService {
     public List<FamilyHistoryDto> getAllByPatient(Long patientId) {
         log.debug("Getting FHIR FamilyMemberHistory for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(FamilyMemberHistory.class)
                 .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -118,10 +118,10 @@ public class FamilyHistoryService {
     public List<FamilyHistoryDto> list(Long patientId, Long encounterId) {
         log.debug("Listing FHIR FamilyMemberHistory for patient: {}, encounter: {}", patientId, encounterId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(FamilyMemberHistory.class)
                 .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

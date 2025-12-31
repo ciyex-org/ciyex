@@ -23,8 +23,8 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: https://aran-stg.zpoa.com/realms/master
-          jwk-set-uri: https://aran-stg.zpoa.com/realms/master/protocol/openid-connect/certs
+          issuer-uri: https://aran.apps-dev.in.hinisoft.com/realms/master
+          jwk-set-uri: https://aran.apps-dev.in.hinisoft.com/realms/master/protocol/openid-connect/certs
   servlet:
     multipart:
       max-file-size: 1GB
@@ -34,7 +34,7 @@ jwt:
   expiration: 31557600000
 keycloak:
   enabled: ${KEYCLOAK_ENABLED:false}
-  auth-server-url: ${KEYCLOAK_AUTH_SERVER_URL:https://aran-stg.zpoa.com}
+  auth-server-url: ${KEYCLOAK_AUTH_SERVER_URL:https://aran.apps-dev.in.hinisoft.com}
   realm: ${KEYCLOAK_REALM:master}
   resource: ${KEYCLOAK_RESOURCE:ciyex-app}
   credentials:

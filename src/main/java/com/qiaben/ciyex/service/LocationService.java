@@ -119,10 +119,10 @@ public class LocationService {
     public Page<LocationDto> search(String keyword, Pageable pageable) {
         log.debug("Searching FHIR Locations by keyword: {}", keyword);
         
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Location.class)
                 .where(new StringClientParam("name").matches().value(keyword))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
         

@@ -16,9 +16,10 @@ import org.springframework.stereotype.Service;
 public class PracticeContextService {
 
     /**
-     * Get the current practice ID from RequestContext or JWT token.
-     * @return the practice ID
-     * @throws IllegalStateException if no practice ID can be determined
+     * Get the current practice/org alias from RequestContext or JWT token.
+     * This returns the org alias (e.g., "sunrise-family-medicine") used for FHIR URL path partitioning.
+     * @return the org alias
+     * @throws IllegalStateException if no org alias can be determined
      */
     public String getPracticeId() {
         // First try RequestContext (set by interceptor)
@@ -27,16 +28,16 @@ public class PracticeContextService {
             return ctx.getOrgName();
         }
 
-        // Fallback to JWT token
+        // Fallback to JWT token - extract org alias for FHIR URL path
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication instanceof JwtAuthenticationToken jwtAuth) {
             Jwt jwt = jwtAuth.getToken();
-            String orgId = KeycloakJwtAuthenticationConverter.extractOrganizationId(jwt);
-            if (orgId != null && !orgId.isBlank()) {
-                return orgId;
+            String orgAlias = KeycloakJwtAuthenticationConverter.extractOrganizationAlias(jwt);
+            if (orgAlias != null && !orgAlias.isBlank()) {
+                return orgAlias;
             }
         }
 
-        throw new IllegalStateException("No practice/tenant ID found in RequestContext or JWT token.");
+        throw new IllegalStateException("No practice/org alias found in RequestContext or JWT token.");
     }
 }

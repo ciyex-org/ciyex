@@ -44,10 +44,10 @@ public class ProcedureService {
     public List<ProcedureDto> getAllByPatient(Long patientId) {
         log.debug("Getting FHIR Procedures for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(org.hl7.fhir.r4.model.Procedure.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -58,11 +58,11 @@ public class ProcedureService {
     public List<ProcedureDto> getAllByEncounter(Long patientId, Long encounterId) {
         log.debug("Getting FHIR Procedures for patient: {}, encounter: {}", patientId, encounterId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(org.hl7.fhir.r4.model.Procedure.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
                 .where(new ReferenceClientParam("encounter").hasId("Encounter/" + encounterId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

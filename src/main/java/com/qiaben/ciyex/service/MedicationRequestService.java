@@ -102,23 +102,23 @@ public class MedicationRequestService {
 
         Bundle bundle;
         if (patientId != null) {
-            bundle = fhirClientService.getClient().search()
+            bundle = fhirClientService.getClient(getPracticeId()).search()
                     .forResource(org.hl7.fhir.r4.model.MedicationRequest.class)
                     .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
-                    .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                    
                     .returnBundle(Bundle.class)
                     .execute();
         } else if (encounterId != null) {
-            bundle = fhirClientService.getClient().search()
+            bundle = fhirClientService.getClient(getPracticeId()).search()
                     .forResource(org.hl7.fhir.r4.model.MedicationRequest.class)
                     .where(new ReferenceClientParam("encounter").hasId("Encounter/" + encounterId))
-                    .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                    
                     .returnBundle(Bundle.class)
                     .execute();
         } else {
-            bundle = fhirClientService.getClient().search()
+            bundle = fhirClientService.getClient(getPracticeId()).search()
                     .forResource(org.hl7.fhir.r4.model.MedicationRequest.class)
-                    .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                    
                     .returnBundle(Bundle.class)
                     .execute();
         }

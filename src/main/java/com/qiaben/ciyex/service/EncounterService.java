@@ -64,10 +64,10 @@ public class EncounterService {
         String patientFhirId = String.valueOf(patientId);
         log.debug("Listing FHIR Encounters for patient: {}", patientFhirId);
         
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Encounter.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientFhirId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
         

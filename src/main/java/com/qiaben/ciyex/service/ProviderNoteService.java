@@ -64,10 +64,10 @@ public class ProviderNoteService {
     public List<ProviderNoteDto> getAllByPatient(Long patientId) {
         log.debug("Getting FHIR DocumentReferences for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(DocumentReference.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -95,10 +95,10 @@ public class ProviderNoteService {
     public List<ProviderNoteDto> list(Long patientId, Long encounterId) {
         log.debug("Listing FHIR DocumentReferences for patient: {}, encounter: {}", patientId, encounterId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(DocumentReference.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

@@ -64,10 +64,10 @@ public class PlanService {
     public List<PlanDto> getAllByPatient(Long patientId) {
         log.debug("Getting FHIR CarePlans for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(CarePlan.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 
@@ -95,10 +95,10 @@ public class PlanService {
     public List<PlanDto> list(Long patientId, Long encounterId) {
         log.debug("Listing FHIR CarePlans for patient: {}, encounter: {}", patientId, encounterId);
 
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(CarePlan.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
 

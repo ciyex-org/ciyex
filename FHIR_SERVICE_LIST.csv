@@ -1,0 +1,82 @@
+Service Name,FHIR Resource,Migration Status,Category
+AllergyIntoleranceService,AllergyIntolerance,FHIR Only,Clinical
+MedicalProblemService,Condition,FHIR Only,Clinical
+ImmunizationService,Immunization,FHIR Only,Clinical
+LabOrderService,ServiceRequest,FHIR Only,Clinical
+LabResultService,DiagnosticReport,FHIR Only,Clinical
+FamilyHistoryService,FamilyMemberHistory,FHIR Only,Clinical
+PastMedicalHistoryService,Condition (category: problem-list-item),FHIR Only,Clinical
+SocialHistoryService,Observation (category: social-history),FHIR Only,Clinical
+ChiefComplaintService,Condition (category: encounter-diagnosis),FHIR Only,Clinical
+AssessmentService,ClinicalImpression,FHIR Only,Clinical
+VitalsService,Observation (category: vital-signs),FHIR Only,Clinical
+PatientService,Patient,FHIR Only,Clinical
+EncounterService,Encounter,FHIR Only,Clinical
+CoverageService,Coverage,FHIR Only,Clinical
+AppointmentService,Appointment,FHIR Only,Clinical
+HistoryOfPresentIllnessService,Condition,FHIR Only,Clinical
+MedicationRequestService,MedicationRequest,FHIR Only,Clinical
+PhysicalExamService,Observation (category: exam),FHIR Only,Clinical
+PlanService,CarePlan,FHIR Only,Clinical
+ProcedureService,Procedure,FHIR Only,Clinical
+ReviewOfSystemService,Observation (category: survey),FHIR Only,Clinical
+ProviderNoteService,DocumentReference,FHIR Only,Clinical
+FacilityService,Location,FHIR Only,Administrative
+LocationService,Location,FHIR Only,Administrative
+ProviderService,Practitioner,FHIR Only,Administrative
+PracticeService,Organization,FHIR Only,Administrative
+MedicationsService,Medication,Hybrid (Portal),Clinical
+AdminTemplateService,Questionnaire,Pending,Templates & Forms
+TemplateService,Questionnaire,Pending,Templates & Forms
+TemplateDocumentService,DocumentReference / Questionnaire,Pending,Templates & Forms
+CodeService,CodeSystem,Pending,Terminology
+CodeTypeService,ValueSet,Pending,Terminology
+GlobalCodeService,CodeSystem,Pending,Terminology
+ListOptionService,ValueSet,Pending,Terminology
+AutomaticCreditTransferService,PaymentReconciliation / PaymentNotice,Pending,Financial
+CreditCardService,N/A (Infrastructure),Not Applicable,Financial
+EncounterFeeScheduleService,ChargeItemDefinition,Pending,Financial
+GpsBillingCardService,ChargeItem,Pending,Financial
+PatientBillingService,Account / Invoice,Pending,Financial
+ServiceService,ActivityDefinition / ChargeItemDefinition,Pending,Financial
+InsuranceCardUploadService,DocumentReference + Binary,Pending,Documents
+MessageAttachmentService,DocumentReference + Binary,Pending,Documents
+ProviderSignatureService,Provenance + Binary,Pending,Documents
+InventoryService,SupplyDelivery / Device,Pending,Inventory
+InventorySettingsService,N/A (App DB),Not Applicable,Inventory
+OrderService,SupplyRequest,Pending,Inventory
+SupplierService,Organization (type=supplier),Pending,Inventory
+ProviderScheduleService,Schedule / Slot / Appointment,Pending,Scheduling
+ScheduleService,Schedule,Pending,Scheduling
+SlotService,Slot,Pending,Scheduling
+PatientCodeListService,Flag / List,Pending,Clinical Workflow
+PatientEducationAssignmentService,ServiceRequest / Procedure,Pending,Clinical Workflow
+SignoffService,Task / Provenance,Pending,Clinical Workflow
+EncounterSummaryService,Composition,Pending,Documents
+PatientMedicalHistoryService,Composition,Pending,Documents
+EncounterBrowserService,Bundle (Search),Pending,Aggregation
+GlobalEncounterSaveService,Bundle (transaction),Pending,Aggregation
+PatientHistoryService,Bundle,Pending,Aggregation
+OrgConfigService,Organization,Pending,Configuration
+AssignedProviderService,CareTeam,Pending,Clinical
+CommunicationService,Communication,Pending,Clinical
+DocumentService,DocumentReference + Binary,Pending,Documents
+HealthcareServiceService,HealthcareService,Pending,Administrative
+InsuranceCompanyService,Organization (type: ins),Pending,Administrative
+InvoiceService,Invoice,Pending,Financial
+ReferralProviderService,Practitioner,Pending,Administrative
+ReferralPracticeService,Organization,Pending,Administrative
+RecallService,Flag / Task,Pending,Clinical
+PatientRelationshipService,RelatedPerson,Pending,Clinical
+PatientEducationService,DocumentReference,Pending,Clinical
+KeycloakAdminService,N/A (Infrastructure),Not Applicable,Authentication
+KeycloakAuthService,N/A (Infrastructure),Not Applicable,Authentication
+KeycloakOrgService,Organization (Mirror),Not Applicable,Authentication
+KeycloakTokenService,N/A (Infrastructure),Not Applicable,Authentication
+KeycloakUserService,Practitioner (Mirror),Not Applicable,Authentication
+DateTimeFinalizedService,N/A (Java Library),Not Applicable,Infrastructure
+DocumentSettingsService,N/A (App DB),Not Applicable,Infrastructure
+MaintenanceService,N/A (DevOps),Not Applicable,Infrastructure
+PracticeContextService,N/A (Middleware),Not Applicable,Infrastructure
+TenantDataMergeService,N/A (SQL Script),Not Applicable,Infrastructure
+TenantSchemaService,N/A (DB Config),Not Applicable,Infrastructure

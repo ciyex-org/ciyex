@@ -140,10 +140,10 @@ public class FacilityService {
     public ApiResponse<List<FacilityDto>> getActiveFacilities() {
         log.debug("Getting active FHIR Locations");
         
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Location.class)
                 .where(new StringClientParam("status").matches().value("active"))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
         
@@ -161,10 +161,10 @@ public class FacilityService {
         String status = Boolean.TRUE.equals(isActive) ? "active" : "inactive";
         log.debug("Getting FHIR Locations by status: {}", status);
         
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Location.class)
                 .where(new StringClientParam("status").matches().value(status))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
         
@@ -181,10 +181,10 @@ public class FacilityService {
     public ApiResponse<List<FacilityDto>> searchByName(String name) {
         log.debug("Searching FHIR Locations by name: {}", name);
         
-        Bundle bundle = fhirClientService.getClient().search()
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Location.class)
                 .where(new StringClientParam("name").matches().value(name))
-                .withAdditionalHeader("X-Request-Tenant-Id", getPracticeId())
+                
                 .returnBundle(Bundle.class)
                 .execute();
         
