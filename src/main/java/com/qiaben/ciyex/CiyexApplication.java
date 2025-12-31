@@ -3,14 +3,12 @@ package com.qiaben.ciyex;
 import com.qiaben.ciyex.config.TelnyxProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 
 @SpringBootApplication
-@EnableConfigurationProperties(TelnyxProperties.class) // Ensures properties are bound
+@EnableConfigurationProperties(TelnyxProperties.class)
 @EnableMethodSecurity
-@EntityScan(basePackages = { "com.qiaben.ciyex.entity", "com.qiaben.ciyex.audit", "com.qiaben.ciyex.auth.scope" })
 public class CiyexApplication {
 
 	public static void main(String[] args) {

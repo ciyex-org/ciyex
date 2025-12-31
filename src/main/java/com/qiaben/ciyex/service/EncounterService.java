@@ -4,7 +4,7 @@ import ca.uhn.fhir.rest.api.MethodOutcome;
 import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.EncounterDto;
-import com.qiaben.ciyex.entity.EncounterStatus;
+import com.qiaben.ciyex.dto.EncounterStatus;
 import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.*;

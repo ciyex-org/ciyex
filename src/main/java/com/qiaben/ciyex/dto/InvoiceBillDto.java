@@ -1,6 +1,6 @@
 package com.qiaben.ciyex.dto;
 
-import com.qiaben.ciyex.entity.InvoiceStatus;
+import com.qiaben.ciyex.dto.InvoiceStatus;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.*;
 

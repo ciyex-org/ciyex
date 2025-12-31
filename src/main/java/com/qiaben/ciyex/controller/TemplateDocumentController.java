@@ -2,7 +2,7 @@
 
     import com.qiaben.ciyex.dto.TemplateDocumentResponse;
     import com.qiaben.ciyex.dto.TemplateDocumentUpsertRequest;
-    import com.qiaben.ciyex.entity.TemplateContext;
+    import com.qiaben.ciyex.dto.TemplateContext;
     import com.qiaben.ciyex.service.TemplateDocumentService;
     import com.qiaben.ciyex.exception.ResourceNotFoundException;
     import org.springframework.web.server.ResponseStatusException;

@@ -3,7 +3,7 @@ package com.qiaben.ciyex.service;
 import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.CommunicationDto;
-import com.qiaben.ciyex.entity.CommunicationStatus;
+import com.qiaben.ciyex.dto.CommunicationStatus;
 import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -393,6 +393,7 @@ public class CommunicationService {
             case COMPLETED -> Communication.CommunicationStatus.COMPLETED;
             case ENTERED_IN_ERROR -> Communication.CommunicationStatus.ENTEREDINERROR;
             case ARCHIVED -> Communication.CommunicationStatus.COMPLETED;
+            case PREPARATION, NOT_DONE, ON_HOLD, STOPPED, UNKNOWN -> Communication.CommunicationStatus.COMPLETED;
         };
     }
 

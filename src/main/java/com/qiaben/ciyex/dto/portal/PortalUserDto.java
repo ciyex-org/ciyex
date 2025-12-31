@@ -7,8 +7,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 
-import com.qiaben.ciyex.entity.portal.PortalUser;
-//
 @Data
 @Builder
 @AllArgsConstructor
@@ -32,25 +30,6 @@ public class PortalUserDto {
     private String securityQuestion;
     private String securityAnswer;
     private String uuid;
-      // ✅ always return orgId
-    private String orgName;  // ✅ always return orgName
-
-    private String role;     // "PATIENT"
-
-    public static PortalUserDto fromEntity(PortalUser user) {
-        return PortalUserDto.builder()
-                .id(user.getId())
-                .email(user.getEmail())
-                .firstName(user.getFirstName())
-                .lastName(user.getLastName())
-                .phoneNumber(user.getPhoneNumber())
-                .uuid(user.getUuid() != null ? user.getUuid().toString() : null)
-                .role("PATIENT") // Portal users are always patients
-                .build();
-    }
-
-    // 🔹 Setter utility so services can attach orgName dynamically
-    public void setOrgName(String orgName) {
-        this.orgName = orgName;
-    }
+    private String orgName;
+    private String role;
 }

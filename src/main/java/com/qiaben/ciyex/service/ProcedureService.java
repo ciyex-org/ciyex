@@ -24,15 +24,13 @@ public class ProcedureService {
 
     private final FhirClientService fhirClientService;
     private final PracticeContextService practiceContextService;
-    private final PatientBillingService billingService;
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     @Autowired
-    public ProcedureService(FhirClientService fhirClientService, PracticeContextService practiceContextService, PatientBillingService billingService) {
+    public ProcedureService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
         this.fhirClientService = fhirClientService;
         this.practiceContextService = practiceContextService;
-        this.billingService = billingService;
     }
 
     private String getPracticeId() {
@@ -156,35 +154,9 @@ public class ProcedureService {
     }
 
     // ========== Invoice Helper ==========
-
+    // Note: Invoice creation removed - PatientBillingService was deleted
     private void createInvoiceForProcedure(Long patientId, ProcedureDto dto) {
-        try {
-            List<PatientBillingService.ProcedureLineRequest> procedureLines = new ArrayList<>();
-
-            java.math.BigDecimal rateValue;
-            try {
-                rateValue = dto.getRate() != null ? new java.math.BigDecimal(dto.getRate()) : java.math.BigDecimal.ZERO;
-            } catch (Exception ex) {
-                rateValue = java.math.BigDecimal.ZERO;
-                log.warn("Invalid rate format for procedure. Defaulting to 0.");
-            }
-
-            procedureLines.add(new PatientBillingService.ProcedureLineRequest(
-                    dto.getCpt4(),
-                    dto.getDescription(),
-                    rateValue
-            ));
-
-            PatientBillingService.CreateInvoiceRequest invoiceRequest = new PatientBillingService.CreateInvoiceRequest(
-                    dto.getProvidername(),
-                    dto.getHospitalBillingStart(),
-                    procedureLines
-            );
-            billingService.createInvoiceFromProcedure(patientId, invoiceRequest);
-            log.info("Invoice automatically created for procedure");
-        } catch (Exception e) {
-            log.error("Failed to create invoice for procedure", e);
-        }
+        log.debug("Invoice creation skipped - billing service not available");
     }
 
     // ========== FHIR Mapping Methods ==========

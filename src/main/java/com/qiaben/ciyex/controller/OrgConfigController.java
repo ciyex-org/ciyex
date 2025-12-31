@@ -5,7 +5,6 @@ import com.qiaben.ciyex.service.OrgConfigService;
 import com.qiaben.ciyex.service.OrgConfigService.OrgConfigResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -69,9 +68,6 @@ public class OrgConfigController {
             }
             log.info("[POST] /api/orgConfig - saved {} keys", saved);
             return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("message", "Saved " + saved + " configurations"));
-        } catch (DataIntegrityViolationException ex) {
-            log.error("[POST] /api/orgConfig - data integrity error: {}", ex.getMostSpecificCause().getMessage(), ex);
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "Constraint violation: " + ex.getMostSpecificCause().getMessage()));
         } catch (Exception e) {
             log.error("[POST] /api/orgConfig - failed: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));

@@ -2,7 +2,7 @@ package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.TemplateDocumentResponse;
 import com.qiaben.ciyex.dto.TemplateDocumentUpsertRequest;
-import com.qiaben.ciyex.entity.TemplateContext;
+import com.qiaben.ciyex.dto.TemplateContext;
 import com.qiaben.ciyex.fhir.FhirClientService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

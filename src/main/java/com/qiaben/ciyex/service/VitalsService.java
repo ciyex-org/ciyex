@@ -6,7 +6,6 @@ import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.VitalsDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.fhir.FhirClientService;
-import com.qiaben.ciyex.repository.portal.PortalPatientRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,7 +41,6 @@ public class VitalsService {
     private final FhirClientService fhirClientService;
     private final PracticeContextService practiceContextService;
     private final EncounterService encounterService;
-    private final PortalPatientRepository portalPatientRepository;
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -61,11 +59,10 @@ public class VitalsService {
 
     @Autowired
     public VitalsService(FhirClientService fhirClientService, PracticeContextService practiceContextService,
-                         EncounterService encounterService, PortalPatientRepository portalPatientRepository) {
+                         EncounterService encounterService) {
         this.fhirClientService = fhirClientService;
         this.practiceContextService = practiceContextService;
         this.encounterService = encounterService;
-        this.portalPatientRepository = portalPatientRepository;
     }
 
     private String getPracticeId() {
@@ -267,16 +264,9 @@ public class VitalsService {
             return null;
         }
 
-        try {
-            return portalPatientRepository.findAll().stream()
-                    .filter(pp -> pp.getPortalUser() != null && email.equals(pp.getPortalUser().getEmail()))
-                    .findFirst()
-                    .map(pp -> pp.getEhrPatientId())
-                    .orElse(null);
-        } catch (Exception e) {
-            log.error("Error looking up EHR patient ID for email {}: {}", email, e.getMessage());
-            return null;
-        }
+        // Portal patient lookup removed - repository deleted
+        log.debug("Portal patient lookup skipped - repository not available");
+        return null;
     }
 
     // ✅ Get vitals for current portal user based on email

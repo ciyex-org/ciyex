@@ -1,7 +1,7 @@
 package com.qiaben.ciyex.controller;
 
-import com.qiaben.ciyex.entity.Patient;
-import com.qiaben.ciyex.repository.PatientRepository;
+import com.qiaben.ciyex.dto.PatientDto;
+import com.qiaben.ciyex.service.PatientService;
 import com.qiaben.ciyex.service.notification.EmailNotificationService;
 import com.qiaben.ciyex.service.notification.SmsNotificationService;
 import org.springframework.http.HttpStatus;
@@ -19,14 +19,14 @@ public class NotificationController {
 
     private final SmsNotificationService smsService;
     private final EmailNotificationService emailService;
-    private final PatientRepository patientRepository;
+    private final PatientService patientService;
 
     public NotificationController(SmsNotificationService smsService,
                                   EmailNotificationService emailService,
-                                  PatientRepository patientRepository) {
+                                  PatientService patientService) {
         this.smsService = smsService;
         this.emailService = emailService;
-        this.patientRepository = patientRepository;
+        this.patientService = patientService;
     }
 
     // ---------- Direct SMS ----------
@@ -95,24 +95,29 @@ public class NotificationController {
     @PostMapping("/patient/{id}")
     public ResponseEntity<PatientNotificationResponse> notifyPatient(@PathVariable Long id,
                                                                      @RequestBody PatientNotificationRequest req) {
-        Patient patient = patientRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+        PatientDto patient = patientService.getById(id);
+        if (patient == null) {
+            throw new RuntimeException("Patient not found");
+        }
 
         boolean smsOk = false;
         boolean emailOk = false;
 
-        if (patient.getPhoneNumber() != null && !patient.getPhoneNumber().isBlank()) {
+        String phone = patient.getPhoneNumber();
+        String email = patient.getEmail();
+
+        if (phone != null && !phone.isBlank()) {
             try {
-                smsService.sendSms(patient.getPhoneNumber(), req.body());
+                smsService.sendSms(phone, req.body());
                 smsOk = true;
             } catch (Exception e) {
                 // handled in service logs
             }
         }
 
-        if (patient.getEmail() != null && !patient.getEmail().isBlank()) {
+        if (email != null && !email.isBlank()) {
             try {
-                emailService.sendEmail(patient.getEmail(), req.subject(), req.body());
+                emailService.sendEmail(email, req.subject(), req.body());
                 emailOk = true;
             } catch (Exception e) {
                 // handled in service logs

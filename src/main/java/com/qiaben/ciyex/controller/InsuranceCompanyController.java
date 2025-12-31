@@ -2,7 +2,7 @@
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.InsuranceCompanyDto;
-import com.qiaben.ciyex.entity.InsuranceStatus;
+import com.qiaben.ciyex.dto.InsuranceStatus;
 import com.qiaben.ciyex.service.InsuranceCompanyService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;

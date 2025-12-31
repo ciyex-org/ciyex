@@ -1,6 +1,6 @@
 package com.qiaben.ciyex.dto;
 
-import com.qiaben.ciyex.entity.ProviderStatus;
+import com.qiaben.ciyex.dto.ProviderStatus;
 import lombok.Data;
 
 @Data

@@ -4,7 +4,7 @@ package com.qiaben.ciyex.dto;
 
 import java.time.LocalDateTime;
 
-import com.qiaben.ciyex.entity.EncounterStatus;
+import com.qiaben.ciyex.dto.EncounterStatus;
 
 import lombok.Data;
 

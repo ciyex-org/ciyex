@@ -1,6 +1,6 @@
 package com.qiaben.ciyex.dto;
 
-import com.qiaben.ciyex.entity.TemplateContext;
+import com.qiaben.ciyex.dto.TemplateContext;
 import java.time.Instant;
 import java.util.Map;
 

@@ -4,7 +4,6 @@ import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.LabResultDto;
 import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.service.LabResultService;
-import com.qiaben.ciyex.audit.AuditLogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +20,6 @@ import java.util.stream.Collectors;
 public class LabResultController {
 
     private final LabResultService service;
-    private final AuditLogService auditLogService;
 
     // ---------- SEARCH ----------
     @GetMapping("/search")
@@ -53,8 +51,6 @@ public class LabResultController {
             RequestContext ctx = new RequestContext();
             RequestContext.set(ctx);
             var filtered = service.getForPatient(patientId);
-            // Audit each view? Optionally only log presence
-            filtered.forEach(r -> auditLogService.logLabResultView(r.getId(), r.getTestName(), patientId, "PATIENT", "system", "ROLE"));
             return ResponseEntity.ok(ApiResponse.<List<LabResultDto>>builder()
                     .success(true)
                     .message("Lab results retrieved successfully")
@@ -84,7 +80,6 @@ public class LabResultController {
                         .message("Lab result not found for the specified patient")
                         .build());
             }
-            auditLogService.logLabResultView(dto.getId(), dto.getTestName(), patientId, "PATIENT", "system", "ROLE");
             return ResponseEntity.ok(ApiResponse.<LabResultDto>builder()
                     .success(true)
                     .message("Lab result retrieved successfully")

@@ -1,6 +1,5 @@
 package com.qiaben.ciyex.dto;
 
-import com.qiaben.ciyex.entity.PatientClaim.Status;
 import java.time.LocalDate;
 
 public record PatientClaimDto(
@@ -12,7 +11,7 @@ public record PatientClaimDto(
         String billingEntity,
         String type,
         String notes,
-        Status status,
+        PatientClaimStatus status,
         int attachments,
         boolean eobAttached,
         LocalDate createdOn,

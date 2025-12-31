@@ -1,34 +1,28 @@
 package com.qiaben.ciyex.util;
 
 import com.qiaben.ciyex.dto.integration.*;
-import com.qiaben.ciyex.entity.OrgConfig;
-import com.qiaben.ciyex.repository.OrgConfigRepository;
+import com.qiaben.ciyex.service.OrgConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Component
 @Slf4j
 public class OrgIntegrationConfigProvider {
 
-    private final OrgConfigRepository orgConfigRepository;
+    private final OrgConfigService orgConfigService;
 
-    public OrgIntegrationConfigProvider(OrgConfigRepository orgConfigRepository) {
-        this.orgConfigRepository = orgConfigRepository;
+    public OrgIntegrationConfigProvider(OrgConfigService orgConfigService) {
+        this.orgConfigService = orgConfigService;
     }
 
     private Map<String,String> loadAll() {
-        return orgConfigRepository.findAll().stream()
-                .collect(Collectors.toMap(OrgConfig::getKey, OrgConfig::getValue, (a,b)->b));
+        return orgConfigService.getAllConfigsAsMap();
     }
 
-    @Transactional(readOnly = true)
     public String getRaw(String key) { return loadAll().get(key); }
 
-    @Transactional(readOnly = true)
     public String getStorageType() {
         Map<String,String> all = loadAll();
         String explicit = all.get("storage_type");
@@ -38,7 +32,7 @@ public class OrgIntegrationConfigProvider {
         return "fhir"; // default to fhir
     }
 
-    @Transactional(readOnly = true)
+    
     public FhirConfig getFhirConfig() {
         Map<String,String> all = loadAll();
         if (all.keySet().stream().noneMatch(k -> k.startsWith("fhir_"))) return null;
@@ -51,7 +45,7 @@ public class OrgIntegrationConfigProvider {
         return c;
     }
 
-    @Transactional(readOnly = true)
+    
     public StripeConfig getStripeConfig() {
         Map<String,String> all = loadAll();
         if (all.keySet().stream().noneMatch(k -> k.startsWith("stripe_"))) return null;
@@ -62,7 +56,7 @@ public class OrgIntegrationConfigProvider {
         return c;
     }
 
-    @Transactional(readOnly = true)
+    
     public TwilioConfig getTwilioConfig() {
         Map<String,String> all = loadAll();
         if (all.keySet().stream().noneMatch(k -> k.startsWith("twilio_"))) return null;
@@ -73,7 +67,7 @@ public class OrgIntegrationConfigProvider {
         return c;
     }
 
-    @Transactional(readOnly = true)
+    
     public GpsConfig getGpsConfig() {
         Map<String,String> all = loadAll();
         if (all.keySet().stream().noneMatch(k -> k.startsWith("gps_"))) return null;
@@ -87,7 +81,7 @@ public class OrgIntegrationConfigProvider {
         return c;
     }
 
-    @Transactional(readOnly = true)
+    
     public AiConfig getAiConfig() {
         Map<String,String> all = loadAll();
         if (all.keySet().stream().noneMatch(k -> k.startsWith("ai_"))) return null;
@@ -125,7 +119,7 @@ public class OrgIntegrationConfigProvider {
         return cfg;
     }
 
-    @Transactional(readOnly = true)
+    
     public StorageConfig getDocumentStorageConfig() {
         Map<String,String> all = loadAll();
 
@@ -162,7 +156,7 @@ public class OrgIntegrationConfigProvider {
     }
 
     @SuppressWarnings("unchecked")
-    @Transactional(readOnly = true)
+    
     public <T> T get(IntegrationKey key) {
         return switch (key) {
             case FHIR -> (T) getFhirConfig();
@@ -177,7 +171,7 @@ public class OrgIntegrationConfigProvider {
 
     // Alias for backward compatibility
     @SuppressWarnings("unchecked")
-    @Transactional(readOnly = true)
+    
     public <T> T getForCurrentTenant(IntegrationKey key) {
         return get(key);
     }

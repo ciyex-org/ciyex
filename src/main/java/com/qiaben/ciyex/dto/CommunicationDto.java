@@ -1,7 +1,7 @@
 package com.qiaben.ciyex.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.qiaben.ciyex.entity.CommunicationStatus;
+import com.qiaben.ciyex.dto.CommunicationStatus;
 import lombok.Data;
 
 import java.util.List;

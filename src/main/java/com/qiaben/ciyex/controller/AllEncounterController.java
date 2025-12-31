@@ -2,7 +2,7 @@
 
 // import com.qiaben.ciyex.dto.ApiResponse;
 // import com.qiaben.ciyex.dto.EncounterDto;
-// import com.qiaben.ciyex.entity.EncounterStatus;
+// import com.qiaben.ciyex.dto.EncounterStatus;
 // import com.qiaben.ciyex.service.EncounterService;
 // import org.springframework.beans.factory.annotation.Autowired;
 // import org.springframework.data.domain.*;
