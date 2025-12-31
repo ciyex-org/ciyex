@@ -63,10 +63,8 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git pull --rebase origin main
-          sed -i "s|image: registry.apps-dev.in.hinisoft.com/ciyex-app:.*|image: $REGISTRY/$IMAGE_NAME:$VERSION|" k8s/overlays/dev-500/deployment-patch.yaml
-          sed -i "s|image: registry.apps-dev.in.hinisoft.com/ciyex-app:.*|image: $REGISTRY/$IMAGE_NAME:$VERSION|" k8s/overlays/dev-501/deployment-patch.yaml
-          sed -i "s|image: registry.apps-dev.in.hinisoft.com/ciyex-app:.*|image: $REGISTRY/$IMAGE_NAME:$VERSION|" k8s/overlays/dev-502/deployment-patch.yaml
-          git add k8s/overlays/dev-500/deployment-patch.yaml k8s/overlays/dev-501/deployment-patch.yaml k8s/overlays/dev-502/deployment-patch.yaml
+          sed -i "s|image: registry.apps-dev.in.hinisoft.com/ciyex-app:.*|image: $REGISTRY/$IMAGE_NAME:$VERSION|" k8s/overlays/dev/deployment-patch.yaml
+          git add k8s/overlays/dev/deployment-patch.yaml
           git commit -m "Update dev image to $VERSION [skip ci]" || echo "No changes to commit"
           git push
 
@@ -83,27 +81,36 @@ jobs:
             -n ciyex-dev \
             --dry-run=client -o yaml | kubectl apply -f -
 
+      - name: Remove old deployments and router
+        run: |
+          # Remove old per-practice deployments
+          kubectl delete deployment dev-500-ciyex-app -n ciyex-dev --ignore-not-found
+          kubectl delete deployment dev-501-ciyex-app -n ciyex-dev --ignore-not-found
+          kubectl delete deployment dev-502-ciyex-app -n ciyex-dev --ignore-not-found
+          kubectl delete service dev-500-ciyex-app -n ciyex-dev --ignore-not-found
+          kubectl delete service dev-501-ciyex-app -n ciyex-dev --ignore-not-found
+          kubectl delete service dev-502-ciyex-app -n ciyex-dev --ignore-not-found
+          kubectl delete ingress dev-500-ciyex-ingress -n ciyex-dev --ignore-not-found
+          kubectl delete ingress dev-501-ciyex-ingress -n ciyex-dev --ignore-not-found
+          kubectl delete ingress dev-502-ciyex-ingress -n ciyex-dev --ignore-not-found
+          # Remove router
+          kubectl delete deployment dev-ciyex-router -n ciyex-dev --ignore-not-found
+          kubectl delete service dev-ciyex-router -n ciyex-dev --ignore-not-found
+          kubectl delete ingress dev-ciyex-router-ingress -n ciyex-dev --ignore-not-found
+
       - name: Deploy to Kubernetes
         run: |
-          kubectl apply -k k8s/overlays/dev-500
-          kubectl apply -k k8s/overlays/dev-501
-          kubectl apply -k k8s/overlays/dev-502
+          kubectl apply -k k8s/overlays/dev
 
       - name: Verify deployment
         id: verify
         run: |
-          FAILED=0
-          for DEPLOY in dev-500-ciyex-app dev-501-ciyex-app dev-502-ciyex-app; do
-            if ! kubectl rollout status deployment/$DEPLOY -n ciyex-dev --timeout=5m; then
-              echo "❌ $DEPLOY failed"
-              FAILED=1
-            fi
-          done
-          kubectl get pods -n ciyex-dev -l app=ciyex-app -o wide
-          if [ $FAILED -eq 1 ]; then
+          if ! kubectl rollout status deployment/dev-ciyex-app -n ciyex-dev --timeout=5m; then
+            echo "❌ dev-ciyex-app deployment failed"
             echo "deployment_status=failed" >> $GITHUB_OUTPUT
             exit 1
           fi
+          kubectl get pods -n ciyex-dev -l app=ciyex-app -o wide
           echo "deployment_status=success" >> $GITHUB_OUTPUT
 
   notify:
