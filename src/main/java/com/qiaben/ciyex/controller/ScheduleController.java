@@ -44,7 +44,7 @@ public class ScheduleController {
         }
     }
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<ScheduleDto>> get(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<ScheduleDto>> get(@PathVariable String id) {
         try {
             ScheduleDto schedule = service.getById(id);
             return ResponseEntity.ok(ApiResponse.<ScheduleDto>builder()
@@ -63,7 +63,7 @@ public class ScheduleController {
 
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<ScheduleDto>> update(@PathVariable Long id, @RequestBody ScheduleDto dto) {
+    public ResponseEntity<ApiResponse<ScheduleDto>> update(@PathVariable String id, @RequestBody ScheduleDto dto) {
         try {
             ScheduleDto updated = service.update(id, dto);
             return ResponseEntity.ok(ApiResponse.<ScheduleDto>builder()
@@ -81,7 +81,7 @@ public class ScheduleController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -113,21 +113,4 @@ public class ScheduleController {
     }
 
 
-    @GetMapping("/count")
-    public ResponseEntity<ApiResponse<Long>> count() {
-        try {
-            long count = service.countSchedulesForCurrentOrg();
-            return ResponseEntity.ok(ApiResponse.<Long>builder()
-                    .success(true)
-                    .message("Schedule count retrieved successfully")
-                    .data(count)
-                    .build());
-        } catch (Exception e) {
-            log.error("Failed to count schedules: {}", e.getMessage());
-            return ResponseEntity.ok(ApiResponse.<Long>builder()
-                    .success(false)
-                    .message("Failed to count schedules: " + e.getMessage())
-                    .build());
-        }
-    }
 }

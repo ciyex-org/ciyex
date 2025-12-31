@@ -33,10 +33,10 @@ public class EncounterBrowseController {
             @RequestParam(name = "recentCount", required = false, defaultValue = "10") int recentCount,
             Pageable pageable
     ) {
-        Optional<EncounterStatus> statusOpt = Optional.empty();
+        Optional<String> statusOpt = Optional.empty();
         String normalized = status == null ? "ALL" : status.trim().toUpperCase(Locale.ROOT);
         if (!"ALL".equals(normalized)) {
-            statusOpt = Optional.of(EncounterStatus.valueOf(normalized));
+            statusOpt = Optional.of(normalized);
         }
 
         Page<EncounterDto> page = EncounterBrowserService.listAll(

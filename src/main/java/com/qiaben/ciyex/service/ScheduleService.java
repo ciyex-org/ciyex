@@ -1,336 +1,272 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.ScheduleDto;
-import com.qiaben.ciyex.entity.Schedule;
-import com.qiaben.ciyex.repository.ScheduleRepository;
-import com.qiaben.ciyex.storage.ExternalScheduleStorage;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
+/**
+ * FHIR-only Schedule Service.
+ * Uses FHIR Schedule resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class ScheduleService {
 
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    private final ScheduleRepository repository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    // Recurrence extension URL
+    private static final String EXT_URL_RECURRENCE = "http://ciyex.com/fhir/StructureDefinition/schedule-recurrence";
+    private static final String EXT_FREQ = "frequency";
+    private static final String EXT_INTERVAL = "interval";
+    private static final String EXT_BY_WEEKDAY = "byWeekday";
+    private static final String EXT_START_DATE = "startDate";
+    private static final String EXT_END_DATE = "endDate";
+    private static final String EXT_START_TIME = "startTime";
+    private static final String EXT_END_TIME = "endTime";
+    private static final String EXT_MAX_OCC = "maxOccurrences";
+    private static final String EXT_TZ = "timezone";
+    private static final String EXT_LOC_ID = "locationId";
 
-
-    @Autowired
-    public ScheduleService(ScheduleRepository repository,
-                           ExternalStorageResolver storageResolver,
-                           OrgIntegrationConfigProvider configProvider) {
-        this.repository = repository;
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
-
-    @Transactional(readOnly = true)
-    public long countSchedulesForCurrentOrg() {
-
-        return repository.count();
-    }
-
-    @Transactional
+    // CREATE
     public ScheduleDto create(ScheduleDto dto) {
-
         if (dto.getProviderId() == null) {
             throw new IllegalArgumentException("providerId is required");
         }
         validateScheduleDto(dto);
 
+        log.debug("Creating FHIR Schedule for provider: {}", dto.getProviderId());
 
-// Create in external storage and capture externalId
-        String externalId = dto.getExternalId(); // Start with DTO's externalId
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            try {
-                ExternalScheduleStorage external =
-                        (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
-                String extId = external.createSchedule(dto);
-                if (extId != null) {
-                    externalId = extId; // Override with external storage ID if available
-                    log.info("Successfully created schedule in external storage with externalId: {}", externalId);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to sync with external storage, falling back to local generation: {}", e.getMessage());
-                // Fall back to auto-generation if external storage fails
-                externalId = null;
-            }
-        }
+        Schedule schedule = toFhirSchedule(dto);
+        var outcome = fhirClientService.create(schedule, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        // Auto-generate externalId if not provided, no external storage, or external storage failed
-        if (externalId == null) {
-            externalId = "SCH-" + System.currentTimeMillis();
-            log.info("Auto-generated externalId: {}", externalId);
-        }
-
-
-// Persist minimal linkage locally
-        Schedule entity = Schedule.builder()
-                .providerId(dto.getProviderId())
-                .fhirId(externalId)
-                .externalId(externalId)
-                .start(dto.getStart())
-                .end(dto.getEnd())
-                .timezone(dto.getTimezone())
-                .serviceCategory(dto.getServiceCategory())
-                .serviceType(dto.getServiceType())
-                .specialty(dto.getSpecialty())
-                .status(dto.getStatus())
-                .comment(dto.getComment())
-                .actorReferences(dto.getActorReferences() != null ? String.join(",", dto.getActorReferences()) : null)
-                .build();
-
-        // Map recurrence if present
-        if (dto.getRecurrence() != null) {
-            ScheduleDto.Recurrence r = dto.getRecurrence();
-            entity.setRecurrenceFrequency(r.getFrequency());
-            entity.setRecurrenceInterval(r.getInterval());
-            entity.setRecurrenceByWeekday(r.getByWeekday() != null ? String.join(",", r.getByWeekday()) : null);
-            entity.setRecurrenceStartDate(r.getStartDate());
-            entity.setRecurrenceEndDate(r.getEndDate());
-            entity.setRecurrenceStartTime(r.getStartTime());
-            entity.setRecurrenceEndTime(r.getEndTime());
-            entity.setRecurrenceMaxOccurrences(r.getMaxOccurrences());
-            entity.setRecurrenceLocationId(r.getLocationId());
-        }
-
-        entity = repository.save(entity);
-
-
-        return mergeLocalAndExternal(entity, fetchExternal(externalId));
-    }
-
-
-    @Transactional(readOnly = true)
-    public ScheduleDto getById(Long id) {
-
-        Schedule entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
-        return mergeLocalAndExternal(entity, fetchExternal(entity.getExternalId()));
-    }
-
-    @Transactional(readOnly = true)
-    public ApiResponse<List<ScheduleDto>> getAllSchedules() {
-
-        List<Schedule> entities = repository.findAll();
-
-        // collect all externalIds
-        List<String> externalIds = entities.stream()
-                .map(Schedule::getExternalId)
-                .filter(Objects::nonNull)
-                .toList();
-
-        // fetch external schedules in bulk
-        Map<String, ScheduleDto> externalMap = new HashMap<>();
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && !externalIds.isEmpty()) {
-            try {
-                ExternalScheduleStorage external =
-                        (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
-                List<ScheduleDto> extDtos = external.getSchedulesByIds(externalIds);
-                for (ScheduleDto ext : extDtos) {
-                    externalMap.put(ext.getExternalId(), ext);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to fetch external schedules in bulk: {}", e.getMessage());
-            }
-        }
-
-        // merge local + external
-        List<ScheduleDto> out = new ArrayList<>();
-        for (Schedule s : entities) {
-            ScheduleDto merged = mergeLocalAndExternal(
-                    s,
-                    externalMap.getOrDefault(s.getExternalId(), fetchExternal(s.getExternalId()))
-            );
-            if (merged.getStatus() == null) {
-                merged.setStatus("active");
-            }
-            out.add(merged);
-        }
-
-        return ApiResponse.<List<ScheduleDto>>builder()
-                .success(true)
-                .message("Schedules retrieved successfully")
-                .data(out)
-                .build();
-    }
-
-
-
-    // imports you likely already have:
-// import org.springframework.transaction.annotation.Transactional;
-// import com.qiaben.ciyex.dto.ScheduleDto;
-
-    @Transactional
-    public ScheduleDto update(Long id, ScheduleDto dto) {
-
-        Schedule entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
-
-
-        // allow providerId update locally (all other details live in external)
-        if (dto.getProviderId() != null) entity.setProviderId(dto.getProviderId());
-        if (dto.getStart() != null) entity.setStart(dto.getStart());
-        if (dto.getEnd() != null) entity.setEnd(dto.getEnd());
-        if (dto.getTimezone() != null) entity.setTimezone(dto.getTimezone());
-        if (dto.getServiceCategory() != null) entity.setServiceCategory(dto.getServiceCategory());
-        if (dto.getServiceType() != null) entity.setServiceType(dto.getServiceType());
-        if (dto.getSpecialty() != null) entity.setSpecialty(dto.getSpecialty());
-        if (dto.getStatus() != null) entity.setStatus(dto.getStatus());
-        if (dto.getComment() != null) entity.setComment(dto.getComment());
-        if (dto.getActorReferences() != null) entity.setActorReferences(String.join(",", dto.getActorReferences()));
-
-        // Update recurrence if present
-        if (dto.getRecurrence() != null) {
-            ScheduleDto.Recurrence r = dto.getRecurrence();
-            entity.setRecurrenceFrequency(r.getFrequency());
-            entity.setRecurrenceInterval(r.getInterval());
-            entity.setRecurrenceByWeekday(r.getByWeekday() != null ? String.join(",", r.getByWeekday()) : null);
-            entity.setRecurrenceStartDate(r.getStartDate());
-            entity.setRecurrenceEndDate(r.getEndDate());
-            entity.setRecurrenceStartTime(r.getStartTime());
-            entity.setRecurrenceEndTime(r.getEndTime());
-            entity.setRecurrenceMaxOccurrences(r.getMaxOccurrences());
-            entity.setRecurrenceLocationId(r.getLocationId());
-        }
-
-        // sync to external
-        dto.setExternalId(entity.getExternalId());
-        ExternalScheduleStorage external =
-                (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
-        external.updateSchedule(dto, entity.getExternalId());
-        repository.save(entity);
-
-        // return merged local+external
-        return mergeLocalAndExternal(entity, fetchExternal(entity.getExternalId()));
-    }
-
-    @Transactional
-    public void delete(Long id) {
-        Schedule entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
-
-        if (entity.getExternalId() != null) {
-            ExternalScheduleStorage external =
-                    (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
-            external.deleteSchedule(entity.getExternalId());
-
-        }
-        repository.delete(entity);
-    }
-
-
-
-    // -------- helpers --------
-    private ScheduleDto mergeLocalAndExternal(Schedule entity, ScheduleDto externalDto) {
-        ScheduleDto dto = new ScheduleDto();
-        dto.setId(entity.getId());
-        dto.setProviderId(entity.getProviderId());
-        dto.setFhirId(entity.getFhirId());
-        dto.setExternalId(entity.getFhirId()); // externalId is an alias for fhirId
-
-        // Use entity values first, fall back to external
-        dto.setStart(entity.getStart() != null ? entity.getStart() : (externalDto != null ? externalDto.getStart() : null));
-        dto.setEnd(entity.getEnd() != null ? entity.getEnd() : (externalDto != null ? externalDto.getEnd() : null));
-        dto.setTimezone(entity.getTimezone() != null ? entity.getTimezone() : (externalDto != null ? externalDto.getTimezone() : null));
-        dto.setServiceCategory(entity.getServiceCategory() != null ? entity.getServiceCategory() : (externalDto != null ? externalDto.getServiceCategory() : null));
-        dto.setServiceType(entity.getServiceType() != null ? entity.getServiceType() : (externalDto != null ? externalDto.getServiceType() : null));
-        dto.setSpecialty(entity.getSpecialty() != null ? entity.getSpecialty() : (externalDto != null ? externalDto.getSpecialty() : null));
-        dto.setStatus(entity.getStatus() != null ? entity.getStatus() : (externalDto != null ? externalDto.getStatus() : null));
-        dto.setComment(entity.getComment() != null ? entity.getComment() : (externalDto != null ? externalDto.getComment() : null));
-
-        // Parse actor references from comma-separated string
-        if (entity.getActorReferences() != null) {
-            dto.setActorReferences(List.of(entity.getActorReferences().split(",")));
-        } else if (externalDto != null && externalDto.getActorReferences() != null) {
-            dto.setActorReferences(externalDto.getActorReferences());
-        }
-
-        // Map recurrence from entity or external
-        if (hasRecurrenceData(entity)) {
-            ScheduleDto.Recurrence recurrence = new ScheduleDto.Recurrence();
-            recurrence.setFrequency(entity.getRecurrenceFrequency());
-            recurrence.setInterval(entity.getRecurrenceInterval());
-            if (entity.getRecurrenceByWeekday() != null && !entity.getRecurrenceByWeekday().trim().isEmpty()) {
-                recurrence.setByWeekday(List.of(entity.getRecurrenceByWeekday().split(",")));
-            }
-            recurrence.setStartDate(entity.getRecurrenceStartDate());
-            recurrence.setEndDate(entity.getRecurrenceEndDate());
-            recurrence.setStartTime(entity.getRecurrenceStartTime());
-            recurrence.setEndTime(entity.getRecurrenceEndTime());
-            recurrence.setMaxOccurrences(entity.getRecurrenceMaxOccurrences());
-            recurrence.setLocationId(entity.getRecurrenceLocationId());
-            dto.setRecurrence(recurrence);
-        } else if (externalDto != null && externalDto.getRecurrence() != null) {
-            dto.setRecurrence(externalDto.getRecurrence());
-        }
-
-        // Map audit information from entity
-        ScheduleDto.Audit audit = new ScheduleDto.Audit();
-        if (entity.getCreatedDate() != null) {
-            audit.setCreatedDate(entity.getCreatedDate().toString());
-        }
-        if (entity.getLastModifiedDate() != null) {
-            audit.setLastModifiedDate(entity.getLastModifiedDate().toString());
-        }
-        dto.setAudit(audit);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        log.info("Created FHIR Schedule with id: {}", fhirId);
 
         return dto;
     }
 
+    // GET BY ID (FHIR ID)
+    public ScheduleDto getById(String fhirId) {
+        log.debug("Getting FHIR Schedule: {}", fhirId);
+        Schedule schedule = fhirClientService.read(Schedule.class, fhirId, getPracticeId());
+        return fromFhirSchedule(schedule);
+    }
 
-    private ScheduleDto fetchExternal(String externalId) {
-        if (externalId == null) return null;
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType == null) return null;
-        try {
-            ExternalScheduleStorage external =
-                    (ExternalScheduleStorage) storageResolver.resolve(ScheduleDto.class);
-            return external.getSchedule(externalId);
-        } catch (Exception e) {
-            log.warn("Failed to fetch external schedule: {}", e.getMessage());
-            return null;
+    // GET ALL
+    public ApiResponse<List<ScheduleDto>> getAllSchedules() {
+        log.debug("Getting all FHIR Schedules");
+        
+        Bundle bundle = fhirClientService.search(Schedule.class, getPracticeId());
+        List<Schedule> schedules = fhirClientService.extractResources(bundle, Schedule.class);
+        
+        List<ScheduleDto> dtos = schedules.stream()
+                .map(this::fromFhirSchedule)
+                .collect(Collectors.toList());
+
+        return ApiResponse.<List<ScheduleDto>>builder()
+                .success(true)
+                .message("Schedules retrieved successfully")
+                .data(dtos)
+                .build();
+    }
+
+    // GET BY PROVIDER
+    public List<ScheduleDto> getByProviderId(Long providerId) {
+        log.debug("Getting FHIR Schedules for provider: {}", providerId);
+        
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                .forResource(Schedule.class)
+                .where(new ReferenceClientParam("actor").hasId("Practitioner/" + providerId))
+                .returnBundle(Bundle.class)
+                .execute();
+        
+        List<Schedule> schedules = fhirClientService.extractResources(bundle, Schedule.class);
+        return schedules.stream().map(this::fromFhirSchedule).collect(Collectors.toList());
+    }
+
+    // UPDATE
+    public ScheduleDto update(String fhirId, ScheduleDto dto) {
+        log.debug("Updating FHIR Schedule: {}", fhirId);
+        
+        Schedule schedule = toFhirSchedule(dto);
+        schedule.setId(fhirId);
+        fhirClientService.update(schedule, getPracticeId());
+        
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        return dto;
+    }
+
+    // DELETE
+    public void delete(String fhirId) {
+        log.debug("Deleting FHIR Schedule: {}", fhirId);
+        fhirClientService.delete(Schedule.class, fhirId, getPracticeId());
+    }
+
+    // -------- FHIR Mapping --------
+
+    private Schedule toFhirSchedule(ScheduleDto dto) {
+        Schedule s = new Schedule();
+        s.setActive(!"inactive".equalsIgnoreCase(dto.getStatus()));
+
+        // Actor: Provider
+        if (dto.getProviderId() != null) {
+            s.addActor(new Reference("Practitioner/" + dto.getProviderId()));
         }
+
+        // Additional actors
+        if (dto.getActorReferences() != null) {
+            for (String ref : dto.getActorReferences()) {
+                if (dto.getProviderId() != null && ("Practitioner/" + dto.getProviderId()).equals(ref)) continue;
+                s.addActor(new Reference(ref));
+            }
+        }
+
+        // Service category/type/specialty
+        if (dto.getServiceCategory() != null) {
+            s.addServiceCategory().setText(dto.getServiceCategory());
+        }
+        if (dto.getServiceType() != null) {
+            s.addServiceType().setText(dto.getServiceType());
+        }
+        if (dto.getSpecialty() != null) {
+            s.addSpecialty().setText(dto.getSpecialty());
+        }
+        if (dto.getComment() != null) {
+            s.setComment(dto.getComment());
+        }
+
+        // Planning horizon (start/end)
+        if (dto.getStart() != null || dto.getEnd() != null) {
+            org.hl7.fhir.r4.model.Period planningHorizon = new org.hl7.fhir.r4.model.Period();
+            if (dto.getStart() != null) {
+                planningHorizon.setStart(Date.from(parseIsoInstant(dto.getStart(), dto.getTimezone())));
+            }
+            if (dto.getEnd() != null) {
+                planningHorizon.setEnd(Date.from(parseIsoInstant(dto.getEnd(), dto.getTimezone())));
+            }
+            s.setPlanningHorizon(planningHorizon);
+        }
+
+        // Recurrence extension
+        if (dto.getRecurrence() != null || dto.getTimezone() != null) {
+            Extension root = new Extension().setUrl(EXT_URL_RECURRENCE);
+            ScheduleDto.Recurrence r = dto.getRecurrence();
+            if (r != null) {
+                addString(root, EXT_FREQ, r.getFrequency());
+                addInteger(root, EXT_INTERVAL, r.getInterval());
+                addStringList(root, EXT_BY_WEEKDAY, r.getByWeekday());
+                addString(root, EXT_START_DATE, r.getStartDate());
+                addString(root, EXT_END_DATE, r.getEndDate());
+                addString(root, EXT_START_TIME, r.getStartTime());
+                addString(root, EXT_END_TIME, r.getEndTime());
+                addInteger(root, EXT_MAX_OCC, r.getMaxOccurrences());
+                addString(root, EXT_LOC_ID, r.getLocationId());
+            }
+            addString(root, EXT_TZ, dto.getTimezone());
+            s.addExtension(root);
+        }
+
+        return s;
     }
 
+    private ScheduleDto fromFhirSchedule(Schedule s) {
+        ScheduleDto dto = new ScheduleDto();
+        dto.setFhirId(s.getIdElement().getIdPart());
+        dto.setExternalId(s.getIdElement().getIdPart());
+        dto.setStatus(s.getActive() ? "active" : "inactive");
 
+        // Actors
+        if (s.hasActor()) {
+            List<String> refs = new ArrayList<>();
+            for (Reference actor : s.getActor()) {
+                String ref = actor.getReference();
+                if (ref != null) {
+                    if (ref.startsWith("Practitioner/")) {
+                        try {
+                            dto.setProviderId(Long.parseLong(ref.substring("Practitioner/".length())));
+                        } catch (NumberFormatException ignored) {
+                            refs.add(ref);
+                        }
+                    } else {
+                        refs.add(ref);
+                    }
+                }
+            }
+            if (!refs.isEmpty()) dto.setActorReferences(refs);
+        }
 
-    private boolean hasRecurrenceData(Schedule entity) {
-        return entity.getRecurrenceFrequency() != null ||
-               entity.getRecurrenceInterval() != null ||
-               entity.getRecurrenceByWeekday() != null ||
-               entity.getRecurrenceStartDate() != null ||
-               entity.getRecurrenceEndDate() != null ||
-               entity.getRecurrenceStartTime() != null ||
-               entity.getRecurrenceEndTime() != null ||
-               entity.getRecurrenceMaxOccurrences() != null ||
-               entity.getRecurrenceLocationId() != null;
+        // Service metadata
+        if (s.hasServiceCategory()) dto.setServiceCategory(s.getServiceCategoryFirstRep().getText());
+        if (s.hasServiceType()) dto.setServiceType(s.getServiceTypeFirstRep().getText());
+        if (s.hasSpecialty()) dto.setSpecialty(s.getSpecialtyFirstRep().getText());
+        if (s.hasComment()) dto.setComment(s.getComment());
+
+        // Planning horizon
+        if (s.hasPlanningHorizon()) {
+            org.hl7.fhir.r4.model.Period p = s.getPlanningHorizon();
+            ZoneId zone = ZoneId.systemDefault();
+            if (p.hasStart()) {
+                dto.setStart(ZonedDateTime.ofInstant(p.getStart().toInstant(), zone)
+                        .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            }
+            if (p.hasEnd()) {
+                dto.setEnd(ZonedDateTime.ofInstant(p.getEnd().toInstant(), zone)
+                        .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            }
+        }
+
+        // Recurrence extension
+        Extension root = s.getExtensionByUrl(EXT_URL_RECURRENCE);
+        if (root != null) {
+            ScheduleDto.Recurrence r = new ScheduleDto.Recurrence();
+            r.setFrequency(getString(root, EXT_FREQ));
+            r.setInterval(getInteger(root, EXT_INTERVAL));
+            r.setByWeekday(getStringList(root, EXT_BY_WEEKDAY));
+            r.setStartDate(getString(root, EXT_START_DATE));
+            r.setEndDate(getString(root, EXT_END_DATE));
+            r.setStartTime(getString(root, EXT_START_TIME));
+            r.setEndTime(getString(root, EXT_END_TIME));
+            r.setMaxOccurrences(getInteger(root, EXT_MAX_OCC));
+            r.setLocationId(getString(root, EXT_LOC_ID));
+            String tz = getString(root, EXT_TZ);
+            if (tz != null) dto.setTimezone(tz);
+            if (hasAnyRecurrence(r)) dto.setRecurrence(r);
+        }
+
+        return dto;
     }
+
+    // -------- Helpers --------
 
     private void validateScheduleDto(ScheduleDto dto) {
         if (dto.getRecurrence() == null) {
-            // One-time schedule
             if (dto.getStart() == null || dto.getEnd() == null || dto.getTimezone() == null) {
                 throw new IllegalArgumentException("One-time schedule requires start, end, and timezone");
             }
         } else {
-            // Recurring schedule
             ScheduleDto.Recurrence r = dto.getRecurrence();
             if (r.getFrequency() == null || r.getStartDate() == null ||
                     r.getStartTime() == null || r.getEndTime() == null) {
@@ -342,4 +278,56 @@ public class ScheduleService {
         }
     }
 
+    private Instant parseIsoInstant(String iso, String preferredTz) {
+        try {
+            return Instant.from(DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(iso));
+        } catch (Exception ignore) {
+            ZoneId zone = preferredTz != null ? ZoneId.of(preferredTz) : ZoneId.systemDefault();
+            LocalDateTime ldt = LocalDateTime.parse(iso.replace("Z", "").replaceFirst("\\+.*$", ""));
+            return ldt.atZone(zone).toInstant();
+        }
+    }
+
+    private boolean hasAnyRecurrence(ScheduleDto.Recurrence r) {
+        return r.getFrequency() != null || r.getInterval() != null ||
+                (r.getByWeekday() != null && !r.getByWeekday().isEmpty()) ||
+                r.getStartDate() != null || r.getEndDate() != null ||
+                r.getStartTime() != null || r.getEndTime() != null ||
+                r.getMaxOccurrences() != null || r.getLocationId() != null;
+    }
+
+    private void addString(Extension root, String name, String value) {
+        if (value == null) return;
+        root.addExtension(new Extension(name, new StringType(value)));
+    }
+
+    private void addInteger(Extension root, String name, Integer value) {
+        if (value == null) return;
+        root.addExtension(new Extension(name, new IntegerType(value)));
+    }
+
+    private void addStringList(Extension root, String name, List<String> values) {
+        if (values == null || values.isEmpty()) return;
+        for (String v : values) root.addExtension(new Extension(name, new StringType(v)));
+    }
+
+    private String getString(Extension root, String name) {
+        Extension e = root.getExtensionByUrl(name);
+        return e != null && e.getValue() instanceof StringType ? ((StringType) e.getValue()).getValue() : null;
+    }
+
+    private Integer getInteger(Extension root, String name) {
+        Extension e = root.getExtensionByUrl(name);
+        return e != null && e.getValue() instanceof IntegerType ? ((IntegerType) e.getValue()).getValue() : null;
+    }
+
+    private List<String> getStringList(Extension root, String name) {
+        List<String> out = new ArrayList<>();
+        for (Extension e : root.getExtension()) {
+            if (name.equals(e.getUrl()) && e.getValue() instanceof StringType) {
+                out.add(((StringType) e.getValue()).getValue());
+            }
+        }
+        return out.isEmpty() ? null : out;
+    }
 }

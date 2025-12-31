@@ -218,7 +218,7 @@ public class PortalMessageAttachmentController {
     @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT') or hasAuthority('PROVIDER') or hasRole('PROVIDER')")
     public ResponseEntity<InputStreamResource> downloadAttachment(
             @PathVariable("messageId") Long messageId,
-            @PathVariable("attachmentId") Long attachmentId,
+            @PathVariable("attachmentId") String attachmentId,
             Authentication authentication) {
 
         try {
@@ -290,7 +290,7 @@ public class PortalMessageAttachmentController {
     @PreAuthorize("hasAuthority('PATIENT') or hasRole('PATIENT') or hasAuthority('PROVIDER') or hasRole('PROVIDER')")
     public ResponseEntity<?> deleteAttachment(
             @PathVariable("messageId") Long messageId,
-            @PathVariable("attachmentId") Long attachmentId,
+            @PathVariable("attachmentId") String attachmentId,
             Authentication authentication) {
 
         try {

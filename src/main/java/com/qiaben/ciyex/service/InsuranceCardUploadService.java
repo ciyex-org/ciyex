@@ -1,21 +1,30 @@
 package com.qiaben.ciyex.service;
 
-import com.qiaben.ciyex.provider.S3ClientProvider;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * FHIR-only Insurance Card Upload Service.
+ * Uses FHIR DocumentReference + Binary resources for storing insurance card images.
+ * No S3 storage - all data stored in FHIR server.
+ */
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class InsuranceCardUploadService {
+
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
     private static final List<String> ALLOWED_CONTENT_TYPES = Arrays.asList(
             "image/png",
@@ -26,52 +35,109 @@ public class InsuranceCardUploadService {
 
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-    private final S3ClientProvider s3ClientProvider;
+    private static final String DOC_TYPE_SYSTEM = "http://ciyex.com/fhir/document-type";
+    private static final String DOC_TYPE_CODE = "insurance-card";
+    private static final String EXT_COVERAGE_ID = "http://ciyex.com/fhir/StructureDefinition/coverage-id";
+    private static final String EXT_CARD_SIDE = "http://ciyex.com/fhir/StructureDefinition/card-side";
 
-    public InsuranceCardUploadService(S3ClientProvider s3ClientProvider) {
-        this.s3ClientProvider = s3ClientProvider;
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
     /**
-     * Upload insurance card image to S3 and return the URL
-     *
-     * @param file       The uploaded file
-     * @param coverageId The coverage ID
-     * @param side       "front" or "back"
-     * @return The S3 URL of the uploaded file
+     * Upload insurance card image to FHIR server and return the FHIR ID
      */
     public String uploadCard(MultipartFile file, Long coverageId, String side) throws IOException {
         validateFile(file);
 
-        String bucket = s3ClientProvider.getBucketForCurrentOrg();
-        S3Client s3Client = s3ClientProvider.getForCurrentTenant();
+        log.debug("Uploading insurance card {} for coverage {}", side, coverageId);
 
-        String originalFilename = file.getOriginalFilename();
-        String extension = getFileExtension(originalFilename);
-        String key = String.format("insurance-cards/%d/%s-%s.%s",
-                coverageId,
-                side,
-                UUID.randomUUID().toString(),
-                extension
-        );
+        // Create DocumentReference with embedded data
+        DocumentReference doc = new DocumentReference();
+        doc.setStatus(Enumerations.DocumentReferenceStatus.CURRENT);
 
-        try {
-            PutObjectRequest putRequest = PutObjectRequest.builder()
-                    .bucket(bucket)
-                    .key(key)
-                    .contentType(file.getContentType())
-                    .build();
+        // Type to identify as insurance card
+        CodeableConcept type = new CodeableConcept();
+        type.addCoding().setSystem(DOC_TYPE_SYSTEM).setCode(DOC_TYPE_CODE).setDisplay("Insurance Card");
+        doc.setType(type);
 
-            s3Client.putObject(putRequest, RequestBody.fromBytes(file.getBytes()));
+        // Description
+        doc.setDescription(String.format("Insurance card %s for coverage %d", side, coverageId));
 
-            String url = String.format("https://%s.s3.amazonaws.com/%s", bucket, key);
-            log.info("Uploaded insurance card {} for coverage {}: {}", side, coverageId, url);
-            return url;
+        // Coverage ID extension
+        doc.addExtension(new Extension(EXT_COVERAGE_ID, new StringType(coverageId.toString())));
 
-        } catch (Exception e) {
-            log.error("Failed to upload insurance card to S3", e);
-            throw new IOException("Failed to upload file to S3", e);
+        // Card side extension (front/back)
+        doc.addExtension(new Extension(EXT_CARD_SIDE, new StringType(side)));
+
+        // Content with embedded data
+        DocumentReference.DocumentReferenceContentComponent content = doc.addContent();
+        Attachment attachment = new Attachment();
+        attachment.setContentType(file.getContentType());
+        attachment.setData(file.getBytes());
+        attachment.setTitle(file.getOriginalFilename());
+        attachment.setSize((int) file.getSize());
+        content.setAttachment(attachment);
+
+        // Create in FHIR
+        var outcome = fhirClientService.create(doc, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
+
+        log.info("Uploaded insurance card {} for coverage {} with FHIR ID: {}", side, coverageId, fhirId);
+        return fhirId;
+    }
+
+    /**
+     * Get insurance card image data by FHIR ID
+     */
+    public byte[] getCardData(String fhirId) {
+        log.debug("Getting insurance card data: {}", fhirId);
+        DocumentReference doc = fhirClientService.read(DocumentReference.class, fhirId, getPracticeId());
+
+        if (doc.hasContent() && !doc.getContent().isEmpty()) {
+            DocumentReference.DocumentReferenceContentComponent content = doc.getContent().get(0);
+            if (content.hasAttachment() && content.getAttachment().hasData()) {
+                return content.getAttachment().getData();
+            }
         }
+        return new byte[0];
+    }
+
+    /**
+     * Get insurance card content type by FHIR ID
+     */
+    public String getCardContentType(String fhirId) {
+        DocumentReference doc = fhirClientService.read(DocumentReference.class, fhirId, getPracticeId());
+
+        if (doc.hasContent() && !doc.getContent().isEmpty()) {
+            DocumentReference.DocumentReferenceContentComponent content = doc.getContent().get(0);
+            if (content.hasAttachment()) {
+                return content.getAttachment().getContentType();
+            }
+        }
+        return "application/octet-stream";
+    }
+
+    /**
+     * Delete insurance card from FHIR
+     */
+    public void deleteCard(String fhirId) {
+        log.debug("Deleting insurance card: {}", fhirId);
+        fhirClientService.delete(DocumentReference.class, fhirId, getPracticeId());
+    }
+
+    /**
+     * Get all insurance cards for a coverage
+     */
+    public List<String> getCardsForCoverage(Long coverageId) {
+        log.debug("Getting insurance cards for coverage: {}", coverageId);
+        Bundle bundle = fhirClientService.search(DocumentReference.class, getPracticeId());
+
+        return fhirClientService.extractResources(bundle, DocumentReference.class).stream()
+                .filter(this::isInsuranceCard)
+                .filter(doc -> coverageId.equals(getCoverageId(doc)))
+                .map(doc -> doc.getIdElement().getIdPart())
+                .toList();
     }
 
     private void validateFile(MultipartFile file) throws IOException {
@@ -89,10 +155,19 @@ public class InsuranceCardUploadService {
         }
     }
 
-    private String getFileExtension(String filename) {
-        if (filename == null || !filename.contains(".")) {
-            return "jpg";
+    private boolean isInsuranceCard(DocumentReference doc) {
+        if (!doc.hasType()) return false;
+        return doc.getType().getCoding().stream()
+                .anyMatch(c -> DOC_TYPE_SYSTEM.equals(c.getSystem()) && DOC_TYPE_CODE.equals(c.getCode()));
+    }
+
+    private Long getCoverageId(DocumentReference doc) {
+        Extension ext = doc.getExtensionByUrl(EXT_COVERAGE_ID);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            try {
+                return Long.parseLong(((StringType) ext.getValue()).getValue());
+            } catch (NumberFormatException ignored) {}
         }
-        return filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
+        return null;
     }
 }

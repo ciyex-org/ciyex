@@ -2,52 +2,61 @@ package com.qiaben.ciyex.service.portal;
 
 import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalUserDto;
-import com.qiaben.ciyex.entity.Patient;
-import com.qiaben.ciyex.entity.portal.PortalUser;
-import com.qiaben.ciyex.entity.portal.PortalPatient;
-import com.qiaben.ciyex.enums.PortalStatus;
-import com.qiaben.ciyex.repository.PatientRepository;
-import com.qiaben.ciyex.repository.portal.PortalUserRepository;
-import com.qiaben.ciyex.repository.portal.PortalPatientRepository;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import com.qiaben.ciyex.service.PracticeContextService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Service to handle portal user approval workflow
- * Users are now managed in Keycloak instead of database
+ * FHIR-only Portal Approval Service.
+ * Uses FHIR Person resource for portal users and Patient resource for EHR patients.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PortalApprovalService {
 
-    private final PortalUserRepository portalUserRepository;
-    private final PortalPatientRepository portalPatientRepository;
-    private final PatientRepository patientRepository;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    /**
-     * Get pending portal users for a specific organization
-     */
+    private static final String PORTAL_USER_SYSTEM = "http://ciyex.com/fhir/resource-type";
+    private static final String PORTAL_USER_CODE = "portal-user";
+    private static final String EXT_STATUS = "http://ciyex.com/fhir/StructureDefinition/portal-status";
+    private static final String EXT_APPROVED_DATE = "http://ciyex.com/fhir/StructureDefinition/approved-date";
+    private static final String EXT_APPROVED_BY = "http://ciyex.com/fhir/StructureDefinition/approved-by";
+    private static final String EXT_REJECTED_DATE = "http://ciyex.com/fhir/StructureDefinition/rejected-date";
+    private static final String EXT_REJECTED_BY = "http://ciyex.com/fhir/StructureDefinition/rejected-by";
+    private static final String EXT_REJECTION_REASON = "http://ciyex.com/fhir/StructureDefinition/rejection-reason";
+    private static final String EXT_EHR_PATIENT_ID = "http://ciyex.com/fhir/StructureDefinition/ehr-patient-id";
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
     public ApiResponse<List<PortalUserDto>> getPendingUsers() {
         try {
-            List<PortalUser> pendingUsers = portalUserRepository.findPendingUsers();
-            List<PortalUserDto> userDtos = pendingUsers.stream()
-                    .map(PortalUserDto::fromEntity)
+            Bundle bundle = fhirClientService.search(Person.class, getPracticeId());
+            List<PortalUserDto> pendingUsers = fhirClientService.extractResources(bundle, Person.class).stream()
+                    .filter(this::isPortalUser)
+                    .filter(p -> "PENDING".equals(getStringExt(p, EXT_STATUS)))
+                    .map(this::toPortalUserDto)
                     .collect(Collectors.toList());
 
             return ApiResponse.<List<PortalUserDto>>builder()
                     .success(true)
                     .message("Pending users retrieved successfully")
-                    .data(userDtos)
+                    .data(pendingUsers)
                     .build();
         } catch (Exception e) {
-            log.error("Error retrieving pending users for org: {}",  e);
+            log.error("Error retrieving pending users", e);
             return ApiResponse.<List<PortalUserDto>>builder()
                     .success(false)
                     .message("Failed to retrieve pending users")
@@ -55,64 +64,48 @@ public class PortalApprovalService {
         }
     }
 
-    /**
-     * Approve a portal user and create corresponding tenant user/patient
-     */
-    @Transactional
     public ApiResponse<PortalUserDto> approveUser(Long portalUserId, Long approvedByUserId) {
         try {
-            PortalUser portalUser = portalUserRepository.findById(portalUserId)
-                    .orElse(null);
+            String fhirId = String.valueOf(portalUserId);
+            Person person = fhirClientService.read(Person.class, fhirId, getPracticeId());
 
-            if (portalUser == null) {
+            if (person == null) {
                 return ApiResponse.<PortalUserDto>builder()
                         .success(false)
                         .message("Portal user not found")
                         .build();
             }
 
-            if (portalUser.getStatus() != PortalStatus.PENDING) {
+            String status = getStringExt(person, EXT_STATUS);
+            if (!"PENDING".equals(status)) {
                 return ApiResponse.<PortalUserDto>builder()
                         .success(false)
                         .message("User is not in pending status")
                         .build();
             }
 
-            // Get the associated portal patient
-            PortalPatient portalPatient = portalPatientRepository.findByPortalUser_Id(portalUserId)
-                    .orElse(null);
-
-            if (portalPatient == null) {
-                return ApiResponse.<PortalUserDto>builder()
-                        .success(false)
-                        .message("Portal patient not found")
-                        .build();
-            }
-
-            // Create tenant user and patient
-            Long ehrPatientId = createTenantPatient(portalUser, portalPatient);
+            // Create EHR Patient from portal user
+            Patient ehrPatient = createEhrPatient(person);
+            var outcome = fhirClientService.create(ehrPatient, getPracticeId());
+            String ehrPatientId = outcome.getId().getIdPart();
 
             // Update portal user status
-            portalUser.setStatus(PortalStatus.APPROVED);
-            portalUser.setApprovedDate(LocalDateTime.now());
-            portalUser.setApprovedBy(approvedByUserId);
-            portalUser.setLastModifiedDate(LocalDateTime.now());
+            person.getExtension().removeIf(e -> EXT_STATUS.equals(e.getUrl()) || 
+                    EXT_APPROVED_DATE.equals(e.getUrl()) || EXT_APPROVED_BY.equals(e.getUrl()) ||
+                    EXT_EHR_PATIENT_ID.equals(e.getUrl()));
+            person.addExtension(new Extension(EXT_STATUS, new StringType("APPROVED")));
+            person.addExtension(new Extension(EXT_APPROVED_DATE, new DateTimeType(new Date())));
+            person.addExtension(new Extension(EXT_APPROVED_BY, new StringType(String.valueOf(approvedByUserId))));
+            person.addExtension(new Extension(EXT_EHR_PATIENT_ID, new StringType(ehrPatientId)));
 
-            // Update portal patient with EHR patient ID
-            portalPatient.setEhrPatientId(ehrPatientId);
-            portalPatient.setLastModifiedDate(LocalDateTime.now());
+            fhirClientService.update(person, getPracticeId());
 
-            // Save changes
-            portalUserRepository.save(portalUser);
-            portalPatientRepository.save(portalPatient);
-
-            log.info("Portal user approved successfully: {} -> EHR Patient ID: {}", 
-                    portalUser.getEmail(), ehrPatientId);
+            log.info("Portal user approved successfully: {} -> EHR Patient ID: {}", fhirId, ehrPatientId);
 
             return ApiResponse.<PortalUserDto>builder()
                     .success(true)
-                    .message("Portal user approved and synced to EHR tenant")
-                    .data(PortalUserDto.fromEntity(portalUser))
+                    .message("Portal user approved and synced to EHR")
+                    .data(toPortalUserDto(person))
                     .build();
 
         } catch (Exception e) {
@@ -124,23 +117,20 @@ public class PortalApprovalService {
         }
     }
 
-    /**
-     * Reject a portal user
-     */
-    @Transactional
     public ApiResponse<PortalUserDto> rejectUser(Long portalUserId, String reason, Long rejectedByUserId) {
         try {
-            PortalUser portalUser = portalUserRepository.findById(portalUserId)
-                    .orElse(null);
+            String fhirId = String.valueOf(portalUserId);
+            Person person = fhirClientService.read(Person.class, fhirId, getPracticeId());
 
-            if (portalUser == null) {
+            if (person == null) {
                 return ApiResponse.<PortalUserDto>builder()
                         .success(false)
                         .message("Portal user not found")
                         .build();
             }
 
-            if (portalUser.getStatus() != PortalStatus.PENDING) {
+            String status = getStringExt(person, EXT_STATUS);
+            if (!"PENDING".equals(status)) {
                 return ApiResponse.<PortalUserDto>builder()
                         .success(false)
                         .message("User is not in pending status")
@@ -148,20 +138,24 @@ public class PortalApprovalService {
             }
 
             // Update portal user status
-            portalUser.setStatus(PortalStatus.REJECTED);
-            portalUser.setReason(reason);
-            portalUser.setRejectedDate(LocalDateTime.now());
-            portalUser.setRejectedBy(rejectedByUserId);
-            portalUser.setLastModifiedDate(LocalDateTime.now());
+            person.getExtension().removeIf(e -> EXT_STATUS.equals(e.getUrl()) || 
+                    EXT_REJECTED_DATE.equals(e.getUrl()) || EXT_REJECTED_BY.equals(e.getUrl()) ||
+                    EXT_REJECTION_REASON.equals(e.getUrl()));
+            person.addExtension(new Extension(EXT_STATUS, new StringType("REJECTED")));
+            person.addExtension(new Extension(EXT_REJECTED_DATE, new DateTimeType(new Date())));
+            person.addExtension(new Extension(EXT_REJECTED_BY, new StringType(String.valueOf(rejectedByUserId))));
+            if (reason != null) {
+                person.addExtension(new Extension(EXT_REJECTION_REASON, new StringType(reason)));
+            }
 
-            portalUserRepository.save(portalUser);
+            fhirClientService.update(person, getPracticeId());
 
-            log.info("Portal user rejected: {} - Reason: {}", portalUser.getEmail(), reason);
+            log.info("Portal user rejected: {} - Reason: {}", fhirId, reason);
 
             return ApiResponse.<PortalUserDto>builder()
                     .success(true)
                     .message("Portal user rejected successfully")
-                    .data(PortalUserDto.fromEntity(portalUser))
+                    .data(toPortalUserDto(person))
                     .build();
 
         } catch (Exception e) {
@@ -173,82 +167,12 @@ public class PortalApprovalService {
         }
     }
 
-    /**
-     * Create tenant user in Keycloak and patient in database from portal data
-     */
-    private Long createTenantPatient(PortalUser portalUser, PortalPatient portalPatient) {
-        try {
-            // For testing: Create EHR patient without Keycloak integration
-            // TODO: Re-enable Keycloak integration when Keycloak is properly configured
-
-            /*
-            // Prepare user attributes for Keycloak
-            Map<String, String> attributes = new HashMap<>();
-            attributes.put("uuid", portalUser.getUuid().toString());
-            attributes.put("dateOfBirth", portalPatient.getDateOfBirth().toString());
-            attributes.put("phoneNumber", portalUser.getPhoneNumber());
-            attributes.put("street", portalPatient.getAddressLine1());
-            if (portalPatient.getAddressLine2() != null) {
-                attributes.put("street2", portalPatient.getAddressLine2());
-            }
-            attributes.put("city", portalPatient.getCity());
-            attributes.put("state", portalPatient.getState());
-            attributes.put("postalCode", portalPatient.getPostalCode());
-            attributes.put("country", portalPatient.getCountry());
-
-            // Create user in Keycloak
-            String keycloakUserId = keycloakUserService.createUser(
-                    portalUser.getEmail(),
-                    portalUser.getFirstName(),
-                    portalUser.getLastName(),
-                    portalUser.getPassword(), // Already encoded
-                    attributes
-            );
-
-            // Add user to tenant group
-            String tenantGroup = RequestContext.get().getTenantName();
-            keycloakUserService.addUserToGroup(keycloakUserId, tenantGroup);
-
-            // Assign patient role
-            keycloakUserService.assignRolesToUser(keycloakUserId, List.of("patient"));
-            */
-
-            // Create tenant patient in database only (for testing)
-            Patient tenantPatient = Patient.builder()
-                    .firstName(portalUser.getFirstName())
-                    .lastName(portalUser.getLastName())
-                    .email(portalUser.getEmail())
-                    .phoneNumber(portalUser.getPhoneNumber())
-                    .dateOfBirth(portalPatient.getDateOfBirth().toString())
-                    .gender(portalPatient.getGender())
-                    .address(portalPatient.getAddressLine1())
-                    .status("ACTIVE")
-                    .build();
-
-            Patient savedPatient = patientRepository.save(tenantPatient);
-
-            log.info("Created EHR patient {} for portal user {} (Keycloak integration disabled for testing)",
-                    savedPatient.getId(), portalUser.getEmail());
-
-            return savedPatient.getId();
-
-        } catch (Exception e) {
-            log.error("Error creating tenant patient for portal user: {}", portalUser.getEmail(), e);
-            throw new RuntimeException("Failed to create tenant patient", e);
-        }
-    }
-
-    /**
-     * Get the status of a patient linking request for a portal user
-     */
     public ApiResponse<String> getLinkStatus(Long portalUserId) {
         try {
-            // For now, return a simple status. In a real implementation,
-            // this would check if the portal user is linked to an EHR patient
-            PortalPatient portalPatient = portalPatientRepository.findByPortalUser_Id(portalUserId)
-                    .orElse(null);
+            String fhirId = String.valueOf(portalUserId);
+            Person person = fhirClientService.read(Person.class, fhirId, getPracticeId());
 
-            if (portalPatient == null) {
+            if (person == null) {
                 return ApiResponse.<String>builder()
                         .success(true)
                         .message("No patient record found for portal user")
@@ -256,7 +180,8 @@ public class PortalApprovalService {
                         .build();
             }
 
-            if (portalPatient.getEhrPatientId() != null) {
+            String ehrPatientId = getStringExt(person, EXT_EHR_PATIENT_ID);
+            if (ehrPatientId != null && !ehrPatientId.isEmpty()) {
                 return ApiResponse.<String>builder()
                         .success(true)
                         .message("Patient is linked to EHR")
@@ -279,15 +204,8 @@ public class PortalApprovalService {
         }
     }
 
-    /**
-     * Create a patient linking request
-     */
     public ApiResponse<String> linkPatient(Long portalUserId, Long ehrPatientId, String requestReason) {
         try {
-            // For now, this is a placeholder implementation
-            // In a real implementation, this would create a linking request record
-            // and notify EHR staff for approval
-
             log.info("Patient linking request: portalUserId={}, ehrPatientId={}, reason={}",
                     portalUserId, ehrPatientId, requestReason);
 
@@ -304,5 +222,83 @@ public class PortalApprovalService {
                     .message("Failed to create linking request: " + e.getMessage())
                     .build();
         }
+    }
+
+    // -------- Helper Methods --------
+
+    private Patient createEhrPatient(Person person) {
+        Patient patient = new Patient();
+
+        // Name
+        if (person.hasName()) {
+            HumanName name = person.getNameFirstRep();
+            patient.addName()
+                    .setFamily(name.getFamily())
+                    .addGiven(name.getGivenAsSingleString());
+        }
+
+        // Telecom (email, phone)
+        for (ContactPoint cp : person.getTelecom()) {
+            patient.addTelecom(cp.copy());
+        }
+
+        // Address
+        for (Address addr : person.getAddress()) {
+            patient.addAddress(addr.copy());
+        }
+
+        // Gender
+        if (person.hasGender()) {
+            patient.setGender(person.getGender());
+        }
+
+        // Birth date
+        if (person.hasBirthDate()) {
+            patient.setBirthDate(person.getBirthDate());
+        }
+
+        patient.setActive(true);
+
+        return patient;
+    }
+
+    private boolean isPortalUser(Person person) {
+        if (!person.hasMeta() || !person.getMeta().hasTag()) return true;
+        return person.getMeta().getTag().stream()
+                .anyMatch(c -> PORTAL_USER_SYSTEM.equals(c.getSystem()) && PORTAL_USER_CODE.equals(c.getCode()));
+    }
+
+    private PortalUserDto toPortalUserDto(Person person) {
+        String fhirId = person.getIdElement().getIdPart();
+
+        PortalUserDto dto = PortalUserDto.builder()
+                .id((long) Math.abs(fhirId.hashCode()))
+                .uuid(fhirId)
+                .role("PATIENT")
+                .build();
+
+        if (person.hasName()) {
+            HumanName name = person.getNameFirstRep();
+            dto.setFirstName(name.getGivenAsSingleString());
+            dto.setLastName(name.getFamily());
+        }
+
+        for (ContactPoint cp : person.getTelecom()) {
+            if (cp.getSystem() == ContactPoint.ContactPointSystem.EMAIL) {
+                dto.setEmail(cp.getValue());
+            } else if (cp.getSystem() == ContactPoint.ContactPointSystem.PHONE) {
+                dto.setPhoneNumber(cp.getValue());
+            }
+        }
+
+        return dto;
+    }
+
+    private String getStringExt(Person person, String url) {
+        Extension ext = person.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
     }
 }

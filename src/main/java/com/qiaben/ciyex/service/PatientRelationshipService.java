@@ -1,119 +1,199 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import com.qiaben.ciyex.dto.PatientRelationshipDto;
-import com.qiaben.ciyex.dto.integration.RequestContext;
-import com.qiaben.ciyex.entity.PatientRelationship;
-import com.qiaben.ciyex.repository.PatientRelationshipRepository;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * FHIR-only PatientRelationship Service.
+ * Uses FHIR RelatedPerson resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class PatientRelationshipService {
 
-    private final PatientRelationshipRepository repository;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    @Autowired
-    public PatientRelationshipService(PatientRelationshipRepository repository) {
-        this.repository = repository;
+    // Extension URLs
+    private static final String EXT_RELATED_PATIENT_ID = "http://ciyex.com/fhir/StructureDefinition/related-patient-id";
+    private static final String EXT_EMERGENCY_CONTACT = "http://ciyex.com/fhir/StructureDefinition/emergency-contact";
+    private static final String EXT_NOTES = "http://ciyex.com/fhir/StructureDefinition/notes";
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
-    @Transactional
+    // CREATE
     public PatientRelationshipDto create(PatientRelationshipDto dto) {
-        Long orgId = getCurrentOrgId();
+        log.debug("Creating FHIR RelatedPerson for patient: {}", dto.getPatientId());
 
-        PatientRelationship entity = PatientRelationship.builder()
-                .orgId(orgId) // THIS WAS MISSING - CAUSING THE ERROR
-                .patientId(dto.getPatientId())
-                .relatedPatientId(dto.getRelatedPatientId())
-                .relatedPatientName(dto.getRelatedPatientName())
-                .relationshipType(dto.getRelationshipType())
-                .phoneNumber(dto.getPhoneNumber())
-                .email(dto.getEmail())
-                .address(dto.getAddress())
-                .emergencyContact(dto.getEmergencyContact() != null ? dto.getEmergencyContact() : false)
-                .notes(dto.getNotes())
-                .active(dto.getActive() != null ? dto.getActive() : true)
-                .createdDate(LocalDateTime.now())
-                .lastModifiedDate(LocalDateTime.now())
-                .build();
+        RelatedPerson rp = toFhirRelatedPerson(dto);
+        var outcome = fhirClientService.create(rp, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        PatientRelationship saved = repository.save(entity);
-        return mapToDto(saved);
+        dto.setId(Long.parseLong(fhirId.hashCode() + ""));
+        log.info("Created FHIR RelatedPerson with id: {}", fhirId);
+
+        return dto;
     }
 
-    @Transactional(readOnly = true)
+    // GET BY ID
+    public PatientRelationshipDto getById(String fhirId) {
+        log.debug("Getting FHIR RelatedPerson: {}", fhirId);
+        RelatedPerson rp = fhirClientService.read(RelatedPerson.class, fhirId, getPracticeId());
+        return fromFhirRelatedPerson(rp);
+    }
+
+    // GET ALL BY PATIENT
     public List<PatientRelationshipDto> getAllByPatientId(Long patientId) {
-        Long orgId = getCurrentOrgId();
-        List<PatientRelationship> relationships = repository.findByOrgIdAndPatientId(orgId, patientId);
-        return relationships.stream().map(this::mapToDto).collect(Collectors.toList());
+        log.debug("Getting FHIR RelatedPersons for patient: {}", patientId);
+
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                .forResource(RelatedPerson.class)
+                .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
+                .returnBundle(Bundle.class)
+                .execute();
+
+        List<RelatedPerson> relatedPersons = fhirClientService.extractResources(bundle, RelatedPerson.class);
+        return relatedPersons.stream().map(this::fromFhirRelatedPerson).collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
-    public PatientRelationshipDto getById(Long id) {
-        Long orgId = getCurrentOrgId();
-        PatientRelationship entity = repository.findByIdAndOrgId(id, orgId)
-                .orElseThrow(() -> new RuntimeException("Patient relationship not found with id: " + id));
-        return mapToDto(entity);
+    // UPDATE
+    public PatientRelationshipDto update(String fhirId, PatientRelationshipDto dto) {
+        log.debug("Updating FHIR RelatedPerson: {}", fhirId);
+
+        RelatedPerson rp = toFhirRelatedPerson(dto);
+        rp.setId(fhirId);
+        fhirClientService.update(rp, getPracticeId());
+
+        return dto;
     }
 
-    @Transactional
-    public PatientRelationshipDto update(Long id, PatientRelationshipDto dto) {
-        Long orgId = getCurrentOrgId();
-        PatientRelationship entity = repository.findByIdAndOrgId(id, orgId)
-                .orElseThrow(() -> new RuntimeException("Patient relationship not found with id: " + id));
-
-        entity.setRelatedPatientId(dto.getRelatedPatientId());
-        entity.setRelatedPatientName(dto.getRelatedPatientName());
-        entity.setRelationshipType(dto.getRelationshipType());
-        entity.setPhoneNumber(dto.getPhoneNumber());
-        entity.setEmail(dto.getEmail());
-        entity.setAddress(dto.getAddress());
-        entity.setEmergencyContact(dto.getEmergencyContact());
-        entity.setNotes(dto.getNotes());
-        entity.setActive(dto.getActive());
-        entity.setLastModifiedDate(LocalDateTime.now());
-
-        PatientRelationship updated = repository.save(entity);
-        return mapToDto(updated);
+    // DELETE
+    public void delete(String fhirId) {
+        log.debug("Deleting FHIR RelatedPerson: {}", fhirId);
+        fhirClientService.delete(RelatedPerson.class, fhirId, getPracticeId());
     }
 
-    @Transactional
-    public void delete(Long id) {
-        Long orgId = getCurrentOrgId();
-        PatientRelationship entity = repository.findByIdAndOrgId(id, orgId)
-                .orElseThrow(() -> new RuntimeException("Patient relationship not found with id: " + id));
-        repository.delete(entity);
+    // -------- FHIR Mapping --------
+
+    private RelatedPerson toFhirRelatedPerson(PatientRelationshipDto dto) {
+        RelatedPerson rp = new RelatedPerson();
+        rp.setActive(dto.getActive() != null ? dto.getActive() : true);
+
+        // Patient reference
+        if (dto.getPatientId() != null) {
+            rp.setPatient(new Reference("Patient/" + dto.getPatientId()));
+        }
+
+        // Name
+        if (dto.getRelatedPatientName() != null) {
+            rp.addName().setText(dto.getRelatedPatientName());
+        }
+
+        // Relationship type
+        if (dto.getRelationshipType() != null) {
+            rp.addRelationship().setText(dto.getRelationshipType());
+        }
+
+        // Telecom
+        if (dto.getPhoneNumber() != null) {
+            rp.addTelecom().setSystem(ContactPoint.ContactPointSystem.PHONE).setValue(dto.getPhoneNumber());
+        }
+        if (dto.getEmail() != null) {
+            rp.addTelecom().setSystem(ContactPoint.ContactPointSystem.EMAIL).setValue(dto.getEmail());
+        }
+
+        // Address
+        if (dto.getAddress() != null) {
+            rp.addAddress().setText(dto.getAddress());
+        }
+
+        // Extensions
+        if (dto.getRelatedPatientId() != null) {
+            rp.addExtension(new Extension(EXT_RELATED_PATIENT_ID, new StringType(dto.getRelatedPatientId().toString())));
+        }
+        if (dto.getEmergencyContact() != null) {
+            rp.addExtension(new Extension(EXT_EMERGENCY_CONTACT, new BooleanType(dto.getEmergencyContact())));
+        }
+        if (dto.getNotes() != null) {
+            rp.addExtension(new Extension(EXT_NOTES, new StringType(dto.getNotes())));
+        }
+
+        return rp;
     }
 
-    private PatientRelationshipDto mapToDto(PatientRelationship entity) {
-        return PatientRelationshipDto.builder()
-                .id(entity.getId())
-                .orgId(entity.getOrgId())
-                .patientId(entity.getPatientId())
-                .relatedPatientId(entity.getRelatedPatientId())
-                .relatedPatientName(entity.getRelatedPatientName())
-                .relationshipType(entity.getRelationshipType())
-                .phoneNumber(entity.getPhoneNumber())
-                .email(entity.getEmail())
-                .address(entity.getAddress())
-                .emergencyContact(entity.getEmergencyContact())
-                .notes(entity.getNotes())
-                .active(entity.getActive())
-                .createdDate(entity.getCreatedDate())
-                .lastModifiedDate(entity.getLastModifiedDate())
-                .build();
-    }
+    private PatientRelationshipDto fromFhirRelatedPerson(RelatedPerson rp) {
+        PatientRelationshipDto dto = PatientRelationshipDto.builder().build();
 
-    private Long getCurrentOrgId() {
-        // For development, return a default orgId
-        // In production, this should come from security context
-        return 1L;
+        // Patient -> patientId
+        if (rp.hasPatient() && rp.getPatient().hasReference()) {
+            String ref = rp.getPatient().getReference();
+            if (ref.startsWith("Patient/")) {
+                try {
+                    dto.setPatientId(Long.parseLong(ref.substring("Patient/".length())));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Active
+        dto.setActive(rp.getActive());
+
+        // Name
+        if (rp.hasName()) {
+            dto.setRelatedPatientName(rp.getNameFirstRep().getText());
+        }
+
+        // Relationship type
+        if (rp.hasRelationship()) {
+            dto.setRelationshipType(rp.getRelationshipFirstRep().getText());
+        }
+
+        // Telecom
+        for (ContactPoint cp : rp.getTelecom()) {
+            if (cp.getSystem() == ContactPoint.ContactPointSystem.PHONE) {
+                dto.setPhoneNumber(cp.getValue());
+            } else if (cp.getSystem() == ContactPoint.ContactPointSystem.EMAIL) {
+                dto.setEmail(cp.getValue());
+            }
+        }
+
+        // Address
+        if (rp.hasAddress()) {
+            dto.setAddress(rp.getAddressFirstRep().getText());
+        }
+
+        // Extensions
+        Extension relatedIdExt = rp.getExtensionByUrl(EXT_RELATED_PATIENT_ID);
+        if (relatedIdExt != null && relatedIdExt.getValue() instanceof StringType) {
+            try {
+                dto.setRelatedPatientId(Long.parseLong(((StringType) relatedIdExt.getValue()).getValue()));
+            } catch (NumberFormatException ignored) {}
+        }
+
+        Extension emergencyExt = rp.getExtensionByUrl(EXT_EMERGENCY_CONTACT);
+        if (emergencyExt != null && emergencyExt.getValue() instanceof BooleanType) {
+            dto.setEmergencyContact(((BooleanType) emergencyExt.getValue()).booleanValue());
+        }
+
+        Extension notesExt = rp.getExtensionByUrl(EXT_NOTES);
+        if (notesExt != null && notesExt.getValue() instanceof StringType) {
+            dto.setNotes(((StringType) notesExt.getValue()).getValue());
+        }
+
+        return dto;
     }
 }

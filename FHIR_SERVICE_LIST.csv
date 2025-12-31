@@ -25,58 +25,55 @@ FacilityService,Location,FHIR Only,Administrative
 LocationService,Location,FHIR Only,Administrative
 ProviderService,Practitioner,FHIR Only,Administrative
 PracticeService,Organization,FHIR Only,Administrative
-MedicationsService,Medication,Hybrid (Portal),Clinical
-AdminTemplateService,Questionnaire,Pending,Templates & Forms
-TemplateService,Questionnaire,Pending,Templates & Forms
-TemplateDocumentService,DocumentReference / Questionnaire,Pending,Templates & Forms
-CodeService,CodeSystem,Pending,Terminology
-CodeTypeService,ValueSet,Pending,Terminology
-GlobalCodeService,CodeSystem,Pending,Terminology
-ListOptionService,ValueSet,Pending,Terminology
-AutomaticCreditTransferService,PaymentReconciliation / PaymentNotice,Pending,Financial
-CreditCardService,N/A (Infrastructure),Not Applicable,Financial
-EncounterFeeScheduleService,ChargeItemDefinition,Pending,Financial
-GpsBillingCardService,ChargeItem,Pending,Financial
-PatientBillingService,Account / Invoice,Pending,Financial
-ServiceService,ActivityDefinition / ChargeItemDefinition,Pending,Financial
-InsuranceCardUploadService,DocumentReference + Binary,Pending,Documents
-MessageAttachmentService,DocumentReference + Binary,Pending,Documents
-ProviderSignatureService,Provenance + Binary,Pending,Documents
-InventoryService,SupplyDelivery / Device,Pending,Inventory
-InventorySettingsService,N/A (App DB),Not Applicable,Inventory
-OrderService,SupplyRequest,Pending,Inventory
-SupplierService,Organization (type=supplier),Pending,Inventory
-ProviderScheduleService,Schedule / Slot / Appointment,Pending,Scheduling
-ScheduleService,Schedule,Pending,Scheduling
-SlotService,Slot,Pending,Scheduling
-PatientCodeListService,Flag / List,Pending,Clinical Workflow
-PatientEducationAssignmentService,ServiceRequest / Procedure,Pending,Clinical Workflow
-SignoffService,Task / Provenance,Pending,Clinical Workflow
-EncounterSummaryService,Composition,Pending,Documents
-PatientMedicalHistoryService,Composition,Pending,Documents
-EncounterBrowserService,Bundle (Search),Pending,Aggregation
-GlobalEncounterSaveService,Bundle (transaction),Pending,Aggregation
-PatientHistoryService,Bundle,Pending,Aggregation
-OrgConfigService,Organization,Pending,Configuration
-AssignedProviderService,CareTeam,Pending,Clinical
-CommunicationService,Communication,Pending,Clinical
-DocumentService,DocumentReference + Binary,Pending,Documents
-HealthcareServiceService,HealthcareService,Pending,Administrative
-InsuranceCompanyService,Organization (type: ins),Pending,Administrative
-InvoiceService,Invoice,Pending,Financial
-ReferralProviderService,Practitioner,Pending,Administrative
-ReferralPracticeService,Organization,Pending,Administrative
-RecallService,Flag / Task,Pending,Clinical
-PatientRelationshipService,RelatedPerson,Pending,Clinical
-PatientEducationService,DocumentReference,Pending,Clinical
+MedicationsService,MedicationRequest,FHIR Only,Clinical
+TemplateService,Basic,FHIR Only,Templates & Forms
+TemplateDocumentService,DocumentReference,FHIR Only,Templates & Forms
+CodeService,CodeSystem,FHIR Only,Terminology
+CodeTypeService,ValueSet,FHIR Only,Terminology
+GlobalCodeService,CodeSystem,FHIR Only,Terminology
+ListOptionService,Basic,FHIR Only,Terminology
+AutomaticCreditTransferService,Basic,FHIR Only,Financial
+CreditCardService,Basic,FHIR Only,Financial
+EncounterFeeScheduleService,ChargeItemDefinition,FHIR Only,Financial
+GpsBillingCardService,Basic,FHIR Only,Financial
+PatientBillingService,Account / Invoice / Claim,FHIR Only,Financial
+ServiceService,ActivityDefinition,FHIR Only,Financial
+InsuranceCardUploadService,DocumentReference,FHIR Only,Documents
+MessageAttachmentService,DocumentReference,FHIR Only,Documents
+ProviderSignatureService,Provenance,FHIR Only,Documents
+InventoryService,SupplyDelivery / Device,FHIR Only,Inventory
+InventorySettingsService,Basic,FHIR Only,Inventory
+OrderService,SupplyRequest,FHIR Only,Inventory
+SupplierService,Organization (type=supplier),FHIR Only,Inventory
+ProviderScheduleService,Schedule / Slot / Appointment,Not Applicable (Commented Out),Scheduling
+ScheduleService,Schedule,FHIR Only,Scheduling
+SlotService,Slot,FHIR Only,Scheduling
+PatientCodeListService,Flag / List,FHIR Only,Clinical Workflow
+PatientEducationAssignmentService,ServiceRequest / Procedure,FHIR Only,Clinical Workflow
+SignoffService,Task / Provenance,FHIR Only,Clinical Workflow
+EncounterSummaryService,Composition,FHIR Only (Aggregator),Documents
+PatientMedicalHistoryService,Condition,FHIR Only,Documents
+EncounterBrowserService,Encounter,FHIR Only (Aggregator),Aggregation
+GlobalEncounterSaveService,Bundle (transaction),FHIR Only (Orchestrator),Aggregation
+PatientHistoryService,Basic,FHIR Only,Aggregation
+OrgConfigService,Basic,FHIR Only,Configuration
+AssignedProviderService,CareTeam,FHIR Only,Clinical
+CommunicationService,Communication,FHIR Only,Clinical
+DocumentService,DocumentReference + Binary,FHIR Only,Documents
+HealthcareServiceService,HealthcareService,FHIR Only,Administrative
+InsuranceCompanyService,Organization (type: ins),FHIR Only,Administrative
+InvoiceService,Invoice,FHIR Only,Financial
+ReferralProviderService,Practitioner,FHIR Only,Administrative
+ReferralPracticeService,Organization,FHIR Only,Administrative
+RecallService,Flag / Task,FHIR Only,Clinical
+PatientRelationshipService,RelatedPerson,FHIR Only,Clinical
+PatientEducationService,DocumentReference,FHIR Only,Clinical
 KeycloakAdminService,N/A (Infrastructure),Not Applicable,Authentication
 KeycloakAuthService,N/A (Infrastructure),Not Applicable,Authentication
 KeycloakOrgService,Organization (Mirror),Not Applicable,Authentication
 KeycloakTokenService,N/A (Infrastructure),Not Applicable,Authentication
 KeycloakUserService,Practitioner (Mirror),Not Applicable,Authentication
-DateTimeFinalizedService,N/A (Java Library),Not Applicable,Infrastructure
-DocumentSettingsService,N/A (App DB),Not Applicable,Infrastructure
-MaintenanceService,N/A (DevOps),Not Applicable,Infrastructure
+DateTimeFinalizedService,Provenance,FHIR Only,Infrastructure
+DocumentSettingsService,Basic,FHIR Only,Infrastructure
+MaintenanceService,Basic,FHIR Only,Infrastructure
 PracticeContextService,N/A (Middleware),Not Applicable,Infrastructure
-TenantDataMergeService,N/A (SQL Script),Not Applicable,Infrastructure
-TenantSchemaService,N/A (DB Config),Not Applicable,Infrastructure

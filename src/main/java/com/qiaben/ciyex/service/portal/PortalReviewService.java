@@ -2,192 +2,276 @@ package com.qiaben.ciyex.service.portal;
 
 import com.qiaben.ciyex.dto.portal.PortalPendingUpdateDto;
 import com.qiaben.ciyex.dto.portal.PortalUpdateRequest;
-import com.qiaben.ciyex.entity.portal.PortalPendingUpdate;
-import com.qiaben.ciyex.entity.portal.PortalUser;
-import com.qiaben.ciyex.repository.portal.PortalPendingUpdateRepository;
-import com.qiaben.ciyex.repository.portal.PortalUserRepository;
-import com.qiaben.ciyex.service.TenantDataMergeService;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import com.qiaben.ciyex.service.PracticeContextService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
+import java.time.ZoneId;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Service for handling portal patient updates that require EHR staff review
+ * FHIR-only Portal Review Service.
+ * Uses FHIR Basic resource for storing pending updates.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class PortalReviewService {
 
-    private final PortalPendingUpdateRepository pendingUpdateRepository;
-    private final PortalUserRepository portalUserRepository;
-    private final TenantDataMergeService tenantDataMergeService;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    /**
-     * Patient submits an update for EHR staff review
-     */
-    @Transactional
+    private static final String UPDATE_TYPE_SYSTEM = "http://ciyex.com/fhir/resource-type";
+    private static final String UPDATE_TYPE_CODE = "portal-pending-update";
+    private static final String EXT_USER_ID = "http://ciyex.com/fhir/StructureDefinition/user-id";
+    private static final String EXT_UPDATE_TYPE = "http://ciyex.com/fhir/StructureDefinition/update-type";
+    private static final String EXT_PAYLOAD = "http://ciyex.com/fhir/StructureDefinition/payload";
+    private static final String EXT_HINT = "http://ciyex.com/fhir/StructureDefinition/hint";
+    private static final String EXT_PRIORITY = "http://ciyex.com/fhir/StructureDefinition/priority";
+    private static final String EXT_STATUS = "http://ciyex.com/fhir/StructureDefinition/status";
+    private static final String EXT_PATIENT_NOTES = "http://ciyex.com/fhir/StructureDefinition/patient-notes";
+    private static final String EXT_APPROVER_NOTES = "http://ciyex.com/fhir/StructureDefinition/approver-notes";
+    private static final String EXT_APPROVED_BY = "http://ciyex.com/fhir/StructureDefinition/approved-by";
+    private static final String EXT_REJECTION_REASON = "http://ciyex.com/fhir/StructureDefinition/rejection-reason";
+    private static final String EXT_CREATED_DATE = "http://ciyex.com/fhir/StructureDefinition/created-date";
+    private static final String EXT_REVIEWED_DATE = "http://ciyex.com/fhir/StructureDefinition/reviewed-date";
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
     public Long submitForReview(UUID userId, PortalUpdateRequest request) {
         try {
-            // Validate user exists
-            PortalUser user = portalUserRepository.findByUuid(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+            Basic basic = new Basic();
 
-            // Create pending update record
-            PortalPendingUpdate pendingUpdate = PortalPendingUpdate.builder()
-                    .userId(userId)
-                    .updateType(request.getUpdateType())
-                    .payload(request.getChanges())
-                    .hint(request.getHint())
-                    .priority(request.getPriority() != null ? request.getPriority() : "NORMAL")
-                    .patientNotes(request.getPatientNotes())
-                    .status("PENDING")
-                    .build();
+            CodeableConcept code = new CodeableConcept();
+            code.addCoding().setSystem(UPDATE_TYPE_SYSTEM).setCode(UPDATE_TYPE_CODE).setDisplay("Portal Pending Update");
+            basic.setCode(code);
 
-            PortalPendingUpdate saved = pendingUpdateRepository.save(pendingUpdate);
-            
-            log.info("✅ Update submitted for review - ID: {}, User: {}, Type: {}", 
-                    saved.getId(), user.getEmail(), request.getUpdateType());
+            basic.addExtension(new Extension(EXT_USER_ID, new StringType(userId.toString())));
+            basic.addExtension(new Extension(EXT_UPDATE_TYPE, new StringType(request.getUpdateType())));
+            basic.addExtension(new Extension(EXT_PAYLOAD, new StringType(mapToJson(request.getChanges()))));
+            if (request.getHint() != null) {
+                basic.addExtension(new Extension(EXT_HINT, new StringType(request.getHint())));
+            }
+            basic.addExtension(new Extension(EXT_PRIORITY, new StringType(request.getPriority() != null ? request.getPriority() : "NORMAL")));
+            basic.addExtension(new Extension(EXT_STATUS, new StringType("PENDING")));
+            if (request.getPatientNotes() != null) {
+                basic.addExtension(new Extension(EXT_PATIENT_NOTES, new StringType(request.getPatientNotes())));
+            }
+            basic.addExtension(new Extension(EXT_CREATED_DATE, new DateTimeType(new Date())));
 
-            // TODO: Optional - Send notification to EHR staff
-            // notificationService.notifyEhrStaff(saved);
+            var outcome = fhirClientService.create(basic, getPracticeId());
+            String fhirId = outcome.getId().getIdPart();
 
-            return saved.getId();
-            
+            log.info("Update submitted for review - ID: {}, User: {}, Type: {}", fhirId, userId, request.getUpdateType());
+
+            return (long) Math.abs(fhirId.hashCode());
+
         } catch (Exception e) {
-            log.error("❌ Failed to submit update for review - User: {}, Type: {}", 
-                    userId, request.getUpdateType(), e);
+            log.error("Failed to submit update for review - User: {}, Type: {}", userId, request.getUpdateType(), e);
             throw new RuntimeException("Failed to submit update for review: " + e.getMessage());
         }
     }
 
-    /**
-     * Get all pending updates for EHR staff review
-     */
     public List<PortalPendingUpdateDto> getAllPendingUpdates() {
         try {
-            List<PortalPendingUpdate> pendingUpdates = pendingUpdateRepository.findByStatusOrderByCreatedDateDesc("PENDING");
-            
-            return pendingUpdates.stream()
-                    .map(this::convertToDto)
+            Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+            return fhirClientService.extractResources(bundle, Basic.class).stream()
+                    .filter(this::isPendingUpdate)
+                    .filter(b -> "PENDING".equals(getStringExt(b, EXT_STATUS)))
+                    .map(this::toDto)
+                    .sorted((a, b) -> {
+                        if (a.getCreatedDate() == null) return 1;
+                        if (b.getCreatedDate() == null) return -1;
+                        return b.getCreatedDate().compareTo(a.getCreatedDate());
+                    })
                     .collect(Collectors.toList());
-                    
+
         } catch (Exception e) {
-            log.error("❌ Failed to get pending updates", e);
+            log.error("Failed to get pending updates", e);
             throw new RuntimeException("Failed to retrieve pending updates: " + e.getMessage());
         }
     }
 
-    /**
-     * Get pending/approved/rejected updates for a specific patient
-     */
     public List<PortalPendingUpdateDto> getPatientUpdates(UUID userId) {
         try {
-            List<PortalPendingUpdate> userUpdates = pendingUpdateRepository.findByUserIdOrderByCreatedDateDesc(userId);
-            
-            return userUpdates.stream()
-                    .map(this::convertToDto)
+            Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+            return fhirClientService.extractResources(bundle, Basic.class).stream()
+                    .filter(this::isPendingUpdate)
+                    .filter(b -> userId.toString().equals(getStringExt(b, EXT_USER_ID)))
+                    .map(this::toDto)
+                    .sorted((a, b) -> {
+                        if (a.getCreatedDate() == null) return 1;
+                        if (b.getCreatedDate() == null) return -1;
+                        return b.getCreatedDate().compareTo(a.getCreatedDate());
+                    })
                     .collect(Collectors.toList());
-                    
+
         } catch (Exception e) {
-            log.error("❌ Failed to get patient updates - User: {}", userId, e);
+            log.error("Failed to get patient updates - User: {}", userId, e);
             throw new RuntimeException("Failed to retrieve patient updates: " + e.getMessage());
         }
     }
 
-    /**
-     * EHR staff approves an update and merges it into EHR system
-     */
-    @Transactional
     public void approveUpdate(Long updateId, String approverEmail, String approverNotes) {
         try {
-            PortalPendingUpdate update = pendingUpdateRepository.findById(updateId)
-                    .orElseThrow(() -> new IllegalArgumentException("Update not found: " + updateId));
-
-            if (!"PENDING".equals(update.getStatus())) {
-                throw new IllegalStateException("Update is not in PENDING status: " + update.getStatus());
+            Basic basic = findUpdateById(updateId);
+            if (basic == null) {
+                throw new IllegalArgumentException("Update not found: " + updateId);
             }
 
-            // Get user info for tenant context
-            PortalUser user = portalUserRepository.findByUuid(update.getUserId())
-                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + update.getUserId()));
+            String status = getStringExt(basic, EXT_STATUS);
+            if (!"PENDING".equals(status)) {
+                throw new IllegalStateException("Update is not in PENDING status: " + status);
+            }
 
-            // Merge data into appropriate EHR tenant schema
-            tenantDataMergeService.mergeApprovedData(update);
+            basic.getExtension().removeIf(e -> EXT_STATUS.equals(e.getUrl()) || 
+                    EXT_APPROVED_BY.equals(e.getUrl()) || EXT_APPROVER_NOTES.equals(e.getUrl()) ||
+                    EXT_REVIEWED_DATE.equals(e.getUrl()));
+            basic.addExtension(new Extension(EXT_STATUS, new StringType("APPROVED")));
+            basic.addExtension(new Extension(EXT_APPROVED_BY, new StringType(approverEmail)));
+            if (approverNotes != null) {
+                basic.addExtension(new Extension(EXT_APPROVER_NOTES, new StringType(approverNotes)));
+            }
+            basic.addExtension(new Extension(EXT_REVIEWED_DATE, new DateTimeType(new Date())));
 
-            // Mark as approved
-            update.approve(approverEmail, approverNotes);
-            pendingUpdateRepository.save(update);
+            fhirClientService.update(basic, getPracticeId());
 
-            log.info("✅ Update approved and merged - ID: {}, Type: {}, Approver: {}", 
-                    updateId, update.getUpdateType(), approverEmail);
-
-            // TODO: Optional - Notify patient of approval
-            // notificationService.notifyPatientApproval(update, user);
+            log.info("Update approved - ID: {}, Approver: {}", updateId, approverEmail);
 
         } catch (Exception e) {
-            log.error("❌ Failed to approve update - ID: {}, Approver: {}", updateId, approverEmail, e);
+            log.error("Failed to approve update - ID: {}, Approver: {}", updateId, approverEmail, e);
             throw new RuntimeException("Failed to approve update: " + e.getMessage());
         }
     }
 
-    /**
-     * EHR staff rejects an update
-     */
-    @Transactional
     public void rejectUpdate(Long updateId, String approverEmail, String rejectionReason) {
         try {
-            PortalPendingUpdate update = pendingUpdateRepository.findById(updateId)
-                    .orElseThrow(() -> new IllegalArgumentException("Update not found: " + updateId));
-
-            if (!"PENDING".equals(update.getStatus())) {
-                throw new IllegalStateException("Update is not in PENDING status: " + update.getStatus());
+            Basic basic = findUpdateById(updateId);
+            if (basic == null) {
+                throw new IllegalArgumentException("Update not found: " + updateId);
             }
 
-            // Mark as rejected
-            update.reject(approverEmail, rejectionReason, null);
-            pendingUpdateRepository.save(update);
+            String status = getStringExt(basic, EXT_STATUS);
+            if (!"PENDING".equals(status)) {
+                throw new IllegalStateException("Update is not in PENDING status: " + status);
+            }
 
-            log.info("⚠️ Update rejected - ID: {}, Type: {}, Reason: {}, Approver: {}", 
-                    updateId, update.getUpdateType(), rejectionReason, approverEmail);
+            basic.getExtension().removeIf(e -> EXT_STATUS.equals(e.getUrl()) || 
+                    EXT_APPROVED_BY.equals(e.getUrl()) || EXT_REJECTION_REASON.equals(e.getUrl()) ||
+                    EXT_REVIEWED_DATE.equals(e.getUrl()));
+            basic.addExtension(new Extension(EXT_STATUS, new StringType("REJECTED")));
+            basic.addExtension(new Extension(EXT_APPROVED_BY, new StringType(approverEmail)));
+            if (rejectionReason != null) {
+                basic.addExtension(new Extension(EXT_REJECTION_REASON, new StringType(rejectionReason)));
+            }
+            basic.addExtension(new Extension(EXT_REVIEWED_DATE, new DateTimeType(new Date())));
 
-            // TODO: Optional - Notify patient of rejection
-            // notificationService.notifyPatientRejection(update, rejectionReason);
+            fhirClientService.update(basic, getPracticeId());
+
+            log.info("Update rejected - ID: {}, Reason: {}, Approver: {}", updateId, rejectionReason, approverEmail);
 
         } catch (Exception e) {
-            log.error("❌ Failed to reject update - ID: {}, Approver: {}", updateId, approverEmail, e);
+            log.error("Failed to reject update - ID: {}, Approver: {}", updateId, approverEmail, e);
             throw new RuntimeException("Failed to reject update: " + e.getMessage());
         }
     }
 
-    /**
-     * Convert entity to DTO with patient info
-     */
-    private PortalPendingUpdateDto convertToDto(PortalPendingUpdate update) {
-        PortalUser user = portalUserRepository.findByUuid(update.getUserId()).orElse(null);
-        
-        return PortalPendingUpdateDto.builder()
-                .id(update.getId())
-                .userId(update.getUserId())
-                .patientName(user != null ? user.getFirstName() + " " + user.getLastName() : "Unknown")
-                .patientEmail(user != null ? user.getEmail() : "Unknown")
-                .updateType(update.getUpdateType())
-                .payload(update.getPayload())
-                .hint(update.getHint())
-                .priority(update.getPriority())
-                .status(update.getStatus())
-                .patientNotes(update.getPatientNotes())
-                .approverNotes(update.getApproverNotes())
-                .approvedBy(update.getApprovedBy())
-                .rejectionReason(update.getRejectionReason())
-                .createdDate(update.getCreatedDate())
-                .reviewedDate(update.getReviewedDate())
+    // -------- Helper Methods --------
+
+    private Basic findUpdateById(Long updateId) {
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+        return fhirClientService.extractResources(bundle, Basic.class).stream()
+                .filter(this::isPendingUpdate)
+                .filter(b -> updateId.equals((long) Math.abs(b.getIdElement().getIdPart().hashCode())))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private boolean isPendingUpdate(Basic basic) {
+        if (!basic.hasCode()) return false;
+        return basic.getCode().getCoding().stream()
+                .anyMatch(c -> UPDATE_TYPE_SYSTEM.equals(c.getSystem()) && UPDATE_TYPE_CODE.equals(c.getCode()));
+    }
+
+    private PortalPendingUpdateDto toDto(Basic basic) {
+        String fhirId = basic.getIdElement().getIdPart();
+
+        PortalPendingUpdateDto dto = PortalPendingUpdateDto.builder()
+                .id((long) Math.abs(fhirId.hashCode()))
+                .updateType(getStringExt(basic, EXT_UPDATE_TYPE))
+                .hint(getStringExt(basic, EXT_HINT))
+                .priority(getStringExt(basic, EXT_PRIORITY))
+                .status(getStringExt(basic, EXT_STATUS))
+                .patientNotes(getStringExt(basic, EXT_PATIENT_NOTES))
+                .approverNotes(getStringExt(basic, EXT_APPROVER_NOTES))
+                .approvedBy(getStringExt(basic, EXT_APPROVED_BY))
+                .rejectionReason(getStringExt(basic, EXT_REJECTION_REASON))
                 .build();
+
+        String userIdStr = getStringExt(basic, EXT_USER_ID);
+        if (userIdStr != null) {
+            try {
+                dto.setUserId(UUID.fromString(userIdStr));
+            } catch (IllegalArgumentException ignored) {}
+        }
+
+        String payloadJson = getStringExt(basic, EXT_PAYLOAD);
+        if (payloadJson != null) {
+            dto.setPayload(jsonToMap(payloadJson));
+        }
+
+        Extension createdExt = basic.getExtensionByUrl(EXT_CREATED_DATE);
+        if (createdExt != null && createdExt.getValue() instanceof DateTimeType) {
+            Date date = ((DateTimeType) createdExt.getValue()).getValue();
+            if (date != null) {
+                dto.setCreatedDate(LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault()));
+            }
+        }
+
+        Extension reviewedExt = basic.getExtensionByUrl(EXT_REVIEWED_DATE);
+        if (reviewedExt != null && reviewedExt.getValue() instanceof DateTimeType) {
+            Date date = ((DateTimeType) reviewedExt.getValue()).getValue();
+            if (date != null) {
+                dto.setReviewedDate(LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault()));
+            }
+        }
+
+        return dto;
+    }
+
+    private String getStringExt(Basic basic, String url) {
+        Extension ext = basic.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
+    }
+
+    private String mapToJson(Map<String, Object> map) {
+        if (map == null) return "{}";
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            return mapper.writeValueAsString(map);
+        } catch (Exception e) {
+            return "{}";
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> jsonToMap(String json) {
+        if (json == null || json.isEmpty()) return new HashMap<>();
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            return mapper.readValue(json, Map.class);
+        } catch (Exception e) {
+            return new HashMap<>();
+        }
     }
 }

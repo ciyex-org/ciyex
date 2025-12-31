@@ -41,7 +41,7 @@ public class ListOptionController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable Long id, @RequestBody ListOptionDto dto) {
+    public ResponseEntity<?> update(@PathVariable String id, @RequestBody ListOptionDto dto) {
         List<String> missing = new ArrayList<>();
         if (dto.getListId() == null || dto.getListId().trim().isEmpty()) missing.add("listId");
         if (dto.getTitle() == null || dto.getTitle().trim().isEmpty()) missing.add("title");
@@ -58,13 +58,13 @@ public class ListOptionController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable String id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ListOptionDto> get(@PathVariable Long id) {
+    public ResponseEntity<ListOptionDto> get(@PathVariable String id) {
         ListOptionDto dto = service.get(id);
         return ResponseEntity.ok(dto);  // Response will be in JSON by default
     }

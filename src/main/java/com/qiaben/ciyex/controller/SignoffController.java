@@ -180,7 +180,7 @@ public class SignoffController {
     public ResponseEntity<ApiResponse<SignoffDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             var dto = service.getOne(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<SignoffDto>builder()
@@ -221,7 +221,7 @@ public class SignoffController {
     public ResponseEntity<ApiResponse<SignoffDto>> update(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody SignoffDto dto) {
         // Validate mandatory fields
         String validationError = validateMandatoryFields(dto);
@@ -248,7 +248,7 @@ public class SignoffController {
     public ResponseEntity<?> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             service.delete(patientId, encounterId, id);
             return ResponseEntity.noContent().build();
@@ -266,7 +266,7 @@ public class SignoffController {
     public ResponseEntity<ApiResponse<SignoffDto>> eSign(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
+            @PathVariable String id,
             Principal principal) {
         try {
             String user = (principal != null) ? principal.getName() : "system";
@@ -288,7 +288,7 @@ public class SignoffController {
     public ResponseEntity<?> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             byte[] pdf = service.renderPdf(patientId, encounterId, id);
             String filename = "signoff-" + id + ".pdf";

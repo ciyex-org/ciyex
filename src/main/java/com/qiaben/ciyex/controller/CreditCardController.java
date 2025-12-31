@@ -69,7 +69,7 @@ public class CreditCardController {
      * Get a credit card by ID
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<CreditCardDto>> getById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<CreditCardDto>> getById(@PathVariable String id) {
         try {
             CreditCardDto card = service.getById(id);
             return ResponseEntity.ok(ApiResponse.<CreditCardDto>builder()
@@ -172,7 +172,7 @@ public class CreditCardController {
      */
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<CreditCardDto>> update(
-            @PathVariable Long id,
+            @PathVariable String id,
             @Valid @RequestBody CreditCardDto dto,
             BindingResult result) {
 
@@ -216,7 +216,7 @@ public class CreditCardController {
      */
     @PutMapping("/{id}/patient/{patientId}/set-default")
     public ResponseEntity<ApiResponse<CreditCardDto>> setAsDefault(
-            @PathVariable Long id,
+            @PathVariable String id,
             @PathVariable Long patientId) {
 
         try {
@@ -247,7 +247,7 @@ public class CreditCardController {
      * Deactivate a credit card
      */
     @PutMapping("/{id}/deactivate")
-    public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable String id) {
         try {
             service.deactivate(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -275,7 +275,7 @@ public class CreditCardController {
      * Delete a credit card
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()

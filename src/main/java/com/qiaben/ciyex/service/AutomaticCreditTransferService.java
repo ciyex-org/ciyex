@@ -1,23 +1,35 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.CreditTransferDto;
-import com.qiaben.ciyex.entity.*;
-import com.qiaben.ciyex.repository.*;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 
+/**
+ * FHIR-only Automatic Credit Transfer Service.
+ * Uses FHIR Basic resource for patient account credits.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class AutomaticCreditTransferService {
 
-    private final PatientAccountCreditRepository creditRepo;
-    private final PatientInvoiceRepository invoiceRepo;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
+
+    private static final String CREDIT_TYPE_SYSTEM = "http://ciyex.com/fhir/resource-type";
+    private static final String CREDIT_TYPE_CODE = "patient-account-credit";
+    private static final String EXT_PATIENT_ID = "http://ciyex.com/fhir/StructureDefinition/patient-id";
+    private static final String EXT_BALANCE = "http://ciyex.com/fhir/StructureDefinition/balance";
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
 
     /**
      * Automatically transfer overpayment to patient account credit
@@ -31,19 +43,11 @@ public class AutomaticCreditTransferService {
         log.info("Processing automatic credit transfer: patientId={}, invoiceId={}, amount={}", 
                 patientId, invoiceId, overpaymentAmount);
 
-        // Find or create patient account credit
-        PatientAccountCredit credit = creditRepo.findByPatientId(patientId)
-                .orElseGet(() -> {
-                    PatientAccountCredit newCredit = new PatientAccountCredit();
-                    newCredit.setPatientId(patientId);
-                    newCredit.setBalance(BigDecimal.ZERO);
-                    return creditRepo.save(newCredit);
-                });
-
-        // Add overpayment to credit balance
-        BigDecimal newBalance = credit.getBalance().add(overpaymentAmount);
-        credit.setBalance(newBalance);
-        creditRepo.save(credit);
+        // Find or create patient account credit in FHIR
+        BigDecimal currentBalance = getPatientCreditBalance(patientId);
+        BigDecimal newBalance = currentBalance.add(overpaymentAmount);
+        
+        savePatientCreditBalance(patientId, newBalance);
 
         log.info("Automatic credit transfer completed: patientId={}, newCreditBalance={}", 
                 patientId, newBalance);
@@ -52,37 +56,71 @@ public class AutomaticCreditTransferService {
     }
 
     /**
-     * Check if invoice is fully paid and process any overpayment
+     * Check if invoice is fully paid and process any overpayment.
+     * This method is called with pre-calculated overpayment amount.
      */
-    public CreditTransferDto checkAndProcessOverpayment(Long patientId, Long invoiceId) {
-        PatientInvoice invoice = invoiceRepo.findByIdAndPatientId(invoiceId, patientId)
-                .orElse(null);
-        
-        if (invoice == null) {
+    public CreditTransferDto checkAndProcessOverpayment(Long patientId, Long invoiceId, BigDecimal overpaymentAmount) {
+        if (overpaymentAmount == null || overpaymentAmount.compareTo(BigDecimal.ZERO) <= 0) {
             return null;
         }
+        
+        return processAutomaticCreditTransfer(patientId, invoiceId, overpaymentAmount);
+    }
 
-        BigDecimal totalCharge = invoice.getTotalCharge() != null ? invoice.getTotalCharge() : BigDecimal.ZERO;
-        BigDecimal ptBalance = invoice.getPtBalance() != null ? invoice.getPtBalance() : BigDecimal.ZERO;
-        BigDecimal insBalance = invoice.getInsBalance() != null ? invoice.getInsBalance() : BigDecimal.ZERO;
-        
-        // Calculate total outstanding
-        BigDecimal totalOutstanding = ptBalance.add(insBalance);
-        
-        // If there's a negative balance (overpayment), transfer to credit
-        if (totalOutstanding.compareTo(BigDecimal.ZERO) < 0) {
-            BigDecimal overpayment = totalOutstanding.abs();
-            CreditTransferDto result = processAutomaticCreditTransfer(patientId, invoiceId, overpayment);
-            
-            // Reset balances to zero
-            invoice.setPtBalance(BigDecimal.ZERO);
-            invoice.setInsBalance(BigDecimal.ZERO);
-            invoice.setStatus(PatientInvoice.Status.PAID);
-            invoiceRepo.save(invoice);
-            
-            return result;
+    // -------- FHIR Helper Methods --------
+
+    private BigDecimal getPatientCreditBalance(Long patientId) {
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+        List<Basic> credits = fhirClientService.extractResources(bundle, Basic.class).stream()
+                .filter(this::isPatientCredit)
+                .filter(b -> patientId.toString().equals(getStringExt(b, EXT_PATIENT_ID)))
+                .toList();
+
+        if (credits.isEmpty()) {
+            return BigDecimal.ZERO;
         }
-        
+
+        String balanceStr = getStringExt(credits.get(0), EXT_BALANCE);
+        return balanceStr != null ? new BigDecimal(balanceStr) : BigDecimal.ZERO;
+    }
+
+    private void savePatientCreditBalance(Long patientId, BigDecimal balance) {
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+        List<Basic> credits = fhirClientService.extractResources(bundle, Basic.class).stream()
+                .filter(this::isPatientCredit)
+                .filter(b -> patientId.toString().equals(getStringExt(b, EXT_PATIENT_ID)))
+                .toList();
+
+        Basic basic;
+        if (credits.isEmpty()) {
+            // Create new
+            basic = new Basic();
+            CodeableConcept code = new CodeableConcept();
+            code.addCoding().setSystem(CREDIT_TYPE_SYSTEM).setCode(CREDIT_TYPE_CODE).setDisplay("Patient Account Credit");
+            basic.setCode(code);
+            basic.addExtension(new Extension(EXT_PATIENT_ID, new StringType(patientId.toString())));
+            basic.addExtension(new Extension(EXT_BALANCE, new StringType(balance.toString())));
+            fhirClientService.create(basic, getPracticeId());
+        } else {
+            // Update existing
+            basic = credits.get(0);
+            basic.getExtension().removeIf(e -> EXT_BALANCE.equals(e.getUrl()));
+            basic.addExtension(new Extension(EXT_BALANCE, new StringType(balance.toString())));
+            fhirClientService.update(basic, getPracticeId());
+        }
+    }
+
+    private boolean isPatientCredit(Basic basic) {
+        if (!basic.hasCode()) return false;
+        return basic.getCode().getCoding().stream()
+                .anyMatch(c -> CREDIT_TYPE_SYSTEM.equals(c.getSystem()) && CREDIT_TYPE_CODE.equals(c.getCode()));
+    }
+
+    private String getStringExt(Basic basic, String url) {
+        Extension ext = basic.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
         return null;
     }
 }

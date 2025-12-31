@@ -1,234 +1,221 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.SlotDto;
-import com.qiaben.ciyex.entity.Slot;
-import com.qiaben.ciyex.repository.SlotRepository;
-import com.qiaben.ciyex.storage.ExternalSlotStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
+/**
+ * FHIR-only Slot Service.
+ * Uses FHIR Slot resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class SlotService {
 
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    private final SlotRepository repository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
-
-    public SlotService(SlotRepository repository,
-                       ExternalStorageResolver storageResolver,
-                       OrgIntegrationConfigProvider configProvider) {
-        this.repository = repository;
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
-    @Transactional(readOnly = true)
-    public long countSlotsForCurrentOrg() {
-
-        return repository.count();
-    }
-
-    @Transactional
+    // CREATE
     public SlotDto create(SlotDto dto) {
-        // Validate mandatory fields
         validateMandatoryFields(dto);
 
-        String externalId = dto.getExternalId(); // Check if externalId provided in request
-        
-        // Try to create in external storage only if configured
-        try {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null && externalId == null) {
-                ExternalSlotStorage external =
-                        (ExternalSlotStorage) storageResolver.resolve(SlotDto.class);
-                externalId = external.createSlot(dto);
-                log.info("Created slot in external storage with externalId: {}", externalId);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to create in external storage, will auto-generate externalId: {}", e.getMessage());
-        }
+        log.debug("Creating FHIR Slot for provider: {}", dto.getProviderId());
 
-        // Auto-generate externalId if still null (similar to other APIs)
-        if (externalId == null || externalId.trim().isEmpty()) {
-            externalId = "slot-" + java.util.UUID.randomUUID().toString();
-            log.info("Auto-generated externalId: {}", externalId);
-        }
+        Slot slot = toFhirSlot(dto);
+        var outcome = fhirClientService.create(slot, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        Slot entity = Slot.builder()
-                .providerId(dto.getProviderId())
-                .externalId(externalId)
-                .start(dto.getStart())
-                .end(dto.getEnd())
-                .status(dto.getStatus())
-                .comment(dto.getComment())
-                .build();
-        entity = repository.save(entity);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        log.info("Created FHIR Slot with id: {}", fhirId);
 
-        return mergeLocalAndExternal(entity, null); // Don't fetch external if not configured
-    }
-
-    private void validateMandatoryFields(SlotDto dto) {
-        StringBuilder errors = new StringBuilder();
-
-        if (dto.getProviderId() == null) {
-            errors.append("providerId, ");
-        }
-
-        if (errors.length() > 0) {
-            // Remove trailing comma and space
-            String missingFields = errors.substring(0, errors.length() - 2);
-            throw new IllegalArgumentException("Missing mandatory fields: " + missingFields);
-        }
-    }
-
-    @Transactional(readOnly = true)
-    public SlotDto getById(Long id) {
-
-        Slot entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Slot not found: " + id));
-
-        return mergeLocalAndExternal(entity, null); // Don't fetch external if not configured
-    }
-
-    @Transactional(readOnly = true)
-    public ApiResponse<List<SlotDto>> getAllSlots() {
-        List<Slot> entities = repository.findAll();
-        List<SlotDto> out = new ArrayList<>();
-        for (Slot s : entities) {
-            out.add(mergeLocalAndExternal(s, null)); // Don't fetch external if not configured
-        }
-        return ApiResponse.<List<SlotDto>>builder()
-                .success(true)
-                .message("Slots retrieved successfully")
-                .data(out)
-                .build();
-    }
-
-    @Transactional
-    public SlotDto update(Long id, SlotDto dto) {
-
-        Slot entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Slot not found: " + id));
-
-        // Update fields if provided
-        if (dto.getProviderId() != null) {
-            entity.setProviderId(dto.getProviderId());
-        }
-        if (dto.getStart() != null) {
-            entity.setStart(dto.getStart());
-        }
-        if (dto.getEnd() != null) {
-            entity.setEnd(dto.getEnd());
-        }
-        if (dto.getStatus() != null) {
-            entity.setStatus(dto.getStatus());
-        }
-        if (dto.getComment() != null) {
-            entity.setComment(dto.getComment());
-        }
-
-        // Update externalId if provided in the request
-        if (dto.getExternalId() != null) {
-            entity.setExternalId(dto.getExternalId());
-        }
-
-        // Auto-generate externalId if still null
-        if (entity.getExternalId() == null || entity.getExternalId().trim().isEmpty()) {
-            entity.setExternalId("slot-" + java.util.UUID.randomUUID().toString());
-            log.info("Auto-generated externalId on update: {}", entity.getExternalId());
-        }
-
-        // Only update external storage if configured
-        try {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null && entity.getExternalId() != null) {
-                ExternalSlotStorage external =
-                        (ExternalSlotStorage) storageResolver.resolve(SlotDto.class);
-                external.updateSlot(dto, entity.getExternalId());
-            }
-        } catch (Exception e) {
-            log.warn("Failed to update external storage: {}", e.getMessage());
-        }
-
-        repository.save(entity);
-
-        return mergeLocalAndExternal(entity, null); // Don't fetch external if not configured
-    }
-
-    @Transactional
-    public void delete(Long id) {
-
-        Slot entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Slot not found: " + id));
-
-
-        if (entity.getExternalId() != null) {
-            try {
-                String storageType = configProvider.getStorageTypeForCurrentOrg();
-                if (storageType != null) {
-                    ExternalSlotStorage external =
-                            (ExternalSlotStorage) storageResolver.resolve(SlotDto.class);
-                    external.deleteSlot(entity.getExternalId());
-                }
-            } catch (Exception e) {
-                log.warn("Failed to delete from external storage: {}", e.getMessage());
-            }
-        }
-        repository.delete(entity);
-    }
-
-    private SlotDto mergeLocalAndExternal(Slot entity, SlotDto externalDto) {
-        SlotDto dto = new SlotDto();
-        dto.setId(entity.getId());
-        dto.setProviderId(entity.getProviderId());
-        dto.setExternalId(entity.getExternalId());
-        dto.setFhirId(entity.getExternalId()); // fhirId is same as externalId
-
-        // Use local data first
-        dto.setStart(entity.getStart());
-        dto.setEnd(entity.getEnd());
-        dto.setStatus(entity.getStatus());
-        dto.setComment(entity.getComment());
-
-        SlotDto.Audit audit = new SlotDto.Audit();
-        if (entity.getCreatedDate() != null) {
-            audit.setCreatedDate(entity.getCreatedDate().format(DATE_FORMATTER));
-        }
-        if (entity.getLastModifiedDate() != null) {
-            audit.setLastModifiedDate(entity.getLastModifiedDate().format(DATE_FORMATTER));
-        }
-        dto.setAudit(audit);
-
-        // Override with external data if available
-        if (externalDto != null) {
-            if (externalDto.getStart() != null) dto.setStart(externalDto.getStart());
-            if (externalDto.getEnd() != null) dto.setEnd(externalDto.getEnd());
-            if (externalDto.getStatus() != null) dto.setStatus(externalDto.getStatus());
-            if (externalDto.getComment() != null) dto.setComment(externalDto.getComment());
-        }
         return dto;
     }
 
-    private SlotDto fetchExternal(String externalId) {
-        if (externalId == null) return null;
-        ExternalSlotStorage external =
-                (ExternalSlotStorage) storageResolver.resolve(SlotDto.class);
-        return external.getSlot(externalId);
+    // GET BY ID (FHIR ID)
+    public SlotDto getById(String fhirId) {
+        log.debug("Getting FHIR Slot: {}", fhirId);
+        Slot slot = fhirClientService.read(Slot.class, fhirId, getPracticeId());
+        return fromFhirSlot(slot);
     }
 
+    // GET ALL
+    public ApiResponse<List<SlotDto>> getAllSlots() {
+        log.debug("Getting all FHIR Slots");
 
-    // Removed usage; kept for compatibility with potential external callers.
+        Bundle bundle = fhirClientService.search(Slot.class, getPracticeId());
+        List<Slot> slots = fhirClientService.extractResources(bundle, Slot.class);
 
+        List<SlotDto> dtos = slots.stream()
+                .map(this::fromFhirSlot)
+                .collect(Collectors.toList());
+
+        return ApiResponse.<List<SlotDto>>builder()
+                .success(true)
+                .message("Slots retrieved successfully")
+                .data(dtos)
+                .build();
+    }
+
+    // GET BY SCHEDULE
+    public List<SlotDto> getByScheduleId(String scheduleId) {
+        log.debug("Getting FHIR Slots for schedule: {}", scheduleId);
+
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                .forResource(Slot.class)
+                .where(new ReferenceClientParam("schedule").hasId("Schedule/" + scheduleId))
+                .returnBundle(Bundle.class)
+                .execute();
+
+        List<Slot> slots = fhirClientService.extractResources(bundle, Slot.class);
+        return slots.stream().map(this::fromFhirSlot).collect(Collectors.toList());
+    }
+
+    // UPDATE
+    public SlotDto update(String fhirId, SlotDto dto) {
+        log.debug("Updating FHIR Slot: {}", fhirId);
+
+        Slot slot = toFhirSlot(dto);
+        slot.setId(fhirId);
+        fhirClientService.update(slot, getPracticeId());
+
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        return dto;
+    }
+
+    // DELETE
+    public void delete(String fhirId) {
+        log.debug("Deleting FHIR Slot: {}", fhirId);
+        fhirClientService.delete(Slot.class, fhirId, getPracticeId());
+    }
+
+    // -------- FHIR Mapping --------
+
+    private Slot toFhirSlot(SlotDto dto) {
+        Slot s = new Slot();
+
+        // Status
+        if (dto.getStatus() != null) {
+            s.setStatus(mapToSlotStatus(dto.getStatus()));
+        } else {
+            s.setStatus(Slot.SlotStatus.FREE);
+        }
+
+        // Schedule reference (using providerId as schedule reference)
+        if (dto.getProviderId() != null) {
+            s.setSchedule(new Reference("Schedule/" + dto.getProviderId()));
+        }
+
+        // Start/End times
+        if (dto.getStart() != null) {
+            s.setStart(Date.from(parseIsoInstant(dto.getStart())));
+        }
+        if (dto.getEnd() != null) {
+            s.setEnd(Date.from(parseIsoInstant(dto.getEnd())));
+        }
+
+        // Comment
+        if (dto.getComment() != null) {
+            s.setComment(dto.getComment());
+        }
+
+        return s;
+    }
+
+    private SlotDto fromFhirSlot(Slot s) {
+        SlotDto dto = new SlotDto();
+        dto.setFhirId(s.getIdElement().getIdPart());
+        dto.setExternalId(s.getIdElement().getIdPart());
+
+        // Status
+        if (s.hasStatus()) {
+            dto.setStatus(mapFromSlotStatus(s.getStatus()));
+        }
+
+        // Schedule reference -> providerId
+        if (s.hasSchedule() && s.getSchedule().hasReference()) {
+            String ref = s.getSchedule().getReference();
+            if (ref.startsWith("Schedule/")) {
+                try {
+                    dto.setProviderId(Long.parseLong(ref.substring("Schedule/".length())));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Start/End
+        ZoneId zone = ZoneId.systemDefault();
+        if (s.hasStart()) {
+            dto.setStart(ZonedDateTime.ofInstant(s.getStart().toInstant(), zone)
+                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        }
+        if (s.hasEnd()) {
+            dto.setEnd(ZonedDateTime.ofInstant(s.getEnd().toInstant(), zone)
+                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        }
+
+        // Comment
+        if (s.hasComment()) {
+            dto.setComment(s.getComment());
+        }
+
+        return dto;
+    }
+
+    // -------- Helpers --------
+
+    private void validateMandatoryFields(SlotDto dto) {
+        if (dto.getProviderId() == null) {
+            throw new IllegalArgumentException("Missing mandatory field: providerId");
+        }
+    }
+
+    private Instant parseIsoInstant(String iso) {
+        try {
+            return Instant.from(DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(iso));
+        } catch (Exception ignore) {
+            return Instant.parse(iso);
+        }
+    }
+
+    private Slot.SlotStatus mapToSlotStatus(String status) {
+        if (status == null) return Slot.SlotStatus.FREE;
+        return switch (status.toLowerCase()) {
+            case "busy" -> Slot.SlotStatus.BUSY;
+            case "busy-unavailable" -> Slot.SlotStatus.BUSYUNAVAILABLE;
+            case "busy-tentative" -> Slot.SlotStatus.BUSYTENTATIVE;
+            case "entered-in-error" -> Slot.SlotStatus.ENTEREDINERROR;
+            default -> Slot.SlotStatus.FREE;
+        };
+    }
+
+    private String mapFromSlotStatus(Slot.SlotStatus status) {
+        if (status == null) return "free";
+        return switch (status) {
+            case BUSY -> "busy";
+            case BUSYUNAVAILABLE -> "busy-unavailable";
+            case BUSYTENTATIVE -> "busy-tentative";
+            case ENTEREDINERROR -> "entered-in-error";
+            default -> "free";
+        };
+    }
 }

@@ -3,7 +3,6 @@ package com.qiaben.ciyex.controller.portal;
 import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalDemographicsDto;
 import com.qiaben.ciyex.service.portal.PortalDemographicsService;
-import com.qiaben.ciyex.repository.portal.PortalUserRepository;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -19,7 +18,6 @@ import java.util.UUID;
 public class PortalDemographicsController {
 
     private final PortalDemographicsService demographicsService;
-    private final PortalUserRepository portalUserRepository;
 
     /**
      * ✅ Resolve patient UUID from the authenticated user's email in JWT
@@ -27,13 +25,16 @@ public class PortalDemographicsController {
     private UUID getCurrentPatientUuid() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof Jwt jwt) {
-            String email = jwt.getClaimAsString("email");
-            if (email == null || email.isEmpty()) {
-                throw new IllegalStateException("JWT token does not contain email claim");
+            String sub = jwt.getClaimAsString("sub");
+            if (sub == null || sub.isEmpty()) {
+                throw new IllegalStateException("JWT token does not contain sub claim");
             }
-            return portalUserRepository.findByEmail(email)
-                    .orElseThrow(() -> new IllegalStateException("No portal user found with email: " + email))
-                    .getUuid();
+            try {
+                return UUID.fromString(sub);
+            } catch (IllegalArgumentException e) {
+                // If sub is not a UUID, use it as-is by creating a deterministic UUID
+                return UUID.nameUUIDFromBytes(sub.getBytes());
+            }
         }
         throw new IllegalStateException("No authenticated portal user found");
     }

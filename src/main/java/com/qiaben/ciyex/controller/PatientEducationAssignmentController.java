@@ -18,7 +18,7 @@ public class PatientEducationAssignmentController {
 
     @PostMapping("/{educationId}")
     public ResponseEntity<ApiResponse<PatientEducationAssignmentDto>> assign(
-            @PathVariable Long educationId,
+            @PathVariable String educationId,
             @RequestBody PatientEducationAssignmentDto dto) {
         return ResponseEntity.ok(ApiResponse.<PatientEducationAssignmentDto>builder()
                 .success(true)
@@ -38,7 +38,7 @@ public class PatientEducationAssignmentController {
     }
 
     @PutMapping("/{id}/delivered")
-    public ResponseEntity<ApiResponse<PatientEducationAssignmentDto>> markDelivered(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<PatientEducationAssignmentDto>> markDelivered(@PathVariable String id) {
         return ResponseEntity.ok(ApiResponse.<PatientEducationAssignmentDto>builder()
                 .success(true)
                 .message("Marked delivered")
@@ -47,7 +47,7 @@ public class PatientEducationAssignmentController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
         service.delete(id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .success(true)

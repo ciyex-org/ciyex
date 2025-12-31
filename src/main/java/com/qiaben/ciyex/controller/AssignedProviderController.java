@@ -168,7 +168,7 @@ public class AssignedProviderController {
     public ResponseEntity<ApiResponse<AssignedProviderDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             var dto = service.getOne(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<AssignedProviderDto>builder()
@@ -219,7 +219,7 @@ public class AssignedProviderController {
     public ResponseEntity<ApiResponse<AssignedProviderDto>> update(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody AssignedProviderDto dto) {
         // Validate mandatory fields
         String validationError = validateMandatoryFields(dto);
@@ -255,7 +255,7 @@ public class AssignedProviderController {
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             service.delete(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -274,7 +274,7 @@ public class AssignedProviderController {
     public ResponseEntity<ApiResponse<AssignedProviderDto>> eSign(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
+            @PathVariable String id,
             Principal principal) {
         try {
             String user = (principal != null) ? principal.getName() : "system";
@@ -296,7 +296,7 @@ public class AssignedProviderController {
     public ResponseEntity<?> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             byte[] pdf = service.renderPdf(patientId, encounterId, id);
             String filename = "assigned-provider-" + id + ".pdf";

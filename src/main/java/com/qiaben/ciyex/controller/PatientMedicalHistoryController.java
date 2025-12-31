@@ -168,7 +168,7 @@ public class PatientMedicalHistoryController {
     public ResponseEntity<ApiResponse<PatientMedicalHistoryDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             var dto = service.getOne(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<PatientMedicalHistoryDto>builder()
@@ -212,7 +212,7 @@ public class PatientMedicalHistoryController {
     public ResponseEntity<ApiResponse<PatientMedicalHistoryDto>> update(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody PatientMedicalHistoryDto dto) {
         try {
             var saved = service.update(patientId, encounterId, id, dto);
@@ -241,7 +241,7 @@ public class PatientMedicalHistoryController {
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             service.delete(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -260,7 +260,7 @@ public class PatientMedicalHistoryController {
     public ResponseEntity<ApiResponse<PatientMedicalHistoryDto>> eSign(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
+            @PathVariable String id,
             Principal principal) {
         try {
             String user = (principal != null) ? principal.getName() : "system";
@@ -282,7 +282,7 @@ public class PatientMedicalHistoryController {
     public ResponseEntity<?> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             byte[] pdf = service.renderPdf(patientId, encounterId, id);
             String filename = "patient-medical-history-" + id + ".pdf";

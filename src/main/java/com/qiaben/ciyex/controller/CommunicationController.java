@@ -135,17 +135,9 @@ public class CommunicationController {
     /* ------------------- GET ONE ------------------- */
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<CommunicationDto>> getOne(
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
-            RequestContext ctx = new RequestContext();
-            // orgId deprecated; tenantName populated by interceptor.
-            RequestContext.set(ctx);
-
-            CommunicationDto dto = service.searchAll().stream()
-                    .filter(c -> c.getId().equals(id))
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Communication not found: " + id));
-
+            CommunicationDto dto = service.getById(id);
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
                     .success(true)
                     .message("Communication retrieved successfully")
@@ -157,22 +149,16 @@ public class CommunicationController {
                     .success(false)
                     .message("Failed to retrieve Communication: " + e.getMessage())
                     .build());
-        } finally {
-            RequestContext.clear();
         }
     }
 
     /* ------------------- UPDATE ------------------- */
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<CommunicationDto>> update(
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody CommunicationDto dto) {
         try {
-            RequestContext ctx = new RequestContext();
-            // orgId deprecated; tenantName populated by interceptor.
-            RequestContext.set(ctx);
-
-            CommunicationDto updated = service.updateItem(null, id, dto);
+            CommunicationDto updated = service.update(id, dto);
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
                     .success(true)
                     .message("Communication updated successfully")
@@ -184,22 +170,15 @@ public class CommunicationController {
                     .success(false)
                     .message("Failed to update Communication: " + e.getMessage())
                     .build());
-        } finally {
-            RequestContext.clear();
         }
     }
 
     /* ------------------- ARCHIVE ------------------- */
     @PutMapping("/{id}/archive")
     public ResponseEntity<ApiResponse<CommunicationDto>> archive(
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
-            RequestContext ctx = new RequestContext();
-            // orgId deprecated; tenantName populated by interceptor.
-            RequestContext.set(ctx);
-
             CommunicationDto dto = service.setStatus(id, CommunicationStatus.ARCHIVED);
-
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
                     .success(true)
                     .message("Communication archived successfully")
@@ -211,22 +190,15 @@ public class CommunicationController {
                     .success(false)
                     .message("Failed to archive Communication: " + e.getMessage())
                     .build());
-        } finally {
-            RequestContext.clear();
         }
     }
 
     /* ------------------- RESTORE ------------------- */
     @PutMapping("/{id}/restore")
     public ResponseEntity<ApiResponse<CommunicationDto>> restore(
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
-            RequestContext ctx = new RequestContext();
-            // orgId deprecated; tenantName populated by interceptor.
-            RequestContext.set(ctx);
-
             CommunicationDto dto = service.setStatus(id, CommunicationStatus.SENT);
-
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
                     .success(true)
                     .message("Communication restored successfully")
@@ -238,20 +210,15 @@ public class CommunicationController {
                     .success(false)
                     .message("Failed to restore Communication: " + e.getMessage())
                     .build());
-        } finally {
-            RequestContext.clear();
         }
     }
 
     /* ------------------- MARK AS READ ------------------- */
     @PutMapping("/{id}/read")
     public ResponseEntity<ApiResponse<CommunicationDto>> markAsRead(
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestParam String readBy) {
         try {
-            RequestContext ctx = new RequestContext();
-            RequestContext.set(ctx);
-
             CommunicationDto dto = service.markAsRead(id, readBy);
             return ResponseEntity.ok(ApiResponse.<CommunicationDto>builder()
                     .success(true)
@@ -264,21 +231,15 @@ public class CommunicationController {
                     .success(false)
                     .message("Failed to mark as read: " + e.getMessage())
                     .build());
-        } finally {
-            RequestContext.clear();
         }
     }
 
     /* ------------------- DELETE ------------------- */
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
-            RequestContext ctx = new RequestContext();
-            // orgId deprecated; tenantName populated by interceptor.
-            RequestContext.set(ctx);
-
-            service.deleteItemById(id);
+            service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)
                     .message("Communication deleted successfully")
@@ -289,8 +250,6 @@ public class CommunicationController {
                     .success(false)
                     .message("Failed to delete Communication: " + e.getMessage())
                     .build());
-        } finally {
-            RequestContext.clear();
         }
     }
 

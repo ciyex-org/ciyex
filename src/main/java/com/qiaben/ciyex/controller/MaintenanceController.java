@@ -51,7 +51,7 @@ public class MaintenanceController {
 
     // ✅ Retrieve maintenance by ID
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<MaintenanceDto>> get(@PathVariable("id") Long id) {
+    public ResponseEntity<ApiResponse<MaintenanceDto>> get(@PathVariable("id") String id) {
         try {
             MaintenanceDto maintenance = service.getById(id);
             if (maintenance == null) {
@@ -76,7 +76,7 @@ public class MaintenanceController {
 
     // ✅ Update maintenance record
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<MaintenanceDto>> update(@PathVariable("id") Long id, @RequestBody MaintenanceDto dto) {
+    public ResponseEntity<ApiResponse<MaintenanceDto>> update(@PathVariable("id") String id, @RequestBody MaintenanceDto dto) {
         try {
             // Validate mandatory fields
             String validationError = validateMandatoryFields(dto);
@@ -110,7 +110,7 @@ public class MaintenanceController {
 
     // ✅ Delete maintenance by ID
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") String id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -150,7 +150,7 @@ public class MaintenanceController {
     // ✅ Update maintenance status (e.g., "pending", "completed")
     @PutMapping("/{id}/status")
     public ResponseEntity<ApiResponse<MaintenanceDto>> updateStatus(
-            @PathVariable("id") Long id,
+            @PathVariable("id") String id,
             @RequestParam String status
     ) {
         try {

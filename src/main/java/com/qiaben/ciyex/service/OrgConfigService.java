@@ -1,12 +1,11 @@
 package com.qiaben.ciyex.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.qiaben.ciyex.entity.OrgConfig;
-import com.qiaben.ciyex.repository.OrgConfigRepository;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
@@ -15,111 +14,106 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Service for managing organization configurations (simple key-value pairs)
+ * FHIR-only Organization Configuration Service.
+ * Uses FHIR Basic resource for storing key-value configuration pairs.
+ * No local database storage - all data stored in FHIR server.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrgConfigService {
 
-    private final OrgConfigRepository orgConfigRepository;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
     private final ObjectMapper objectMapper;
+
+    private static final String CONFIG_TYPE_SYSTEM = "http://ciyex.com/fhir/resource-type";
+    private static final String CONFIG_TYPE_CODE = "org-config";
+    private static final String EXT_CONFIG_KEY = "http://ciyex.com/fhir/StructureDefinition/config-key";
+    private static final String EXT_CONFIG_VALUE = "http://ciyex.com/fhir/StructureDefinition/config-value";
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
 
     /**
      * Set a configuration value (create or update)
      */
-    @Transactional
-    public OrgConfig setConfig(String key, String value) {
+    public OrgConfigResult setConfig(String key, String value) {
         log.info("setConfig(key='{}') called", key);
-        
-        // Validation: key must not be null or empty
+
+        // Validation
         if (key == null || key.trim().isEmpty()) {
-            log.error("Validation failed: key is null or empty");
             throw new IllegalArgumentException("Configuration key cannot be null or empty");
         }
-        
-        // Validation: key length check
         if (key.length() > 500) {
-            log.error("Validation failed: key '{}' exceeds maximum length of 500 characters (actual: {})", 
-                     key.substring(0, 50) + "...", key.length());
-            throw new IllegalArgumentException("Configuration key exceeds maximum length of 500 characters (actual: " + key.length() + ")");
+            throw new IllegalArgumentException("Configuration key exceeds maximum length of 500 characters");
         }
-        
-        // Note: Value CAN be null or empty - no validation needed
-        
-        // Validation: check for invalid key characters
         if (key.contains("..") || key.startsWith(".") || key.endsWith(".")) {
-            log.error("Validation failed: key '{}' contains invalid dot notation", key);
             throw new IllegalArgumentException("Configuration key has invalid dot notation: " + key);
         }
-        
-        Optional<OrgConfig> existing = orgConfigRepository.findByKey(key);
-        
+
+        // Check if config exists
+        Optional<Basic> existing = findConfigByKey(key);
+
         if (existing.isPresent()) {
-            OrgConfig config = existing.get();
-            config.setValue(value);
-            log.info("Updated config key: {} (value: {})", key, value == null ? "null" : "'" + value + "'");
-            return orgConfigRepository.save(config);
+            // Update existing
+            Basic basic = existing.get();
+            String fhirId = basic.getIdElement().getIdPart();
+
+            basic.getExtension().removeIf(e -> EXT_CONFIG_VALUE.equals(e.getUrl()));
+            basic.addExtension(new Extension(EXT_CONFIG_VALUE, new StringType(value)));
+
+            fhirClientService.update(basic, getPracticeId());
+            log.info("Updated config key: {}", key);
+
+            return new OrgConfigResult(fhirId, key, value);
         } else {
-            OrgConfig config = new OrgConfig(key, value);
-            log.info("Created config key='{}' (value: {})", key, value == null ? "null" : "'" + value + "'");
-            return orgConfigRepository.save(config);
+            // Create new
+            Basic basic = new Basic();
+
+            CodeableConcept code = new CodeableConcept();
+            code.addCoding().setSystem(CONFIG_TYPE_SYSTEM).setCode(CONFIG_TYPE_CODE).setDisplay("Org Config");
+            basic.setCode(code);
+
+            basic.addExtension(new Extension(EXT_CONFIG_KEY, new StringType(key)));
+            basic.addExtension(new Extension(EXT_CONFIG_VALUE, new StringType(value)));
+
+            var outcome = fhirClientService.create(basic, getPracticeId());
+            String fhirId = outcome.getId().getIdPart();
+
+            log.info("Created config key='{}' with FHIR ID: {}", key, fhirId);
+            return new OrgConfigResult(fhirId, key, value);
         }
     }
 
     /**
      * Set multiple configurations at once from a map
-     * Keys will be flattened with dot notation for nested objects
-     * Example: {"fhir": {"apiUrl": "..."}} becomes "fhir.apiUrl" = "..."
      */
-    @Transactional
     public void setConfigBulk(Map<String, Object> configs) {
         log.info("setConfigBulk - root keys: {}", configs == null ? "null" : configs.keySet());
-        
-        // Validation: configs must not be null or empty
+
         if (configs == null || configs.isEmpty()) {
-            log.error("Validation failed: configs map is null or empty");
             throw new IllegalArgumentException("Configuration map cannot be null or empty");
         }
-        
+
         Map<String, String> flatMap = flattenMap(configs, "");
-        log.info("setConfigBulk - flattened {} keys: {}", flatMap.size(), flatMap.keySet());
-        
-        // Validation: check if flattening produced any keys
+        log.info("setConfigBulk - flattened {} keys", flatMap.size());
+
         if (flatMap.isEmpty()) {
-            log.error("Validation failed: no valid key-value pairs after flattening");
             throw new IllegalArgumentException("No valid configuration key-value pairs found after processing");
         }
-        
-        // Validate all keys before saving any (values can be null/empty)
-        for (Map.Entry<String, String> entry : flatMap.entrySet()) {
-            String key = entry.getKey();
-            
-            if (key == null || key.trim().isEmpty()) {
-                log.error("Validation failed: found null or empty key in flattened map");
-                throw new IllegalArgumentException("Configuration contains null or empty key after flattening");
-            }
-            
-            if (key.length() > 500) {
-                log.error("Validation failed: key '{}...' exceeds maximum length", key.substring(0, 50));
-                throw new IllegalArgumentException("Configuration key exceeds maximum length of 500 characters: " + key.substring(0, 50) + "...");
-            }
-            
-            // Note: Values CAN be null or empty - no validation needed
-        }
-        
-        // All validations passed, now save
+
         for (Map.Entry<String, String> entry : flatMap.entrySet()) {
             setConfig(entry.getKey(), entry.getValue());
         }
-        
+
         log.info("Bulk set {} configuration keys", flatMap.size());
     }
 
     /**
      * Set configurations from JSON string
      */
-    @Transactional
     public void setConfigFromJson(String jsonConfig) {
         try {
             @SuppressWarnings("unchecked")
@@ -135,119 +129,161 @@ public class OrgConfigService {
      * Get configuration value by key
      */
     public Optional<String> getConfig(String key) {
-        return orgConfigRepository.findByKey(key).map(OrgConfig::getValue);
+        return findConfigByKey(key)
+                .map(basic -> {
+                    Extension ext = basic.getExtensionByUrl(EXT_CONFIG_VALUE);
+                    if (ext != null && ext.getValue() instanceof StringType) {
+                        return ((StringType) ext.getValue()).getValue();
+                    }
+                    return null;
+                });
     }
 
     /**
      * Get configuration entity by key
      */
-    public Optional<OrgConfig> getConfigEntity(String key) {
-        return orgConfigRepository.findByKey(key);
+    public Optional<OrgConfigResult> getConfigEntity(String key) {
+        return findConfigByKey(key)
+                .map(basic -> {
+                    String fhirId = basic.getIdElement().getIdPart();
+                    String value = null;
+                    Extension ext = basic.getExtensionByUrl(EXT_CONFIG_VALUE);
+                    if (ext != null && ext.getValue() instanceof StringType) {
+                        value = ((StringType) ext.getValue()).getValue();
+                    }
+                    return new OrgConfigResult(fhirId, key, value);
+                });
     }
 
     /**
      * Get all configurations
      */
-    public List<OrgConfig> getAllConfigs() {
-        return orgConfigRepository.findAll();
+    public List<OrgConfigResult> getAllConfigs() {
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+
+        return fhirClientService.extractResources(bundle, Basic.class).stream()
+                .filter(this::isOrgConfig)
+                .map(this::toOrgConfigResult)
+                .collect(Collectors.toList());
     }
 
     /**
      * Get all configurations as a Map
      */
     public Map<String, String> getAllConfigsAsMap() {
-        return orgConfigRepository.findAll().stream()
-                .collect(Collectors.toMap(OrgConfig::getKey, OrgConfig::getValue));
+        return getAllConfigs().stream()
+                .collect(Collectors.toMap(OrgConfigResult::getKey, r -> r.getValue() != null ? r.getValue() : ""));
     }
-
-  
 
     /**
      * Delete configuration by key
      */
-    @Transactional
     public void deleteConfig(String key) {
-        if (!orgConfigRepository.existsByKey(key)) {
+        Optional<Basic> existing = findConfigByKey(key);
+        if (existing.isEmpty()) {
             throw new IllegalArgumentException("Config key not found: " + key);
         }
-        orgConfigRepository.deleteByKey(key);
+
+        String fhirId = existing.get().getIdElement().getIdPart();
+        fhirClientService.delete(Basic.class, fhirId, getPracticeId());
         log.info("Deleted config key: {}", key);
     }
-
-    
 
     /**
      * Check if configuration key exists
      */
     public boolean existsByKey(String key) {
-        return orgConfigRepository.existsByKey(key);
+        return findConfigByKey(key).isPresent();
     }
 
     /**
      * Update configuration value
      */
-    @Transactional
-    public OrgConfig updateConfig(String key, String value) {
-        return setConfig(key, value); // Same as set for key-value store
+    public OrgConfigResult updateConfig(String key, String value) {
+        return setConfig(key, value);
     }
 
     // ===== Helper Methods =====
 
-    /**
-     * Flatten nested map to dot notation
-     * {"fhir": {"apiUrl": "..."}} -> {"fhir.apiUrl": "..."}
-     */
+    private Optional<Basic> findConfigByKey(String key) {
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+
+        return fhirClientService.extractResources(bundle, Basic.class).stream()
+                .filter(this::isOrgConfig)
+                .filter(basic -> key.equals(getConfigKey(basic)))
+                .findFirst();
+    }
+
+    private boolean isOrgConfig(Basic basic) {
+        if (!basic.hasCode()) return false;
+        return basic.getCode().getCoding().stream()
+                .anyMatch(c -> CONFIG_TYPE_SYSTEM.equals(c.getSystem()) && CONFIG_TYPE_CODE.equals(c.getCode()));
+    }
+
+    private String getConfigKey(Basic basic) {
+        Extension ext = basic.getExtensionByUrl(EXT_CONFIG_KEY);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
+    }
+
+    private OrgConfigResult toOrgConfigResult(Basic basic) {
+        String fhirId = basic.getIdElement().getIdPart();
+        String key = getConfigKey(basic);
+        String value = null;
+        Extension ext = basic.getExtensionByUrl(EXT_CONFIG_VALUE);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            value = ((StringType) ext.getValue()).getValue();
+        }
+        return new OrgConfigResult(fhirId, key, value);
+    }
+
     private Map<String, String> flattenMap(Map<String, Object> map, String prefix) {
         Map<String, String> result = new HashMap<>();
-        
+
         if (map == null) {
             return result;
         }
-        
+
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             String entryKey = entry.getKey();
             Object value = entry.getValue();
-            
-            // Skip null or empty keys
+
             if (entryKey == null || entryKey.trim().isEmpty()) {
-                log.warn("Skipping null or empty key in map");
                 continue;
             }
-            
+
             String key = prefix.isEmpty() ? entryKey : prefix + "." + entryKey;
-            
+
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> nestedMap = (Map<String, Object>) value;
                 result.putAll(flattenMap(nestedMap, key));
             } else {
-                // Values can be null or empty - store them as-is
                 result.put(key, value == null ? null : value.toString());
             }
         }
-        
+
         return result;
     }
 
     /**
-     * Unflatten dot notation to nested map
-     * {"fhir.apiUrl": "..."} -> {"fhir": {"apiUrl": "..."}}
+     * Result class for org config operations (replaces OrgConfig entity)
      */
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> unflattenMap(Map<String, String> flatMap) {
-        Map<String, Object> result = new HashMap<>();
-        
-        for (Map.Entry<String, String> entry : flatMap.entrySet()) {
-            String[] keys = entry.getKey().split("\\.");
-            Map<String, Object> current = result;
-            
-            for (int i = 0; i < keys.length - 1; i++) {
-                current = (Map<String, Object>) current.computeIfAbsent(keys[i], k -> new HashMap<>());
-            }
-            
-            current.put(keys[keys.length - 1], entry.getValue());
+    public static class OrgConfigResult {
+        private final String id;
+        private final String key;
+        private final String value;
+
+        public OrgConfigResult(String id, String key, String value) {
+            this.id = id;
+            this.key = key;
+            this.value = value;
         }
-        
-        return result;
+
+        public String getId() { return id; }
+        public String getKey() { return key; }
+        public String getValue() { return value; }
     }
 }

@@ -4,31 +4,33 @@ import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalLoginRequest;
 import com.qiaben.ciyex.dto.portal.PortalLoginResponse;
 import com.qiaben.ciyex.dto.portal.PortalRegisterRequest;
-import com.qiaben.ciyex.entity.portal.PortalPatient;
-import com.qiaben.ciyex.entity.portal.PortalUser;
-import com.qiaben.ciyex.enums.PortalStatus;
-import com.qiaben.ciyex.repository.portal.PortalPatientRepository;
-import com.qiaben.ciyex.repository.portal.PortalUserRepository;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import com.qiaben.ciyex.service.PracticeContextService;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 
+/**
+ * FHIR-only Portal Auth Service.
+ * Uses FHIR Person resource for portal user authentication.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class PortalAuthService {
 
-    private final PortalUserRepository portalUserRepository;
-    private final PortalPatientRepository portalPatientRepository;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${jwt.secret:portal-secret-key-for-development-only}")
@@ -36,16 +38,32 @@ public class PortalAuthService {
 
     private static final long JWT_EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours
 
-    /**
-     * 🔐 Generate JWT for local login (NOT Keycloak)
-     */
-    private String generateJwtToken(PortalUser user) {
+    private static final String EXT_PASSWORD = "http://ciyex.com/fhir/StructureDefinition/password-hash";
+    private static final String EXT_STATUS = "http://ciyex.com/fhir/StructureDefinition/portal-status";
+    private static final String EXT_APPROVED_DATE = "http://ciyex.com/fhir/StructureDefinition/approved-date";
+    private static final String EXT_KEYCLOAK_ID = "http://ciyex.com/fhir/StructureDefinition/keycloak-user-id";
+    private static final String EXT_DOB = "http://ciyex.com/fhir/StructureDefinition/date-of-birth";
+    private static final String EXT_STREET = "http://ciyex.com/fhir/StructureDefinition/street";
+    private static final String EXT_STREET2 = "http://ciyex.com/fhir/StructureDefinition/street2";
+    private static final String EXT_CITY = "http://ciyex.com/fhir/StructureDefinition/city";
+    private static final String EXT_STATE = "http://ciyex.com/fhir/StructureDefinition/state";
+    private static final String EXT_POSTAL_CODE = "http://ciyex.com/fhir/StructureDefinition/postal-code";
+    private static final String EXT_COUNTRY = "http://ciyex.com/fhir/StructureDefinition/country";
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+    private String generateJwtToken(Person person) {
+        String fhirId = person.getIdElement().getIdPart();
+        String email = getEmail(person);
+
         Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", user.getId());
-        claims.put("email", user.getEmail());
+        claims.put("userId", fhirId);
+        claims.put("email", email);
         claims.put("role", "PATIENT");
-        claims.put("status", user.getStatus().toString());
-        claims.put("preferred_username", user.getEmail());
+        claims.put("status", getStringExt(person, EXT_STATUS));
+        claims.put("preferred_username", email);
 
         Map<String, Object> realmAccess = new HashMap<>();
         realmAccess.put("roles", Collections.singletonList("PATIENT"));
@@ -55,57 +73,78 @@ public class PortalAuthService {
 
         return Jwts.builder()
                 .claims(claims)
-                .subject(user.getEmail())
+                .subject(email)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + JWT_EXPIRATION_TIME))
                 .signWith(Keys.hmacShaKeyFor(keyBytes))
                 .compact();
     }
 
-    /**
-     * 🟢 Register portal user (local registration)
-     * Keycloak UUID is NOT available here. It will be filled after Keycloak login.
-     */
-    @Transactional
     public ApiResponse<PortalLoginResponse> register(PortalRegisterRequest request) {
         try {
-            if (portalUserRepository.existsByEmail(request.getEmail())) {
+            // Check if email already exists
+            Bundle bundle = fhirClientService.search(Person.class, getPracticeId());
+            boolean emailExists = fhirClientService.extractResources(bundle, Person.class).stream()
+                    .anyMatch(p -> request.getEmail().equalsIgnoreCase(getEmail(p)));
+
+            if (emailExists) {
                 return ApiResponse.<PortalLoginResponse>builder()
                         .success(false)
                         .message("Email already registered")
                         .build();
             }
 
-            PortalUser user = PortalUser.builder()
-                    .email(request.getEmail())
-                    .password(passwordEncoder.encode(request.getPassword()))
-                    .firstName(request.getFirstName())
-                    .lastName(request.getLastName())
-                    .phoneNumber(request.getPhoneNumber())
-                    .status(PortalStatus.APPROVED)
-                    .approvedDate(LocalDateTime.now())
-                    .build();
+            // Create Person resource
+            Person person = new Person();
+            person.addName()
+                    .setFamily(request.getLastName())
+                    .addGiven(request.getFirstName());
+            person.addTelecom()
+                    .setSystem(ContactPoint.ContactPointSystem.EMAIL)
+                    .setValue(request.getEmail());
+            if (request.getPhoneNumber() != null) {
+                person.addTelecom()
+                        .setSystem(ContactPoint.ContactPointSystem.PHONE)
+                        .setValue(request.getPhoneNumber());
+            }
 
-            PortalUser savedUser = portalUserRepository.save(user);
+            // Password hash
+            person.addExtension(new Extension(EXT_PASSWORD, new StringType(passwordEncoder.encode(request.getPassword()))));
+            person.addExtension(new Extension(EXT_STATUS, new StringType("APPROVED")));
+            person.addExtension(new Extension(EXT_APPROVED_DATE, new DateTimeType(new Date())));
 
-            PortalPatient patient = PortalPatient.builder()
-                    .portalUser(savedUser)
-                    .dateOfBirth(Optional.ofNullable(request.getDateOfBirth())
-                            .orElse(LocalDate.now().minusYears(25)))
-                    .addressLine1(request.getStreet())
-                    .addressLine2(request.getStreet2())
-                    .city(request.getCity())
-                    .state(request.getState())
-                    .country(Optional.ofNullable(request.getCountry()).orElse("USA"))
-                    .postalCode(request.getPostalCode())
-                    .build();
+            // Address
+            if (request.getStreet() != null) {
+                person.addExtension(new Extension(EXT_STREET, new StringType(request.getStreet())));
+            }
+            if (request.getStreet2() != null) {
+                person.addExtension(new Extension(EXT_STREET2, new StringType(request.getStreet2())));
+            }
+            if (request.getCity() != null) {
+                person.addExtension(new Extension(EXT_CITY, new StringType(request.getCity())));
+            }
+            if (request.getState() != null) {
+                person.addExtension(new Extension(EXT_STATE, new StringType(request.getState())));
+            }
+            if (request.getPostalCode() != null) {
+                person.addExtension(new Extension(EXT_POSTAL_CODE, new StringType(request.getPostalCode())));
+            }
+            person.addExtension(new Extension(EXT_COUNTRY, new StringType(request.getCountry() != null ? request.getCountry() : "USA")));
 
-            portalPatientRepository.save(patient);
+            // DOB
+            if (request.getDateOfBirth() != null) {
+                person.addExtension(new Extension(EXT_DOB, new DateType(Date.from(request.getDateOfBirth().atStartOfDay(ZoneId.systemDefault()).toInstant()))));
+            }
+
+            var outcome = fhirClientService.create(person, getPracticeId());
+            String fhirId = outcome.getId().getIdPart();
+
+            PortalLoginResponse response = buildLoginResponse(person, fhirId);
 
             return ApiResponse.<PortalLoginResponse>builder()
                     .success(true)
                     .message("Registration successful and approved!")
-                    .data(PortalLoginResponse.fromEntity(savedUser))
+                    .data(response)
                     .build();
 
         } catch (Exception e) {
@@ -117,12 +156,13 @@ public class PortalAuthService {
         }
     }
 
-    /**
-     * 🟢 Login with local username/password (NOT Keycloak)
-     */
     public ApiResponse<PortalLoginResponse> login(PortalLoginRequest request) {
         try {
-            Optional<PortalUser> userOpt = portalUserRepository.findByEmail(request.getEmail());
+            Bundle bundle = fhirClientService.search(Person.class, getPracticeId());
+            Optional<Person> userOpt = fhirClientService.extractResources(bundle, Person.class).stream()
+                    .filter(p -> request.getEmail().equalsIgnoreCase(getEmail(p)))
+                    .findFirst();
+
             if (userOpt.isEmpty()) {
                 return ApiResponse.<PortalLoginResponse>builder()
                         .success(false)
@@ -130,34 +170,27 @@ public class PortalAuthService {
                         .build();
             }
 
-            PortalUser user = userOpt.get();
+            Person person = userOpt.get();
+            String passwordHash = getStringExt(person, EXT_PASSWORD);
 
-            if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            if (passwordHash == null || !passwordEncoder.matches(request.getPassword(), passwordHash)) {
                 return ApiResponse.<PortalLoginResponse>builder()
                         .success(false)
                         .message("Invalid email or password")
                         .build();
             }
 
-            if (user.getStatus() != PortalStatus.APPROVED) {
+            String status = getStringExt(person, EXT_STATUS);
+            if (!"APPROVED".equals(status)) {
                 return ApiResponse.<PortalLoginResponse>builder()
                         .success(false)
                         .message("Your account is not approved yet")
                         .build();
             }
 
-            PortalLoginResponse response = PortalLoginResponse.fromEntity(user);
-            response.setToken(generateJwtToken(user));
-
-            if (user.getPortalPatient() != null) {
-                PortalPatient patient = user.getPortalPatient();
-                response.setDateOfBirth(patient.getDateOfBirth());
-                response.setStreet(patient.getAddressLine1());
-                response.setCity(patient.getCity());
-                response.setState(patient.getState());
-                response.setCountry(patient.getCountry());
-                response.setPostalCode(patient.getPostalCode());
-            }
+            String fhirId = person.getIdElement().getIdPart();
+            PortalLoginResponse response = buildLoginResponse(person, fhirId);
+            response.setToken(generateJwtToken(person));
 
             return ApiResponse.<PortalLoginResponse>builder()
                     .success(true)
@@ -174,16 +207,7 @@ public class PortalAuthService {
         }
     }
 
-    /**
-     * 🟣 KEY METHOD
-     * Ensure portal user exists — also updates Keycloak UUID for existing users.
-     * Works for:
-     *  - Existing local-registered users (Emma etc.)
-     *  - New users logging in through Keycloak for the first time
-     */
-    @Transactional
-    public PortalUser ensurePortalUserExistsFromKeycloak(Map<String, Object> userData) {
-
+    public Person ensurePortalUserExistsFromKeycloak(Map<String, Object> userData) {
         String email = (String) userData.getOrDefault("email", "");
         String firstName = (String) userData.getOrDefault("given_name", "Unknown");
         String lastName = (String) userData.getOrDefault("family_name", "");
@@ -193,62 +217,125 @@ public class PortalAuthService {
             throw new RuntimeException("Email missing in Keycloak token");
         }
 
-        Optional<PortalUser> existingOpt = portalUserRepository.findByEmail(email);
+        Bundle bundle = fhirClientService.search(Person.class, getPracticeId());
+        Optional<Person> existingOpt = fhirClientService.extractResources(bundle, Person.class).stream()
+                .filter(p -> email.equalsIgnoreCase(getEmail(p)))
+                .findFirst();
 
         if (existingOpt.isPresent()) {
-            PortalUser existing = existingOpt.get();
+            Person existing = existingOpt.get();
+            String currentKeycloakId = getStringExt(existing, EXT_KEYCLOAK_ID);
 
-            // ⭐ CRITICAL: Update Keycloak UUID for existing users
-            if (existing.getKeycloakUserId() == null ||
-                !existing.getKeycloakUserId().equals(keycloakId)) {
-
-                log.info("🔄 Updating existing user {} with Keycloak UUID {}", email, keycloakId);
-                existing.setKeycloakUserId(keycloakId);
-                portalUserRepository.save(existing);
+            if (currentKeycloakId == null || !currentKeycloakId.equals(keycloakId)) {
+                log.info("Updating existing user {} with Keycloak UUID {}", email, keycloakId);
+                existing.getExtension().removeIf(e -> EXT_KEYCLOAK_ID.equals(e.getUrl()));
+                existing.addExtension(new Extension(EXT_KEYCLOAK_ID, new StringType(keycloakId)));
+                fhirClientService.update(existing, getPracticeId());
             }
 
             return existing;
         }
 
-        // ⭐ NEW user flow
-        log.info("🆕 Creating portal user for new Keycloak user {}", email);
+        // Create new user
+        log.info("Creating portal user for new Keycloak user {}", email);
 
-        PortalUser newUser = PortalUser.builder()
-                .email(email)
-                .password(passwordEncoder.encode("keycloak-login"))
-                .firstName(firstName)
-                .lastName(lastName)
-                .status(PortalStatus.APPROVED)
-                .approvedDate(LocalDateTime.now())
-                .keycloakUserId(keycloakId)
-                .build();
+        Person newPerson = new Person();
+        newPerson.addName().setFamily(lastName).addGiven(firstName);
+        newPerson.addTelecom().setSystem(ContactPoint.ContactPointSystem.EMAIL).setValue(email);
+        newPerson.addExtension(new Extension(EXT_PASSWORD, new StringType(passwordEncoder.encode("keycloak-login"))));
+        newPerson.addExtension(new Extension(EXT_STATUS, new StringType("APPROVED")));
+        newPerson.addExtension(new Extension(EXT_APPROVED_DATE, new DateTimeType(new Date())));
+        newPerson.addExtension(new Extension(EXT_KEYCLOAK_ID, new StringType(keycloakId)));
+        newPerson.addExtension(new Extension(EXT_COUNTRY, new StringType("USA")));
 
-        portalUserRepository.save(newUser);
+        var outcome = fhirClientService.create(newPerson, getPracticeId());
+        newPerson.setId(outcome.getId().getIdPart());
 
-        PortalPatient newPatient = PortalPatient.builder()
-                .portalUser(newUser)
-                .dateOfBirth(LocalDate.now().minusYears(25))
-                .country("USA")
-                .build();
-
-        portalPatientRepository.save(newPatient);
-
-        return newUser;
+        return newPerson;
     }
 
-    /**
-     * 🟢 Get profile by user ID
-     */
     public ApiResponse<PortalLoginResponse> getProfile(Long userId) {
-        return portalUserRepository.findById(userId)
-                .map(user -> ApiResponse.<PortalLoginResponse>builder()
-                        .success(true)
-                        .message("Profile retrieved successfully")
-                        .data(PortalLoginResponse.fromEntity(user))
-                        .build())
-                .orElse(ApiResponse.<PortalLoginResponse>builder()
+        try {
+            String fhirId = String.valueOf(userId);
+            Person person = fhirClientService.read(Person.class, fhirId, getPracticeId());
+
+            if (person == null) {
+                return ApiResponse.<PortalLoginResponse>builder()
                         .success(false)
                         .message("User not found")
-                        .build());
+                        .build();
+            }
+
+            PortalLoginResponse response = buildLoginResponse(person, fhirId);
+
+            return ApiResponse.<PortalLoginResponse>builder()
+                    .success(true)
+                    .message("Profile retrieved successfully")
+                    .data(response)
+                    .build();
+
+        } catch (Exception e) {
+            return ApiResponse.<PortalLoginResponse>builder()
+                    .success(false)
+                    .message("User not found")
+                    .build();
+        }
+    }
+
+    // -------- Helper Methods --------
+
+    private PortalLoginResponse buildLoginResponse(Person person, String fhirId) {
+        PortalLoginResponse response = new PortalLoginResponse();
+        response.setId((long) Math.abs(fhirId.hashCode()));
+        response.setUuid(fhirId);
+
+        if (person.hasName()) {
+            HumanName name = person.getNameFirstRep();
+            response.setFirstName(name.getGivenAsSingleString());
+            response.setLastName(name.getFamily());
+        }
+
+        response.setEmail(getEmail(person));
+        response.setPhoneNumber(getPhone(person));
+        response.setStatus(getStringExt(person, EXT_STATUS));
+        response.setStreet(getStringExt(person, EXT_STREET));
+        response.setCity(getStringExt(person, EXT_CITY));
+        response.setState(getStringExt(person, EXT_STATE));
+        response.setCountry(getStringExt(person, EXT_COUNTRY));
+        response.setPostalCode(getStringExt(person, EXT_POSTAL_CODE));
+
+        Extension dobExt = person.getExtensionByUrl(EXT_DOB);
+        if (dobExt != null && dobExt.getValue() instanceof DateType) {
+            Date date = ((DateType) dobExt.getValue()).getValue();
+            if (date != null) {
+                response.setDateOfBirth(date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate());
+            }
+        }
+
+        return response;
+    }
+
+    private String getEmail(Person person) {
+        return person.getTelecom().stream()
+                .filter(cp -> cp.getSystem() == ContactPoint.ContactPointSystem.EMAIL)
+                .map(ContactPoint::getValue)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String getPhone(Person person) {
+        return person.getTelecom().stream()
+                .filter(cp -> cp.getSystem() == ContactPoint.ContactPointSystem.PHONE)
+                .map(ContactPoint::getValue)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String getStringExt(Person person, String url) {
+        Extension ext = person.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
     }
 }

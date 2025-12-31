@@ -39,7 +39,7 @@ public class SlotController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<SlotDto>> get(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<SlotDto>> get(@PathVariable String id) {
         try {
             return ResponseEntity.ok(ApiResponse.<SlotDto>builder()
                     .success(true)
@@ -55,7 +55,7 @@ public class SlotController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<SlotDto>> update(@PathVariable Long id, @RequestBody SlotDto dto) {
+    public ResponseEntity<ApiResponse<SlotDto>> update(@PathVariable String id, @RequestBody SlotDto dto) {
         try {
             return ResponseEntity.ok(ApiResponse.<SlotDto>builder()
                     .success(true)
@@ -71,7 +71,7 @@ public class SlotController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -98,19 +98,4 @@ public class SlotController {
         }
     }
 
-    @GetMapping("/count")
-    public ResponseEntity<ApiResponse<Long>> count() {
-        try {
-            return ResponseEntity.ok(ApiResponse.<Long>builder()
-                    .success(true)
-                    .message("Slot count retrieved successfully")
-                    .data(service.countSlotsForCurrentOrg())
-                    .build());
-        } catch (Exception e) {
-            return ResponseEntity.ok(ApiResponse.<Long>builder()
-                    .success(false)
-                    .message("Count slots failed: " + e.getMessage())
-                    .build());
-        }
-    }
 }

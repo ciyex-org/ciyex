@@ -40,7 +40,7 @@ public class InventoryController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<InventoryDto>> get(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<InventoryDto>> get(@PathVariable String id) {
         InventoryDto item = service.getById(id);
         return ResponseEntity.ok(
                 ApiResponse.<InventoryDto>builder()
@@ -52,7 +52,7 @@ public class InventoryController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<InventoryDto>> update(@PathVariable Long id, @Valid @RequestBody InventoryDto dto) {
+    public ResponseEntity<ApiResponse<InventoryDto>> update(@PathVariable String id, @Valid @RequestBody InventoryDto dto) {
         InventoryDto updated = service.update(id, dto);
         return ResponseEntity.ok(
                 ApiResponse.<InventoryDto>builder()
@@ -64,7 +64,7 @@ public class InventoryController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
         service.delete(id);
         return ResponseEntity.ok(
                 ApiResponse.<Void>builder()
@@ -103,7 +103,7 @@ public class InventoryController {
 
     @PostMapping("/{id}/reorder")
     public ResponseEntity<ApiResponse<OrderDto>> reorder(
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody OrderDto dto) {
         try {
             OrderDto createdOrder = service.createReorder(id, dto);

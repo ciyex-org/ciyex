@@ -1,11 +1,12 @@
 package com.qiaben.ciyex.service.portal;
 
+import com.qiaben.ciyex.dto.VitalsDto;
 import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalVitalsDto;
 import com.qiaben.ciyex.entity.portal.PortalUser;
 import com.qiaben.ciyex.enums.PortalStatus;
-import com.qiaben.ciyex.repository.VitalsRepository;
 import com.qiaben.ciyex.repository.portal.PortalUserRepository;
+import com.qiaben.ciyex.service.VitalsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,7 +23,7 @@ public class PortalVitalsService {
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    private final VitalsRepository vitalsRepository;
+    private final VitalsService vitalsService;
     private final PortalUserRepository userRepository;
 
     /**
@@ -57,8 +58,8 @@ public class PortalVitalsService {
 
             Long ehrPatientId = portalUser.getPortalPatient().getEhrPatientId();
 
-            // Get recent vitals for this patient (using EHR patient ID)
-            List<PortalVitalsDto> vitals = vitalsRepository.findByPatientIdOrderByRecordedAtDesc(ehrPatientId)
+            // Get recent vitals for this patient using FHIR VitalsService
+            List<PortalVitalsDto> vitals = vitalsService.getAllByPatient(ehrPatientId)
                     .stream()
                     .limit(10) // Last 10 records
                     .map(this::toPortalVitalsDto)
@@ -111,8 +112,8 @@ public class PortalVitalsService {
 
             Long ehrPatientId = portalUser.getPortalPatient().getEhrPatientId();
 
-            // Get all vitals for this patient
-            List<PortalVitalsDto> vitals = vitalsRepository.findByPatientIdOrderByRecordedAtDesc(ehrPatientId)
+            // Get all vitals for this patient using FHIR VitalsService
+            List<PortalVitalsDto> vitals = vitalsService.getAllByPatient(ehrPatientId)
                     .stream()
                     .map(this::toPortalVitalsDto)
                     .collect(Collectors.toList());
@@ -133,25 +134,25 @@ public class PortalVitalsService {
     }
 
     /**
-     * Convert Vitals entity to PortalVitalsDto
+     * Convert VitalsDto (from FHIR) to PortalVitalsDto
      */
-    private PortalVitalsDto toPortalVitalsDto(com.qiaben.ciyex.entity.Vitals vitals) {
+    private PortalVitalsDto toPortalVitalsDto(VitalsDto vitals) {
         PortalVitalsDto.Audit a = new PortalVitalsDto.Audit();
-        if (vitals.getCreatedDate() != null) a.setCreatedDate(DAY.format(vitals.getCreatedDate().atZone(ZoneId.systemDefault())));
-        if (vitals.getLastModifiedDate() != null) a.setLastModifiedDate(DAY.format(vitals.getLastModifiedDate().atZone(ZoneId.systemDefault())));
+        if (vitals.getRecordedAt() != null) {
+            a.setCreatedDate(DAY.format(vitals.getRecordedAt().atZone(ZoneId.systemDefault())));
+            a.setLastModifiedDate(DAY.format(vitals.getRecordedAt().atZone(ZoneId.systemDefault())));
+        }
 
         return PortalVitalsDto.builder()
-                .id(vitals.getId())
+                .id(vitals.getFhirId() != null ? (long) Math.abs(vitals.getFhirId().hashCode()) : null)
                 .patientId(vitals.getPatientId())
                 .encounterId(vitals.getEncounterId())
                 .weightKg(vitals.getWeightKg())
-                .weightLbs(vitals.getWeightLbs())
                 .bpSystolic(vitals.getBpSystolic())
                 .bpDiastolic(vitals.getBpDiastolic())
                 .pulse(vitals.getPulse())
                 .respiration(vitals.getRespiration())
                 .temperatureC(vitals.getTemperatureC())
-                .temperatureF(vitals.getTemperatureF())
                 .oxygenSaturation(vitals.getOxygenSaturation())
                 .bmi(vitals.getBmi())
                 .notes(vitals.getNotes())

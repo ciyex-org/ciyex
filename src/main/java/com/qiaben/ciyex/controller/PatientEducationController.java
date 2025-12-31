@@ -37,7 +37,7 @@ public class PatientEducationController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<PatientEducationDto>> get(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<PatientEducationDto>> get(@PathVariable String id) {
         return ResponseEntity.ok(ApiResponse.<PatientEducationDto>builder()
                 .success(true)
                 .message("Patient education retrieved successfully")
@@ -46,7 +46,7 @@ public class PatientEducationController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<PatientEducationDto>> update(@PathVariable Long id, @RequestBody PatientEducationDto dto) {
+    public ResponseEntity<ApiResponse<PatientEducationDto>> update(@PathVariable String id, @RequestBody PatientEducationDto dto) {
         return ResponseEntity.ok(ApiResponse.<PatientEducationDto>builder()
                 .success(true)
                 .message("Patient education updated successfully")
@@ -55,7 +55,7 @@ public class PatientEducationController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()

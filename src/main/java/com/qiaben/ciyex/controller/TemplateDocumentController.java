@@ -32,8 +32,8 @@
         }
 
         // Get one (by id)
-        @GetMapping(value = "/{id:\\d+}", produces = MediaType.APPLICATION_JSON_VALUE)
-        public TemplateDocumentResponse getOne(@PathVariable Long id) {
+        @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+        public TemplateDocumentResponse getOne(@PathVariable String id) {
             return service.getOne(id);
         }
 
@@ -57,20 +57,20 @@
         }
 
         // Update
-        @PutMapping(value = "/{id:\\d+}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-        public TemplateDocumentResponse update(@PathVariable Long id, @Valid @RequestBody TemplateDocumentUpsertRequest body) {
+        @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+        public TemplateDocumentResponse update(@PathVariable String id, @Valid @RequestBody TemplateDocumentUpsertRequest body) {
             return service.update(id, body);
         }
 
         // Delete
-        @DeleteMapping("/{id:\\d+}")
-        public void delete(@PathVariable Long id) {
+        @DeleteMapping("/{id}")
+        public void delete(@PathVariable String id) {
             service.delete(id);
         }
 
         // Live HTML preview
-        @GetMapping(value = "/{id:\\d+}/html", produces = MediaType.ALL_VALUE)
-        public ResponseEntity<String> getHtml(@PathVariable Long id) {
+        @GetMapping(value = "/{id}/html", produces = MediaType.ALL_VALUE)
+        public ResponseEntity<String> getHtml(@PathVariable String id) {
             String html = service.getHtmlRaw(id);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_TYPE, "text/html; charset=UTF-8")

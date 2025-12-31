@@ -31,7 +31,7 @@ public class AllClaimsController {
      */
     @PutMapping("/{claimId}/status")
     public ResponseEntity<ApiResponse<PatientClaimDto>> changeClaimStatus(
-            @PathVariable Long claimId,
+            @PathVariable String claimId,
             @RequestBody ClaimStatusUpdateDto dto
     ) {
         PatientClaimDto response = updateClaimStatus(claimId, dto);
@@ -41,7 +41,7 @@ public class AllClaimsController {
     /**
      * Helper method to update claim status and return the updated claim DTO
      */
-    private PatientClaimDto updateClaimStatus(Long claimId, ClaimStatusUpdateDto dto) {
+    private PatientClaimDto updateClaimStatus(String claimId, ClaimStatusUpdateDto dto) {
         service.changeClaimStatus(null, claimId, dto);
         return service.getClaimDtoById(claimId);
     }
@@ -52,7 +52,7 @@ public class AllClaimsController {
      */
     @PostMapping("/{claimId}/void-recreate")
     public ResponseEntity<ApiResponse<PatientClaimDto>> voidAndRecreateClaim(
-            @PathVariable Long claimId) {
+            @PathVariable String claimId) {
         log.info("Voiding and recreating claim ID: {}", claimId);
         PatientClaimDto data = service.voidAndRecreateClaimById(claimId);
         return ResponseEntity.ok(ApiResponse.ok("Claim voided and recreated successfully", data));
@@ -64,7 +64,7 @@ public class AllClaimsController {
      */
     @PutMapping("/{claimId}/convert-type")
     public ResponseEntity<ApiResponse<PatientClaimDto>> convertClaimType(
-            @PathVariable Long claimId,
+            @PathVariable String claimId,
             @RequestBody ClaimTypeConvertDto dto
     ) {
         PatientClaimDto updated = service.convertClaimType(claimId, dto.getTargetType());
@@ -100,7 +100,7 @@ public class AllClaimsController {
      * GET /api/all-claims/{claimId}/line-details
      */
     @GetMapping("/{claimId}/line-details")
-    public ResponseEntity<ApiResponse<List<ClaimLineDetailDto>>> getClaimLineDetails(@PathVariable Long claimId) {
+    public ResponseEntity<ApiResponse<List<ClaimLineDetailDto>>> getClaimLineDetails(@PathVariable String claimId) {
         List<ClaimLineDetailDto> lineDetails = service.getClaimLineDetails(claimId);
         return ResponseEntity.ok(ApiResponse.ok("Claim line details", lineDetails));
     }
@@ -110,7 +110,7 @@ public class AllClaimsController {
      * POST /api/all-claims/{claimId}/sends
      */
     @PostMapping("/{claimId}/sends")
-    public ResponseEntity<ApiResponse<String>> sendClaimToInsurance(@PathVariable Long claimId) {
+    public ResponseEntity<ApiResponse<String>> sendClaimToInsurance(@PathVariable String claimId) {
         try {
             // Fetch claim details
             PatientClaimDto claim = service.getClaimDtoById(claimId);

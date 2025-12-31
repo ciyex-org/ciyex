@@ -65,7 +65,7 @@ public class PatientRelationshipController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<PatientRelationshipDto>> getById(
             @PathVariable Long patientId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             PatientRelationshipDto relationship = service.getById(id);
             return ResponseEntity.ok(ApiResponse.<PatientRelationshipDto>builder()
@@ -85,7 +85,7 @@ public class PatientRelationshipController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<PatientRelationshipDto>> update(
             @PathVariable Long patientId,
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody PatientRelationshipDto dto) {
         try {
             dto.setPatientId(patientId);
@@ -107,7 +107,7 @@ public class PatientRelationshipController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long patientId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()

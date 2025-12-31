@@ -1,23 +1,16 @@
-
-
-
-
-
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import com.qiaben.ciyex.dto.SignoffDto;
-import com.qiaben.ciyex.entity.Signoff;
-import com.qiaben.ciyex.repository.SignoffRepository;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
@@ -26,246 +19,184 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.stream.Collectors;
 
+/**
+ * FHIR-only Signoff Service.
+ * Uses FHIR Task resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ * Retains PDF rendering and e-signing business logic.
+ */
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class SignoffService {
-    public List<SignoffDto> getAllByPatient(Long patientId) {
-        return repo.findByPatientId(patientId)
-                .stream().map(this::toDto).toList();
-    }
-    private final SignoffRepository repo;
-    private final EncounterService encounterService;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
 
-    @Autowired(required = false)
-    private com.qiaben.ciyex.storage.fhir.FhirExternalSignoffStorage fhirStorage;
-
-    @Autowired
-    public SignoffService(SignoffRepository repo, EncounterService encounterService, 
-                          ExternalStorageResolver storageResolver, OrgIntegrationConfigProvider configProvider) {
-        this.repo = repo;
-        this.encounterService = encounterService;
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
-    }
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final String STATUS_DRAFT  = "Draft";
+    private static final String STATUS_DRAFT = "Draft";
     private static final String STATUS_SIGNED = "Signed";
     private static final String STATUS_LOCKED = "Locked";
 
-    // ---- CRUD
+    // Extension URLs
+    private static final String EXT_ENCOUNTER = "http://ciyex.com/fhir/StructureDefinition/encounter-reference";
+    private static final String EXT_TARGET_TYPE = "http://ciyex.com/fhir/StructureDefinition/target-type";
+    private static final String EXT_TARGET_ID = "http://ciyex.com/fhir/StructureDefinition/target-id";
+    private static final String EXT_TARGET_VERSION = "http://ciyex.com/fhir/StructureDefinition/target-version";
+    private static final String EXT_SIGNED_BY = "http://ciyex.com/fhir/StructureDefinition/signed-by";
+    private static final String EXT_SIGNER_ROLE = "http://ciyex.com/fhir/StructureDefinition/signer-role";
+    private static final String EXT_SIGNED_AT = "http://ciyex.com/fhir/StructureDefinition/signed-at";
+    private static final String EXT_SIGNATURE_TYPE = "http://ciyex.com/fhir/StructureDefinition/signature-type";
+    private static final String EXT_SIGNATURE_DATA = "http://ciyex.com/fhir/StructureDefinition/signature-data";
+    private static final String EXT_CONTENT_HASH = "http://ciyex.com/fhir/StructureDefinition/content-hash";
+    private static final String EXT_ATTESTATION = "http://ciyex.com/fhir/StructureDefinition/attestation-text";
+    private static final String EXT_COMMENTS = "http://ciyex.com/fhir/StructureDefinition/comments";
+    private static final String EXT_PRINTED_AT = "http://ciyex.com/fhir/StructureDefinition/printed-at";
 
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
 
+    // CREATE
     public SignoffDto create(Long patientId, Long encounterId, SignoffDto dto) {
-        // Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+        log.debug("Creating FHIR Task (signoff) for patient: {} encounter: {}", patientId, encounterId);
 
-        Signoff e = new Signoff();
-        e.setPatientId(patientId);
-        e.setEncounterId(encounterId);
-        e.setStatus(STATUS_DRAFT);
-        applyEditable(e, dto);
-        e = repo.save(e);
-        
-        // Step 5: Optional external FHIR sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("Signoff create - storageType for current org: {}", storageType);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+        dto.setStatus(STATUS_DRAFT);
 
-        if (storageType != null) {
-            try {
-                log.info("Attempting FHIR sync for Signoff ID: {}", e.getId());
-                ExternalStorage<SignoffDto> ext = storageResolver.resolve(SignoffDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
+        Task task = toFhirTask(dto);
+        var outcome = fhirClientService.create(task, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-                SignoffDto snapshot = toDto(e);
-                String externalId = ext.create(snapshot);
-                log.info("FHIR create returned externalId: {}", externalId);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        log.info("Created FHIR Task (signoff) with id: {}", fhirId);
 
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource for Signoff ID: {} with externalId: {}", e.getId(), externalId);
-                } else {
-                    log.warn("FHIR create returned null or empty externalId for Signoff ID: {}", e.getId());
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync Signoff to external storage", ex);
-            }
-        } else if (fhirStorage != null) {
-            try {
-                log.info("No storage type configured, falling back to direct FHIR storage for Signoff ID: {}", e.getId());
-                SignoffDto snapshot = toDto(e);
-                String externalId = fhirStorage.create(snapshot);
-                log.info("FHIR fallback create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource (fallback) for Signoff ID: {} with externalId: {}", e.getId(), externalId);
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync Signoff to external storage (fallback)", ex);
-            }
-        }
-        
-        if (e.getExternalId() == null) {
-            String generatedId = "SO-" + System.currentTimeMillis();
-            e.setExternalId(generatedId);
-            e.setFhirId(generatedId);
-            e = repo.save(e);
-            log.info("Auto-generated externalId: {}", generatedId);
-        } else {
-            e.setFhirId(e.getExternalId());
-            e = repo.save(e);
-        }
-        
-        return toDto(e);
+        return dto;
     }
 
+    // LIST BY ENCOUNTER
     public List<SignoffDto> list(Long patientId, Long encounterId) {
-        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
-                .stream().map(this::toDto).toList();
+        log.debug("Getting FHIR Tasks (signoffs) for patient: {} encounter: {}", patientId, encounterId);
+
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                .forResource(Task.class)
+                .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
+                .returnBundle(Bundle.class)
+                .execute();
+
+        List<Task> tasks = fhirClientService.extractResources(bundle, Task.class);
+        return tasks.stream()
+                .filter(this::isSignoffTask)
+                .filter(t -> hasEncounter(t, encounterId))
+                .map(this::fromFhirTask)
+                .collect(Collectors.toList());
     }
 
-    public SignoffDto getOne(Long patientId, Long encounterId, Long id) {
-        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Sign-off not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        // Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+    // GET ALL BY PATIENT
+    public List<SignoffDto> getAllByPatient(Long patientId) {
+        log.debug("Getting all FHIR Tasks (signoffs) for patient: {}", patientId);
 
-        return toDto(e);
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                .forResource(Task.class)
+                .where(new ReferenceClientParam("patient").hasId("Patient/" + patientId))
+                .returnBundle(Bundle.class)
+                .execute();
+
+        List<Task> tasks = fhirClientService.extractResources(bundle, Task.class);
+        return tasks.stream()
+                .filter(this::isSignoffTask)
+                .map(this::fromFhirTask)
+                .collect(Collectors.toList());
     }
 
-    public SignoffDto update(Long patientId, Long encounterId, Long id, SignoffDto dto) {
-        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Sign-off not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (isLocked(e)) throw new IllegalStateException("Signed/locked sign-offs are read-only.");
-        applyEditable(e, dto);
-        e = repo.save(e);
+    // GET ONE
+    public SignoffDto getOne(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Getting FHIR Task (signoff): {}", fhirId);
+        Task task = fhirClientService.read(Task.class, fhirId, getPracticeId());
+        return fromFhirTask(task);
+    }
 
-        // Step 7: Optional external FHIR sync
-        if (e.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("Signoff update - storageType for current org: {}", storageType);
+    // UPDATE
+    public SignoffDto update(Long patientId, Long encounterId, String fhirId, SignoffDto dto) {
+        log.debug("Updating FHIR Task (signoff): {}", fhirId);
 
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR sync for Signoff ID: {}", e.getId());
-                    ExternalStorage<SignoffDto> ext = storageResolver.resolve(SignoffDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                    SignoffDto snapshot = toDto(e);
-                    ext.update(snapshot, e.getExternalId());
-                    log.info("Updated FHIR resource for Signoff ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Signoff update to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for Signoff ID: {}", e.getId());
-                    SignoffDto snapshot = toDto(e);
-                    fhirStorage.update(snapshot, e.getExternalId());
-                    log.info("Updated FHIR resource (fallback) for Signoff ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Signoff update to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Signoff ID: {}", e.getId());
-            }
+        // Check if locked
+        Task existing = fhirClientService.read(Task.class, fhirId, getPracticeId());
+        SignoffDto existingDto = fromFhirTask(existing);
+        if (isLocked(existingDto.getStatus())) {
+            throw new IllegalStateException("Signed/locked sign-offs are read-only.");
         }
 
-        // Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
 
-        return toDto(e);
+        Task task = toFhirTask(dto);
+        task.setId(fhirId);
+        fhirClientService.update(task, getPracticeId());
+
+        return dto;
     }
 
-    public void delete(Long patientId, Long encounterId, Long id) {
-        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Sign-off not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        if (isLocked(e)) throw new IllegalStateException("Signed/locked sign-offs cannot be deleted.");
+    // DELETE
+    public void delete(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Deleting FHIR Task (signoff): {}", fhirId);
 
-        // Optional external FHIR sync
-        if (e.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("Signoff delete - storageType for current org: {}", storageType);
-
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR delete for Signoff ID: {}", e.getId());
-                    ExternalStorage<SignoffDto> ext = storageResolver.resolve(SignoffDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                    ext.delete(e.getExternalId());
-                    log.info("Deleted FHIR resource for Signoff ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Signoff delete to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for Signoff ID: {}", e.getId());
-                    fhirStorage.delete(e.getExternalId());
-                    log.info("Deleted FHIR resource (fallback) for Signoff ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Signoff delete to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Signoff ID: {}", e.getId());
-            }
+        Task existing = fhirClientService.read(Task.class, fhirId, getPracticeId());
+        SignoffDto existingDto = fromFhirTask(existing);
+        if (isLocked(existingDto.getStatus())) {
+            throw new IllegalStateException("Signed/locked sign-offs cannot be deleted.");
         }
 
-        repo.delete(e);
+        fhirClientService.delete(Task.class, fhirId, getPracticeId());
     }
 
-    // ---- eSign
+    // E-SIGN
+    public SignoffDto eSign(Long patientId, Long encounterId, String fhirId, String signedBy) {
+        log.debug("E-signing FHIR Task (signoff): {}", fhirId);
 
-    public SignoffDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
-        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Sign-off not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
+        Task task = fhirClientService.read(Task.class, fhirId, getPracticeId());
+        SignoffDto dto = fromFhirTask(task);
 
-        if (isLocked(e)) return toDto(e); // idempotent
-
-        e.setStatus(STATUS_SIGNED);
-        e.setSignedBy(StringUtils.hasText(signedBy) ? signedBy : "system");
-        // schema is varchar — keep string
-        e.setSignedAt(java.time.OffsetDateTime.now().toString());
-
-        // If signatureData provided earlier, compute content hash for integrity
-        if (StringUtils.hasText(e.getSignatureData())) {
-            e.setContentHash(md5(e.getSignatureData()));
+        if (isLocked(dto.getStatus())) {
+            return dto; // idempotent
         }
 
-        // Immediately lock after sign (optional but matches UI badge options)
-        e.setStatus(STATUS_LOCKED);
+        dto.setStatus(STATUS_LOCKED);
+        dto.setSignedBy(StringUtils.hasText(signedBy) ? signedBy : "system");
+        dto.setSignedAt(java.time.OffsetDateTime.now().toString());
 
-        e = repo.save(e);
-        return toDto(e);
+        // Compute content hash if signature data present
+        if (StringUtils.hasText(dto.getSignatureData())) {
+            dto.setContentHash(md5(dto.getSignatureData()));
+        }
+
+        Task updatedTask = toFhirTask(dto);
+        updatedTask.setId(fhirId);
+        fhirClientService.update(updatedTask, getPracticeId());
+
+        return dto;
     }
 
-    // ---- Print PDF
+    // RENDER PDF
+    public byte[] renderPdf(Long patientId, Long encounterId, String fhirId) {
+        Task task = fhirClientService.read(Task.class, fhirId, getPracticeId());
+        SignoffDto dto = fromFhirTask(task);
 
-    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
-        Signoff e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Sign-off not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-
-        // optional stamp
-        try { e.setPrintedAt(LocalDateTime.now()); repo.save(e); } catch (Exception ignore) {}
+        // Update printed timestamp
+        dto.setPrintedAt(LocalDateTime.now().toString());
+        Task updatedTask = toFhirTask(dto);
+        updatedTask.setId(fhirId);
+        try {
+            fhirClientService.update(updatedTask, getPracticeId());
+        } catch (Exception ignore) {}
 
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             PDPage page = new PDPage(PDRectangle.LETTER);
@@ -274,48 +205,42 @@ public class SignoffService {
             try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
                 float x = 64, y = 740;
 
-                // Title
                 cs.beginText();
                 cs.setFont(PDType1Font.HELVETICA_BOLD, 18);
                 cs.newLineAtOffset(x, y);
                 cs.showText("Encounter Sign-off");
                 cs.endText();
 
-                // Meta
                 y -= 26;
                 draw(cs, x, y, "Patient ID:", String.valueOf(patientId)); y -= 16;
                 draw(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 16;
-                draw(cs, x, y, "Sign-off ID:", String.valueOf(id)); y -= 22;
+                draw(cs, x, y, "Sign-off ID:", fhirId); y -= 22;
 
-                // Content
-                if (StringUtils.hasText(e.getStatus()))         { draw(cs, x, y, "Status:", e.getStatus()); y -= 16; }
-                if (StringUtils.hasText(e.getSignedBy()))       { draw(cs, x, y, "Signed By:", e.getSignedBy()); y -= 16; }
-                if (StringUtils.hasText(e.getSignerRole()))     { draw(cs, x, y, "Role:", e.getSignerRole()); y -= 16; }
-                if (StringUtils.hasText(e.getSignedAt()))       { draw(cs, x, y, "Signed At:", e.getSignedAt()); y -= 16; }
-                if (StringUtils.hasText(e.getSignatureType()))  { draw(cs, x, y, "Signature Type:", e.getSignatureType()); y -= 16; }
-                if (StringUtils.hasText(e.getContentHash()))    { draw(cs, x, y, "Content Hash:", e.getContentHash()); y -= 16; }
-                if (StringUtils.hasText(e.getTargetType()))     { draw(cs, x, y, "Target:", e.getTargetType() + (e.getTargetId() != null ? " #" + e.getTargetId() : "")); y -= 16; }
+                if (StringUtils.hasText(dto.getStatus())) { draw(cs, x, y, "Status:", dto.getStatus()); y -= 16; }
+                if (StringUtils.hasText(dto.getSignedBy())) { draw(cs, x, y, "Signed By:", dto.getSignedBy()); y -= 16; }
+                if (StringUtils.hasText(dto.getSignerRole())) { draw(cs, x, y, "Role:", dto.getSignerRole()); y -= 16; }
+                if (StringUtils.hasText(dto.getSignedAt())) { draw(cs, x, y, "Signed At:", dto.getSignedAt()); y -= 16; }
+                if (StringUtils.hasText(dto.getSignatureType())) { draw(cs, x, y, "Signature Type:", dto.getSignatureType()); y -= 16; }
+                if (StringUtils.hasText(dto.getContentHash())) { draw(cs, x, y, "Content Hash:", dto.getContentHash()); y -= 16; }
+                if (StringUtils.hasText(dto.getTargetType())) { draw(cs, x, y, "Target:", dto.getTargetType() + (dto.getTargetId() != null ? " #" + dto.getTargetId() : "")); y -= 16; }
 
-                if (StringUtils.hasText(e.getAttestationText())) {
+                if (StringUtils.hasText(dto.getAttestationText())) {
                     y -= 10; draw(cs, x, y, "Attestation:", ""); y -= 14;
-                    for (String ln : e.getAttestationText().split("\\R")) {
+                    for (String ln : dto.getAttestationText().split("\\R")) {
                         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 16, y); cs.showText(ln); cs.endText();
                         y -= 14;
                     }
                 }
-                if (StringUtils.hasText(e.getComments())) {
+                if (StringUtils.hasText(dto.getComments())) {
                     y -= 10; draw(cs, x, y, "Comments:", ""); y -= 14;
-                    for (String ln : e.getComments().split("\\R")) {
+                    for (String ln : dto.getComments().split("\\R")) {
                         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 16, y); cs.showText(ln); cs.endText();
                         y -= 14;
                     }
                 }
 
-                // Footer (audit)
                 y -= 10;
-                if (e.getCreatedAt() != null)    { draw(cs, x, y, "Created:", DAY.format(e.getCreatedAt().atZone(ZoneId.systemDefault()))); y -= 16; }
-                if (e.getUpdatedAt() != null)    { draw(cs, x, y, "Updated:", DAY.format(e.getUpdatedAt().atZone(ZoneId.systemDefault()))); y -= 16; }
-                if (e.getPrintedAt() != null)    { draw(cs, x, y, "Printed:", e.getPrintedAt().toString()); y -= 16; }
+                if (StringUtils.hasText(dto.getPrintedAt())) { draw(cs, x, y, "Printed:", dto.getPrintedAt()); }
             }
 
             doc.save(baos);
@@ -325,60 +250,160 @@ public class SignoffService {
         }
     }
 
-    // ---- helpers
+    // -------- FHIR Mapping --------
 
-    private static boolean isLocked(Signoff e) {
-        String s = e.getStatus();
-        return "Signed".equalsIgnoreCase(s) || "Locked".equalsIgnoreCase(s) || "finalized".equalsIgnoreCase(s);
+    private Task toFhirTask(SignoffDto dto) {
+        Task task = new Task();
+
+        // Status mapping
+        if (dto.getStatus() != null) {
+            switch (dto.getStatus()) {
+                case STATUS_DRAFT -> task.setStatus(Task.TaskStatus.DRAFT);
+                case STATUS_SIGNED, STATUS_LOCKED -> task.setStatus(Task.TaskStatus.COMPLETED);
+                default -> task.setStatus(Task.TaskStatus.DRAFT);
+            }
+        }
+
+        task.setIntent(Task.TaskIntent.ORDER);
+
+        // Code = signoff
+        task.setCode(new CodeableConcept().addCoding(
+                new Coding()
+                        .setSystem("http://ciyex.com/fhir/CodeSystem/task-type")
+                        .setCode("signoff")
+                        .setDisplay("Encounter Sign-off")
+        ));
+
+        // Patient reference
+        if (dto.getPatientId() != null) {
+            task.setFor(new Reference("Patient/" + dto.getPatientId()));
+        }
+
+        // Encounter extension
+        if (dto.getEncounterId() != null) {
+            task.addExtension(new Extension(EXT_ENCOUNTER, new Reference("Encounter/" + dto.getEncounterId())));
+        }
+
+        // All other fields as extensions
+        addStringExtension(task, EXT_TARGET_TYPE, dto.getTargetType());
+        if (dto.getTargetId() != null) {
+            task.addExtension(new Extension(EXT_TARGET_ID, new StringType(dto.getTargetId().toString())));
+        }
+        addStringExtension(task, EXT_TARGET_VERSION, dto.getTargetVersion());
+        addStringExtension(task, EXT_SIGNED_BY, dto.getSignedBy());
+        addStringExtension(task, EXT_SIGNER_ROLE, dto.getSignerRole());
+        addStringExtension(task, EXT_SIGNED_AT, dto.getSignedAt());
+        addStringExtension(task, EXT_SIGNATURE_TYPE, dto.getSignatureType());
+        addStringExtension(task, EXT_SIGNATURE_DATA, dto.getSignatureData());
+        addStringExtension(task, EXT_CONTENT_HASH, dto.getContentHash());
+        addStringExtension(task, EXT_ATTESTATION, dto.getAttestationText());
+        addStringExtension(task, EXT_COMMENTS, dto.getComments());
+        addStringExtension(task, EXT_PRINTED_AT, dto.getPrintedAt());
+
+        // Store status in extension too for easy retrieval
+        task.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/signoff-status", new StringType(dto.getStatus())));
+
+        return task;
+    }
+
+    private SignoffDto fromFhirTask(Task task) {
+        SignoffDto dto = new SignoffDto();
+        dto.setFhirId(task.getIdElement().getIdPart());
+        dto.setExternalId(dto.getFhirId());
+
+        // Patient
+        if (task.hasFor() && task.getFor().hasReference()) {
+            String ref = task.getFor().getReference();
+            if (ref.startsWith("Patient/")) {
+                try {
+                    dto.setPatientId(Long.parseLong(ref.substring("Patient/".length())));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Encounter
+        Extension encExt = task.getExtensionByUrl(EXT_ENCOUNTER);
+        if (encExt != null && encExt.getValue() instanceof Reference) {
+            String ref = ((Reference) encExt.getValue()).getReference();
+            if (ref != null && ref.startsWith("Encounter/")) {
+                try {
+                    dto.setEncounterId(Long.parseLong(ref.substring("Encounter/".length())));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Status from extension
+        Extension statusExt = task.getExtensionByUrl("http://ciyex.com/fhir/StructureDefinition/signoff-status");
+        if (statusExt != null && statusExt.getValue() instanceof StringType) {
+            dto.setStatus(((StringType) statusExt.getValue()).getValue());
+        } else {
+            // Fallback to Task status
+            if (task.hasStatus()) {
+                dto.setStatus(task.getStatus() == Task.TaskStatus.COMPLETED ? STATUS_LOCKED : STATUS_DRAFT);
+            }
+        }
+
+        // All extensions
+        dto.setTargetType(getExtensionString(task, EXT_TARGET_TYPE));
+        String targetIdStr = getExtensionString(task, EXT_TARGET_ID);
+        if (targetIdStr != null) {
+            try { dto.setTargetId(Long.parseLong(targetIdStr)); } catch (NumberFormatException ignored) {}
+        }
+        dto.setTargetVersion(getExtensionString(task, EXT_TARGET_VERSION));
+        dto.setSignedBy(getExtensionString(task, EXT_SIGNED_BY));
+        dto.setSignerRole(getExtensionString(task, EXT_SIGNER_ROLE));
+        dto.setSignedAt(getExtensionString(task, EXT_SIGNED_AT));
+        dto.setSignatureType(getExtensionString(task, EXT_SIGNATURE_TYPE));
+        dto.setSignatureData(getExtensionString(task, EXT_SIGNATURE_DATA));
+        dto.setContentHash(getExtensionString(task, EXT_CONTENT_HASH));
+        dto.setAttestationText(getExtensionString(task, EXT_ATTESTATION));
+        dto.setComments(getExtensionString(task, EXT_COMMENTS));
+        dto.setPrintedAt(getExtensionString(task, EXT_PRINTED_AT));
+
+        return dto;
+    }
+
+    // -------- Helpers --------
+
+    private boolean isSignoffTask(Task task) {
+        if (!task.hasCode()) return false;
+        return task.getCode().getCoding().stream()
+                .anyMatch(c -> "signoff".equals(c.getCode()));
+    }
+
+    private boolean hasEncounter(Task task, Long encounterId) {
+        Extension encExt = task.getExtensionByUrl(EXT_ENCOUNTER);
+        if (encExt != null && encExt.getValue() instanceof Reference) {
+            String ref = ((Reference) encExt.getValue()).getReference();
+            return ref != null && ref.equals("Encounter/" + encounterId);
+        }
+        return false;
+    }
+
+    private static boolean isLocked(String status) {
+        return STATUS_SIGNED.equalsIgnoreCase(status) || STATUS_LOCKED.equalsIgnoreCase(status) || "finalized".equalsIgnoreCase(status);
     }
 
     private static String md5(String text) {
         return DigestUtils.md5DigestAsHex(text.getBytes(StandardCharsets.UTF_8));
     }
 
+    private void addStringExtension(Task task, String url, String value) {
+        if (value != null) {
+            task.addExtension(new Extension(url, new StringType(value)));
+        }
+    }
+
+    private String getExtensionString(Task task, String url) {
+        Extension ext = task.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
+    }
+
     private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
-    }
-
-    private void applyEditable(Signoff e, SignoffDto d) {
-        e.setExternalId(d.getExternalId());
-        e.setTargetType(d.getTargetType());
-        e.setTargetId(d.getTargetId());
-        e.setTargetVersion(d.getTargetVersion());
-        e.setSignerRole(d.getSignerRole());
-        e.setSignatureType(d.getSignatureType());
-        e.setSignatureData(d.getSignatureData());
-        e.setAttestationText(d.getAttestationText());
-        e.setComments(d.getComments());
-        // signedBy/signedAt/contentHash/status managed via eSign
-    }
-
-    private SignoffDto toDto(Signoff e) {
-        SignoffDto d = new SignoffDto();
-        d.setId(e.getId());
-        d.setExternalId(e.getFhirId());
-        d.setFhirId(e.getFhirId());
-        d.setPatientId(e.getPatientId());
-        d.setEncounterId(e.getEncounterId());
-        d.setTargetType(e.getTargetType());
-        d.setTargetId(e.getTargetId());
-        d.setTargetVersion(e.getTargetVersion());
-        d.setStatus(e.getStatus());
-        d.setSignedBy(e.getSignedBy());
-        d.setSignerRole(e.getSignerRole());
-        d.setSignedAt(e.getSignedAt());
-        d.setSignatureType(e.getSignatureType());
-        d.setSignatureData(e.getSignatureData());
-        d.setContentHash(e.getContentHash());
-        d.setAttestationText(e.getAttestationText());
-        d.setComments(e.getComments());
-        d.setPrintedAt(e.getPrintedAt() != null ? e.getPrintedAt().toString() : null);
-
-        SignoffDto.Audit a = new SignoffDto.Audit();
-        if (e.getCreatedAt() != null) a.setCreatedDate(DAY.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-        if (e.getUpdatedAt() != null) a.setLastModifiedDate(DAY.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
-        d.setAudit(a);
-        return d;
     }
 }

@@ -50,7 +50,7 @@ public class SupplierController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<SupplierDto>> get(@PathVariable("id") Long id) {
+    public ResponseEntity<ApiResponse<SupplierDto>> get(@PathVariable("id") String id) {
         try {
             return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
                     .success(true)
@@ -67,7 +67,7 @@ public class SupplierController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<SupplierDto>> update(@PathVariable("id") Long id, @RequestBody SupplierDto dto) {
+    public ResponseEntity<ApiResponse<SupplierDto>> update(@PathVariable("id") String id, @RequestBody SupplierDto dto) {
         try {
             // Validate mandatory fields
             String validationError = validateMandatoryFields(dto);
@@ -93,7 +93,7 @@ public class SupplierController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") String id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()

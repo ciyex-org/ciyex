@@ -1,249 +1,152 @@
 package com.qiaben.ciyex.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.MessageAttachmentDto;
-import com.qiaben.ciyex.dto.integration.StorageConfig;
-import com.qiaben.ciyex.entity.MessageAttachment;
-import com.qiaben.ciyex.repository.MessageAttachmentRepository;
-import com.qiaben.ciyex.util.EncryptionUtil;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-import javax.crypto.SecretKey;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.security.SecureRandom;
-import java.time.LocalDateTime;
-import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * FHIR-only Message Attachment Service.
+ * Uses FHIR DocumentReference resource for storing message attachments.
+ * No S3 storage or local database - all data stored in FHIR server.
+ */
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class MessageAttachmentService {
 
-    private final MessageAttachmentRepository repository;
-    private final OrgIntegrationConfigProvider configProvider;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    public MessageAttachmentService(MessageAttachmentRepository repository,
-                                    OrgIntegrationConfigProvider configProvider) {
-        this.repository = repository;
-        this.configProvider = configProvider;
+    private static final String DOC_TYPE_SYSTEM = "http://ciyex.com/fhir/document-type";
+    private static final String DOC_TYPE_CODE = "message-attachment";
+    private static final String EXT_MESSAGE_ID = "http://ciyex.com/fhir/StructureDefinition/message-id";
+    private static final String EXT_CATEGORY = "http://ciyex.com/fhir/StructureDefinition/category";
+    private static final String EXT_TYPE = "http://ciyex.com/fhir/StructureDefinition/attachment-type";
+
+    private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
-    @Transactional
+    // CREATE
     public MessageAttachmentDto create(Long messageId, MessageAttachmentDto dto, MultipartFile file) {
-        // 1. File size validation (using default limits for now - could be configurable later)
-        long fileSize = file.getSize();
-        long maxSize = 10 * 1024 * 1024; // 10MB default
-        if (fileSize > maxSize) {
-            throw new RuntimeException("File exceeds max upload size (" + maxSize + " bytes)");
+        // Validate file size
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new RuntimeException("File exceeds max upload size (" + MAX_FILE_SIZE + " bytes)");
         }
 
-        // 2. File type validation (basic check for now)
         String fileName = file.getOriginalFilename();
         if (fileName == null || fileName.trim().isEmpty()) {
             throw new RuntimeException("Invalid file name");
         }
 
-        // 3. Prepare file bytes
-        byte[] fileBytes;
+        log.debug("Creating FHIR DocumentReference (MessageAttachment) for message {}", messageId);
+
         try {
-            fileBytes = file.getBytes();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to read file content", e);
-        }
+            DocumentReference doc = new DocumentReference();
+            doc.setStatus(Enumerations.DocumentReferenceStatus.CURRENT);
 
-        // 4. Encrypt if enabled (for now, default to false - could be configurable later)
-        boolean encryptionEnabled = false; // TODO: Make this configurable
-        String base64Key = null;
-        String base64Iv = null;
-        if (encryptionEnabled) {
-            try {
-                SecretKey key = EncryptionUtil.generateKey();
-                byte[] iv = new byte[12];
-                new SecureRandom().nextBytes(iv);
-                fileBytes = EncryptionUtil.encrypt(fileBytes, key, iv);
-                base64Key = Base64.getEncoder().encodeToString(key.getEncoded());
-                base64Iv = Base64.getEncoder().encodeToString(iv);
-                log.info("Applied encryption for message attachment file={} Tenant={}", file.getOriginalFilename());
-            } catch (Exception e) {
-                throw new RuntimeException("Encryption failed", e);
+            // Type to identify as message attachment
+            CodeableConcept type = new CodeableConcept();
+            type.addCoding().setSystem(DOC_TYPE_SYSTEM).setCode(DOC_TYPE_CODE).setDisplay("Message Attachment");
+            doc.setType(type);
+
+            // Description
+            doc.setDescription(dto.getDescription() != null ? dto.getDescription() : fileName);
+
+            // Message ID extension
+            doc.addExtension(new Extension(EXT_MESSAGE_ID, new StringType(messageId.toString())));
+
+            // Category extension
+            if (dto.getCategory() != null) {
+                doc.addExtension(new Extension(EXT_CATEGORY, new StringType(dto.getCategory())));
             }
-        }
 
-        // 5. Upload to S3 (or store locally for testing)
-        StorageConfig.S3 s3Config;
-        try {
-            s3Config = configProvider.getS3DocumentStorage();
-        } catch (Exception e) {
-            // For testing/development, create a mock S3 config
-            log.warn("S3 config not found for Tenant={}, using local storage for testing");
-            s3Config = new StorageConfig.S3();
-            s3Config.setBucket("test-bucket");
-            s3Config.setRegion("us-east-1");
-            s3Config.setAccessKey("test-key");
-            s3Config.setSecretKey("test-secret");
-        }
-
-        String key = "message-attachments/" + "/" + messageId + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
-
-        // For testing, we'll skip actual S3 upload and just store the file path
-        if (s3Config.getBucket().equals("test-bucket")) {
-            log.info("Skipping S3 upload for testing - would upload to bucket={} key={}", s3Config.getBucket(), key);
-        } else {
-            S3Client s3 = buildS3Client(s3Config);
-            try {
-                s3.putObject(
-                        PutObjectRequest.builder()
-                                .bucket(s3Config.getBucket())
-                                .key(key)
-                                .contentType(file.getContentType())
-                                .build(),
-                        RequestBody.fromBytes(fileBytes)
-                );
-                log.info("Uploaded message attachment to S3 bucket={} key={}", s3Config.getBucket(), key);
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to upload file to S3", e);
+            // Type extension
+            if (dto.getType() != null) {
+                doc.addExtension(new Extension(EXT_TYPE, new StringType(dto.getType())));
             }
+
+            // Content with embedded data
+            DocumentReference.DocumentReferenceContentComponent content = doc.addContent();
+            Attachment attachment = new Attachment();
+            attachment.setContentType(file.getContentType());
+            attachment.setData(file.getBytes());
+            attachment.setTitle(fileName);
+            attachment.setSize((int) file.getSize());
+            content.setAttachment(attachment);
+
+            // Create in FHIR
+            var outcome = fhirClientService.create(doc, getPracticeId());
+            String fhirId = outcome.getId().getIdPart();
+
+            dto.setId((long) Math.abs(fhirId.hashCode()));
+            dto.setMessageId(messageId);
+            dto.setFileName(fileName);
+            dto.setContentType(file.getContentType());
+            dto.setContent(null); // Don't return content in response
+            dto.setEncrypted(false);
+
+            log.info("Created FHIR DocumentReference (MessageAttachment) with id: {}", fhirId);
+            return dto;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create message attachment", e);
         }
-
-        // 6. Save metadata in DB
-        dto.setMessageId(messageId);
-        dto.setFileName(file.getOriginalFilename());
-        dto.setContentType(file.getContentType());
-        dto.setS3Bucket(s3Config.getBucket());
-        dto.setS3Key(key);
-
-        MessageAttachment entity = mapToEntity(dto);
-        entity.setCreatedDate(LocalDateTime.now());
-        entity.setLastModifiedDate(LocalDateTime.now());
-        entity.setEncryptionKey(base64Key);
-        entity.setIv(base64Iv);
-        entity.setFileSize(fileSize);
-
-        repository.save(entity);
-        dto.setId(entity.getId());
-        dto.setContent(null);
-        dto.setEncrypted(entity.getEncryptionKey() != null && entity.getIv() != null);
-        return dto;
     }
 
-    @Transactional
-    public void delete(Long attachmentId) {
-        MessageAttachment attachment = repository.findById(attachmentId)
-                .orElseThrow(() -> new RuntimeException("Message attachment not found"));
-
-        StorageConfig.S3 s3Config;
-        try {
-            s3Config = configProvider.getS3DocumentStorage();
-        } catch (Exception e) {
-            // For testing/development, create a mock S3 config
-            log.warn("S3 config not found for Tenant={}, using local storage for testing");
-            s3Config = new StorageConfig.S3();
-            s3Config.setBucket("test-bucket");
-            s3Config.setRegion("us-east-1");
-            s3Config.setAccessKey("test-key");
-            s3Config.setSecretKey("test-secret");
-        }
-
-        // For testing, we'll skip actual S3 delete
-        if (s3Config.getBucket().equals("test-bucket")) {
-            log.info("Skipping S3 delete for testing - would delete from bucket={}, key={}", attachment.getS3Bucket(), attachment.getS3Key());
-        } else {
-            S3Client s3 = buildS3Client(s3Config);
-            try {
-                s3.deleteObject(DeleteObjectRequest.builder()
-                        .bucket(attachment.getS3Bucket())
-                        .key(attachment.getS3Key())
-                        .build());
-                log.info("Deleted message attachment from S3: bucket={}, key={}", attachment.getS3Bucket(), attachment.getS3Key());
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to delete file from S3", e);
-            }
-        }
-
-        repository.delete(attachment);
+    // DELETE
+    public void delete(String fhirId) {
+        log.debug("Deleting message attachment: {}", fhirId);
+        fhirClientService.delete(DocumentReference.class, fhirId, getPracticeId());
     }
 
-    @Transactional(readOnly = true)
-    public DownloadResult download(Long attachmentId) {
-        MessageAttachment attachment = repository.findById(attachmentId)
-                .orElseThrow(() -> new RuntimeException("Message attachment not found"));
+    // DOWNLOAD
+    public DownloadResult download(String fhirId) {
+        log.debug("Downloading message attachment: {}", fhirId);
+        DocumentReference doc = fhirClientService.read(DocumentReference.class, fhirId, getPracticeId());
 
-        StorageConfig.S3 s3Config;
-        try {
-            s3Config = configProvider.getS3DocumentStorage();
-        } catch (Exception e) {
-            // For testing/development, create a mock S3 config
-            log.warn("S3 config not found for Tenant={}, using local storage for testing");
-            s3Config = new StorageConfig.S3();
-            s3Config.setBucket("test-bucket");
-            s3Config.setRegion("us-east-1");
-            s3Config.setAccessKey("test-key");
-            s3Config.setSecretKey("test-secret");
-        }
-
-        // For testing, we'll return a dummy file since we didn't actually upload to S3
-        if (s3Config.getBucket().equals("test-bucket")) {
-            log.info("Returning dummy file for testing - would download from bucket={}, key={}", attachment.getS3Bucket(), attachment.getS3Key());
-            // Return a dummy file for testing
-            String dummyContent = "This is a dummy file for testing purposes. The actual file would be downloaded from S3.";
-            return new DownloadResult(
-                    new java.io.ByteArrayInputStream(dummyContent.getBytes()),
-                    attachment.getContentType() != null ? attachment.getContentType() : "text/plain",
-                    attachment.getFileName()
-            );
-        } else {
-            S3Client s3 = buildS3Client(s3Config);
-            try (InputStream is = s3.getObject(GetObjectRequest.builder()
-                    .bucket(attachment.getS3Bucket())
-                    .key(attachment.getS3Key())
-                    .build())) {
-
-                byte[] fileBytes = is.readAllBytes();
-
-                // 🔑 decrypt if metadata exists
-                if (attachment.getEncryptionKey() != null && attachment.getIv() != null) {
-                    try {
-                        byte[] decodedKey = Base64.getDecoder().decode(attachment.getEncryptionKey());
-                        SecretKey key = EncryptionUtil.fromBytes(decodedKey);
-                        byte[] iv = Base64.getDecoder().decode(attachment.getIv());
-
-                        fileBytes = EncryptionUtil.decrypt(fileBytes, key, iv);
-                        log.info("Decrypted message attachment file before sending: {}", attachment.getFileName());
-                    } catch (Exception e) {
-                        throw new RuntimeException("Failed to decrypt file", e);
-                    }
-                }
+        if (doc.hasContent() && !doc.getContent().isEmpty()) {
+            DocumentReference.DocumentReferenceContentComponent content = doc.getContent().get(0);
+            if (content.hasAttachment()) {
+                Attachment att = content.getAttachment();
+                byte[] data = att.hasData() ? att.getData() : new byte[0];
+                String contentType = att.hasContentType() ? att.getContentType() : "application/octet-stream";
+                String fileName = att.hasTitle() ? att.getTitle() : "attachment";
 
                 return new DownloadResult(
-                        new java.io.ByteArrayInputStream(fileBytes),
-                        attachment.getContentType(),
-                        attachment.getFileName()
+                        new ByteArrayInputStream(data),
+                        contentType,
+                        fileName
                 );
-
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to download file from S3", e);
             }
         }
+
+        throw new RuntimeException("Message attachment not found or has no content");
     }
 
-    @Transactional(readOnly = true)
+    // GET ALL FOR MESSAGE
     public ApiResponse<List<MessageAttachmentDto>> getAllForMessage(Long messageId) {
-        List<MessageAttachment> attachments = repository.findAllByMessageId(messageId);
-        List<MessageAttachmentDto> dtos = attachments.stream().map(this::mapToDto).collect(Collectors.toList());
+        log.debug("Getting all attachments for message: {}", messageId);
+        Bundle bundle = fhirClientService.search(DocumentReference.class, getPracticeId());
+
+        List<MessageAttachmentDto> dtos = fhirClientService.extractResources(bundle, DocumentReference.class).stream()
+                .filter(this::isMessageAttachment)
+                .filter(doc -> messageId.equals(getMessageId(doc)))
+                .map(this::fromFhirDocumentReference)
+                .collect(Collectors.toList());
+
         return ApiResponse.<List<MessageAttachmentDto>>builder()
                 .success(true)
                 .message("Message attachments retrieved successfully")
@@ -251,62 +154,77 @@ public class MessageAttachmentService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
-    public MessageAttachmentDto getById(Long attachmentId) {
-        MessageAttachment attachment = repository.findById(attachmentId)
-                .orElseThrow(() -> new RuntimeException("Message attachment not found"));
-        return mapToDto(attachment);
+    // GET BY ID
+    public MessageAttachmentDto getById(String fhirId) {
+        log.debug("Getting message attachment: {}", fhirId);
+        DocumentReference doc = fhirClientService.read(DocumentReference.class, fhirId, getPracticeId());
+        return fromFhirDocumentReference(doc);
     }
 
-    private S3Client buildS3Client(StorageConfig.S3 cfg) {
-        return S3Client.builder()
-                .region(software.amazon.awssdk.regions.Region.of(cfg.getRegion()))
-                .credentialsProvider(
-                        StaticCredentialsProvider.create(
-                                AwsBasicCredentials.create(cfg.getAccessKey(), cfg.getSecretKey())
-                        )
-                )
-                .build();
-    }
+    // -------- FHIR Mapping --------
 
-    private MessageAttachment mapToEntity(MessageAttachmentDto dto) {
-        MessageAttachment entity = new MessageAttachment();
-        entity.setMessageId(dto.getMessageId());
-        entity.setCategory(dto.getCategory());
-        entity.setType(dto.getType());
-        entity.setFileName(dto.getFileName());
-        entity.setContentType(dto.getContentType());
-        entity.setDescription(dto.getDescription());
-        entity.setS3Bucket(dto.getS3Bucket());
-        entity.setS3Key(dto.getS3Key());
-        return entity;
-    }
-
-    private MessageAttachmentDto mapToDto(MessageAttachment entity) {
+    private MessageAttachmentDto fromFhirDocumentReference(DocumentReference doc) {
         MessageAttachmentDto dto = new MessageAttachmentDto();
-        dto.setId(entity.getId());
-        dto.setMessageId(entity.getMessageId());
-        dto.setCategory(entity.getCategory());
-        dto.setType(entity.getType());
-        dto.setFileName(entity.getFileName());
-        dto.setContentType(entity.getContentType());
-        dto.setDescription(entity.getDescription());
-        dto.setS3Bucket(entity.getS3Bucket());
-        dto.setS3Key(entity.getS3Key());
-        // infer encryption flag
-        dto.setEncrypted(entity.getEncryptionKey() != null && entity.getIv() != null);
+
+        String fhirId = doc.getIdElement().getIdPart();
+        dto.setId((long) Math.abs(fhirId.hashCode()));
+
+        // Message ID
+        dto.setMessageId(getMessageId(doc));
+
+        // Category
+        Extension catExt = doc.getExtensionByUrl(EXT_CATEGORY);
+        if (catExt != null && catExt.getValue() instanceof StringType) {
+            dto.setCategory(((StringType) catExt.getValue()).getValue());
+        }
+
+        // Type
+        Extension typeExt = doc.getExtensionByUrl(EXT_TYPE);
+        if (typeExt != null && typeExt.getValue() instanceof StringType) {
+            dto.setType(((StringType) typeExt.getValue()).getValue());
+        }
+
+        // Description
+        dto.setDescription(doc.getDescription());
+
+        // File info from attachment
+        if (doc.hasContent() && !doc.getContent().isEmpty()) {
+            Attachment att = doc.getContent().get(0).getAttachment();
+            dto.setFileName(att.getTitle());
+            dto.setContentType(att.getContentType());
+        }
+
+        dto.setEncrypted(false);
         return dto;
+    }
+
+    private boolean isMessageAttachment(DocumentReference doc) {
+        if (!doc.hasType()) return false;
+        return doc.getType().getCoding().stream()
+                .anyMatch(c -> DOC_TYPE_SYSTEM.equals(c.getSystem()) && DOC_TYPE_CODE.equals(c.getCode()));
+    }
+
+    private Long getMessageId(DocumentReference doc) {
+        Extension ext = doc.getExtensionByUrl(EXT_MESSAGE_ID);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            try {
+                return Long.parseLong(((StringType) ext.getValue()).getValue());
+            } catch (NumberFormatException ignored) {}
+        }
+        return null;
     }
 
     public static class DownloadResult {
         private final InputStream inputStream;
         private final String contentType;
         private final String fileName;
+
         public DownloadResult(InputStream inputStream, String contentType, String fileName) {
             this.inputStream = inputStream;
             this.contentType = contentType;
             this.fileName = fileName;
         }
+
         public InputStream getInputStream() { return inputStream; }
         public String getContentType() { return contentType; }
         public String getFileName() { return fileName; }

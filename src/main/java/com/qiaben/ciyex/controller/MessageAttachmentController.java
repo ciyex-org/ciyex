@@ -68,7 +68,7 @@ public class MessageAttachmentController {
     public ResponseEntity<MessageAttachmentDto> getById(
             
             @PathVariable Long messageId,
-            @PathVariable Long attachmentId) {
+            @PathVariable String attachmentId) {
         try {
             MessageAttachmentDto attachment = service.getById(attachmentId);
             return ResponseEntity.ok(attachment);
@@ -81,7 +81,7 @@ public class MessageAttachmentController {
     public ResponseEntity<InputStreamResource> download(
             
             @PathVariable Long messageId,
-            @PathVariable Long attachmentId) {
+            @PathVariable String attachmentId) {
         try {
             DownloadResult result = service.download(attachmentId);
             return ResponseEntity.ok()
@@ -104,7 +104,7 @@ public class MessageAttachmentController {
     public ResponseEntity<ApiResponse<Void>> delete(
             
             @PathVariable Long messageId,
-            @PathVariable Long attachmentId) {
+            @PathVariable String attachmentId) {
         try {
             service.delete(attachmentId);
             return ResponseEntity.ok(ApiResponse.<Void>builder()

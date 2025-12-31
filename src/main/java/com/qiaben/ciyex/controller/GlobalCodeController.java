@@ -34,7 +34,7 @@ public class GlobalCodeController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<GlobalCodeDto>> getOne(
-            @PathVariable Long id){
+            @PathVariable String id){
         var dto = service.getOne(id);
         return ResponseEntity.ok(ApiResponse.<GlobalCodeDto>builder()
                 .success(true).message("Code fetched").data(dto).build());
@@ -70,7 +70,7 @@ public class GlobalCodeController {
 
         @PutMapping("/{id}")
         public ResponseEntity<ApiResponse<GlobalCodeDto>> update(
-                        @PathVariable Long id,
+                        @PathVariable String id,
                         @RequestBody GlobalCodeDto dto) {
                 try {
                         if (dto == null) {
@@ -98,7 +98,7 @@ public class GlobalCodeController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long id) {
+            @PathVariable String id) {
                 
         service.delete(id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()

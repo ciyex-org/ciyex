@@ -1,291 +1,271 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import com.qiaben.ciyex.dto.MonthlyOrderCountDto;
 import com.qiaben.ciyex.dto.OrderDto;
-import com.qiaben.ciyex.entity.Inventory;
-import com.qiaben.ciyex.entity.Order;
-import com.qiaben.ciyex.repository.InventoryRepository;
-import com.qiaben.ciyex.repository.OrderRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * FHIR-only Order Service.
+ * Uses FHIR SupplyRequest resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class OrderService {
 
-    private final OrderRepository repository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    private final InventoryRepository inventoryRepository;
+    // Extension URLs
+    private static final String EXT_ORDER_NUMBER = "http://ciyex.com/fhir/StructureDefinition/order-number";
+    private static final String EXT_SUPPLIER = "http://ciyex.com/fhir/StructureDefinition/supplier";
+    private static final String EXT_DATE = "http://ciyex.com/fhir/StructureDefinition/order-date";
+    private static final String EXT_STOCK = "http://ciyex.com/fhir/StructureDefinition/stock";
+    private static final String EXT_ITEM_NAME = "http://ciyex.com/fhir/StructureDefinition/item-name";
+    private static final String EXT_CATEGORY = "http://ciyex.com/fhir/StructureDefinition/category";
+    private static final String EXT_AMOUNT = "http://ciyex.com/fhir/StructureDefinition/amount";
 
-
-    public OrderService(OrderRepository repository,
-                        InventoryRepository inventoryRepository,
-                        ExternalStorageResolver storageResolver,
-                        OrgIntegrationConfigProvider configProvider) {
-        this.repository = repository;
-        this.inventoryRepository = inventoryRepository; // now it matches the parameter
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
-
-    @Transactional
+    // CREATE
     public OrderDto create(OrderDto dto) {
-        
-        Order entity = mapToEntity(dto);
+        log.debug("Creating FHIR SupplyRequest (order): {}", dto.getOrderNumber());
 
-
-        // Generate PO number here if missing
-        if (entity.getOrderNumber() == null) {
-            entity.setOrderNumber("PO-" + (repository.count() + 1));
+        // Generate order number if missing
+        if (dto.getOrderNumber() == null) {
+            dto.setOrderNumber("PO-" + System.currentTimeMillis());
         }
 
-        // Now call external storage with a populated orderNumber
-        String externalId = null;
-        try {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null && !storageType.isBlank()) {
-                ExternalStorage<OrderDto> storage = storageResolver.resolve(OrderDto.class);
-                if (storage != null) {
-                    externalId = storage.create(mapToDto(entity));
-                }
-            }
-        } catch (Exception e) {
-            log.error("Error creating external storage record for Order", e);
-        }
+        SupplyRequest sr = toFhirSupplyRequest(dto);
+        var outcome = fhirClientService.create(sr, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        // Set externalId priority: 1) External storage, 2) Client provided, 3) Auto-generate
-        if (externalId != null) {
-            entity.setExternalId(externalId);
-        } else if (dto.getExternalId() != null && !dto.getExternalId().isBlank()) {
-            entity.setExternalId(dto.getExternalId());
-        } else {
-            // Auto-generate if no external storage and no client-provided ID
-            entity.setExternalId("Ord-" + java.util.UUID.randomUUID().toString());
-            log.info("Auto-generated external ID for order: {}", entity.getExternalId());
-        }
-
-        return mapToDto(repository.save(entity));
-    }
-
-
-    @Transactional(readOnly = true)
-    public OrderDto getById(Long id) {
-        Order entity = repository.findById(id)
-                .orElseThrow(() -> new com.qiaben.ciyex.exception.ResourceNotFoundException("Order", "id", (Object) id));
-        return mapToDto(entity);
-    }
-
-    @Transactional
-    public OrderDto update(Long id, OrderDto dto) {
-        Order entity = repository.findById(id)
-                .orElseThrow(() -> new com.qiaben.ciyex.exception.ResourceNotFoundException("Order", "id", (Object) id));
-
-        // Update basic fields
-        entity.setOrderNumber(dto.getOrderNumber());
-        entity.setSupplier(dto.getSupplier());
-        entity.setDate(dto.getDate());
-        entity.setStatus(dto.getStatus());
-        entity.setAmount(dto.getAmount());
-
-        // Persist fields that were previously not updated (stock, itemName, category)
-        if (dto.getStock() != null) {
-            entity.setStock(dto.getStock());
-        }
-        if (dto.getItemName() != null) {
-            entity.setItemName(dto.getItemName());
-        }
-        if (dto.getCategory() != null) {
-            entity.setCategory(dto.getCategory());
-        }
-
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && entity.getExternalId() != null) {
-            try {
-                ExternalStorage<OrderDto> storage = storageResolver.resolve(OrderDto.class);
-                if (storage != null) {
-                    storage.update(mapToDto(entity), entity.getExternalId());
-                }
-            } catch (Exception e) {
-                log.warn("External storage update failed for order id {} externalId {}: {}", entity.getId(), entity.getExternalId(), e.getMessage());
-            }
-        }
-
-        log.debug("Saving Order id={} before save: orderNumber={}, supplier={}, itemName={}, category={}, stock={}, amount={}",
-                entity.getId(), entity.getOrderNumber(), entity.getSupplier(), entity.getItemName(), entity.getCategory(), entity.getStock(), entity.getAmount());
-
-        Order saved = repository.save(entity);
-
-        log.debug("Saved Order id={} with lastModified={}", saved.getId(), saved.getLastModifiedDate());
-
-        return mapToDto(saved);
-    }
-
-    @Transactional
-    public void delete(Long id) {
-        Order entity = repository.findById(id)
-                .orElseThrow(() -> new com.qiaben.ciyex.exception.ResourceNotFoundException("Order", "id", (Object) id));
-
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && entity.getExternalId() != null) {
-            ExternalStorage<OrderDto> storage = storageResolver.resolve(OrderDto.class);
-            storage.delete(entity.getExternalId());
-        }
-
-        repository.delete(entity);
-    }
-
-    @Transactional(readOnly = true)
-    public List<OrderDto> getAll() {
-        return repository.findAll()
-                .stream()
-                .map(this::mapToDto)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public Page<OrderDto> getAll(Pageable pageable) {
-        
-        return repository.findAll(pageable).map(this::mapToDto);
-    }
-
-    @Transactional
-    public OrderDto receiveOrder(Long orderId, OrderDto dto) {
-        Order order = repository.findById(orderId)
-                .orElseThrow(() -> new com.qiaben.ciyex.exception.ResourceNotFoundException("Order", "id", (Object) orderId));
-
-        if (!"Pending".equals(order.getStatus()) && !"Received".equals(order.getStatus())) {
-            throw new RuntimeException("Only pending orders can be received");
-        }
-
-        Inventory item = order.getInventory();
-
-        // ✅ Always update inventory stock with dto.stock (value entered in Receive form)
-        if (dto != null && dto.getStock() != null) {
-            item.setStock(dto.getStock());
-        }
-
-        if (dto != null && dto.getSupplier() != null) {
-            item.setSupplier(dto.getSupplier());
-        }
-        inventoryRepository.save(item);
-
-        // ✅ Update order fields
-        order.setStatus("Received");
-        order.setStock(dto.getStock()); // keep stock on the order
-        order.setDate(LocalDateTime.now().toLocalDate().toString());
-
-        if (dto != null && dto.getAmount() != null) {
-            order.setAmount(dto.getAmount());
-        }
-
-        return mapToDto(repository.save(order));
-    }
-    @Transactional
-    public OrderDto createOrder(Inventory inventory, Integer stock, String supplier) {
-        Order entity = Order.builder()
-                .orderNumber("PO-" + (repository.count() + 1))
-                .supplier(supplier)
-                .date(LocalDateTime.now().toLocalDate().toString())
-                .status("Pending")
-                .stock(stock)                       // ordered quantity
-                .itemName(inventory.getName())      // track item name
-                .category(inventory.getCategory())   // ✅ set here
-                .amount(0.0)                        // calculate later if needed
-                .inventory(inventory)
-                .build();
-
-        // ✅ External sync just like create()
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            ExternalStorage<OrderDto> storage = storageResolver.resolve(OrderDto.class);
-            String externalId = storage.create(mapToDto(entity));
-            entity.setExternalId(externalId);
-        }
-
-        return mapToDto(repository.save(entity));
-    }
-
-    @Transactional(readOnly = true)
-    public List<MonthlyOrderCountDto> countOrdersByMonth() {
-        return repository.countOrdersByMonth().stream()
-                .map(r -> new MonthlyOrderCountDto(((Number) r[0]).intValue(), ((Number) r[1]).longValue()))
-                .toList();
-    }
-
-
-    @Transactional(readOnly = true)
-    public long countPending() {
-        // TODO: Implement countByStatus in repository
-        return 0;
-    }
-
-
-
-
-
-
-
-
-
-    private Order mapToEntity(OrderDto dto) {
-        return Order.builder()
-                .id(dto.getId())
-                .orderNumber(dto.getOrderNumber())
-                .supplier(dto.getSupplier())
-                .date(dto.getDate())
-                .status(dto.getStatus())
-                .stock(dto.getStock())
-                .itemName(dto.getItemName())
-                .category(dto.getCategory())
-                .amount(dto.getAmount())
-                .build();
-    }
-
-    private OrderDto mapToDto(Order e) {
-        OrderDto dto = new OrderDto();
-        dto.setId(e.getId());
-        dto.setOrderNumber(e.getOrderNumber());
-        dto.setSupplier(e.getSupplier());
-        dto.setDate(e.getDate());
-        dto.setStatus(e.getStatus());
-        dto.setStock(e.getStock());
-        dto.setItemName(
-                e.getInventory() != null ? e.getInventory().getName() : e.getItemName()
-        );
-
-        dto.setCategory(
-                e.getInventory() != null ? e.getInventory().getCategory() : e.getCategory()
-        );
-        dto.setAmount(e.getAmount());
-        dto.setExternalId(e.getExternalId());
-        dto.setFhirId(e.getExternalId());
-
-        OrderDto.Audit audit = new OrderDto.Audit();
-        audit.setCreatedDate(e.getCreatedDate() != null ? e.getCreatedDate().toString() : null);
-        audit.setLastModifiedDate(e.getLastModifiedDate() != null ? e.getLastModifiedDate().toString() : null);
-        dto.setAudit(audit);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        log.info("Created FHIR SupplyRequest (order) with id: {}", fhirId);
 
         return dto;
     }
 
+    // GET BY ID
+    public OrderDto getById(String fhirId) {
+        log.debug("Getting FHIR SupplyRequest (order): {}", fhirId);
+        SupplyRequest sr = fhirClientService.read(SupplyRequest.class, fhirId, getPracticeId());
+        return fromFhirSupplyRequest(sr);
+    }
 
-    
+    // GET ALL
+    public List<OrderDto> getAll() {
+        log.debug("Getting all FHIR SupplyRequests (orders)");
 
-    private String now() {
-        return LocalDateTime.now().toString();
+        Bundle bundle = fhirClientService.search(SupplyRequest.class, getPracticeId());
+        List<SupplyRequest> requests = fhirClientService.extractResources(bundle, SupplyRequest.class);
+
+        return requests.stream()
+                .map(this::fromFhirSupplyRequest)
+                .collect(Collectors.toList());
+    }
+
+    // GET ALL (Paginated)
+    public Page<OrderDto> getAll(Pageable pageable) {
+        List<OrderDto> all = getAll();
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), all.size());
+        List<OrderDto> pageContent = all.subList(start, end);
+        return new PageImpl<>(pageContent, pageable, all.size());
+    }
+
+    // UPDATE
+    public OrderDto update(String fhirId, OrderDto dto) {
+        log.debug("Updating FHIR SupplyRequest (order): {}", fhirId);
+
+        SupplyRequest sr = toFhirSupplyRequest(dto);
+        sr.setId(fhirId);
+        fhirClientService.update(sr, getPracticeId());
+
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        return dto;
+    }
+
+    // DELETE
+    public void delete(String fhirId) {
+        log.debug("Deleting FHIR SupplyRequest (order): {}", fhirId);
+        fhirClientService.delete(SupplyRequest.class, fhirId, getPracticeId());
+    }
+
+    // RECEIVE ORDER
+    public OrderDto receiveOrder(String orderId, OrderDto dto) {
+        log.debug("Receiving FHIR SupplyRequest (order): {}", orderId);
+        
+        SupplyRequest sr = fhirClientService.read(SupplyRequest.class, orderId, getPracticeId());
+        OrderDto existing = fromFhirSupplyRequest(sr);
+        
+        // Update status to received
+        existing.setStatus("Received");
+        existing.setDate(LocalDateTime.now().toLocalDate().toString());
+        
+        if (dto != null) {
+            if (dto.getStock() != null) existing.setStock(dto.getStock());
+            if (dto.getAmount() != null) existing.setAmount(dto.getAmount());
+            if (dto.getSupplier() != null) existing.setSupplier(dto.getSupplier());
+        }
+        
+        return update(orderId, existing);
+    }
+
+    // CREATE ORDER (from inventory)
+    public OrderDto createOrder(String inventoryName, String inventoryCategory, Integer stock, String supplier) {
+        OrderDto dto = new OrderDto();
+        dto.setOrderNumber("PO-" + System.currentTimeMillis());
+        dto.setSupplier(supplier);
+        dto.setDate(LocalDateTime.now().toLocalDate().toString());
+        dto.setStatus("Pending");
+        dto.setStock(stock);
+        dto.setItemName(inventoryName);
+        dto.setCategory(inventoryCategory);
+        dto.setAmount(0.0);
+        
+        return create(dto);
+    }
+
+    // COUNT ORDERS BY MONTH (simplified - returns empty for FHIR)
+    public List<MonthlyOrderCountDto> countOrdersByMonth() {
+        // This would require aggregation which FHIR doesn't support natively
+        // Return empty list - implement with custom logic if needed
+        return new ArrayList<>();
+    }
+
+    // COUNT PENDING
+    public long countPending() {
+        return getAll().stream()
+                .filter(o -> "Pending".equals(o.getStatus()))
+                .count();
+    }
+
+    // -------- FHIR Mapping --------
+
+    private SupplyRequest toFhirSupplyRequest(OrderDto dto) {
+        SupplyRequest sr = new SupplyRequest();
+
+        // Status
+        if (dto.getStatus() != null) {
+            switch (dto.getStatus().toLowerCase()) {
+                case "pending" -> sr.setStatus(SupplyRequest.SupplyRequestStatus.ACTIVE);
+                case "received" -> sr.setStatus(SupplyRequest.SupplyRequestStatus.COMPLETED);
+                case "cancelled" -> sr.setStatus(SupplyRequest.SupplyRequestStatus.CANCELLED);
+                default -> sr.setStatus(SupplyRequest.SupplyRequestStatus.ACTIVE);
+            }
+        }
+
+        // Item (as CodeableConcept)
+        if (dto.getItemName() != null) {
+            CodeableConcept item = new CodeableConcept();
+            item.setText(dto.getItemName());
+            sr.setItem(item);
+        }
+
+        // Quantity
+        if (dto.getStock() != null) {
+            Quantity qty = new Quantity();
+            qty.setValue(dto.getStock());
+            sr.setQuantity(qty);
+        }
+
+        // Extensions
+        addStringExtension(sr, EXT_ORDER_NUMBER, dto.getOrderNumber());
+        addStringExtension(sr, EXT_SUPPLIER, dto.getSupplier());
+        addStringExtension(sr, EXT_DATE, dto.getDate());
+        addStringExtension(sr, EXT_ITEM_NAME, dto.getItemName());
+        addStringExtension(sr, EXT_CATEGORY, dto.getCategory());
+        
+        if (dto.getStock() != null) {
+            sr.addExtension(new Extension(EXT_STOCK, new IntegerType(dto.getStock())));
+        }
+        if (dto.getAmount() != null) {
+            sr.addExtension(new Extension(EXT_AMOUNT, new DecimalType(dto.getAmount())));
+        }
+
+        return sr;
+    }
+
+    private OrderDto fromFhirSupplyRequest(SupplyRequest sr) {
+        OrderDto dto = new OrderDto();
+        dto.setFhirId(sr.getIdElement().getIdPart());
+        dto.setExternalId(sr.getIdElement().getIdPart());
+
+        // Status
+        if (sr.hasStatus()) {
+            switch (sr.getStatus()) {
+                case ACTIVE -> dto.setStatus("Pending");
+                case COMPLETED -> dto.setStatus("Received");
+                case CANCELLED -> dto.setStatus("Cancelled");
+                default -> dto.setStatus("Pending");
+            }
+        }
+
+        // Item name from CodeableConcept
+        if (sr.hasItemCodeableConcept()) {
+            dto.setItemName(sr.getItemCodeableConcept().getText());
+        }
+
+        // Quantity
+        if (sr.hasQuantity()) {
+            dto.setStock(sr.getQuantity().getValue().intValue());
+        }
+
+        // Extensions
+        dto.setOrderNumber(getExtensionString(sr, EXT_ORDER_NUMBER));
+        dto.setSupplier(getExtensionString(sr, EXT_SUPPLIER));
+        dto.setDate(getExtensionString(sr, EXT_DATE));
+        dto.setCategory(getExtensionString(sr, EXT_CATEGORY));
+        
+        // Override item name from extension if present
+        String itemNameExt = getExtensionString(sr, EXT_ITEM_NAME);
+        if (itemNameExt != null) dto.setItemName(itemNameExt);
+
+        Extension stockExt = sr.getExtensionByUrl(EXT_STOCK);
+        if (stockExt != null && stockExt.getValue() instanceof IntegerType) {
+            dto.setStock(((IntegerType) stockExt.getValue()).getValue());
+        }
+
+        Extension amountExt = sr.getExtensionByUrl(EXT_AMOUNT);
+        if (amountExt != null && amountExt.getValue() instanceof DecimalType) {
+            dto.setAmount(((DecimalType) amountExt.getValue()).getValue().doubleValue());
+        }
+
+        return dto;
+    }
+
+    // -------- Helpers --------
+
+    private void addStringExtension(SupplyRequest sr, String url, String value) {
+        if (value != null) {
+            sr.addExtension(new Extension(url, new StringType(value)));
+        }
+    }
+
+    private String getExtensionString(SupplyRequest sr, String url) {
+        Extension ext = sr.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
     }
 }

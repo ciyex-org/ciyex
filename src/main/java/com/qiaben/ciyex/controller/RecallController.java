@@ -41,7 +41,7 @@ public class RecallController {
 
     /** ✅ Retrieve a Recall by ID */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<RecallDto>> get(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<RecallDto>> get(@PathVariable String id) {
         try {
             RecallDto recall = service.getById(id);
             return ResponseEntity.ok(ApiResponse.<RecallDto>builder()
@@ -60,7 +60,7 @@ public class RecallController {
 
     /** ✅ Update a Recall by ID */
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<RecallDto>> update(@PathVariable Long id, @RequestBody RecallDto dto) {
+    public ResponseEntity<ApiResponse<RecallDto>> update(@PathVariable String id, @RequestBody RecallDto dto) {
         try {
             RecallDto updated = service.update(id, dto);
             return ResponseEntity.ok(ApiResponse.<RecallDto>builder()
@@ -79,7 +79,7 @@ public class RecallController {
 
     /** ✅ Delete a Recall by ID */
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()

@@ -34,7 +34,7 @@ public class PatientCodeListController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<PatientCodeListDto>> get(
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             PatientCodeListDto dto = service.getById(id);
             if (dto == null) {
@@ -74,7 +74,7 @@ public class PatientCodeListController {
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<PatientCodeListDto>> update(
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody PatientCodeListDto dto) {
         // Validate mandatory fields
         String validationError = validateMandatoryFields(dto);
@@ -100,7 +100,7 @@ public class PatientCodeListController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             boolean ok = service.delete(id);
             if (!ok) {
@@ -132,7 +132,7 @@ public class PatientCodeListController {
 
     @PostMapping("/{id}/set-default")
     public ResponseEntity<ApiResponse<PatientCodeListDto>> setDefault(
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             PatientCodeListDto data = service.setDefault(id);
             if (data == null) {

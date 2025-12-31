@@ -75,7 +75,7 @@ public class HealthcareServiceController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<HealthcareServiceDto>> getById(@PathVariable("id") Long id) {
+    public ResponseEntity<ApiResponse<HealthcareServiceDto>> getById(@PathVariable("id") String id) {
         try {
             HealthcareServiceDto service = this.service.getById(id);
             ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
@@ -99,7 +99,7 @@ public class HealthcareServiceController {
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<HealthcareServiceDto>> update(
-            @PathVariable("id") Long id,
+            @PathVariable("id") String id,
             @RequestBody HealthcareServiceDto dto
     ) {
         try {
@@ -131,7 +131,7 @@ public class HealthcareServiceController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") String id) {
         try {
             service.delete(id);
             ApiResponse<Void> response = new ApiResponse.Builder<Void>()

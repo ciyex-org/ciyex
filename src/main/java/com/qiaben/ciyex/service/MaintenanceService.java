@@ -2,176 +2,226 @@ package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.MaintenanceDto;
 import com.qiaben.ciyex.exception.ResourceNotFoundException;
-import com.qiaben.ciyex.entity.Maintenance;
-import com.qiaben.ciyex.repository.MaintenanceRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * FHIR-only Maintenance Service.
+ * Uses FHIR Basic resource for storing maintenance records.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class MaintenanceService {
 
-    private final MaintenanceRepository repository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    public MaintenanceService(MaintenanceRepository repository,
-                              ExternalStorageResolver storageResolver,
-                              OrgIntegrationConfigProvider configProvider) {
-        this.repository = repository;
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
+    private static final String MAINT_TYPE_SYSTEM = "http://ciyex.com/fhir/resource-type";
+    private static final String MAINT_TYPE_CODE = "maintenance";
+    private static final String EXT_EQUIPMENT = "http://ciyex.com/fhir/StructureDefinition/equipment";
+    private static final String EXT_CATEGORY = "http://ciyex.com/fhir/StructureDefinition/category";
+    private static final String EXT_LOCATION = "http://ciyex.com/fhir/StructureDefinition/location";
+    private static final String EXT_DUE_DATE = "http://ciyex.com/fhir/StructureDefinition/due-date";
+    private static final String EXT_LAST_SERVICE = "http://ciyex.com/fhir/StructureDefinition/last-service-date";
+    private static final String EXT_ASSIGNEE = "http://ciyex.com/fhir/StructureDefinition/assignee";
+    private static final String EXT_VENDOR = "http://ciyex.com/fhir/StructureDefinition/vendor";
+    private static final String EXT_PRIORITY = "http://ciyex.com/fhir/StructureDefinition/priority";
+    private static final String EXT_STATUS = "http://ciyex.com/fhir/StructureDefinition/status";
+    private static final String EXT_NOTES = "http://ciyex.com/fhir/StructureDefinition/notes";
+
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
-    @Transactional
+    // CREATE
     public MaintenanceDto create(MaintenanceDto dto) {
-        Maintenance maintenance = mapToEntity(dto);
-        String externalId = null;
+        log.debug("Creating FHIR Basic (Maintenance): {}", dto.getEquipment());
 
-        log.debug("Incoming DTO externalId={}", dto.getExternalId());
+        Basic basic = toFhirBasic(dto);
+        var outcome = fhirClientService.create(basic, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        try {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("Storage type for current org: {}", storageType);
+        dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        dto.setAudit(createAudit());
 
-            if (storageType != null && !storageType.isBlank()) {
-                ExternalStorage<MaintenanceDto> externalStorage = storageResolver.resolve(MaintenanceDto.class);
-                if (externalStorage != null) {
-                    externalId = externalStorage.create(dto);
-                    log.info("Generated external ID from external storage: {}", externalId);
-                } else {
-                    log.warn("No external storage found for MaintenanceDto");
-                }
-            } else {
-                log.info("No storage type configured, skipping external storage");
-            }
-        } catch (Exception e) {
-            log.error("Error creating external storage record", e);
+        log.info("Created FHIR Basic (Maintenance) with id: {}", fhirId);
+        return dto;
+    }
+
+    // GET BY ID
+    public MaintenanceDto getById(String fhirId) {
+        log.debug("Getting maintenance: {}", fhirId);
+        Basic basic = fhirClientService.read(Basic.class, fhirId, getPracticeId());
+        if (basic == null) {
+            throw new ResourceNotFoundException("Maintenance", "id", fhirId);
         }
-
-        // Set externalId priority: 1) External storage, 2) Client provided, 3) Auto-generate
-        if (externalId != null) {
-            maintenance.setExternalId(externalId);
-        } else if (dto.getExternalId() != null && !dto.getExternalId().isBlank()) {
-            maintenance.setExternalId(dto.getExternalId());
-        } else {
-            // Auto-generate if no external storage and no client-provided ID
-            maintenance.setExternalId("MT-" + java.util.UUID.randomUUID().toString());
-            log.info("Auto-generated external ID: {}", maintenance.getExternalId());
-        }
-
-        log.debug("Entity before save externalId={}, createdDate={}, lastModifiedDate={}", maintenance.getExternalId(), maintenance.getCreatedDate(), maintenance.getLastModifiedDate());
-
-        Maintenance saved = repository.save(maintenance);
-
-        log.info("Saved maintenance with ID: {} and external ID: {}", saved.getId(), saved.getExternalId());
-        log.debug("Saved entity audit: createdDate={}, lastModifiedDate={}", saved.getCreatedDate(), saved.getLastModifiedDate());
-
-        return mapToDto(saved);
+        return fromFhirBasic(basic);
     }
 
-    @Transactional(readOnly = true)
-    public MaintenanceDto getById(Long id) {
-        Maintenance maintenance = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Maintenance", "id", (Object) id));
-        return mapToDto(maintenance);
+    // UPDATE
+    public MaintenanceDto update(String fhirId, MaintenanceDto dto) {
+        log.debug("Updating maintenance: {}", fhirId);
+
+        Basic basic = toFhirBasic(dto);
+        basic.setId(fhirId);
+        fhirClientService.update(basic, getPracticeId());
+
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        dto.setAudit(createAudit());
+
+        log.info("Updated maintenance with FHIR ID: {}", fhirId);
+        return dto;
     }
 
-    @Transactional
-    public MaintenanceDto update(Long id, MaintenanceDto dto) {
-        Maintenance maintenance = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Maintenance", "id", (Object) id));
-
-        maintenance.setEquipment(dto.getEquipment());
-        maintenance.setCategory(dto.getCategory());
-        maintenance.setLocation(dto.getLocation());
-        maintenance.setDueDate(dto.getDueDate());
-        maintenance.setLastServiceDate(dto.getLastServiceDate());
-        maintenance.setAssignee(dto.getAssignee());
-        maintenance.setVendor(dto.getVendor());
-        maintenance.setPriority(dto.getPriority());
-        maintenance.setStatus(dto.getStatus());
-        maintenance.setNotes(dto.getNotes());
-
-        return mapToDto(repository.save(maintenance));
+    // DELETE
+    public void delete(String fhirId) {
+        log.debug("Deleting maintenance: {}", fhirId);
+        fhirClientService.delete(Basic.class, fhirId, getPracticeId());
+        log.info("Deleted maintenance with FHIR ID: {}", fhirId);
     }
 
-    @Transactional
-    public void delete(Long id) {
-        repository.deleteById(id);
-    }
-
-    @Transactional(readOnly = true)
+    // GET ALL
     public List<MaintenanceDto> getAll() {
-        return repository.findAll()
-                .stream()
-                .map(this::mapToDto)
+        log.debug("Getting all maintenance records");
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+
+        return fhirClientService.extractResources(bundle, Basic.class).stream()
+                .filter(this::isMaintenance)
+                .map(this::fromFhirBasic)
                 .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
+    // GET ALL (paginated)
     public Page<MaintenanceDto> getAll(Pageable pageable) {
-        return repository.findAll(pageable)
-                .map(this::mapToDto);
+        List<MaintenanceDto> all = getAll();
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), all.size());
+
+        if (start > all.size()) {
+            return new PageImpl<>(List.of(), pageable, all.size());
+        }
+
+        return new PageImpl<>(all.subList(start, end), pageable, all.size());
     }
 
-    @Transactional
-    public MaintenanceDto updateStatus(Long id, String status) {
-        Maintenance entity = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Maintenance", "id", (Object) id));
-        entity.setStatus(status);
-        return mapToDto(repository.save(entity));
+    // UPDATE STATUS
+    public MaintenanceDto updateStatus(String fhirId, String status) {
+        log.debug("Updating status for maintenance {}: {}", fhirId, status);
+
+        Basic basic = fhirClientService.read(Basic.class, fhirId, getPracticeId());
+        if (basic == null) {
+            throw new ResourceNotFoundException("Maintenance", "id", fhirId);
+        }
+
+        basic.getExtension().removeIf(e -> EXT_STATUS.equals(e.getUrl()));
+        basic.addExtension(new Extension(EXT_STATUS, new StringType(status)));
+        fhirClientService.update(basic, getPracticeId());
+
+        return fromFhirBasic(basic);
     }
 
+    // -------- FHIR Mapping --------
 
-    private Maintenance mapToEntity(MaintenanceDto dto) {
-        return Maintenance.builder()
-                .id(dto.getId())
-                .equipment(dto.getEquipment())
-                .category(dto.getCategory())
-                .location(dto.getLocation())
-                .dueDate(dto.getDueDate())
-                .lastServiceDate(dto.getLastServiceDate())
-                .assignee(dto.getAssignee())
-                .vendor(dto.getVendor())
-                .priority(dto.getPriority())
-                .status(dto.getStatus())
-                .notes(dto.getNotes())
-                .externalId(dto.getExternalId())
-                .build();
+    private Basic toFhirBasic(MaintenanceDto dto) {
+        Basic basic = new Basic();
+
+        CodeableConcept code = new CodeableConcept();
+        code.addCoding().setSystem(MAINT_TYPE_SYSTEM).setCode(MAINT_TYPE_CODE).setDisplay("Maintenance");
+        basic.setCode(code);
+
+        if (dto.getEquipment() != null) {
+            basic.addExtension(new Extension(EXT_EQUIPMENT, new StringType(dto.getEquipment())));
+        }
+        if (dto.getCategory() != null) {
+            basic.addExtension(new Extension(EXT_CATEGORY, new StringType(dto.getCategory())));
+        }
+        if (dto.getLocation() != null) {
+            basic.addExtension(new Extension(EXT_LOCATION, new StringType(dto.getLocation())));
+        }
+        if (dto.getDueDate() != null) {
+            basic.addExtension(new Extension(EXT_DUE_DATE, new StringType(dto.getDueDate())));
+        }
+        if (dto.getLastServiceDate() != null) {
+            basic.addExtension(new Extension(EXT_LAST_SERVICE, new StringType(dto.getLastServiceDate())));
+        }
+        if (dto.getAssignee() != null) {
+            basic.addExtension(new Extension(EXT_ASSIGNEE, new StringType(dto.getAssignee())));
+        }
+        if (dto.getVendor() != null) {
+            basic.addExtension(new Extension(EXT_VENDOR, new StringType(dto.getVendor())));
+        }
+        if (dto.getPriority() != null) {
+            basic.addExtension(new Extension(EXT_PRIORITY, new StringType(dto.getPriority())));
+        }
+        if (dto.getStatus() != null) {
+            basic.addExtension(new Extension(EXT_STATUS, new StringType(dto.getStatus())));
+        }
+        if (dto.getNotes() != null) {
+            basic.addExtension(new Extension(EXT_NOTES, new StringType(dto.getNotes())));
+        }
+
+        return basic;
     }
 
-    private MaintenanceDto mapToDto(Maintenance maintenance) {
+    private MaintenanceDto fromFhirBasic(Basic basic) {
         MaintenanceDto dto = new MaintenanceDto();
-        dto.setId(maintenance.getId());
-        dto.setEquipment(maintenance.getEquipment());
-        dto.setCategory(maintenance.getCategory());
-        dto.setLocation(maintenance.getLocation());
-        dto.setDueDate(maintenance.getDueDate());
-        dto.setLastServiceDate(maintenance.getLastServiceDate());
-        dto.setAssignee(maintenance.getAssignee());
-        dto.setVendor(maintenance.getVendor());
-        dto.setPriority(maintenance.getPriority());
-        dto.setStatus(maintenance.getStatus());
-        dto.setNotes(maintenance.getNotes());
-        dto.setExternalId(maintenance.getExternalId());
-        dto.setFhirId(maintenance.getExternalId());
-        // Map audit information
-        MaintenanceDto.Audit audit = new MaintenanceDto.Audit();
-        audit.setCreatedDate(maintenance.getCreatedDate()!=null ? maintenance.getCreatedDate().toString() : null);
-        audit.setLastModifiedDate(maintenance.getLastModifiedDate()!=null ? maintenance.getLastModifiedDate().toString() : null);
-        dto.setAudit(audit);
+
+        String fhirId = basic.getIdElement().getIdPart();
+        dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+
+        dto.setEquipment(getStringExt(basic, EXT_EQUIPMENT));
+        dto.setCategory(getStringExt(basic, EXT_CATEGORY));
+        dto.setLocation(getStringExt(basic, EXT_LOCATION));
+        dto.setDueDate(getStringExt(basic, EXT_DUE_DATE));
+        dto.setLastServiceDate(getStringExt(basic, EXT_LAST_SERVICE));
+        dto.setAssignee(getStringExt(basic, EXT_ASSIGNEE));
+        dto.setVendor(getStringExt(basic, EXT_VENDOR));
+        dto.setPriority(getStringExt(basic, EXT_PRIORITY));
+        dto.setStatus(getStringExt(basic, EXT_STATUS));
+        dto.setNotes(getStringExt(basic, EXT_NOTES));
+
+        dto.setAudit(createAudit());
         return dto;
+    }
+
+    private boolean isMaintenance(Basic basic) {
+        if (!basic.hasCode()) return false;
+        return basic.getCode().getCoding().stream()
+                .anyMatch(c -> MAINT_TYPE_SYSTEM.equals(c.getSystem()) && MAINT_TYPE_CODE.equals(c.getCode()));
+    }
+
+    private String getStringExt(Basic basic, String url) {
+        Extension ext = basic.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
+    }
+
+    private MaintenanceDto.Audit createAudit() {
+        MaintenanceDto.Audit audit = new MaintenanceDto.Audit();
+        audit.setCreatedDate(LocalDate.now().format(DAY));
+        audit.setLastModifiedDate(LocalDate.now().format(DAY));
+        return audit;
     }
 }

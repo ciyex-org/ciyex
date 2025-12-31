@@ -99,7 +99,7 @@ public class PortalDocumentsController {
     @GetMapping("/{documentId}/download")
     @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public ResponseEntity<InputStreamResource> downloadDocument(
-            @PathVariable Long documentId,
+            @PathVariable String documentId,
             Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return ResponseEntity.status(401).build();

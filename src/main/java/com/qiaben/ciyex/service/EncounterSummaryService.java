@@ -30,12 +30,14 @@ public class EncounterSummaryService {
     private final ProviderNoteService providerNoteService;
     private final ProviderSignatureService providerSignatureService;
     private final DateTimeFinalizedService dateTimeFinalizedService;
-    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
-    private final com.qiaben.ciyex.repository.ProviderRepository providerRepository;
+    private final EncounterService encounterService;
+    private final ProviderService providerService;
 
     public EncounterSummaryDto load(Long patientId, Long encounterId) {
-        var encounter = encounterRepository.findByIdAndPatientId(encounterId, patientId)
-                .orElseThrow(() -> new IllegalArgumentException("Encounter not found"));
+        var encounter = encounterService.getEncounter(patientId, encounterId);
+        if (encounter == null) {
+            throw new IllegalArgumentException("Encounter not found");
+        }
 
         EncounterSummaryDto.EncounterMeta meta = EncounterSummaryDto.EncounterMeta.builder()
                 .visitCategory(encounter.getVisitCategory())
@@ -73,10 +75,12 @@ public class EncounterSummaryService {
                         String providerName = null;
                         if (d.getProviderId() != null) {
                             try {
-                                var providerOpt = providerRepository.findById(d.getProviderId());
-                                if (providerOpt.isPresent()) {
-                                    var provider = providerOpt.get();
-                                    providerName = provider.getFirstName() + " " + provider.getLastName();
+                                var providerDto = providerService.getById(d.getProviderId());
+                                if (providerDto != null && providerDto.getIdentification() != null) {
+                                    var ident = providerDto.getIdentification();
+                                    providerName = (ident.getFirstName() != null ? ident.getFirstName() : "") + " " + 
+                                                   (ident.getLastName() != null ? ident.getLastName() : "");
+                                    providerName = providerName.trim();
                                 }
                             } catch (Exception ex) {
                                 log.debug("Could not fetch provider name for ID: {}", d.getProviderId());

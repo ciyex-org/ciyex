@@ -87,7 +87,7 @@ public class DateTimeFinalizedController {
     public ResponseEntity<ApiResponse<DateTimeFinalizedDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             var dto = service.getOne(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<DateTimeFinalizedDto>builder()
@@ -146,7 +146,7 @@ public class DateTimeFinalizedController {
     public ResponseEntity<ApiResponse<DateTimeFinalizedDto>> update(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody DateTimeFinalizedDto dto) {
         // Validate mandatory fields
         String validationError = validateMandatoryFields(dto);
@@ -182,7 +182,7 @@ public class DateTimeFinalizedController {
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             service.delete(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -201,7 +201,7 @@ public class DateTimeFinalizedController {
     public ResponseEntity<ApiResponse<DateTimeFinalizedDto>> eSign(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
+            @PathVariable String id,
             Principal principal) {
         try {
             String user = (principal != null) ? principal.getName() : "system";
@@ -223,7 +223,7 @@ public class DateTimeFinalizedController {
     public ResponseEntity<?> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             byte[] pdf = service.renderPdf(patientId, encounterId, id);
             String filename = "date-time-finalized-" + id + ".pdf";

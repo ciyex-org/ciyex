@@ -5,8 +5,9 @@ import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalLoginRequest;
 import com.qiaben.ciyex.dto.portal.PortalLoginResponse;
 import com.qiaben.ciyex.dto.portal.PortalRegisterRequest;
-import com.qiaben.ciyex.entity.portal.PortalUser;
 import com.qiaben.ciyex.service.portal.PortalAuthService;
+import org.hl7.fhir.r4.model.Person;
+import org.hl7.fhir.r4.model.ContactPoint;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
@@ -120,8 +121,18 @@ public class PortalAuthController {
             }
 
             // ✅ Ensure portal user exists or auto-create one
-            PortalUser user = portalAuthService.ensurePortalUserExistsFromKeycloak(userData);
-            log.info("✅ Keycloak user '{}' validated and available in portal_users", email);
+            Person person = portalAuthService.ensurePortalUserExistsFromKeycloak(userData);
+            log.info("✅ Keycloak user '{}' validated and available in FHIR", email);
+
+            // Extract info from Person resource
+            String firstName = person.hasName() ? person.getNameFirstRep().getGivenAsSingleString() : "";
+            String lastName = person.hasName() ? person.getNameFirstRep().getFamily() : "";
+            String personEmail = person.getTelecom().stream()
+                    .filter(cp -> cp.getSystem() == ContactPoint.ContactPointSystem.EMAIL)
+                    .map(ContactPoint::getValue)
+                    .findFirst()
+                    .orElse(email);
+            String fhirId = person.getIdElement().getIdPart();
 
             // ✅ Response for frontend
             Map<String, Object> formattedResponse = Map.of(
@@ -129,10 +140,10 @@ public class PortalAuthController {
                     "data", Map.of(
                             "token", accessToken,
                             "refreshToken", tokenData.getOrDefault("refresh_token", ""),
-                            "email", user.getEmail(),
-                            "firstName", user.getFirstName(),
-                            "lastName", user.getLastName(),
-                            "userId", user.getKeycloakUserId(),
+                            "email", personEmail,
+                            "firstName", firstName,
+                            "lastName", lastName,
+                            "userId", fhirId,
                             "userType", "PORTAL_USER"
                     )
             );

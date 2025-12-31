@@ -152,7 +152,7 @@ public class CodeController {
     public ResponseEntity<ApiResponse<CodeDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             var dto = service.getOne(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<CodeDto>builder()
@@ -203,7 +203,7 @@ public class CodeController {
     public ResponseEntity<ApiResponse<CodeDto>> update(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody CodeDto dto) {
         // Validate mandatory fields
         String validationError = validateMandatoryFields(dto);
@@ -239,7 +239,7 @@ public class CodeController {
     public ResponseEntity<?> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             service.delete(patientId, encounterId, id);
             // Your UI tolerates empty 204 via safeJson() fallback. :contentReference[oaicite:1]{index=1}
@@ -258,7 +258,7 @@ public class CodeController {
     public ResponseEntity<ApiResponse<CodeDto>> eSign(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
+            @PathVariable String id,
             Principal principal) {
         try {
             String user = (principal != null) ? principal.getName() : "system";
@@ -280,7 +280,7 @@ public class CodeController {
     public ResponseEntity<byte[]> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         byte[] pdf = service.renderPdf(patientId, encounterId, id);
         String filename = "code-" + id + ".pdf";
         return ResponseEntity.ok()

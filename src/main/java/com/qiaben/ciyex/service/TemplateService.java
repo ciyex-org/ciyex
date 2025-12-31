@@ -2,73 +2,91 @@ package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.TemplateDto;
-import com.qiaben.ciyex.entity.Template;
-import com.qiaben.ciyex.repository.TemplateRepository;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * FHIR-only Template Service (email templates).
+ * Uses FHIR Basic resource with extensions for template data.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class TemplateService {
 
-    private final TemplateRepository repository;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    public TemplateService(TemplateRepository repository) {
-        this.repository = repository;
+    private static final String TEMPLATE_TYPE_SYSTEM = "http://ciyex.com/fhir/template-type";
+    private static final String TEMPLATE_TYPE_CODE = "email-template";
+    private static final String EXT_TEMPLATE_NAME = "http://ciyex.com/fhir/StructureDefinition/template-name";
+    private static final String EXT_SUBJECT = "http://ciyex.com/fhir/StructureDefinition/template-subject";
+    private static final String EXT_BODY = "http://ciyex.com/fhir/StructureDefinition/template-body";
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
-    @Transactional
+    // CREATE
     public TemplateDto create(TemplateDto dto) {
-        
-        Template entity = mapToEntity(dto);
-        entity = repository.save(entity);
+        log.debug("Creating FHIR Basic (Template): {}", dto.getTemplateName());
 
-        dto.setId(entity.getId());
-        dto.setExternalId(entity.getExternalId());
-        dto.setAudit(toAudit(entity));
-        dto.setTenantName(RequestContext.get() != null ? RequestContext.get().getTenantName() : null);
+        Basic basic = toFhirBasic(dto);
+        var outcome = fhirClientService.create(basic, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
+
+        dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setExternalId(fhirId);
+        dto.setAudit(createAudit());
+
+        log.info("Created FHIR Basic (Template) with id: {}", fhirId);
         return dto;
     }
 
-    @Transactional(readOnly = true)
-    public TemplateDto getById(Long id) {
-        
-        Template entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Template not found"));
-    return mapToDto(entity);
+    // GET BY ID
+    public TemplateDto getById(String fhirId) {
+        log.debug("Getting template: {}", fhirId);
+        Basic basic = fhirClientService.read(Basic.class, fhirId, getPracticeId());
+        return fromFhirBasic(basic);
     }
 
-    @Transactional
-    public TemplateDto update(Long id, TemplateDto dto) {
-        
-        Template entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Template not found"));
+    // UPDATE
+    public TemplateDto update(String fhirId, TemplateDto dto) {
+        log.debug("Updating template: {}", fhirId);
 
-        if (dto.getTemplateName() != null) entity.setTemplateName(dto.getTemplateName());
-        if (dto.getSubject() != null) entity.setSubject(dto.getSubject());
-        if (dto.getBody() != null) entity.setBody(dto.getBody());
+        Basic basic = toFhirBasic(dto);
+        basic.setId(fhirId);
+        fhirClientService.update(basic, getPracticeId());
 
-        entity = repository.save(entity);
-    return mapToDto(entity);
+        dto.setExternalId(fhirId);
+        dto.setAudit(createAudit());
+        return dto;
     }
 
-    @Transactional
-    public void delete(Long id) {
-        
-        Template entity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Template not found"));
-        repository.delete(entity);
+    // DELETE
+    public void delete(String fhirId) {
+        log.debug("Deleting template: {}", fhirId);
+        fhirClientService.delete(Basic.class, fhirId, getPracticeId());
     }
 
-    @Transactional(readOnly = true)
+    // GET ALL
     public ApiResponse<List<TemplateDto>> getAllTemplates() {
-        List<Template> templates = repository.findAll();
-        List<TemplateDto> dtos = templates.stream().map(this::mapToDto).collect(Collectors.toList());
+        log.debug("Getting all templates");
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+
+        List<TemplateDto> dtos = fhirClientService.extractResources(bundle, Basic.class).stream()
+                .filter(this::isEmailTemplate)
+                .map(this::fromFhirBasic)
+                .collect(Collectors.toList());
 
         return ApiResponse.<List<TemplateDto>>builder()
                 .success(true)
@@ -77,32 +95,73 @@ public class TemplateService {
                 .build();
     }
 
-    private Template mapToEntity(TemplateDto dto) {
-        return Template.builder()
-                .id(dto.getId())
-                .externalId(dto.getExternalId())
-                .templateName(dto.getTemplateName())
-                .subject(dto.getSubject())
-                .body(dto.getBody())
-                .build();
+    // -------- FHIR Mapping --------
+
+    private Basic toFhirBasic(TemplateDto dto) {
+        Basic basic = new Basic();
+
+        // Code to identify as email template
+        CodeableConcept code = new CodeableConcept();
+        code.addCoding().setSystem(TEMPLATE_TYPE_SYSTEM).setCode(TEMPLATE_TYPE_CODE).setDisplay("Email Template");
+        basic.setCode(code);
+
+        // Template name
+        if (dto.getTemplateName() != null) {
+            basic.addExtension(new Extension(EXT_TEMPLATE_NAME, new StringType(dto.getTemplateName())));
+        }
+
+        // Subject
+        if (dto.getSubject() != null) {
+            basic.addExtension(new Extension(EXT_SUBJECT, new StringType(dto.getSubject())));
+        }
+
+        // Body
+        if (dto.getBody() != null) {
+            basic.addExtension(new Extension(EXT_BODY, new StringType(dto.getBody())));
+        }
+
+        return basic;
     }
 
-    private TemplateDto mapToDto(Template entity) {
+    private TemplateDto fromFhirBasic(Basic basic) {
         TemplateDto dto = new TemplateDto();
-        dto.setId(entity.getId());
-        dto.setExternalId(entity.getExternalId());
-        dto.setTemplateName(entity.getTemplateName());
-        dto.setSubject(entity.getSubject());
-        dto.setBody(entity.getBody());
-        dto.setAudit(toAudit(entity));
-        dto.setTenantName(RequestContext.get() != null ? RequestContext.get().getTenantName() : null);
+
+        String fhirId = basic.getIdElement().getIdPart();
+        dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setExternalId(fhirId);
+
+        // Template name
+        Extension nameExt = basic.getExtensionByUrl(EXT_TEMPLATE_NAME);
+        if (nameExt != null && nameExt.getValue() instanceof StringType) {
+            dto.setTemplateName(((StringType) nameExt.getValue()).getValue());
+        }
+
+        // Subject
+        Extension subjectExt = basic.getExtensionByUrl(EXT_SUBJECT);
+        if (subjectExt != null && subjectExt.getValue() instanceof StringType) {
+            dto.setSubject(((StringType) subjectExt.getValue()).getValue());
+        }
+
+        // Body
+        Extension bodyExt = basic.getExtensionByUrl(EXT_BODY);
+        if (bodyExt != null && bodyExt.getValue() instanceof StringType) {
+            dto.setBody(((StringType) bodyExt.getValue()).getValue());
+        }
+
+        dto.setAudit(createAudit());
         return dto;
     }
 
-    private TemplateDto.Audit toAudit(Template entity) {
+    private boolean isEmailTemplate(Basic basic) {
+        if (!basic.hasCode()) return false;
+        return basic.getCode().getCoding().stream()
+                .anyMatch(c -> TEMPLATE_TYPE_SYSTEM.equals(c.getSystem()) && TEMPLATE_TYPE_CODE.equals(c.getCode()));
+    }
+
+    private TemplateDto.Audit createAudit() {
         TemplateDto.Audit audit = new TemplateDto.Audit();
-        audit.setCreatedAt(entity.getCreatedAt());
-        audit.setUpdatedAt(entity.getUpdatedAt());
+        audit.setCreatedAt(LocalDateTime.now());
+        audit.setUpdatedAt(LocalDateTime.now());
         return audit;
     }
 }

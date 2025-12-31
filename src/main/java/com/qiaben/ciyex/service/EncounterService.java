@@ -342,4 +342,16 @@ public class EncounterService {
         return date.toInstant().atZone(ZoneId.systemDefault())
                 .toLocalDate().format(DAY);
     }
+
+    // ✅ Get encounter by patient and encounter ID (alias for getByIdForPatient)
+    public EncounterDto getEncounter(Long patientId, Long encounterId) {
+        return getByIdForPatient(encounterId, patientId);
+    }
+
+    // ✅ Get all encounters (for browser service)
+    public List<EncounterDto> getAllEncounters() {
+        log.debug("Listing all FHIR Encounters");
+        Bundle bundle = fhirClientService.search(Encounter.class, getPracticeId());
+        return extractEncounters(bundle);
+    }
 }

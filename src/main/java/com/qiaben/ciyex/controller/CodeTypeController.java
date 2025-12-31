@@ -46,7 +46,7 @@ public class CodeTypeController {
     public ResponseEntity<ApiResponse<CodeTypeDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             var dto = service.getOne(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<CodeTypeDto>builder()
@@ -93,7 +93,7 @@ public class CodeTypeController {
     public ResponseEntity<ApiResponse<CodeTypeDto>> update(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody CodeTypeDto dto) {
         try {
             var updated = service.update(patientId, encounterId, id, dto);
@@ -117,7 +117,7 @@ public class CodeTypeController {
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             service.delete(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()

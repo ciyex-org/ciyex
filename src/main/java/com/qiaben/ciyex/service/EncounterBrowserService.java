@@ -1,92 +1,77 @@
 package com.qiaben.ciyex.service;
 
-
-
 import com.qiaben.ciyex.dto.EncounterDto;
-import com.qiaben.ciyex.entity.Encounter;
-import com.qiaben.ciyex.entity.EncounterStatus;
-import com.qiaben.ciyex.repository.EncounterRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * FHIR-only Encounter Browser Service.
+ * Delegates to EncounterService for FHIR data access.
+ */
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class EncounterBrowserService {
 
-    private final EncounterRepository encounterRepository;
+    private final EncounterService encounterService;
 
-    public EncounterBrowserService(EncounterRepository encounterRepository) {
-        this.encounterRepository = encounterRepository;
-    }
-
-    @Transactional(readOnly = true)
-    public Page<EncounterDto> listAll(Optional<EncounterStatus> statusOpt,
+    public Page<EncounterDto> listAll(Optional<String> statusOpt,
                                       boolean recentOnly,
                                       int recentCount,
                                       Pageable pageable
     ) {
-        // Build an effective pageable (don’t mutate the captured one)
-        Pageable effective = pageable;
-        if (recentOnly) {
-            effective = PageRequest.of(
-                    0,
-                    Math.max(1, recentCount),
-                    Sort.by(Sort.Direction.DESC, "encounterDate")
-            );
-        } else if (effective.getSort().isUnsorted()) {
-            effective = PageRequest.of(
-                    effective.getPageNumber(),
-                    effective.getPageSize(),
-                    Sort.by(Sort.Direction.DESC, "encounterDate")
-            );
+        // Get all encounters from FHIR
+        List<EncounterDto> allEncounters = encounterService.getAllEncounters();
+
+        // Filter by status if provided
+        if (statusOpt.isPresent()) {
+            String status = statusOpt.get();
+            allEncounters = allEncounters.stream()
+                    .filter(e -> status.equalsIgnoreCase(e.getStatus() != null ? e.getStatus().toString() : null))
+                    .collect(Collectors.toList());
         }
 
-        // ✅ capture a final copy for lambda use
-        final Pageable p = effective;
+        // Sort by encounter date descending
+        allEncounters.sort(Comparator.comparing(
+                EncounterDto::getEncounterDate,
+                Comparator.nullsLast(Comparator.reverseOrder())
+        ));
 
-        Page<Encounter> page = statusOpt
-                .map(st -> encounterRepository.findByStatus(st, p))
-                .orElseGet(() -> encounterRepository.findAll(p));
+        // Apply pagination
+        int start;
+        int end;
+        int pageSize;
 
-        return page.map(this::mapToDto);
+        if (recentOnly) {
+            start = 0;
+            pageSize = Math.max(1, recentCount);
+            end = Math.min(pageSize, allEncounters.size());
+        } else {
+            pageSize = pageable.getPageSize();
+            start = (int) pageable.getOffset();
+            end = Math.min(start + pageSize, allEncounters.size());
+        }
+
+        if (start > allEncounters.size()) {
+            return new PageImpl<>(List.of(), pageable, allEncounters.size());
+        }
+
+        List<EncounterDto> pageContent = allEncounters.subList(start, end);
+        return new PageImpl<>(pageContent, PageRequest.of(start / pageSize, pageSize), allEncounters.size());
     }
 
-    @Transactional(readOnly = true)
     public List<EncounterDto> getAllEncounters() {
-        return encounterRepository.findAll().stream().map(this::mapToDto).collect(Collectors.toList());
+        return encounterService.getAllEncounters();
     }
-
-    private EncounterDto mapToDto(Encounter e) {
-        EncounterDto dto = new EncounterDto();
-
-        // IDs & scope
-        dto.setId(e.getId());
-        dto.setPatientId(e.getPatientId());
-
-        // Core encounter info
-        dto.setVisitCategory(e.getVisitCategory());               // e.g., "OPD", "ER"
-        dto.setEncounterProvider(e.getEncounterProvider());       // e.g., "Dr. Smith"
-        dto.setType(e.getType());                                 // e.g., "Consultation"
-        dto.setSensitivity(e.getSensitivity());                   // e.g., "High"/"Normal"/"Restricted"
-        dto.setDischargeDisposition(e.getDischargeDisposition()); // e.g., "Home", "Admitted"
-        dto.setReasonForVisit(e.getReasonForVisit());             // e.g., "Chest pain"
-        dto.setInCollection(e.getInCollection());                 // Boolean (or convert as needed)
-
-        // Dates/timestamps — match your entity/DTO types (Instant/Long/LocalDateTime)
-        dto.setEncounterDate(e.getEncounterDate());
-
-
-        // Status (enum/string) — make sure entity has @Enumerated(EnumType.STRING) if DB stores text
-        dto.setStatus(e.getStatus());
-
-        return dto;
-    }
-
 }

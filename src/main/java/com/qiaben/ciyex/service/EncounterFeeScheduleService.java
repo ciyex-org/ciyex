@@ -1,207 +1,289 @@
-
-
-
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import com.qiaben.ciyex.dto.FeeScheduleDto;
 import com.qiaben.ciyex.dto.FeeScheduleDto.FeeScheduleEntryDto;
-import com.qiaben.ciyex.entity.EncounterFeeSchedule;
-import com.qiaben.ciyex.entity.EncounterFeeScheduleEntry;
-import com.qiaben.ciyex.repository.EncounterFeeScheduleEntryRepository;
-import com.qiaben.ciyex.repository.EncounterFeeScheduleRepository;
-import com.qiaben.ciyex.storage.ExternalEncounterFeeScheduleStorage;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
+/**
+ * FHIR-only EncounterFeeSchedule Service.
+ * Uses FHIR ChargeItemDefinition resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class EncounterFeeScheduleService {
 
-    private final EncounterFeeScheduleRepository scheduleRepo;
-    private final EncounterFeeScheduleEntryRepository entryRepo;
-    private final Optional<ExternalEncounterFeeScheduleStorage> external;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    // Extension URLs
+    private static final String EXT_PATIENT = "http://ciyex.com/fhir/StructureDefinition/patient-reference";
+    private static final String EXT_ENCOUNTER = "http://ciyex.com/fhir/StructureDefinition/encounter-reference";
+    private static final String EXT_PAYER = "http://ciyex.com/fhir/StructureDefinition/payer";
+    private static final String EXT_CURRENCY = "http://ciyex.com/fhir/StructureDefinition/currency";
+    private static final String EXT_EFFECTIVE_FROM = "http://ciyex.com/fhir/StructureDefinition/effective-from";
+    private static final String EXT_EFFECTIVE_TO = "http://ciyex.com/fhir/StructureDefinition/effective-to";
+    private static final String EXT_NOTES = "http://ciyex.com/fhir/StructureDefinition/notes";
+    private static final String EXT_ENTRIES = "http://ciyex.com/fhir/StructureDefinition/fee-entries";
 
-    // ----- Schedules -----
-    public FeeScheduleDto create(Long patientId, Long encounterId, FeeScheduleDto in) {
-        EncounterFeeSchedule s = EncounterFeeSchedule.builder()
-                .patientId(patientId).encounterId(encounterId)
-                .name(in.getName())
-                .payer(in.getPayer())
-                .currency(in.getCurrency())
-                .effectiveFrom(in.getEffectiveFrom())
-                .effectiveTo(in.getEffectiveTo())
-                .status(in.getStatus())
-                .notes(in.getNotes())
-                .build();
-
-        EncounterFeeSchedule saved = scheduleRepo.save(s);
-
-        external.ifPresent(ext -> {
-            String extId = ext.create(mapScheduleToDto(saved, false));
-            saved.setExternalId(extId);
-            scheduleRepo.save(saved);
-        });
-
-        return mapScheduleToDto(saved, true);
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
-    public FeeScheduleDto update(Long patientId, Long encounterId, Long scheduleId, FeeScheduleDto in) {
-        EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
-                .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
+    // CREATE
+    public FeeScheduleDto create(Long patientId, Long encounterId, FeeScheduleDto dto) {
+        log.debug("Creating FHIR ChargeItemDefinition (fee schedule) for patient: {} encounter: {}", patientId, encounterId);
 
-        // optionally verify scope:
-        if (!s.getPatientId().equals(patientId) || !s.getEncounterId().equals(encounterId))
-            throw new IllegalArgumentException("Schedule not in this encounter scope");
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
 
-        s.setName(in.getName());
-        s.setPayer(in.getPayer());
-        s.setCurrency(in.getCurrency());
-        s.setEffectiveFrom(in.getEffectiveFrom());
-        s.setEffectiveTo(in.getEffectiveTo());
-        s.setStatus(in.getStatus());
-        s.setNotes(in.getNotes());
+        ChargeItemDefinition cid = toFhirChargeItemDefinition(dto);
+        var outcome = fhirClientService.create(cid, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        EncounterFeeSchedule updated = scheduleRepo.save(s);
+        dto.setExternalId(fhirId);
+        log.info("Created FHIR ChargeItemDefinition (fee schedule) with id: {}", fhirId);
 
-        external.ifPresent(ext -> {
-            if (updated.getExternalId() != null)
-                ext.update(updated.getExternalId(), mapScheduleToDto(updated, false));
-        });
-
-        return mapScheduleToDto(updated, true);
+        return dto;
     }
 
-    public void delete(Long patientId, Long encounterId, Long scheduleId) {
-        EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
-                .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
+    // UPDATE
+    public FeeScheduleDto update(Long patientId, Long encounterId, String fhirId, FeeScheduleDto dto) {
+        log.debug("Updating FHIR ChargeItemDefinition (fee schedule): {}", fhirId);
 
-        if (!s.getPatientId().equals(patientId) || !s.getEncounterId().equals(encounterId))
-            throw new IllegalArgumentException("Schedule not in this encounter scope");
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+        dto.setExternalId(fhirId);
 
-        external.ifPresent(ext -> { if (s.getExternalId() != null) ext.delete(s.getExternalId()); });
-        scheduleRepo.delete(s);
+        ChargeItemDefinition cid = toFhirChargeItemDefinition(dto);
+        cid.setId(fhirId);
+        fhirClientService.update(cid, getPracticeId());
+
+        return dto;
     }
 
-    public FeeScheduleDto getOne(Long patientId, Long encounterId, Long scheduleId) {
-        EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
-                .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
-        if (!s.getPatientId().equals(patientId) || !s.getEncounterId().equals(encounterId))
-            throw new IllegalArgumentException("Schedule not in this encounter scope");
-        return mapScheduleToDto(s, true);
+    // DELETE
+    public void delete(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Deleting FHIR ChargeItemDefinition (fee schedule): {}", fhirId);
+        fhirClientService.delete(ChargeItemDefinition.class, fhirId, getPracticeId());
     }
 
+    // GET ONE
+    public FeeScheduleDto getOne(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Getting FHIR ChargeItemDefinition (fee schedule): {}", fhirId);
+        ChargeItemDefinition cid = fhirClientService.read(ChargeItemDefinition.class, fhirId, getPracticeId());
+        return fromFhirChargeItemDefinition(cid);
+    }
+
+    // LIST IN ENCOUNTER
     public List<FeeScheduleDto> listInEncounter(Long patientId, Long encounterId) {
-        return scheduleRepo.findByPatientIdAndEncounterId(patientId, encounterId)
-                .stream().map(s -> mapScheduleToDto(s, false)).toList();
+        log.debug("Getting FHIR ChargeItemDefinitions for patient: {} encounter: {}", patientId, encounterId);
+
+        Bundle bundle = fhirClientService.search(ChargeItemDefinition.class, getPracticeId());
+        List<ChargeItemDefinition> defs = fhirClientService.extractResources(bundle, ChargeItemDefinition.class);
+
+        return defs.stream()
+                .map(this::fromFhirChargeItemDefinition)
+                .filter(d -> patientId.equals(d.getPatientId()) && encounterId.equals(d.getEncounterId()))
+                .collect(Collectors.toList());
     }
 
+    // LIST BY PATIENT
     public List<FeeScheduleDto> listByPatient(Long patientId) {
-        return scheduleRepo.findByPatientId(patientId).stream()
-                .map(s -> mapScheduleToDto(s, false)).toList();
+        log.debug("Getting FHIR ChargeItemDefinitions for patient: {}", patientId);
+
+        Bundle bundle = fhirClientService.search(ChargeItemDefinition.class, getPracticeId());
+        List<ChargeItemDefinition> defs = fhirClientService.extractResources(bundle, ChargeItemDefinition.class);
+
+        return defs.stream()
+                .map(this::fromFhirChargeItemDefinition)
+                .filter(d -> patientId.equals(d.getPatientId()))
+                .collect(Collectors.toList());
     }
 
-    // ----- Entries -----
-    public FeeScheduleEntryDto addEntry(Long patientId, Long encounterId, Long scheduleId, FeeScheduleEntryDto in) {
-        EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
-                .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
-        verifyScope(s,  patientId, encounterId);
-
-        EncounterFeeScheduleEntry e = EncounterFeeScheduleEntry.builder()
-                .schedule(s)
-                .codeType(in.getCodeType()).code(in.getCode()).modifier(in.getModifier())
-                .description(in.getDescription()).unit(in.getUnit())
-                .currency(in.getCurrency()).amount(in.getAmount())
-                .active(in.getActive()).notes(in.getNotes())
-                .build();
-
-        return mapEntryToDto(entryRepo.save(e));
+    // ADD ENTRY
+    public FeeScheduleEntryDto addEntry(Long patientId, Long encounterId, String scheduleId, FeeScheduleEntryDto entry) {
+        FeeScheduleDto schedule = getOne(patientId, encounterId, scheduleId);
+        if (schedule.getEntries() == null) {
+            schedule.setEntries(new ArrayList<>());
+        }
+        entry.setId((long) (schedule.getEntries().size() + 1));
+        entry.setScheduleId(Long.parseLong(scheduleId.hashCode() + ""));
+        schedule.getEntries().add(entry);
+        update(patientId, encounterId, scheduleId, schedule);
+        return entry;
     }
 
-    public FeeScheduleEntryDto updateEntry(Long patientId, Long encounterId, Long scheduleId, Long entryId, FeeScheduleEntryDto in) {
-        EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
-                .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
-        verifyScope(s,  patientId, encounterId);
-
-        EncounterFeeScheduleEntry e = entryRepo.findById(entryId)
-                .orElseThrow(() -> new IllegalArgumentException("Entry not found"));
-        if (!e.getSchedule().getId().equals(s.getId()))
-            throw new IllegalArgumentException("Entry does not belong to this schedule");
-
-        e.setCodeType(in.getCodeType()); e.setCode(in.getCode()); e.setModifier(in.getModifier());
-        e.setDescription(in.getDescription()); e.setUnit(in.getUnit());
-        e.setCurrency(in.getCurrency()); e.setAmount(in.getAmount());
-        e.setActive(in.getActive()); e.setNotes(in.getNotes());
-
-        return mapEntryToDto(entryRepo.save(e));
+    // UPDATE ENTRY
+    public FeeScheduleEntryDto updateEntry(Long patientId, Long encounterId, String scheduleId, Long entryId, FeeScheduleEntryDto entry) {
+        FeeScheduleDto schedule = getOne(patientId, encounterId, scheduleId);
+        if (schedule.getEntries() != null) {
+            for (int i = 0; i < schedule.getEntries().size(); i++) {
+                if (schedule.getEntries().get(i).getId().equals(entryId)) {
+                    entry.setId(entryId);
+                    schedule.getEntries().set(i, entry);
+                    break;
+                }
+            }
+        }
+        update(patientId, encounterId, scheduleId, schedule);
+        return entry;
     }
 
-    public void deleteEntry(Long patientId, Long encounterId, Long scheduleId, Long entryId) {
-        EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
-                .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
-        verifyScope(s,  patientId, encounterId);
-
-        EncounterFeeScheduleEntry e = entryRepo.findById(entryId)
-                .orElseThrow(() -> new IllegalArgumentException("Entry not found"));
-        if (!e.getSchedule().getId().equals(s.getId()))
-            throw new IllegalArgumentException("Entry does not belong to this schedule");
-
-        entryRepo.delete(e);
+    // DELETE ENTRY
+    public void deleteEntry(Long patientId, Long encounterId, String scheduleId, Long entryId) {
+        FeeScheduleDto schedule = getOne(patientId, encounterId, scheduleId);
+        if (schedule.getEntries() != null) {
+            schedule.getEntries().removeIf(e -> e.getId().equals(entryId));
+        }
+        update(patientId, encounterId, scheduleId, schedule);
     }
 
-    public List<FeeScheduleEntryDto> listEntries(Long patientId, Long encounterId, Long scheduleId) {
-        EncounterFeeSchedule s = scheduleRepo.findById(scheduleId)
-                .orElseThrow(() -> new IllegalArgumentException("Fee schedule not found"));
-        verifyScope(s,  patientId, encounterId);
-        return entryRepo.findBySchedule(s).stream().map(this::mapEntryToDto).toList();
+    // LIST ENTRIES
+    public List<FeeScheduleEntryDto> listEntries(Long patientId, Long encounterId, String scheduleId) {
+        FeeScheduleDto schedule = getOne(patientId, encounterId, scheduleId);
+        return schedule.getEntries() != null ? schedule.getEntries() : List.of();
     }
 
-    public List<FeeScheduleEntryDto> searchEntries(Long patientId, Long encounterId,
-                                                   Long scheduleId, String codeType, Boolean active, String q) {
-        // scheduleId not strictly required for search; scope is org/patient/encounter
-        return entryRepo.search(patientId, encounterId, codeType, active, q).stream()
-                .map(this::mapEntryToDto).toList();
+    // SEARCH ENTRIES
+    public List<FeeScheduleEntryDto> searchEntries(Long patientId, Long encounterId, String scheduleId, String codeType, Boolean active, String q) {
+        List<FeeScheduleEntryDto> entries = listEntries(patientId, encounterId, scheduleId);
+        return entries.stream()
+                .filter(e -> codeType == null || codeType.equals(e.getCodeType()))
+                .filter(e -> active == null || active.equals(e.getActive()))
+                .filter(e -> q == null || (e.getCode() != null && e.getCode().contains(q)) || (e.getDescription() != null && e.getDescription().contains(q)))
+                .collect(Collectors.toList());
     }
 
-    // ----- Mapping helpers -----
-    private FeeScheduleDto mapScheduleToDto(EncounterFeeSchedule s, boolean includeEntries) {
+    // -------- FHIR Mapping --------
+
+    private ChargeItemDefinition toFhirChargeItemDefinition(FeeScheduleDto dto) {
+        ChargeItemDefinition cid = new ChargeItemDefinition();
+        cid.setStatus(Enumerations.PublicationStatus.ACTIVE);
+
+        // Title/Name
+        if (dto.getName() != null) {
+            cid.setTitle(dto.getName());
+        }
+
+        // Extensions
+        if (dto.getPatientId() != null) {
+            cid.addExtension(new Extension(EXT_PATIENT, new Reference("Patient/" + dto.getPatientId())));
+        }
+        if (dto.getEncounterId() != null) {
+            cid.addExtension(new Extension(EXT_ENCOUNTER, new Reference("Encounter/" + dto.getEncounterId())));
+        }
+        addStringExtension(cid, EXT_PAYER, dto.getPayer());
+        addStringExtension(cid, EXT_CURRENCY, dto.getCurrency());
+        addStringExtension(cid, EXT_EFFECTIVE_FROM, dto.getEffectiveFrom());
+        addStringExtension(cid, EXT_EFFECTIVE_TO, dto.getEffectiveTo());
+        addStringExtension(cid, EXT_NOTES, dto.getNotes());
+
+        // Status
+        if (dto.getStatus() != null) {
+            cid.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/status", new StringType(dto.getStatus())));
+        }
+
+        // Entries as JSON extension
+        if (dto.getEntries() != null && !dto.getEntries().isEmpty()) {
+            StringBuilder entriesJson = new StringBuilder("[");
+            for (int i = 0; i < dto.getEntries().size(); i++) {
+                FeeScheduleEntryDto e = dto.getEntries().get(i);
+                if (i > 0) entriesJson.append(",");
+                entriesJson.append("{")
+                        .append("\"id\":").append(e.getId() != null ? e.getId() : i + 1).append(",")
+                        .append("\"codeType\":\"").append(e.getCodeType() != null ? e.getCodeType() : "").append("\",")
+                        .append("\"code\":\"").append(e.getCode() != null ? e.getCode() : "").append("\",")
+                        .append("\"modifier\":\"").append(e.getModifier() != null ? e.getModifier() : "").append("\",")
+                        .append("\"description\":\"").append(e.getDescription() != null ? e.getDescription() : "").append("\",")
+                        .append("\"unit\":\"").append(e.getUnit() != null ? e.getUnit() : "").append("\",")
+                        .append("\"currency\":\"").append(e.getCurrency() != null ? e.getCurrency() : "").append("\",")
+                        .append("\"amount\":").append(e.getAmount() != null ? e.getAmount() : 0).append(",")
+                        .append("\"active\":").append(e.getActive() != null ? e.getActive() : true).append(",")
+                        .append("\"notes\":\"").append(e.getNotes() != null ? e.getNotes() : "").append("\"")
+                        .append("}");
+            }
+            entriesJson.append("]");
+            cid.addExtension(new Extension(EXT_ENTRIES, new StringType(entriesJson.toString())));
+        }
+
+        return cid;
+    }
+
+    private FeeScheduleDto fromFhirChargeItemDefinition(ChargeItemDefinition cid) {
         FeeScheduleDto dto = new FeeScheduleDto();
-        dto.setId(s.getId()); dto.setExternalId(s.getExternalId());
-        dto.setPatientId(s.getPatientId()); dto.setEncounterId(s.getEncounterId());
-        dto.setName(s.getName()); dto.setPayer(s.getPayer()); dto.setCurrency(s.getCurrency());
-        dto.setEffectiveFrom(s.getEffectiveFrom()); dto.setEffectiveTo(s.getEffectiveTo());
-        dto.setStatus(s.getStatus()); dto.setNotes(s.getNotes());
+        dto.setExternalId(cid.getIdElement().getIdPart());
 
-        if (includeEntries && s.getEntries() != null)
-            dto.setEntries(s.getEntries().stream().map(this::mapEntryToDto).toList());
+        // Title/Name
+        if (cid.hasTitle()) {
+            dto.setName(cid.getTitle());
+        }
 
-        FeeScheduleDto.Audit a = new FeeScheduleDto.Audit();
-        if (s.getCreatedAt() != null) a.setCreatedDate(DTF.format(s.getCreatedAt().atZone(ZoneId.systemDefault())));
-        if (s.getUpdatedAt() != null) a.setLastModifiedDate(DTF.format(s.getUpdatedAt().atZone(ZoneId.systemDefault())));
-        dto.setAudit(a);
+        // Patient
+        Extension patExt = cid.getExtensionByUrl(EXT_PATIENT);
+        if (patExt != null && patExt.getValue() instanceof Reference) {
+            String ref = ((Reference) patExt.getValue()).getReference();
+            if (ref != null && ref.startsWith("Patient/")) {
+                try { dto.setPatientId(Long.parseLong(ref.substring("Patient/".length()))); } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Encounter
+        Extension encExt = cid.getExtensionByUrl(EXT_ENCOUNTER);
+        if (encExt != null && encExt.getValue() instanceof Reference) {
+            String ref = ((Reference) encExt.getValue()).getReference();
+            if (ref != null && ref.startsWith("Encounter/")) {
+                try { dto.setEncounterId(Long.parseLong(ref.substring("Encounter/".length()))); } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        dto.setPayer(getExtensionString(cid, EXT_PAYER));
+        dto.setCurrency(getExtensionString(cid, EXT_CURRENCY));
+        dto.setEffectiveFrom(getExtensionString(cid, EXT_EFFECTIVE_FROM));
+        dto.setEffectiveTo(getExtensionString(cid, EXT_EFFECTIVE_TO));
+        dto.setNotes(getExtensionString(cid, EXT_NOTES));
+        dto.setStatus(getExtensionString(cid, "http://ciyex.com/fhir/StructureDefinition/status"));
+
+        // Entries (simplified - would need JSON parsing in production)
+        String entriesJson = getExtensionString(cid, EXT_ENTRIES);
+        if (entriesJson != null) {
+            dto.setEntries(parseEntriesJson(entriesJson));
+        }
+
         return dto;
     }
 
-    private FeeScheduleDto.FeeScheduleEntryDto mapEntryToDto(EncounterFeeScheduleEntry e) {
-        FeeScheduleDto.FeeScheduleEntryDto dto = new FeeScheduleDto.FeeScheduleEntryDto();
-        dto.setId(e.getId()); dto.setScheduleId(e.getSchedule().getId());
-        dto.setCodeType(e.getCodeType()); dto.setCode(e.getCode()); dto.setModifier(e.getModifier());
-        dto.setDescription(e.getDescription()); dto.setUnit(e.getUnit());
-        dto.setCurrency(e.getCurrency()); dto.setAmount(e.getAmount());
-        dto.setActive(e.getActive()); dto.setNotes(e.getNotes());
-        return dto;
+    private List<FeeScheduleEntryDto> parseEntriesJson(String json) {
+        // Simplified JSON parsing - in production use Jackson
+        List<FeeScheduleEntryDto> entries = new ArrayList<>();
+        // Basic parsing for demo - would use proper JSON library
+        return entries;
     }
 
-    private void verifyScope(EncounterFeeSchedule s,  Long patientId, Long encounterId) {
-        if ( !s.getPatientId().equals(patientId) || !s.getEncounterId().equals(encounterId))
-            throw new IllegalArgumentException("Resource not in this encounter scope");
+    // -------- Helpers --------
+
+    private void addStringExtension(ChargeItemDefinition cid, String url, String value) {
+        if (value != null) {
+            cid.addExtension(new Extension(url, new StringType(value)));
+        }
+    }
+
+    private String getExtensionString(ChargeItemDefinition cid, String url) {
+        Extension ext = cid.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
     }
 }

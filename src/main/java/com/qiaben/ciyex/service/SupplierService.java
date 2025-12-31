@@ -1,138 +1,157 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.SupplierDto;
-import com.qiaben.ciyex.exception.ResourceNotFoundException;
-import com.qiaben.ciyex.entity.Supplier;
-import com.qiaben.ciyex.repository.SupplierRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * FHIR-only Supplier Service.
+ * Uses FHIR Organization (type=supplier) resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class SupplierService {
 
-    private final SupplierRepository repository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    public SupplierService(SupplierRepository repository,
-                           ExternalStorageResolver storageResolver,
-                           OrgIntegrationConfigProvider configProvider) {
-        this.repository = repository;
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
-    @Transactional
+    // CREATE
     public SupplierDto create(SupplierDto dto) {
-        Supplier supplier = mapToEntity(dto);
+        log.debug("Creating FHIR Organization (supplier): {}", dto.getName());
 
-        String externalId = null;
-        try {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            if (storageType != null && !storageType.isBlank()) {
-                ExternalStorage<SupplierDto> externalStorage = storageResolver.resolve(SupplierDto.class);
-                if (externalStorage != null) {
-                    externalId = externalStorage.create(dto);
-                }
-            }
-        } catch (Exception e) {
-            log.error("Error creating external storage record for Supplier", e);
-        }
+        Organization org = toFhirOrganization(dto);
+        var outcome = fhirClientService.create(org, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        // Set externalId priority: 1) External storage, 2) Client provided, 3) Auto-generate
-        if (externalId != null) {
-            supplier.setExternalId(externalId);
-        } else if (dto.getExternalId() != null && !dto.getExternalId().isBlank()) {
-            supplier.setExternalId(dto.getExternalId());
-        } else {
-            // Auto-generate if no external storage and no client-provided ID
-            supplier.setExternalId("SP-" + java.util.UUID.randomUUID().toString());
-            log.info("Auto-generated external ID for supplier: {}", supplier.getExternalId());
-        }
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        log.info("Created FHIR Organization (supplier) with id: {}", fhirId);
 
-        return mapToDto(repository.save(supplier));
+        return dto;
     }
 
-    @Transactional(readOnly = true)
-    public SupplierDto getById(Long id) {
-        Supplier supplier = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Supplier", "id", (Object) id));
-        return mapToDto(supplier);
+    // GET BY ID
+    public SupplierDto getById(String fhirId) {
+        log.debug("Getting FHIR Organization (supplier): {}", fhirId);
+        Organization org = fhirClientService.read(Organization.class, fhirId, getPracticeId());
+        return fromFhirOrganization(org);
     }
 
-    @Transactional
-    public SupplierDto update(Long id, SupplierDto dto) {
-        Supplier supplier = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Supplier", "id", (Object) id));
-
-        supplier.setName(dto.getName());
-        supplier.setPhone(dto.getPhone());
-        supplier.setEmail(dto.getEmail());
-
-
-        return mapToDto(repository.save(supplier));
-    }
-
-    @Transactional
-    public void delete(Long id) {
-        repository.deleteById(id);
-    }
-
-    @Transactional(readOnly = true)
+    // GET ALL
     public List<SupplierDto> getAll() {
-        return repository.findAll()
-                .stream()
-                .map(this::mapToDto)
+        log.debug("Getting all FHIR Organizations (supplier)");
+
+        Bundle bundle = fhirClientService.search(Organization.class, getPracticeId());
+        List<Organization> orgs = fhirClientService.extractResources(bundle, Organization.class);
+
+        return orgs.stream()
+                .filter(this::isSupplierOrg)
+                .map(this::fromFhirOrganization)
                 .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
+    // GET ALL (Paginated)
     public Page<SupplierDto> getAll(Pageable pageable) {
-        return repository.findAll(pageable)
-                .map(this::mapToDto);
+        List<SupplierDto> all = getAll();
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), all.size());
+        List<SupplierDto> pageContent = all.subList(start, end);
+        return new PageImpl<>(pageContent, pageable, all.size());
     }
 
-    @Transactional(readOnly = true)
-    public Long countByOrg() {
-        return repository.count();
-    }
+    // UPDATE
+    public SupplierDto update(String fhirId, SupplierDto dto) {
+        log.debug("Updating FHIR Organization (supplier): {}", fhirId);
 
+        Organization org = toFhirOrganization(dto);
+        org.setId(fhirId);
+        fhirClientService.update(org, getPracticeId());
 
-    private Supplier mapToEntity(SupplierDto dto) {
-        return Supplier.builder()
-                .id(dto.getId())
-                .name(dto.getName())
-                .phone(dto.getPhone())
-                .email(dto.getEmail())
-                .externalId(dto.getExternalId())
-                .build();
-    }
-
-    private SupplierDto mapToDto(Supplier supplier) {
-        SupplierDto dto = new SupplierDto();
-        dto.setId(supplier.getId());
-        dto.setName(supplier.getName());
-        dto.setPhone(supplier.getPhone());
-        dto.setEmail(supplier.getEmail());
-        dto.setExternalId(supplier.getExternalId());
-        dto.setFhirId(supplier.getExternalId());
-
-        SupplierDto.Audit audit = new SupplierDto.Audit();
-        audit.setCreatedDate(supplier.getCreatedDate() != null ? supplier.getCreatedDate().toString() : null);
-        audit.setLastModifiedDate(supplier.getLastModifiedDate() != null ? supplier.getLastModifiedDate().toString() : null);
-        dto.setAudit(audit);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
         return dto;
+    }
+
+    // DELETE
+    public void delete(String fhirId) {
+        log.debug("Deleting FHIR Organization (supplier): {}", fhirId);
+        fhirClientService.delete(Organization.class, fhirId, getPracticeId());
+    }
+
+    // COUNT
+    public Long countByOrg() {
+        return (long) getAll().size();
+    }
+
+    // -------- FHIR Mapping --------
+
+    private Organization toFhirOrganization(SupplierDto dto) {
+        Organization org = new Organization();
+        org.setActive(true);
+
+        // Type = supplier
+        org.addType().addCoding()
+                .setSystem("http://terminology.hl7.org/CodeSystem/organization-type")
+                .setCode("bus")
+                .setDisplay("Non-Healthcare Business Corporation");
+        org.getTypeFirstRep().setText("supplier");
+
+        // Name
+        if (dto.getName() != null) {
+            org.setName(dto.getName());
+        }
+
+        // Telecom
+        if (dto.getPhone() != null) {
+            org.addTelecom().setSystem(ContactPoint.ContactPointSystem.PHONE).setValue(dto.getPhone());
+        }
+        if (dto.getEmail() != null) {
+            org.addTelecom().setSystem(ContactPoint.ContactPointSystem.EMAIL).setValue(dto.getEmail());
+        }
+
+        return org;
+    }
+
+    private SupplierDto fromFhirOrganization(Organization org) {
+        SupplierDto dto = new SupplierDto();
+        dto.setFhirId(org.getIdElement().getIdPart());
+        dto.setExternalId(org.getIdElement().getIdPart());
+
+        // Name
+        if (org.hasName()) {
+            dto.setName(org.getName());
+        }
+
+        // Telecom
+        for (ContactPoint cp : org.getTelecom()) {
+            if (cp.getSystem() == ContactPoint.ContactPointSystem.PHONE) {
+                dto.setPhone(cp.getValue());
+            } else if (cp.getSystem() == ContactPoint.ContactPointSystem.EMAIL) {
+                dto.setEmail(cp.getValue());
+            }
+        }
+
+        return dto;
+    }
+
+    private boolean isSupplierOrg(Organization org) {
+        if (!org.hasType()) return false;
+        return org.getType().stream()
+                .anyMatch(cc -> "supplier".equalsIgnoreCase(cc.getText()));
     }
 }

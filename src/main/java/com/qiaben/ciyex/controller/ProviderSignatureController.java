@@ -193,7 +193,7 @@ public class ProviderSignatureController {
     public ResponseEntity<ApiResponse<ProviderSignatureDto>> getOne(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             var dto = service.getOne(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<ProviderSignatureDto>builder()
@@ -244,7 +244,7 @@ public class ProviderSignatureController {
     public ResponseEntity<ApiResponse<ProviderSignatureDto>> update(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody ProviderSignatureDto dto) {
         try {
             validateMandatoryFields(dto);
@@ -262,7 +262,7 @@ public class ProviderSignatureController {
     public ResponseEntity<?> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             service.delete(patientId, encounterId, id);
             return ResponseEntity.noContent().build();
@@ -277,7 +277,7 @@ public class ProviderSignatureController {
     public ResponseEntity<?> print(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
-            @PathVariable Long id) {
+            @PathVariable String id) {
         try {
             byte[] pdf = service.renderPdf(patientId, encounterId, id);
             String filename = "provider-signature-" + id + ".pdf";

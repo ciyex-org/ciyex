@@ -1,247 +1,229 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import com.qiaben.ciyex.dto.ReferralProviderDto;
-import com.qiaben.ciyex.entity.ReferralPractice;
-import com.qiaben.ciyex.entity.ReferralProvider;
-import com.qiaben.ciyex.repository.ReferralPracticeRepository;
-import com.qiaben.ciyex.repository.ReferralProviderRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * FHIR-only ReferralProvider Service.
+ * Uses FHIR Practitioner resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class ReferralProviderService {
 
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    private final ReferralProviderRepository providerRepo;
-    private final ReferralPracticeRepository practiceRepo;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    // Extension URLs
+    private static final String EXT_SPECIALTY = "http://ciyex.com/fhir/StructureDefinition/specialty";
+    private static final String EXT_NPI_ID = "http://ciyex.com/fhir/StructureDefinition/npi-id";
+    private static final String EXT_TAX_ID = "http://ciyex.com/fhir/StructureDefinition/tax-id";
+    private static final String EXT_PRACTICE_ID = "http://ciyex.com/fhir/StructureDefinition/practice-id";
+    private static final String EXT_PRACTICE_NAME = "http://ciyex.com/fhir/StructureDefinition/practice-name";
 
-    public ReferralProviderService(ReferralProviderRepository providerRepo,
-                                   ReferralPracticeRepository practiceRepo,
-                                   ExternalStorageResolver storageResolver,
-                                   OrgIntegrationConfigProvider configProvider) {
-        this.providerRepo = providerRepo;
-        this.practiceRepo = practiceRepo;
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
-    // ---------- CREATE ----------
-    @Transactional
+    // CREATE
     public ReferralProviderDto create(ReferralProviderDto dto) {
-        ReferralProvider entity = mapToEntity(dto);
-
-        // 🔴 IMPORTANT: attach a MANAGED practice
-        Long practiceId = dto.getPracticeId() != null ? dto.getPracticeId() 
-                : (dto.getPractice() != null ? dto.getPractice().getId() : null);
-        
-        if (practiceId == null) {
+        if (dto.getPracticeId() == null && (dto.getPractice() == null || dto.getPractice().getId() == null)) {
             throw new RuntimeException("Practice id is required");
         }
-        ReferralPractice practice = practiceRepo.findById(practiceId)
-                .orElseThrow(() -> new RuntimeException("Referral practice not found: " + practiceId));
-        entity.setPractice(practice);
 
-        String now = LocalDateTime.now().format(DATE_FORMATTER);
+        log.debug("Creating FHIR Practitioner (referral): {}", dto.getName());
 
-        // Save locally first
-        entity = providerRepo.save(entity);
+        Practitioner pract = toFhirPractitioner(dto);
+        var outcome = fhirClientService.create(pract, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        // Best-effort external sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            try {
-                ExternalStorage<ReferralProviderDto> external = storageResolver.resolve(ReferralProviderDto.class);
-                String externalId = external.create(mapToDto(entity));
-                entity.setFhirId(externalId);
-                entity = providerRepo.save(entity);
-                log.info("External sync (create) OK, externalId={}", externalId);
-            } catch (Exception e) {
-                log.warn("External sync (create) failed and will be skipped: {}", e.toString());
-            }
-        }
-
-        // Re-read with practice loaded to guarantee name
-        entity = providerRepo.findByIdWithPractice(entity.getId())
-                .orElse(entity); // fallback, but practice should be there
-        return mapToDto(entity);
-    }
-
-    // ---------- READ ----------
-    @Transactional(readOnly = true)
-    public ReferralProviderDto getById(Long id) {
-        ReferralProvider entity = providerRepo.findByIdWithPractice(id)
-                .orElseThrow(() -> new RuntimeException("Referral provider not found"));
-        return mapToDto(entity);
-    }
-
-    @Transactional(readOnly = true)
-    public List<ReferralProviderDto> getAll() {
-        return providerRepo.findAllWithPractice().stream()
-                .map(this::mapToDto)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public ReferralProviderDto getByIdWithPractice(Long id) {
-        return getById(id);
-    }
-
-    // ---------- UPDATE ----------
-    @Transactional
-    public ReferralProviderDto update(Long id, ReferralProviderDto dto) {
-        ReferralProvider entity = providerRepo.findByIdWithPractice(id)
-                .orElseThrow(() -> new RuntimeException("Referral provider not found"));
-
-        // map simple fields
-        entity = updateEntityFromDto(entity, dto);
-
-        // If practice id provided, reattach managed entity
-        Long practiceId = dto.getPracticeId() != null ? dto.getPracticeId() 
-                : (dto.getPractice() != null ? dto.getPractice().getId() : null);
-        
-        if (practiceId != null) {
-            ReferralPractice p = practiceRepo.findById(practiceId)
-                    .orElseThrow(() -> new RuntimeException("Referral practice not found: " + practiceId));
-            entity.setPractice(p);
-        }
-
-        entity = providerRepo.save(entity);
-
-        // Best-effort external sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            try {
-                ExternalStorage<ReferralProviderDto> external = storageResolver.resolve(ReferralProviderDto.class);
-                if (entity.getFhirId() == null) {
-                    String externalId = external.create(mapToDto(entity));
-                    entity.setFhirId(externalId);
-                    entity = providerRepo.save(entity);
-                    log.info("External sync (create-on-update) OK, externalId={}", externalId);
-                } else {
-                    external.update(mapToDto(entity), entity.getFhirId());
-                    log.info("External sync (update) OK, externalId={}", entity.getFhirId());
-                }
-            } catch (Exception e) {
-                log.warn("External sync (update) failed and will be skipped: {}", e.toString());
-            }
-        }
-
-        // Re-read with join fetch
-        entity = providerRepo.findByIdWithPractice(entity.getId())
-                .orElse(entity);
-        return mapToDto(entity);
-    }
-
-    // ---------- DELETE ----------
-    @Transactional
-    public void delete(Long id) {
-        ReferralProvider entity = providerRepo.findById(id)
-                .orElseThrow(() -> new RuntimeException("Referral provider not found"));
-        providerRepo.delete(entity);
-    }
-
-    // ---------- CUSTOM QUERIES ----------
-    @Transactional(readOnly = true)
-    public List<ReferralProviderDto> getByPracticeId(Long practiceId) {
-        return providerRepo.findByPracticeIdWithPractice(practiceId).stream()
-                .map(this::mapToDto)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public String getPracticeName(Long practiceId) {
-        return practiceRepo.findById(practiceId)
-                .map(ReferralPractice::getName)
-                .orElseThrow(() -> new RuntimeException("Referral practice not found"));
-    }
-
-    @Transactional(readOnly = true)
-    public ReferralPractice getPracticeDetails(Long practiceId) {
-        return practiceRepo.findById(practiceId)
-                .orElseThrow(() -> new RuntimeException("Referral practice not found"));
-    }
-
-    // ---------- MAPPING ----------
-    private ReferralProviderDto mapToDto(ReferralProvider entity) {
-        ReferralProviderDto dto = new ReferralProviderDto();
-        dto.setId(entity.getId());
-        dto.setName(entity.getName());
-        dto.setSpecialty(entity.getSpecialty());
-        dto.setAddress(entity.getAddress());
-        dto.setCity(entity.getCity());
-        dto.setState(entity.getState());
-        dto.setPostalCode(entity.getPostalCode());
-        dto.setCountry(entity.getCountry());
-        dto.setPhoneNumber(entity.getPhoneNumber());
-        dto.setEmail(entity.getEmail());
-        dto.setFhirId(entity.getFhirId());
-        dto.setNpiId(entity.getNpiId());
-        dto.setTaxId(entity.getTaxId());
-
-        if (entity.getPractice() != null) {
-            dto.setPracticeId(entity.getPractice().getId());
-            ReferralProviderDto.PracticeInfo pi = new ReferralProviderDto.PracticeInfo();
-            pi.setId(entity.getPractice().getId());
-            pi.setName(entity.getPractice().getName()); // now guaranteed non-null due to fetch-join or attached entity
-            dto.setPractice(pi);
-        }
-
-        ReferralProviderDto.Audit audit = new ReferralProviderDto.Audit();
-        if (entity.getCreatedDate() != null) {
-            audit.setCreatedDate(entity.getCreatedDate().format(DATE_FORMATTER));
-        }
-        if (entity.getLastModifiedDate() != null) {
-            audit.setLastModifiedDate(entity.getLastModifiedDate().format(DATE_FORMATTER));
-        }
-        dto.setAudit(audit);
+        dto.setFhirId(fhirId);
+        log.info("Created FHIR Practitioner (referral) with id: {}", fhirId);
 
         return dto;
     }
 
-    private ReferralProvider mapToEntity(ReferralProviderDto dto) {
-        return ReferralProvider.builder()
-                .name(dto.getName())
-                .specialty(dto.getSpecialty())
-                .address(dto.getAddress())
-                .city(dto.getCity())
-                .state(dto.getState())
-                .postalCode(dto.getPostalCode())
-                .country(dto.getCountry())
-                .phoneNumber(dto.getPhoneNumber())
-                .email(dto.getEmail())
-                .fhirId(dto.getFhirId())
-                .npiId(dto.getNpiId())
-                .taxId(dto.getTaxId())
-                // DO NOT set practice here; attach managed entity in create/update
-                .build();
+    // GET BY ID
+    public ReferralProviderDto getById(String fhirId) {
+        log.debug("Getting FHIR Practitioner (referral): {}", fhirId);
+        Practitioner pract = fhirClientService.read(Practitioner.class, fhirId, getPracticeId());
+        return fromFhirPractitioner(pract);
     }
 
-    private ReferralProvider updateEntityFromDto(ReferralProvider entity, ReferralProviderDto dto) {
-        if (dto.getName() != null) entity.setName(dto.getName());
-        if (dto.getSpecialty() != null) entity.setSpecialty(dto.getSpecialty());
-        if (dto.getAddress() != null) entity.setAddress(dto.getAddress());
-        if (dto.getCity() != null) entity.setCity(dto.getCity());
-        if (dto.getState() != null) entity.setState(dto.getState());
-        if (dto.getPostalCode() != null) entity.setPostalCode(dto.getPostalCode());
-        if (dto.getCountry() != null) entity.setCountry(dto.getCountry());
-        if (dto.getPhoneNumber() != null) entity.setPhoneNumber(dto.getPhoneNumber());
-        if (dto.getEmail() != null) entity.setEmail(dto.getEmail());
-        if (dto.getFhirId() != null) entity.setFhirId(dto.getFhirId());
-        if (dto.getNpiId() != null) entity.setNpiId(dto.getNpiId());
-        if (dto.getTaxId() != null) entity.setTaxId(dto.getTaxId());
-        return entity;
+    // GET BY ID WITH PRACTICE (alias for getById)
+    public ReferralProviderDto getByIdWithPractice(String fhirId) {
+        return getById(fhirId);
+    }
+
+    // GET ALL
+    public List<ReferralProviderDto> getAll() {
+        log.debug("Getting all FHIR Practitioners (referral)");
+
+        Bundle bundle = fhirClientService.search(Practitioner.class, getPracticeId());
+        List<Practitioner> practitioners = fhirClientService.extractResources(bundle, Practitioner.class);
+
+        // Filter to only referral practitioners (those with practice extension)
+        return practitioners.stream()
+                .filter(p -> p.hasExtension(EXT_PRACTICE_ID))
+                .map(this::fromFhirPractitioner)
+                .collect(Collectors.toList());
+    }
+
+    // GET BY PRACTICE ID
+    public List<ReferralProviderDto> getByPracticeId(Long practiceId) {
+        log.debug("Getting FHIR Practitioners for practice: {}", practiceId);
+
+        Bundle bundle = fhirClientService.search(Practitioner.class, getPracticeId());
+        List<Practitioner> practitioners = fhirClientService.extractResources(bundle, Practitioner.class);
+
+        return practitioners.stream()
+                .filter(p -> hasPracticeId(p, practiceId))
+                .map(this::fromFhirPractitioner)
+                .collect(Collectors.toList());
+    }
+
+    // UPDATE
+    public ReferralProviderDto update(String fhirId, ReferralProviderDto dto) {
+        log.debug("Updating FHIR Practitioner (referral): {}", fhirId);
+
+        Practitioner pract = toFhirPractitioner(dto);
+        pract.setId(fhirId);
+        fhirClientService.update(pract, getPracticeId());
+
+        dto.setFhirId(fhirId);
+        return dto;
+    }
+
+    // DELETE
+    public void delete(String fhirId) {
+        log.debug("Deleting FHIR Practitioner (referral): {}", fhirId);
+        fhirClientService.delete(Practitioner.class, fhirId, getPracticeId());
+    }
+
+    // -------- FHIR Mapping --------
+
+    private Practitioner toFhirPractitioner(ReferralProviderDto dto) {
+        Practitioner p = new Practitioner();
+        p.setActive(true);
+
+        // Name
+        if (dto.getName() != null) {
+            HumanName name = p.addName();
+            name.setText(dto.getName());
+        }
+
+        // Address
+        Address address = p.addAddress();
+        if (dto.getAddress() != null) address.addLine(dto.getAddress());
+        if (dto.getCity() != null) address.setCity(dto.getCity());
+        if (dto.getState() != null) address.setState(dto.getState());
+        if (dto.getPostalCode() != null) address.setPostalCode(dto.getPostalCode());
+        if (dto.getCountry() != null) address.setCountry(dto.getCountry());
+
+        // Telecom
+        if (dto.getPhoneNumber() != null) {
+            p.addTelecom().setSystem(ContactPoint.ContactPointSystem.PHONE).setValue(dto.getPhoneNumber());
+        }
+        if (dto.getEmail() != null) {
+            p.addTelecom().setSystem(ContactPoint.ContactPointSystem.EMAIL).setValue(dto.getEmail());
+        }
+
+        // Extensions
+        if (dto.getSpecialty() != null) {
+            p.addExtension(new Extension(EXT_SPECIALTY, new StringType(dto.getSpecialty())));
+        }
+        if (dto.getNpiId() != null) {
+            p.addExtension(new Extension(EXT_NPI_ID, new StringType(dto.getNpiId())));
+        }
+        if (dto.getTaxId() != null) {
+            p.addExtension(new Extension(EXT_TAX_ID, new StringType(dto.getTaxId())));
+        }
+
+        // Practice reference
+        Long practiceId = dto.getPracticeId() != null ? dto.getPracticeId() 
+                : (dto.getPractice() != null ? dto.getPractice().getId() : null);
+        if (practiceId != null) {
+            p.addExtension(new Extension(EXT_PRACTICE_ID, new StringType(practiceId.toString())));
+        }
+        if (dto.getPractice() != null && dto.getPractice().getName() != null) {
+            p.addExtension(new Extension(EXT_PRACTICE_NAME, new StringType(dto.getPractice().getName())));
+        }
+
+        return p;
+    }
+
+    private ReferralProviderDto fromFhirPractitioner(Practitioner p) {
+        ReferralProviderDto dto = new ReferralProviderDto();
+        dto.setFhirId(p.getIdElement().getIdPart());
+
+        // Name
+        if (p.hasName()) {
+            dto.setName(p.getNameFirstRep().getText());
+        }
+
+        // Address
+        if (p.hasAddress()) {
+            Address addr = p.getAddressFirstRep();
+            if (addr.hasLine()) dto.setAddress(addr.getLine().get(0).getValue());
+            if (addr.hasCity()) dto.setCity(addr.getCity());
+            if (addr.hasState()) dto.setState(addr.getState());
+            if (addr.hasPostalCode()) dto.setPostalCode(addr.getPostalCode());
+            if (addr.hasCountry()) dto.setCountry(addr.getCountry());
+        }
+
+        // Telecom
+        for (ContactPoint cp : p.getTelecom()) {
+            if (cp.getSystem() == ContactPoint.ContactPointSystem.PHONE) {
+                dto.setPhoneNumber(cp.getValue());
+            } else if (cp.getSystem() == ContactPoint.ContactPointSystem.EMAIL) {
+                dto.setEmail(cp.getValue());
+            }
+        }
+
+        // Extensions
+        dto.setSpecialty(getExtensionString(p, EXT_SPECIALTY));
+        dto.setNpiId(getExtensionString(p, EXT_NPI_ID));
+        dto.setTaxId(getExtensionString(p, EXT_TAX_ID));
+
+        // Practice
+        String practiceIdStr = getExtensionString(p, EXT_PRACTICE_ID);
+        String practiceName = getExtensionString(p, EXT_PRACTICE_NAME);
+        if (practiceIdStr != null) {
+            try {
+                Long practiceId = Long.parseLong(practiceIdStr);
+                dto.setPracticeId(practiceId);
+                ReferralProviderDto.PracticeInfo pi = new ReferralProviderDto.PracticeInfo();
+                pi.setId(practiceId);
+                pi.setName(practiceName);
+                dto.setPractice(pi);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        return dto;
+    }
+
+    // -------- Helpers --------
+
+    private String getExtensionString(Practitioner p, String url) {
+        Extension ext = p.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
+    }
+
+    private boolean hasPracticeId(Practitioner p, Long practiceId) {
+        String practiceIdStr = getExtensionString(p, EXT_PRACTICE_ID);
+        return practiceIdStr != null && practiceIdStr.equals(practiceId.toString());
     }
 }

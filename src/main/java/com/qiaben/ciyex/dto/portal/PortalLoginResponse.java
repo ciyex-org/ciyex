@@ -3,8 +3,6 @@ package com.qiaben.ciyex.dto.portal;
 import java.time.LocalDate;
 import java.util.List;
 
-import com.qiaben.ciyex.entity.portal.PortalUser;
-
 import lombok.Data;
 //
 @Data
@@ -37,18 +35,8 @@ public class PortalLoginResponse {
         }
     }
 
-    /**
-     * ✅ Factory method to build PortalLoginResponse from PortalUser
-     */
-    public static PortalLoginResponse fromEntity(PortalUser user) {
-        PortalLoginResponse resp = new PortalLoginResponse();
-        resp.setUserId(user.getId());
-        resp.setUuid(user.getUuid() != null ? user.getUuid().toString() : null);
-        resp.setEmail(user.getEmail());
-        resp.setFirstName(user.getFirstName());
-        resp.setLastName(user.getLastName());
-        resp.setPhone(user.getPhoneNumber());
-        // Note: Other address fields (street, city, etc.) should come from PortalPatient entity
-        return resp;
-    }
+    // Setters for FHIR compatibility
+    public void setId(Long id) { this.userId = id; }
+    public void setPhoneNumber(String phone) { this.phone = phone; }
+    public void setStatus(String status) { /* ignored for now */ }
 }

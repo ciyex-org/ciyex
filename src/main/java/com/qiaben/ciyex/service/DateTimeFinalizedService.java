@@ -1,550 +1,312 @@
-//package com.qiaben.ciyex.service;
-//
-//import com.qiaben.ciyex.dto.DateTimeFinalizedDto;
-//import com.qiaben.ciyex.entity.DateTimeFinalized;
-//import com.qiaben.ciyex.repository.DateTimeFinalizedRepository;
-//import com.qiaben.ciyex.storage.ExternalDateTimeFinalizedStorage;
-//import lombok.RequiredArgsConstructor;
-//import lombok.extern.slf4j.Slf4j;
-//import org.springframework.stereotype.Service;
-//
-//import java.time.ZoneId;
-//import java.time.format.DateTimeFormatter;
-//import java.util.List;
-//import java.util.Optional;
-//
-//@Service
-//@RequiredArgsConstructor
-//@Slf4j
-//public class DateTimeFinalizedService {
-//
-//    private final DateTimeFinalizedRepository repo;
-//    private final Optional<ExternalDateTimeFinalizedStorage> external;
-//
-//    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-//
-//    public DateTimeFinalizedDto create(Long patientId, Long encounterId, DateTimeFinalizedDto in) {
-//        DateTimeFinalized e = DateTimeFinalized.builder()
-
-//                .targetType(in.getTargetType())
-//                .targetId(in.getTargetId())
-//                .targetVersion(in.getTargetVersion())
-//                .finalizedAt(in.getFinalizedAt())
-//                .finalizedBy(in.getFinalizedBy())
-//                .finalizerRole(in.getFinalizerRole())
-//                .method(in.getMethod())
-//                .status(in.getStatus())
-//                .reason(in.getReason())
-//                .comments(in.getComments())
-//                .contentHash(in.getContentHash())
-//                .providerSignatureId(in.getProviderSignatureId())
-//                .signoffId(in.getSignoffId())
-//                .build();
-//
-//        final DateTimeFinalized saved = repo.save(e);
-//
-//        external.ifPresent(ext -> {
-//            final DateTimeFinalized ref = saved;
-//            String extId = ext.create(mapToDto(ref));
-//            ref.setExternalId(extId);
-//            repo.save(ref);
-//        });
-//
-//        return mapToDto(saved);
-//    }
-//
-//    public DateTimeFinalizedDto update(Long patientId, Long encounterId, Long id, DateTimeFinalizedDto in) {
-//        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
-//
-//        e.setTargetType(in.getTargetType());
-//        e.setTargetId(in.getTargetId());
-//        e.setTargetVersion(in.getTargetVersion());
-//        e.setFinalizedAt(in.getFinalizedAt());
-//        e.setFinalizedBy(in.getFinalizedBy());
-//        e.setFinalizerRole(in.getFinalizerRole());
-//        e.setMethod(in.getMethod());
-//        e.setStatus(in.getStatus());
-//        e.setReason(in.getReason());
-//        e.setComments(in.getComments());
-//        e.setContentHash(in.getContentHash());
-//        e.setProviderSignatureId(in.getProviderSignatureId());
-//        e.setSignoffId(in.getSignoffId());
-//
-//        final DateTimeFinalized updated = repo.save(e);
-//
-//        external.ifPresent(ext -> {
-//            final DateTimeFinalized ref = updated;
-//            if (ref.getExternalId() != null) {
-//                ext.update(ref.getExternalId(), mapToDto(ref));
-//            }
-//        });
-//
-//        return mapToDto(updated);
-//    }
-//
-//    public void delete(Long patientId, Long encounterId, Long id) {
-//        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
-//
-//        external.ifPresent(ext -> {
-//            if (e.getExternalId() != null) ext.delete(e.getExternalId());
-//        });
-//
-//        repo.delete(e);
-//    }
-//
-//    public DateTimeFinalizedDto getOne(Long patientId, Long encounterId, Long id) {
-//        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Finalization record not found"));
-//        return mapToDto(e);
-//    }
-//
-//    public List<DateTimeFinalizedDto> getAllByPatient(Long patientId) {
-//        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
-//    }
-//
-//    public List<DateTimeFinalizedDto> getAllByEncounter(Long patientId, Long encounterId) {
-//        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
-//    }
-//
-//    private DateTimeFinalizedDto mapToDto(DateTimeFinalized e) {
-//        DateTimeFinalizedDto dto = new DateTimeFinalizedDto();
-//        dto.setId(e.getId());
-//        dto.setExternalId(e.getExternalId());
-//        dto.setOrgId(e.getOrgId());
-//        dto.setPatientId(e.getPatientId());
-//        dto.setEncounterId(e.getEncounterId());
-//        dto.setTargetType(e.getTargetType());
-//        dto.setTargetId(e.getTargetId());
-//        dto.setTargetVersion(e.getTargetVersion());
-//        dto.setFinalizedAt(e.getFinalizedAt());
-//        dto.setFinalizedBy(e.getFinalizedBy());
-//        dto.setFinalizerRole(e.getFinalizerRole());
-//        dto.setMethod(e.getMethod());
-//        dto.setStatus(e.getStatus());
-//        dto.setReason(e.getReason());
-//        dto.setComments(e.getComments());
-//        dto.setContentHash(e.getContentHash());
-//        dto.setProviderSignatureId(e.getProviderSignatureId());
-//        dto.setSignoffId(e.getSignoffId());
-//
-//        DateTimeFinalizedDto.Audit a = new DateTimeFinalizedDto.Audit();
-//        if (e.getCreatedAt() != null) a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-//        if (e.getUpdatedAt() != null) a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
-//        dto.setAudit(a);
-//        return dto;
-//    }
-//}
-
-
-
-
-
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.DateTimeFinalizedDto;
-import com.qiaben.ciyex.entity.DateTimeFinalized;
-import com.qiaben.ciyex.repository.DateTimeFinalizedRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.storage.fhir.FhirExternalDateTimeFinalizedStorage;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.time.ZoneId;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.stream.Collectors;
 
+/**
+ * FHIR-only DateTimeFinalized Service.
+ * Uses FHIR Provenance resource for storing finalization records.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class DateTimeFinalizedService {
-    public List<DateTimeFinalizedDto> getAllByPatient(Long patientId) {
-        return repo.findByPatientId(patientId)
-            .stream().map(this::toDto).toList();
+
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
+
+    private static final String EXT_PATIENT = "http://ciyex.com/fhir/StructureDefinition/patient-id";
+    private static final String EXT_ENCOUNTER = "http://ciyex.com/fhir/StructureDefinition/encounter-id";
+    private static final String EXT_TARGET_TYPE = "http://ciyex.com/fhir/StructureDefinition/target-type";
+    private static final String EXT_TARGET_ID = "http://ciyex.com/fhir/StructureDefinition/target-id";
+    private static final String EXT_TARGET_VERSION = "http://ciyex.com/fhir/StructureDefinition/target-version";
+    private static final String EXT_FINALIZED_AT = "http://ciyex.com/fhir/StructureDefinition/finalized-at";
+    private static final String EXT_FINALIZED_BY = "http://ciyex.com/fhir/StructureDefinition/finalized-by";
+    private static final String EXT_FINALIZER_ROLE = "http://ciyex.com/fhir/StructureDefinition/finalizer-role";
+    private static final String EXT_METHOD = "http://ciyex.com/fhir/StructureDefinition/method";
+    private static final String EXT_STATUS = "http://ciyex.com/fhir/StructureDefinition/status";
+    private static final String EXT_REASON = "http://ciyex.com/fhir/StructureDefinition/reason";
+    private static final String EXT_COMMENTS = "http://ciyex.com/fhir/StructureDefinition/comments";
+    private static final String EXT_CONTENT_HASH = "http://ciyex.com/fhir/StructureDefinition/content-hash";
+    private static final String EXT_PROVIDER_SIG_ID = "http://ciyex.com/fhir/StructureDefinition/provider-signature-id";
+    private static final String EXT_SIGNOFF_ID = "http://ciyex.com/fhir/StructureDefinition/signoff-id";
+    private static final String EXT_ESIGNED = "http://ciyex.com/fhir/StructureDefinition/e-signed";
+    private static final String EXT_SIGNED_AT = "http://ciyex.com/fhir/StructureDefinition/signed-at";
+    private static final String EXT_SIGNED_BY = "http://ciyex.com/fhir/StructureDefinition/signed-by";
+    private static final String EXT_PRINTED_AT = "http://ciyex.com/fhir/StructureDefinition/printed-at";
+
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
-    private final DateTimeFinalizedRepository repo;
-    private final EncounterService encounterService;
-    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
-    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
-
-    @Autowired(required = false)
-    private FhirExternalDateTimeFinalizedStorage fhirStorage;
-
-    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-
-    // Create
+    // CREATE
     public DateTimeFinalizedDto create(Long patientId, Long encounterId, DateTimeFinalizedDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
+        log.debug("Creating FHIR Provenance (DateTimeFinalized) for patient {} encounter {}", patientId, encounterId);
 
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
+        Provenance prov = toFhirProvenance(dto, patientId, encounterId);
+        var outcome = fhirClientService.create(prov, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+        dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
 
-        // Step 4: Create the date/time finalized record
-        DateTimeFinalized e = new DateTimeFinalized();
-        e.setPatientId(patientId);
-        e.setEncounterId(encounterId);
-        applyDto(e, dto);
-        e = repo.save(e);
-        
-        // Step 5: Optional external FHIR sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("DateTimeFinalized create - storageType for current org: {}", storageType);
-
-        if (storageType != null) {
-            try {
-                log.info("Attempting FHIR sync for DateTimeFinalized ID: {}", e.getId());
-                ExternalStorage<DateTimeFinalizedDto> ext = storageResolver.resolve(DateTimeFinalizedDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                DateTimeFinalizedDto snapshot = toDto(e);
-                String externalId = ext.create(snapshot);
-                log.info("FHIR create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource for DateTimeFinalized ID: {} with externalId: {}", e.getId(), externalId);
-                } else {
-                    log.warn("FHIR create returned null or empty externalId for DateTimeFinalized ID: {}", e.getId());
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync DateTimeFinalized to external storage", ex);
-            }
-        } else if (fhirStorage != null) {
-            try {
-                log.info("No storage type configured, falling back to direct FHIR storage for DateTimeFinalized ID: {}", e.getId());
-                DateTimeFinalizedDto snapshot = toDto(e);
-                String externalId = fhirStorage.create(snapshot);
-                log.info("FHIR fallback create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource (fallback) for DateTimeFinalized ID: {} with externalId: {}", e.getId(), externalId);
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync DateTimeFinalized to external storage (fallback)", ex);
-            }
-        } else {
-            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for DateTimeFinalized ID: {}", e.getId());
-        }
-
-        if (e.getExternalId() == null) {
-            String generatedId = "DTF-" + System.currentTimeMillis();
-            e.setExternalId(generatedId);
-            e.setFhirId(generatedId);
-            e = repo.save(e);
-            log.info("Auto-generated externalId: {}", generatedId);
-        } else {
-            e.setFhirId(e.getExternalId());
-            e = repo.save(e);
-        }
-
-        return toDto(e);
+        log.info("Created FHIR Provenance (DateTimeFinalized) with id: {}", fhirId);
+        return dto;
     }
 
-    // Read
-    public DateTimeFinalizedDto getOne(Long patientId, Long encounterId, Long id) {
-        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Date/Time Finalized not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-        return toDto(e);
+    // GET ONE
+    public DateTimeFinalizedDto getOne(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Getting DateTimeFinalized {} for patient {} encounter {}", fhirId, patientId, encounterId);
+        Provenance prov = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
+        return fromFhirProvenance(prov);
     }
 
+    // LIST by encounter
     public List<DateTimeFinalizedDto> list(Long patientId, Long encounterId) {
-        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
-                .stream().map(this::toDto).toList();
+        log.debug("Listing DateTimeFinalized for patient {} encounter {}", patientId, encounterId);
+        Bundle bundle = fhirClientService.search(Provenance.class, getPracticeId());
+
+        return fhirClientService.extractResources(bundle, Provenance.class).stream()
+                .filter(p -> patientId.equals(getPatientId(p)) && encounterId.equals(getEncounterId(p)))
+                .map(this::fromFhirProvenance)
+                .collect(Collectors.toList());
     }
 
-    // Update (LOCKED if eSigned)
-    public DateTimeFinalizedDto update(Long patientId, Long encounterId, Long id, DateTimeFinalizedDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
+    // GET ALL by patient
+    public List<DateTimeFinalizedDto> getAllByPatient(Long patientId) {
+        log.debug("Getting all DateTimeFinalized for patient {}", patientId);
+        Bundle bundle = fhirClientService.search(Provenance.class, getPracticeId());
 
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
+        return fhirClientService.extractResources(bundle, Provenance.class).stream()
+                .filter(p -> patientId.equals(getPatientId(p)))
+                .map(this::fromFhirProvenance)
+                .collect(Collectors.toList());
+    }
 
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+    // UPDATE
+    public DateTimeFinalizedDto update(Long patientId, Long encounterId, String fhirId, DateTimeFinalizedDto dto) {
+        log.debug("Updating DateTimeFinalized {} for patient {} encounter {}", fhirId, patientId, encounterId);
 
-        // Step 4: Find the date/time finalized record
-        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Date/Time Finalized not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-
-        // Step 5: Check if date/time finalized itself is signed
-        if (Boolean.TRUE.equals(e.getESigned())) {
+        // Check if already eSigned
+        Provenance existing = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
+        if (Boolean.TRUE.equals(getBoolExt(existing, EXT_ESIGNED))) {
             throw new IllegalStateException("Signed finalizations are read-only.");
         }
 
-        // Step 6: Update the date/time finalized record
-        applyDto(e, dto);
-        e = repo.save(e);
-        
-        // Step 7: Optional external FHIR sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("DateTimeFinalized update - storageType for current org: {}", storageType);
+        Provenance prov = toFhirProvenance(dto, patientId, encounterId);
+        prov.setId(fhirId);
+        fhirClientService.update(prov, getPracticeId());
 
-        if (storageType != null) {
-            try {
-                log.info("Attempting FHIR sync for DateTimeFinalized ID: {}", e.getId());
-                ExternalStorage<DateTimeFinalizedDto> ext = storageResolver.resolve(DateTimeFinalizedDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                DateTimeFinalizedDto snapshot = toDto(e);
-                ext.update(snapshot, e.getExternalId());
-                log.info("Updated FHIR resource for DateTimeFinalized ID: {}", e.getId());
-            } catch (Exception ex) {
-                log.error("Failed to sync DateTimeFinalized to external storage", ex);
-            }
-        } else if (fhirStorage != null) {
-            try {
-                log.info("No storage type configured, falling back to direct FHIR storage for DateTimeFinalized ID: {}", e.getId());
-                DateTimeFinalizedDto snapshot = toDto(e);
-                fhirStorage.update(snapshot, e.getExternalId());
-                log.info("Updated FHIR resource (fallback) for DateTimeFinalized ID: {}", e.getId());
-            } catch (Exception ex) {
-                log.error("Failed to sync DateTimeFinalized to external storage (fallback)", ex);
-            }
-        } else {
-            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for DateTimeFinalized ID: {}", e.getId());
-        }
-
-        return toDto(e);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+        return dto;
     }
 
-    // Delete (BLOCKED if eSigned)
-    public void delete(Long patientId, Long encounterId, Long id) {
-        // Step 1: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+    // DELETE
+    public void delete(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Deleting DateTimeFinalized {} for patient {} encounter {}", fhirId, patientId, encounterId);
 
-        // Step 2: Find the date/time finalized record
-        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Date/Time Finalized not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-
-        // Step 3: Check if date/time finalized itself is signed
-        if (Boolean.TRUE.equals(e.getESigned())) {
+        // Check if already eSigned
+        Provenance existing = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
+        if (Boolean.TRUE.equals(getBoolExt(existing, EXT_ESIGNED))) {
             throw new IllegalStateException("Signed finalizations cannot be deleted.");
         }
 
-        // Step 4: Optional external FHIR sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("DateTimeFinalized delete - storageType for current org: {}", storageType);
+        fhirClientService.delete(Provenance.class, fhirId, getPracticeId());
+    }
 
-        if (storageType != null) {
+    // ESIGN
+    public DateTimeFinalizedDto eSign(Long patientId, Long encounterId, String fhirId, String signedBy) {
+        log.debug("E-signing DateTimeFinalized {} for patient {} encounter {}", fhirId, patientId, encounterId);
+
+        Provenance prov = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
+
+        // Already signed - return as-is
+        if (Boolean.TRUE.equals(getBoolExt(prov, EXT_ESIGNED))) {
+            return fromFhirProvenance(prov);
+        }
+
+        // Set eSigned fields
+        prov.getExtension().removeIf(e -> EXT_ESIGNED.equals(e.getUrl()) || EXT_SIGNED_AT.equals(e.getUrl()) || EXT_SIGNED_BY.equals(e.getUrl()));
+        prov.addExtension(new Extension(EXT_ESIGNED, new BooleanType(true)));
+        prov.addExtension(new Extension(EXT_SIGNED_AT, new StringType(OffsetDateTime.now(ZoneOffset.UTC).toString())));
+        prov.addExtension(new Extension(EXT_SIGNED_BY, new StringType(StringUtils.hasText(signedBy) ? signedBy : "system")));
+
+        // Set status to finalized if not set
+        if (getStringExt(prov, EXT_STATUS) == null) {
+            prov.addExtension(new Extension(EXT_STATUS, new StringType("finalized")));
+        }
+
+        fhirClientService.update(prov, getPracticeId());
+        return fromFhirProvenance(prov);
+    }
+
+    // PRINT PDF - returns empty for now
+    public byte[] renderPdf(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Rendering PDF for DateTimeFinalized {} patient {} encounter {}", fhirId, patientId, encounterId);
+
+        // Mark as printed
+        Provenance prov = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
+        prov.getExtension().removeIf(e -> EXT_PRINTED_AT.equals(e.getUrl()));
+        prov.addExtension(new Extension(EXT_PRINTED_AT, new StringType(OffsetDateTime.now(ZoneOffset.UTC).toString())));
+        fhirClientService.update(prov, getPracticeId());
+
+        return new byte[0];
+    }
+
+    // -------- FHIR Mapping --------
+
+    private Provenance toFhirProvenance(DateTimeFinalizedDto dto, Long patientId, Long encounterId) {
+        Provenance prov = new Provenance();
+
+        prov.addTarget(new Reference("Encounter/" + encounterId));
+        prov.setRecorded(new java.util.Date());
+
+        prov.addExtension(new Extension(EXT_PATIENT, new StringType(patientId.toString())));
+        prov.addExtension(new Extension(EXT_ENCOUNTER, new StringType(encounterId.toString())));
+
+        if (StringUtils.hasText(dto.getTargetType())) {
+            prov.addExtension(new Extension(EXT_TARGET_TYPE, new StringType(dto.getTargetType())));
+        }
+        if (dto.getTargetId() != null) {
+            prov.addExtension(new Extension(EXT_TARGET_ID, new StringType(dto.getTargetId().toString())));
+        }
+        if (StringUtils.hasText(dto.getTargetVersion())) {
+            prov.addExtension(new Extension(EXT_TARGET_VERSION, new StringType(dto.getTargetVersion())));
+        }
+        if (StringUtils.hasText(dto.getFinalizedAt())) {
+            prov.addExtension(new Extension(EXT_FINALIZED_AT, new StringType(dto.getFinalizedAt())));
+        }
+        if (StringUtils.hasText(dto.getFinalizedBy())) {
+            prov.addExtension(new Extension(EXT_FINALIZED_BY, new StringType(dto.getFinalizedBy())));
+        }
+        if (StringUtils.hasText(dto.getFinalizerRole())) {
+            prov.addExtension(new Extension(EXT_FINALIZER_ROLE, new StringType(dto.getFinalizerRole())));
+        }
+        if (StringUtils.hasText(dto.getMethod())) {
+            prov.addExtension(new Extension(EXT_METHOD, new StringType(dto.getMethod())));
+        }
+        if (StringUtils.hasText(dto.getStatus())) {
+            prov.addExtension(new Extension(EXT_STATUS, new StringType(dto.getStatus())));
+        }
+        if (StringUtils.hasText(dto.getReason())) {
+            prov.addExtension(new Extension(EXT_REASON, new StringType(dto.getReason())));
+        }
+        if (StringUtils.hasText(dto.getComments())) {
+            prov.addExtension(new Extension(EXT_COMMENTS, new StringType(dto.getComments())));
+        }
+        if (StringUtils.hasText(dto.getContentHash())) {
+            prov.addExtension(new Extension(EXT_CONTENT_HASH, new StringType(dto.getContentHash())));
+        }
+        if (dto.getProviderSignatureId() != null) {
+            prov.addExtension(new Extension(EXT_PROVIDER_SIG_ID, new StringType(dto.getProviderSignatureId().toString())));
+        }
+        if (dto.getSignoffId() != null) {
+            prov.addExtension(new Extension(EXT_SIGNOFF_ID, new StringType(dto.getSignoffId().toString())));
+        }
+
+        return prov;
+    }
+
+    private DateTimeFinalizedDto fromFhirProvenance(Provenance prov) {
+        DateTimeFinalizedDto dto = new DateTimeFinalizedDto();
+
+        String fhirId = prov.getIdElement().getIdPart();
+        dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+
+        dto.setPatientId(getPatientId(prov));
+        dto.setEncounterId(getEncounterId(prov));
+
+        dto.setTargetType(getStringExt(prov, EXT_TARGET_TYPE));
+        dto.setTargetId(getLongExt(prov, EXT_TARGET_ID));
+        dto.setTargetVersion(getStringExt(prov, EXT_TARGET_VERSION));
+        dto.setFinalizedAt(getStringExt(prov, EXT_FINALIZED_AT));
+        dto.setFinalizedBy(getStringExt(prov, EXT_FINALIZED_BY));
+        dto.setFinalizerRole(getStringExt(prov, EXT_FINALIZER_ROLE));
+        dto.setMethod(getStringExt(prov, EXT_METHOD));
+        dto.setStatus(getStringExt(prov, EXT_STATUS));
+        dto.setReason(getStringExt(prov, EXT_REASON));
+        dto.setComments(getStringExt(prov, EXT_COMMENTS));
+        dto.setContentHash(getStringExt(prov, EXT_CONTENT_HASH));
+        dto.setProviderSignatureId(getLongExt(prov, EXT_PROVIDER_SIG_ID));
+        dto.setSignoffId(getLongExt(prov, EXT_SIGNOFF_ID));
+
+        dto.setESigned(getBoolExt(prov, EXT_ESIGNED));
+        String signedAtStr = getStringExt(prov, EXT_SIGNED_AT);
+        if (signedAtStr != null) {
             try {
-                log.info("Attempting FHIR delete for DateTimeFinalized ID: {}", e.getId());
-                ExternalStorage<DateTimeFinalizedDto> ext = storageResolver.resolve(DateTimeFinalizedDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                DateTimeFinalizedDto snapshot = toDto(e);
-                ext.delete(e.getExternalId());
-                log.info("Deleted FHIR resource for DateTimeFinalized ID: {}", e.getId());
-            } catch (Exception ex) {
-                log.error("Failed to delete DateTimeFinalized from external storage", ex);
-            }
-        } else if (fhirStorage != null) {
+                dto.setSignedAt(OffsetDateTime.parse(signedAtStr));
+            } catch (Exception ignored) {}
+        }
+        dto.setSignedBy(getStringExt(prov, EXT_SIGNED_BY));
+        String printedAtStr = getStringExt(prov, EXT_PRINTED_AT);
+        if (printedAtStr != null) {
             try {
-                log.info("No storage type configured, falling back to direct FHIR storage for DateTimeFinalized ID: {}", e.getId());
-                DateTimeFinalizedDto snapshot = toDto(e);
-                fhirStorage.delete(e.getExternalId());
-                log.info("Deleted FHIR resource (fallback) for DateTimeFinalized ID: {}", e.getId());
-            } catch (Exception ex) {
-                log.error("Failed to delete DateTimeFinalized from external storage (fallback)", ex);
-            }
-        } else {
-            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR delete for DateTimeFinalized ID: {}", e.getId());
+                dto.setPrintedAt(OffsetDateTime.parse(printedAtStr));
+            } catch (Exception ignored) {}
         }
 
-        repo.delete(e);
+        DateTimeFinalizedDto.Audit audit = new DateTimeFinalizedDto.Audit();
+        audit.setCreatedDate(LocalDate.now().format(DAY));
+        audit.setLastModifiedDate(LocalDate.now().format(DAY));
+        dto.setAudit(audit);
+
+        return dto;
     }
 
-    // eSign (idempotent)
-    public DateTimeFinalizedDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
-        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Date/Time Finalized not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
+    private Long getPatientId(Provenance prov) {
+        return getLongExt(prov, EXT_PATIENT);
+    }
 
-        if (Boolean.TRUE.equals(e.getESigned())) {
-            return toDto(e);
+    private Long getEncounterId(Provenance prov) {
+        return getLongExt(prov, EXT_ENCOUNTER);
+    }
+
+    private String getStringExt(Provenance prov, String url) {
+        Extension ext = prov.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
         }
-
-        e.setESigned(Boolean.TRUE);
-        e.setSignedBy(StringUtils.hasText(signedBy) ? signedBy : "system");
-        e.setSignedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
-
-        // optional: if not set, mark status as finalized on eSign
-        if (!StringUtils.hasText(e.getStatus())) e.setStatus("finalized");
-
-        e = repo.save(e);
-        return toDto(e);
+        return null;
     }
 
-    // Print (PDF) — stamps printedAt
-    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
-        DateTimeFinalized e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Date/Time Finalized not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-
-        e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
-        repo.save(e);
-
-        try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            PDPage page = new PDPage(PDRectangle.LETTER);
-            doc.addPage(page);
-
-            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
-                float x = 64, y = 740;
-
-                // Title
-                cs.beginText();
-                cs.setFont(PDType1Font.HELVETICA_BOLD, 18);
-                cs.newLineAtOffset(x, y);
-                cs.showText("Date/Time Finalized");
-                cs.endText();
-
-                // Meta
-                y -= 26;
-                draw(cs, x, y, "Patient ID:", String.valueOf(patientId)); y -= 16;
-                draw(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 16;
-                draw(cs, x, y, "Record ID:", String.valueOf(id)); y -= 22;
-
-                // Content
-                draw(cs, x, y, "Status:", nullTo(e.getStatus(), "finalized")); y -= 16;
-                draw(cs, x, y, "Finalized At:", nullTo(e.getFinalizedAt(), "—")); y -= 16;
-                draw(cs, x, y, "Finalized By:", nullTo(e.getFinalizedBy(), "—")); y -= 16;
-                draw(cs, x, y, "Role:", nullTo(e.getFinalizerRole(), "—")); y -= 16;
-                draw(cs, x, y, "Method:", nullTo(e.getMethod(), "—")); y -= 16;
-                draw(cs, x, y, "Target:", (nullTo(e.getTargetType(), "—")
-                        + (e.getTargetId() != null ? " · " + e.getTargetId() : "")
-                        + (StringUtils.hasText(e.getTargetVersion()) ? " · v" + e.getTargetVersion() : ""))); y -= 16;
-                if (StringUtils.hasText(e.getReason())) { draw(cs, x, y, "Reason:", e.getReason()); y -= 16; }
-                if (StringUtils.hasText(e.getComments())) { draw(cs, x, y, "Notes:", e.getComments()); y -= 16; }
-                if (StringUtils.hasText(e.getContentHash())) { draw(cs, x, y, "Content Hash:", e.getContentHash()); y -= 16; }
-                if (e.getProviderSignatureId() != null) { draw(cs, x, y, "Provider Signature ID:", String.valueOf(e.getProviderSignatureId())); y -= 16; }
-                if (e.getSignoffId() != null) { draw(cs, x, y, "Sign-off ID:", String.valueOf(e.getSignoffId())); y -= 16; }
-
-                // eSign footer
-                draw(cs, x, y, "eSigned:", Boolean.TRUE.equals(e.getESigned()) ? "Yes" : "No"); y -= 16;
-                if (e.getSignedAt() != null) { draw(cs, x, y, "Signed At:", e.getSignedAt().toString()); y -= 16; }
-                if (StringUtils.hasText(e.getSignedBy())) { draw(cs, x, y, "Signed By:", e.getSignedBy()); y -= 16; }
-            }
-
-            doc.save(baos);
-            return baos.toByteArray();
-        } catch (IOException ex) {
-            throw new RuntimeException("Failed to generate Date/Time Finalized PDF", ex);
+    private Long getLongExt(Provenance prov, String url) {
+        Extension ext = prov.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            try {
+                return Long.parseLong(((StringType) ext.getValue()).getValue());
+            } catch (NumberFormatException ignored) {}
         }
+        return null;
     }
 
-    // ---- helpers ----
-    private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
-        cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
-        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 160, y); cs.showText(value != null ? value : "-"); cs.endText();
-    }
-
-    private static String nullTo(String v, String fb) { return (v == null || v.isBlank()) ? fb : v; }
-
-    private DateTimeFinalizedDto toDto(DateTimeFinalized e) {
-        DateTimeFinalizedDto d = new DateTimeFinalizedDto();
-        d.setId(e.getId());
-        d.setExternalId(e.getExternalId());
-        d.setFhirId(e.getFhirId());
-        d.setPatientId(e.getPatientId());
-        d.setEncounterId(e.getEncounterId());
-        d.setTargetType(e.getTargetType());
-        d.setTargetId(e.getTargetId());
-        d.setTargetVersion(e.getTargetVersion());
-        d.setFinalizedAt(e.getFinalizedAt());
-        d.setFinalizedBy(e.getFinalizedBy());
-        d.setFinalizerRole(e.getFinalizerRole());
-        d.setMethod(e.getMethod());
-        d.setStatus(e.getStatus());
-        d.setReason(e.getReason());
-        d.setComments(e.getComments());
-        d.setContentHash(e.getContentHash());
-        d.setProviderSignatureId(e.getProviderSignatureId());
-        d.setSignoffId(e.getSignoffId());
-        d.setESigned(e.getESigned());
-        d.setSignedAt(e.getSignedAt());
-        d.setSignedBy(e.getSignedBy());
-        d.setPrintedAt(e.getPrintedAt());
-
-        DateTimeFinalizedDto.Audit a = new DateTimeFinalizedDto.Audit();
-        if (e.getCreatedAt() != null) a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-        if (e.getUpdatedAt() != null) a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
-        d.setAudit(a);
-        return d;
-    }
-
-    private void applyDto(DateTimeFinalized e, DateTimeFinalizedDto d) {
-        e.setExternalId(d.getExternalId());
-        e.setFhirId(d.getFhirId());
-        e.setTargetType(d.getTargetType());
-        e.setTargetId(d.getTargetId());
-        e.setTargetVersion(d.getTargetVersion());
-        e.setFinalizedAt(d.getFinalizedAt());
-        e.setFinalizedBy(d.getFinalizedBy());
-        e.setFinalizerRole(d.getFinalizerRole());
-        e.setMethod(d.getMethod());
-        e.setStatus(d.getStatus());
-        e.setReason(d.getReason());
-        e.setComments(d.getComments());
-        e.setContentHash(d.getContentHash());
-        e.setProviderSignatureId(d.getProviderSignatureId());
-        e.setSignoffId(d.getSignoffId());
-        // eSign fields are managed by eSign()
+    private Boolean getBoolExt(Provenance prov, String url) {
+        Extension ext = prov.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof BooleanType) {
+            return ((BooleanType) ext.getValue()).booleanValue();
+        }
+        return null;
     }
 }

@@ -1,509 +1,268 @@
-//package com.qiaben.ciyex.service;
-//
-//import com.qiaben.ciyex.dto.ProviderSignatureDto;
-//import com.qiaben.ciyex.entity.ProviderSignature;
-//import com.qiaben.ciyex.repository.ProviderSignatureRepository;
-//import com.qiaben.ciyex.storage.ExternalProviderSignatureStorage;
-//import lombok.RequiredArgsConstructor;
-//import lombok.extern.slf4j.Slf4j;
-//import org.springframework.stereotype.Service;
-//
-//import java.time.ZoneId;
-//import java.time.format.DateTimeFormatter;
-//import java.util.List;
-//import java.util.Optional;
-//
-//@Service
-//@RequiredArgsConstructor
-//@Slf4j
-//public class ProviderSignatureService {
-//
-//    private final ProviderSignatureRepository repo;
-//    private final Optional<ExternalProviderSignatureStorage> external;
-//
-//    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-//
-//    public ProviderSignatureDto create(Long patientId, Long encounterId, ProviderSignatureDto in) {
-//        ProviderSignature e = ProviderSignature.builder()
-//
-//                .signedAt(in.getSignedAt())
-//                .signedBy(in.getSignedBy())
-//                .signerRole(in.getSignerRole())
-//                .signatureType(in.getSignatureType())
-//                .signatureFormat(in.getSignatureFormat())
-//                .signatureData(in.getSignatureData())
-//                .signatureHash(in.getSignatureHash())
-//                .status(in.getStatus())
-//                .comments(in.getComments())
-//                .build();
-//
-//        final ProviderSignature saved = repo.save(e);
-//
-//        external.ifPresent(ext -> {
-//            final ProviderSignature ref = saved;
-//            String extId = ext.create(mapToDto(ref));
-//            ref.setExternalId(extId);
-//            repo.save(ref);
-//        });
-//
-//        return mapToDto(saved);
-//    }
-//
-//    public ProviderSignatureDto update(Long patientId, Long encounterId, Long id, ProviderSignatureDto in) {
-//        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
-//
-//        e.setSignedAt(in.getSignedAt());
-//        e.setSignedBy(in.getSignedBy());
-//        e.setSignerRole(in.getSignerRole());
-//        e.setSignatureType(in.getSignatureType());
-//        e.setSignatureFormat(in.getSignatureFormat());
-//        e.setSignatureData(in.getSignatureData());
-//        e.setSignatureHash(in.getSignatureHash());
-//        e.setStatus(in.getStatus());
-//        e.setComments(in.getComments());
-//
-//        final ProviderSignature updated = repo.save(e);
-//
-//        external.ifPresent(ext -> {
-//            final ProviderSignature ref = updated;
-//            if (ref.getExternalId() != null) {
-//                ext.update(ref.getExternalId(), mapToDto(ref));
-//            }
-//        });
-//
-//        return mapToDto(updated);
-//    }
-//
-//    public void delete(Long patientId, Long encounterId, Long id) {
-//        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
-//
-//        external.ifPresent(ext -> {
-//            if (e.getExternalId() != null) ext.delete(e.getExternalId());
-//        });
-//
-//        repo.delete(e);
-//    }
-//
-//    public ProviderSignatureDto getOne(Long patientId, Long encounterId, Long id) {
-//        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("Provider signature not found"));
-//        return mapToDto(e);
-//    }
-//
-//    public List<ProviderSignatureDto> getAllByPatient(Long patientId) {
-//        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
-//    }
-//
-//    public List<ProviderSignatureDto> getAllByEncounter(Long patientId, Long encounterId) {
-//        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream().map(this::mapToDto).toList();
-//    }
-//
-//    private ProviderSignatureDto mapToDto(ProviderSignature e) {
-//        ProviderSignatureDto dto = new ProviderSignatureDto();
-//        dto.setId(e.getId());
-//        dto.setExternalId(e.getExternalId());
-//        dto.setOrgId(e.getOrgId());
-//        dto.setPatientId(e.getPatientId());
-//        dto.setEncounterId(e.getEncounterId());
-//        dto.setSignedAt(e.getSignedAt());
-//        dto.setSignedBy(e.getSignedBy());
-//        dto.setSignerRole(e.getSignerRole());
-//        dto.setSignatureType(e.getSignatureType());
-//        dto.setSignatureFormat(e.getSignatureFormat());
-//        dto.setSignatureData(e.getSignatureData());
-//        dto.setSignatureHash(e.getSignatureHash());
-//        dto.setStatus(e.getStatus());
-//        dto.setComments(e.getComments());
-//
-//        ProviderSignatureDto.Audit a = new ProviderSignatureDto.Audit();
-//        if (e.getCreatedAt() != null) a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-//        if (e.getUpdatedAt() != null) a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
-//        dto.setAudit(a);
-//        return dto;
-//    }
-//}
-
-
-
-
 package com.qiaben.ciyex.service;
 
-
 import com.qiaben.ciyex.dto.ProviderSignatureDto;
-import com.qiaben.ciyex.entity.ProviderSignature;
-import com.qiaben.ciyex.repository.ProviderSignatureRepository;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.storage.fhir.FhirExternalProviderSignatureStorage;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.ZoneId;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.stream.Collectors;
 
+/**
+ * FHIR-only Provider Signature Service.
+ * Uses FHIR Provenance resource for storing provider signatures.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ProviderSignatureService {
-    public List<ProviderSignatureDto> getAllByPatient(Long patientId) {
-        return repo.findByPatientId(patientId)
-            .stream().map(this::toDto).toList();
+
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
+
+    private static final String EXT_PATIENT = "http://ciyex.com/fhir/StructureDefinition/patient-id";
+    private static final String EXT_ENCOUNTER = "http://ciyex.com/fhir/StructureDefinition/encounter-id";
+    private static final String EXT_SIGNED_AT = "http://ciyex.com/fhir/StructureDefinition/signed-at";
+    private static final String EXT_SIGNED_BY = "http://ciyex.com/fhir/StructureDefinition/signed-by";
+    private static final String EXT_SIGNER_ROLE = "http://ciyex.com/fhir/StructureDefinition/signer-role";
+    private static final String EXT_SIG_TYPE = "http://ciyex.com/fhir/StructureDefinition/signature-type";
+    private static final String EXT_SIG_FORMAT = "http://ciyex.com/fhir/StructureDefinition/signature-format";
+    private static final String EXT_SIG_DATA = "http://ciyex.com/fhir/StructureDefinition/signature-data";
+    private static final String EXT_SIG_HASH = "http://ciyex.com/fhir/StructureDefinition/signature-hash";
+    private static final String EXT_STATUS = "http://ciyex.com/fhir/StructureDefinition/status";
+    private static final String EXT_COMMENTS = "http://ciyex.com/fhir/StructureDefinition/comments";
+
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
-    private final ProviderSignatureRepository repo;
-    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
-    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
-    private final EncounterService encounterService;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
-
-    @Autowired(required = false)
-    private FhirExternalProviderSignatureStorage fhirStorage;
-    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-
-    // Create
+    // CREATE
     public ProviderSignatureDto create(Long patientId, Long encounterId, ProviderSignatureDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-        // Step 4: Create the provider signature
-        ProviderSignature e = new ProviderSignature();
-        e.setPatientId(patientId);
-        e.setEncounterId(encounterId);
-        applyDto(e, dto);
-        if (StringUtils.hasText(e.getSignatureData())) {
-            e.setSignatureHash(sha256(e.getSignatureData()));
-        }
-        if (StringUtils.hasText(dto.getStatus())) {
-            e.setStatus(dto.getStatus());
-        } else {
-            e.setStatus(null);
-        }
-        e = repo.save(e);
-        
-        // Step 5: Optional external FHIR sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("ProviderSignature create - storageType for current org: {}", storageType);
+        log.debug("Creating FHIR Provenance (ProviderSignature) for patient {} encounter {}", patientId, encounterId);
 
-        if (storageType != null) {
-            try {
-                log.info("Attempting FHIR sync for ProviderSignature ID: {}", e.getId());
-                ExternalStorage<ProviderSignatureDto> ext = storageResolver.resolve(ProviderSignatureDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                ProviderSignatureDto snapshot = toDto(e);
-                String externalId = ext.create(snapshot);
-                log.info("FHIR create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource for ProviderSignature ID: {} with externalId: {}", e.getId(), externalId);
-                } else {
-                    log.warn("FHIR create returned null or empty externalId for ProviderSignature ID: {}", e.getId());
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync ProviderSignature to external storage", ex);
-            }
-        } else if (fhirStorage != null) {
-            try {
-                log.info("No storage type configured, falling back to direct FHIR storage for ProviderSignature ID: {}", e.getId());
-                ProviderSignatureDto snapshot = toDto(e);
-                String externalId = fhirStorage.create(snapshot);
-                log.info("FHIR fallback create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource (fallback) for ProviderSignature ID: {} with externalId: {}", e.getId(), externalId);
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync ProviderSignature to external storage (fallback)", ex);
-            }
-        } else {
-            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ProviderSignature ID: {}", e.getId());
+        // Compute hash if signature data present
+        if (StringUtils.hasText(dto.getSignatureData())) {
+            dto.setSignatureHash(sha256(dto.getSignatureData()));
         }
 
-        if (e.getExternalId() == null) {
-            String generatedId = "PS-" + System.currentTimeMillis();
-            e.setExternalId(generatedId);
-            e.setFhirId(generatedId);
-            e = repo.save(e);
-            log.info("Auto-generated externalId: {}", generatedId);
-        } else {
-            e.setFhirId(e.getExternalId());
-            e = repo.save(e);
-        }
+        Provenance prov = toFhirProvenance(dto, patientId, encounterId);
+        var outcome = fhirClientService.create(prov, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        return toDto(e);
+        dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+
+        log.info("Created FHIR Provenance (ProviderSignature) with id: {}", fhirId);
+        return dto;
     }
 
-    // eSign alias (same as create)
+    // ESIGN alias
     public ProviderSignatureDto eSign(Long patientId, Long encounterId, ProviderSignatureDto dto) {
         return create(patientId, encounterId, dto);
     }
 
-    public ProviderSignatureDto getOne(Long patientId, Long encounterId, Long id) {
-        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Provider Signature not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        return toDto(e);
+    // GET ONE
+    public ProviderSignatureDto getOne(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Getting provider signature {} for patient {} encounter {}", fhirId, patientId, encounterId);
+        Provenance prov = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
+        return fromFhirProvenance(prov);
     }
 
+    // LIST by encounter
     public List<ProviderSignatureDto> list(Long patientId, Long encounterId) {
-        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
-                .map(this::toDto).toList();
+        log.debug("Listing provider signatures for patient {} encounter {}", patientId, encounterId);
+        Bundle bundle = fhirClientService.search(Provenance.class, getPracticeId());
+
+        return fhirClientService.extractResources(bundle, Provenance.class).stream()
+                .filter(p -> patientId.equals(getPatientId(p)) && encounterId.equals(getEncounterId(p)))
+                .map(this::fromFhirProvenance)
+                .collect(Collectors.toList());
     }
 
-    public ProviderSignatureDto update(Long patientId, Long encounterId, Long id, ProviderSignatureDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-        // Step 4: Find the provider signature
-        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Provider Signature not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-        applyDto(e, dto);
-        if (StringUtils.hasText(e.getSignatureData())) {
-            e.setSignatureHash(sha256(e.getSignatureData()));
-        }
-        e = repo.save(e);
+    // GET ALL by patient
+    public List<ProviderSignatureDto> getAllByPatient(Long patientId) {
+        log.debug("Getting all provider signatures for patient {}", patientId);
+        Bundle bundle = fhirClientService.search(Provenance.class, getPracticeId());
 
-        // Optional external FHIR sync
-        if (e.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("ProviderSignature update - storageType for current org: {}", storageType);
-
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR sync for ProviderSignature ID: {}", e.getId());
-                    ExternalStorage<ProviderSignatureDto> ext = storageResolver.resolve(ProviderSignatureDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                    ProviderSignatureDto snapshot = toDto(e);
-                    ext.update(snapshot, e.getExternalId());
-                    log.info("Updated FHIR resource for ProviderSignature ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync ProviderSignature update to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for ProviderSignature ID: {}", e.getId());
-                    ProviderSignatureDto snapshot = toDto(e);
-                    fhirStorage.update(snapshot, e.getExternalId());
-                    log.info("Updated FHIR resource (fallback) for ProviderSignature ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync ProviderSignature update to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ProviderSignature ID: {}", e.getId());
-            }
-        }
-
-        return toDto(e);
+        return fhirClientService.extractResources(bundle, Provenance.class).stream()
+                .filter(p -> patientId.equals(getPatientId(p)))
+                .map(this::fromFhirProvenance)
+                .collect(Collectors.toList());
     }
 
-    public void delete(Long patientId, Long encounterId, Long id) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
-        // Step 4: Find the provider signature
-        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Provider Signature not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
+    // UPDATE
+    public ProviderSignatureDto update(Long patientId, Long encounterId, String fhirId, ProviderSignatureDto dto) {
+        log.debug("Updating provider signature {} for patient {} encounter {}", fhirId, patientId, encounterId);
 
-        // Optional external FHIR sync
-        if (e.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("ProviderSignature delete - storageType for current org: {}", storageType);
-
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR delete for ProviderSignature ID: {}", e.getId());
-                    ExternalStorage<ProviderSignatureDto> ext = storageResolver.resolve(ProviderSignatureDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                    ext.delete(e.getExternalId());
-                    log.info("Deleted FHIR resource for ProviderSignature ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync ProviderSignature delete to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for ProviderSignature ID: {}", e.getId());
-                    fhirStorage.delete(e.getExternalId());
-                    log.info("Deleted FHIR resource (fallback) for ProviderSignature ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync ProviderSignature delete to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for ProviderSignature ID: {}", e.getId());
-            }
+        // Compute hash if signature data present
+        if (StringUtils.hasText(dto.getSignatureData())) {
+            dto.setSignatureHash(sha256(dto.getSignatureData()));
         }
 
-        repo.delete(e);
+        Provenance prov = toFhirProvenance(dto, patientId, encounterId);
+        prov.setId(fhirId);
+        fhirClientService.update(prov, getPracticeId());
+
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+        return dto;
     }
 
-    // Print a simple PDF with the signature image (if present)
-    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
-        ProviderSignature e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Provider Signature not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id)
-                ));
-
-        try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            PDPage page = new PDPage(PDRectangle.LETTER);
-            doc.addPage(page);
-
-            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
-                float x = 64, y = 740;
-
-                // Title
-                cs.beginText();
-                cs.setFont(PDType1Font.HELVETICA_BOLD, 18);
-                cs.newLineAtOffset(x, y);
-                cs.showText("Provider Signature");
-                cs.endText();
-
-                y -= 26;
-                draw(cs, x, y, "Patient ID:", String.valueOf(patientId)); y -= 16;
-                draw(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 16;
-                draw(cs, x, y, "Signature ID:", String.valueOf(id)); y -= 16;
-                if (StringUtils.hasText(e.getSignedAt())) { draw(cs, x, y, "Signed At:", e.getSignedAt()); y -= 16; }
-                if (StringUtils.hasText(e.getSignedBy())) { draw(cs, x, y, "Signed By:", e.getSignedBy()); y -= 16; }
-                if (StringUtils.hasText(e.getSignerRole())) { draw(cs, x, y, "Role:", e.getSignerRole()); y -= 16; }
-                if (StringUtils.hasText(e.getStatus())) { draw(cs, x, y, "Status:", e.getStatus()); y -= 16; }
-
-                if (StringUtils.hasText(e.getComments())) {
-                    y -= 8;
-                    draw(cs, x, y, "Comments:", ""); y -= 14;
-                    for (String ln : e.getComments().split("\\R")) {
-                        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x, y); cs.showText(ln); cs.endText();
-                        y -= 14;
-                    }
-                }
-
-                // (Optional) You can embed the image onto PDF using PDFBox images; keeping text-only for portability.
-            }
-
-            doc.save(baos);
-            return baos.toByteArray();
-        } catch (IOException ex) {
-            throw new RuntimeException("Failed to generate signature PDF", ex);
-        }
+    // DELETE
+    public void delete(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Deleting provider signature {} for patient {} encounter {}", fhirId, patientId, encounterId);
+        fhirClientService.delete(Provenance.class, fhirId, getPracticeId());
     }
 
-    // ---- helpers
+    // PRINT PDF - returns empty for now
+    public byte[] renderPdf(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Rendering PDF for provider signature {} patient {} encounter {}", fhirId, patientId, encounterId);
+        return new byte[0];
+    }
+
+    // -------- FHIR Mapping --------
+
+    private Provenance toFhirProvenance(ProviderSignatureDto dto, Long patientId, Long encounterId) {
+        Provenance prov = new Provenance();
+
+        // Target (encounter reference)
+        prov.addTarget(new Reference("Encounter/" + encounterId));
+
+        // Recorded time
+        prov.setRecorded(new java.util.Date());
+
+        // Patient extension
+        prov.addExtension(new Extension(EXT_PATIENT, new StringType(patientId.toString())));
+
+        // Encounter extension
+        prov.addExtension(new Extension(EXT_ENCOUNTER, new StringType(encounterId.toString())));
+
+        // Signed at
+        if (StringUtils.hasText(dto.getSignedAt())) {
+            prov.addExtension(new Extension(EXT_SIGNED_AT, new StringType(dto.getSignedAt())));
+        } else {
+            prov.addExtension(new Extension(EXT_SIGNED_AT, new StringType(OffsetDateTime.now().toString())));
+        }
+
+        // Signed by
+        if (StringUtils.hasText(dto.getSignedBy())) {
+            prov.addExtension(new Extension(EXT_SIGNED_BY, new StringType(dto.getSignedBy())));
+        }
+
+        // Signer role
+        if (StringUtils.hasText(dto.getSignerRole())) {
+            prov.addExtension(new Extension(EXT_SIGNER_ROLE, new StringType(dto.getSignerRole())));
+        }
+
+        // Signature type
+        if (StringUtils.hasText(dto.getSignatureType())) {
+            prov.addExtension(new Extension(EXT_SIG_TYPE, new StringType(dto.getSignatureType())));
+        }
+
+        // Signature format
+        if (StringUtils.hasText(dto.getSignatureFormat())) {
+            prov.addExtension(new Extension(EXT_SIG_FORMAT, new StringType(dto.getSignatureFormat())));
+        }
+
+        // Signature data (base64)
+        if (StringUtils.hasText(dto.getSignatureData())) {
+            prov.addExtension(new Extension(EXT_SIG_DATA, new StringType(dto.getSignatureData())));
+        }
+
+        // Signature hash
+        if (StringUtils.hasText(dto.getSignatureHash())) {
+            prov.addExtension(new Extension(EXT_SIG_HASH, new StringType(dto.getSignatureHash())));
+        }
+
+        // Status
+        if (StringUtils.hasText(dto.getStatus())) {
+            prov.addExtension(new Extension(EXT_STATUS, new StringType(dto.getStatus())));
+        }
+
+        // Comments
+        if (StringUtils.hasText(dto.getComments())) {
+            prov.addExtension(new Extension(EXT_COMMENTS, new StringType(dto.getComments())));
+        }
+
+        return prov;
+    }
+
+    private ProviderSignatureDto fromFhirProvenance(Provenance prov) {
+        ProviderSignatureDto dto = new ProviderSignatureDto();
+
+        String fhirId = prov.getIdElement().getIdPart();
+        dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+
+        dto.setPatientId(getPatientId(prov));
+        dto.setEncounterId(getEncounterId(prov));
+
+        dto.setSignedAt(getStringExt(prov, EXT_SIGNED_AT));
+        dto.setSignedBy(getStringExt(prov, EXT_SIGNED_BY));
+        dto.setSignerRole(getStringExt(prov, EXT_SIGNER_ROLE));
+        dto.setSignatureType(getStringExt(prov, EXT_SIG_TYPE));
+        dto.setSignatureFormat(getStringExt(prov, EXT_SIG_FORMAT));
+        dto.setSignatureData(getStringExt(prov, EXT_SIG_DATA));
+        dto.setSignatureHash(getStringExt(prov, EXT_SIG_HASH));
+        dto.setStatus(getStringExt(prov, EXT_STATUS));
+        dto.setComments(getStringExt(prov, EXT_COMMENTS));
+
+        // Audit
+        ProviderSignatureDto.Audit audit = new ProviderSignatureDto.Audit();
+        audit.setCreatedDate(LocalDate.now().format(DAY));
+        audit.setLastModifiedDate(LocalDate.now().format(DAY));
+        dto.setAudit(audit);
+
+        return dto;
+    }
+
+    private Long getPatientId(Provenance prov) {
+        Extension ext = prov.getExtensionByUrl(EXT_PATIENT);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            try {
+                return Long.parseLong(((StringType) ext.getValue()).getValue());
+            } catch (NumberFormatException ignored) {}
+        }
+        return null;
+    }
+
+    private Long getEncounterId(Provenance prov) {
+        Extension ext = prov.getExtensionByUrl(EXT_ENCOUNTER);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            try {
+                return Long.parseLong(((StringType) ext.getValue()).getValue());
+            } catch (NumberFormatException ignored) {}
+        }
+        return null;
+    }
+
+    private String getStringExt(Provenance prov, String url) {
+        Extension ext = prov.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
+    }
 
     private static String sha256(String base64) {
-        // Hash the original base64 string for integrity
         byte[] bytes = base64.getBytes(StandardCharsets.UTF_8);
-        return DigestUtils.md5DigestAsHex(bytes); // md5 is enough for quick fingerprint; swap to SHA-256 if preferred.
-    }
-
-    private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
-        cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
-        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
-    }
-
-    private ProviderSignatureDto toDto(ProviderSignature e) {
-        ProviderSignatureDto d = new ProviderSignatureDto();
-        d.setId(e.getId());
-        d.setExternalId(e.getExternalId());
-        d.setFhirId(e.getFhirId());
-        d.setPatientId(e.getPatientId());
-        d.setEncounterId(e.getEncounterId());
-        d.setSignedAt(e.getSignedAt());
-        d.setSignedBy(e.getSignedBy());
-        d.setSignerRole(e.getSignerRole());
-        d.setSignatureType(e.getSignatureType());
-        d.setSignatureFormat(e.getSignatureFormat());
-        d.setSignatureData(e.getSignatureData());
-        d.setSignatureHash(e.getSignatureHash());
-        d.setStatus(e.getStatus());
-        d.setComments(e.getComments());
-
-        ProviderSignatureDto.Audit a = new ProviderSignatureDto.Audit();
-        if (e.getCreatedAt() != null) a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-        if (e.getUpdatedAt() != null) a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
-        d.setAudit(a);
-        return d;
-    }
-
-    private void applyDto(ProviderSignature e, ProviderSignatureDto d) {
-        e.setExternalId(d.getExternalId());
-        e.setSignedAt(StringUtils.hasText(d.getSignedAt()) ? d.getSignedAt() : java.time.OffsetDateTime.now().toString());
-        e.setSignedBy(d.getSignedBy());
-        e.setSignerRole(d.getSignerRole());
-        e.setSignatureType(d.getSignatureType());
-        e.setSignatureFormat(d.getSignatureFormat());
-        e.setSignatureData(d.getSignatureData());
-        // Only set status if provided, do not default to "SIGNED"
-        if (StringUtils.hasText(d.getStatus())) {
-            e.setStatus(d.getStatus());
-        } else {
-            e.setStatus(null);
-        }
-        e.setComments(d.getComments());
-        // signatureHash computed automatically if data present
+        return DigestUtils.md5DigestAsHex(bytes);
     }
 }

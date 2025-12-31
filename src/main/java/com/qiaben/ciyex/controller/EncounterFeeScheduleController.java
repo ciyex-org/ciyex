@@ -44,7 +44,7 @@ public class EncounterFeeScheduleController {
     // GET one
     @GetMapping("/{patientId}/{encounterId}/{scheduleId}")
     public ResponseEntity<ApiResponse<FeeScheduleDto>> getOne(
-            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long scheduleId) {
+            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable String scheduleId) {
         var dto = service.getOne(patientId, encounterId, scheduleId);
         return ResponseEntity.ok(ApiResponse.<FeeScheduleDto>builder()
                 .success(true).message("Fee schedule fetched").data(dto).build());
@@ -63,7 +63,7 @@ public class EncounterFeeScheduleController {
     // UPDATE
     @PutMapping("/{patientId}/{encounterId}/{scheduleId}")
     public ResponseEntity<ApiResponse<FeeScheduleDto>> update(
-            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long scheduleId,
+            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable String scheduleId,
             @RequestBody FeeScheduleDto dto) {
         var updated = service.update(patientId, encounterId, scheduleId, dto);
         return ResponseEntity.ok(ApiResponse.<FeeScheduleDto>builder()
@@ -73,7 +73,7 @@ public class EncounterFeeScheduleController {
     // DELETE
     @DeleteMapping("/{patientId}/{encounterId}/{scheduleId}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long scheduleId) {
+            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable String scheduleId) {
         service.delete(patientId, encounterId, scheduleId);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .success(true).message("Fee schedule deleted").build());
@@ -82,7 +82,7 @@ public class EncounterFeeScheduleController {
     // ENTRIES
     @PostMapping("/{patientId}/{encounterId}/{scheduleId}/entries")
     public ResponseEntity<ApiResponse<FeeScheduleDto.FeeScheduleEntryDto>> addEntry(
-            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long scheduleId,
+            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable String scheduleId,
             @RequestBody FeeScheduleDto.FeeScheduleEntryDto dto) {
         var created = service.addEntry(patientId, encounterId, scheduleId, dto);
         return ResponseEntity.ok(ApiResponse.<FeeScheduleDto.FeeScheduleEntryDto>builder()
@@ -91,7 +91,7 @@ public class EncounterFeeScheduleController {
 
     @PutMapping("/{patientId}/{encounterId}/{scheduleId}/entries/{entryId}")
     public ResponseEntity<ApiResponse<FeeScheduleDto.FeeScheduleEntryDto>> updateEntry(
-            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long scheduleId,
+            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable String scheduleId,
             @PathVariable Long entryId, @RequestBody FeeScheduleDto.FeeScheduleEntryDto dto) {
         var updated = service.updateEntry(patientId, encounterId, scheduleId, entryId, dto);
         return ResponseEntity.ok(ApiResponse.<FeeScheduleDto.FeeScheduleEntryDto>builder()
@@ -100,7 +100,7 @@ public class EncounterFeeScheduleController {
 
     @DeleteMapping("/{patientId}/{encounterId}/{scheduleId}/entries/{entryId}")
     public ResponseEntity<ApiResponse<Void>> deleteEntry(
-            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long scheduleId,
+            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable String scheduleId,
             @PathVariable Long entryId) {
         service.deleteEntry(patientId, encounterId, scheduleId, entryId);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -109,7 +109,7 @@ public class EncounterFeeScheduleController {
 
     @GetMapping("/{patientId}/{encounterId}/{scheduleId}/entries")
     public ResponseEntity<ApiResponse<List<FeeScheduleDto.FeeScheduleEntryDto>>> listEntries(
-            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long scheduleId) {
+            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable String scheduleId) {
         var list = service.listEntries(patientId, encounterId, scheduleId);
         return ResponseEntity.ok(ApiResponse.<List<FeeScheduleDto.FeeScheduleEntryDto>>builder()
                 .success(true).message("Entries fetched").data(list).build());
@@ -117,7 +117,7 @@ public class EncounterFeeScheduleController {
 
     @GetMapping("/{patientId}/{encounterId}/{scheduleId}/entries/search")
     public ResponseEntity<ApiResponse<List<FeeScheduleDto.FeeScheduleEntryDto>>> searchEntries(
-            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long scheduleId,
+            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable String scheduleId,
             @RequestParam(value = "q", required = false, defaultValue = "") String q,
             @RequestParam(value = "codeType", required = false) String codeType,
             @RequestParam(value = "active", required = false) Boolean active) {

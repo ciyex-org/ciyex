@@ -1,218 +1,444 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import com.qiaben.ciyex.dto.InvoiceDto;
 import com.qiaben.ciyex.dto.InvoiceDto.LineDto;
 import com.qiaben.ciyex.dto.InvoiceDto.PaymentDto;
-
-import com.qiaben.ciyex.entity.Invoice;
-import com.qiaben.ciyex.entity.InvoiceLine;
-import com.qiaben.ciyex.entity.InvoicePayment;
-import com.qiaben.ciyex.exception.ResourceNotFoundException;
-import com.qiaben.ciyex.repository.ImmunizationRepository;
-import com.qiaben.ciyex.repository.InvoiceRepository;
-import com.qiaben.ciyex.storage.ExternalInvoiceStorage;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import java.math.BigDecimal;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * FHIR-only Invoice Service.
+ * Uses FHIR Invoice resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
-
 public class InvoiceService {
 
-    private final InvoiceRepository repo;
-    private final Optional<ExternalInvoiceStorage> external;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    // Extension URLs
+    private static final String EXT_ENCOUNTER = "http://ciyex.com/fhir/StructureDefinition/encounter-reference";
+    private static final String EXT_INVOICE_NUMBER = "http://ciyex.com/fhir/StructureDefinition/invoice-number";
+    private static final String EXT_DUE_DATE = "http://ciyex.com/fhir/StructureDefinition/due-date";
+    private static final String EXT_PAYER = "http://ciyex.com/fhir/StructureDefinition/payer";
+    private static final String EXT_CURRENCY = "http://ciyex.com/fhir/StructureDefinition/currency";
+    private static final String EXT_LINE_CODE = "http://ciyex.com/fhir/StructureDefinition/line-code";
+    private static final String EXT_LINE_QUANTITY = "http://ciyex.com/fhir/StructureDefinition/line-quantity";
+    private static final String EXT_LINE_UNIT_PRICE = "http://ciyex.com/fhir/StructureDefinition/line-unit-price";
+    private static final String EXT_PAYMENTS = "http://ciyex.com/fhir/StructureDefinition/payments";
 
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+    // CREATE
     public InvoiceDto create(Long patientId, Long encounterId, InvoiceDto in) {
-        // Validate mandatory fields
         validateInvoiceDto(in);
 
-        Invoice inv = new Invoice(); inv.setPatientId(patientId); inv.setEncounterId(encounterId);
-        inv.setInvoiceNumber(in.getInvoiceNumber());
-        inv.setStatus(in.getStatus());
-        inv.setCurrency(in.getCurrency());
-        inv.setIssueDate(in.getIssueDate());
-        inv.setDueDate(in.getDueDate());
-        inv.setPayer(in.getPayer());
-        inv.setNotes(in.getNotes());
-        inv.setExternalId(in.getExternalId());
+        in.setPatientId(patientId);
+        in.setEncounterId(encounterId);
 
-        if (in.getLines()!=null) for (LineDto l: in.getLines()) {
-            InvoiceLine il = InvoiceLine.builder()
-                    .invoice(inv)
-                    .description(l.getDescription())
-                    .code(l.getCode())
-                    .quantity(l.getQuantity())
-                    .unitPrice(dec(l.getUnitPrice()))
-                    .amount(dec(l.getAmount()))
-                    .build();
-            inv.getLines().add(il);
-        }
-        if (in.getPayments()!=null) for (PaymentDto p: in.getPayments()) {
-            InvoicePayment ip = InvoicePayment.builder()
-                    .invoice(inv)
-                    .date(p.getDate())
-                    .amount(dec(p.getAmount()))
-                    .method(p.getMethod())
-                    .reference(p.getReference())
-                    .note(p.getNote())
-                    .build();
-            inv.getPayments().add(ip);
-        }
+        // Calculate totals
+        BigDecimal gross = calculateGross(in.getLines());
+        BigDecimal paid = calculatePaid(in.getPayments());
+        in.setTotalGross(gross.toPlainString());
+        in.setTotalNet(gross.subtract(paid).toPlainString());
 
-        // totals
-        BigDecimal gross = inv.getLines().stream().map(InvoiceLine::getAmount).filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal paid  = inv.getPayments().stream().map(InvoicePayment::getAmount).filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        inv.setTotalGross(gross);
-        inv.setTotalNet(gross.subtract(paid));
+        log.debug("Creating FHIR Invoice for patient: {} encounter: {}", patientId, encounterId);
 
-        Invoice saved = repo.save(inv);
+        Invoice invoice = toFhirInvoice(in);
+        var outcome = fhirClientService.create(invoice, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        external.ifPresent(ext -> {
-            if (saved.getExternalId() == null) {
-                String extId = ext.create(mapToDto(saved));
-                saved.setExternalId(extId);
-                repo.save(saved);
-            }
-        });
-        return mapToDto(saved);
+        in.setExternalId(fhirId);
+        log.info("Created FHIR Invoice with id: {}", fhirId);
+
+        return in;
     }
 
-    public InvoiceDto update(Long patientId, Long encounterId, Long id, InvoiceDto in) {
-        // Validate mandatory fields
-        validateInvoiceDto(in);
-
-        Invoice inv = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new ResourceNotFoundException("Invoice not found with patientId: " + patientId + ", encounterId: " + encounterId + ", id: " + id));
-
-        inv.setInvoiceNumber(in.getInvoiceNumber());
-        inv.setStatus(in.getStatus());
-        inv.setCurrency(in.getCurrency());
-        inv.setIssueDate(in.getIssueDate());
-        inv.setDueDate(in.getDueDate());
-        inv.setPayer(in.getPayer());
-        inv.setNotes(in.getNotes());
-        if (in.getExternalId() != null) {
-            inv.setExternalId(in.getExternalId());
-        }
-
-        inv.getLines().clear();
-        if (in.getLines()!=null) for (LineDto l: in.getLines()) {
-            inv.getLines().add(InvoiceLine.builder()
-                    .invoice(inv)
-                    .description(l.getDescription())
-                    .code(l.getCode())
-                    .quantity(l.getQuantity())
-                    .unitPrice(dec(l.getUnitPrice()))
-                    .amount(dec(l.getAmount()))
-                    .build());
-        }
-
-        inv.getPayments().clear();
-        if (in.getPayments()!=null) for (PaymentDto p: in.getPayments()) {
-            inv.getPayments().add(InvoicePayment.builder()
-                    .invoice(inv)
-                    .date(p.getDate())
-                    .amount(dec(p.getAmount()))
-                    .method(p.getMethod())
-                    .reference(p.getReference())
-                    .note(p.getNote())
-                    .build());
-        }
-
-        BigDecimal gross = inv.getLines().stream().map(InvoiceLine::getAmount).filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal paid  = inv.getPayments().stream().map(InvoicePayment::getAmount).filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        inv.setTotalGross(gross);
-        inv.setTotalNet(gross.subtract(paid));
-
-        Invoice updated = repo.save(inv);
-        external.ifPresent(ext -> { final Invoice ref = updated;
-            if (ref.getExternalId()!=null) external.get().update(ref.getExternalId(), mapToDto(ref));
-        });
-        return mapToDto(updated);
+    // GET ONE
+    public InvoiceDto getOne(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Getting FHIR Invoice: {}", fhirId);
+        Invoice invoice = fhirClientService.read(Invoice.class, fhirId, getPracticeId());
+        return fromFhirInvoice(invoice);
     }
 
-    public void delete(Long patientId, Long encounterId, Long id) {
-        Invoice inv = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new ResourceNotFoundException("Invoice not found with patientId: " + patientId + ", encounterId: " + encounterId + ", id: " + id));
-        external.ifPresent(ext -> {/* Line 137 omitted */});
-        repo.delete(inv);
-    }
-
-    public InvoiceDto getOne(Long patientId, Long encounterId, Long id) {
-        Invoice inv = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new ResourceNotFoundException("Invoice not found with patientId: " + patientId + ", encounterId: " + encounterId + ", id: " + id));
-        return mapToDto(inv);
-    }
-
+    // GET ALL BY PATIENT
     public List<InvoiceDto> getAllByPatient(Long patientId) {
-        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
+        log.debug("Getting FHIR Invoices for patient: {}", patientId);
+
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                .forResource(Invoice.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .returnBundle(Bundle.class)
+                .execute();
+
+        List<Invoice> invoices = fhirClientService.extractResources(bundle, Invoice.class);
+        return invoices.stream().map(this::fromFhirInvoice).collect(Collectors.toList());
     }
 
+    // GET ALL BY ENCOUNTER
     public List<InvoiceDto> getAllByEncounter(Long patientId, Long encounterId) {
-        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
-                .stream().map(this::mapToDto).toList();
+        log.debug("Getting FHIR Invoices for patient: {} encounter: {}", patientId, encounterId);
+
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                .forResource(Invoice.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .returnBundle(Bundle.class)
+                .execute();
+
+        List<Invoice> invoices = fhirClientService.extractResources(bundle, Invoice.class);
+        
+        // Filter by encounter
+        return invoices.stream()
+                .filter(inv -> hasEncounter(inv, encounterId))
+                .map(this::fromFhirInvoice)
+                .collect(Collectors.toList());
     }
 
-    private InvoiceDto mapToDto(Invoice e) {
-        InvoiceDto dto = new InvoiceDto();
-        dto.setId(e.getId()); dto.setExternalId(e.getExternalId());
-        dto.setPatientId(e.getPatientId());
-        dto.setEncounterId(e.getEncounterId());
-        dto.setInvoiceNumber(e.getInvoiceNumber());
-        dto.setStatus(e.getStatus()); dto.setCurrency(e.getCurrency());
-        dto.setIssueDate(e.getIssueDate()); dto.setDueDate(e.getDueDate());
-        dto.setPayer(e.getPayer()); dto.setNotes(e.getNotes());
-        dto.setTotalGross(val(e.getTotalGross())); dto.setTotalNet(val(e.getTotalNet()));
+    // UPDATE
+    public InvoiceDto update(Long patientId, Long encounterId, String fhirId, InvoiceDto in) {
+        validateInvoiceDto(in);
 
-        List<InvoiceDto.LineDto> lines = new ArrayList<>();
-        for (InvoiceLine l : e.getLines()) {
-            InvoiceDto.LineDto ld = new InvoiceDto.LineDto();
-            ld.setId(l.getId()); ld.setDescription(l.getDescription()); ld.setCode(l.getCode());
-            ld.setQuantity(l.getQuantity()); ld.setUnitPrice(val(l.getUnitPrice())); ld.setAmount(val(l.getAmount()));
-            lines.add(ld);
+        in.setPatientId(patientId);
+        in.setEncounterId(encounterId);
+        in.setExternalId(fhirId);
+
+        // Calculate totals
+        BigDecimal gross = calculateGross(in.getLines());
+        BigDecimal paid = calculatePaid(in.getPayments());
+        in.setTotalGross(gross.toPlainString());
+        in.setTotalNet(gross.subtract(paid).toPlainString());
+
+        log.debug("Updating FHIR Invoice: {}", fhirId);
+
+        Invoice invoice = toFhirInvoice(in);
+        invoice.setId(fhirId);
+        fhirClientService.update(invoice, getPracticeId());
+
+        return in;
+    }
+
+    // DELETE
+    public void delete(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Deleting FHIR Invoice: {}", fhirId);
+        fhirClientService.delete(Invoice.class, fhirId, getPracticeId());
+    }
+
+    // -------- FHIR Mapping --------
+
+    private Invoice toFhirInvoice(InvoiceDto dto) {
+        Invoice inv = new Invoice();
+
+        // Status
+        if (dto.getStatus() != null) {
+            switch (dto.getStatus().toLowerCase()) {
+                case "draft" -> inv.setStatus(Invoice.InvoiceStatus.DRAFT);
+                case "issued" -> inv.setStatus(Invoice.InvoiceStatus.ISSUED);
+                case "balanced" -> inv.setStatus(Invoice.InvoiceStatus.BALANCED);
+                case "cancelled" -> inv.setStatus(Invoice.InvoiceStatus.CANCELLED);
+                case "entered-in-error" -> inv.setStatus(Invoice.InvoiceStatus.ENTEREDINERROR);
+                default -> inv.setStatus(Invoice.InvoiceStatus.DRAFT);
+            }
+        }
+
+        // Subject (Patient)
+        if (dto.getPatientId() != null) {
+            inv.setSubject(new Reference("Patient/" + dto.getPatientId()));
+        }
+
+        // Encounter extension
+        if (dto.getEncounterId() != null) {
+            inv.addExtension(new Extension(EXT_ENCOUNTER, new Reference("Encounter/" + dto.getEncounterId())));
+        }
+
+        // Invoice number
+        if (dto.getInvoiceNumber() != null) {
+            inv.addIdentifier().setValue(dto.getInvoiceNumber());
+            inv.addExtension(new Extension(EXT_INVOICE_NUMBER, new StringType(dto.getInvoiceNumber())));
+        }
+
+        // Issue date
+        if (dto.getIssueDate() != null) {
+            inv.setDateElement(new DateTimeType(dto.getIssueDate()));
+        }
+
+        // Due date extension
+        if (dto.getDueDate() != null) {
+            inv.addExtension(new Extension(EXT_DUE_DATE, new StringType(dto.getDueDate())));
+        }
+
+        // Payer extension
+        if (dto.getPayer() != null) {
+            inv.addExtension(new Extension(EXT_PAYER, new StringType(dto.getPayer())));
+        }
+
+        // Currency extension
+        if (dto.getCurrency() != null) {
+            inv.addExtension(new Extension(EXT_CURRENCY, new StringType(dto.getCurrency())));
+        }
+
+        // Notes
+        if (dto.getNotes() != null) {
+            inv.addNote().setText(dto.getNotes());
+        }
+
+        // Total gross
+        if (dto.getTotalGross() != null) {
+            Money totalGross = new Money();
+            totalGross.setValue(new BigDecimal(dto.getTotalGross()));
+            totalGross.setCurrency(dto.getCurrency() != null ? dto.getCurrency() : "USD");
+            inv.setTotalGross(totalGross);
+        }
+
+        // Total net
+        if (dto.getTotalNet() != null) {
+            Money totalNet = new Money();
+            totalNet.setValue(new BigDecimal(dto.getTotalNet()));
+            totalNet.setCurrency(dto.getCurrency() != null ? dto.getCurrency() : "USD");
+            inv.setTotalNet(totalNet);
+        }
+
+        // Line items
+        if (dto.getLines() != null) {
+            for (LineDto line : dto.getLines()) {
+                Invoice.InvoiceLineItemComponent lineItem = inv.addLineItem();
+                
+                // Description as ChargeItemDefinition reference or text
+                lineItem.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/line-description", 
+                        new StringType(line.getDescription())));
+                
+                if (line.getCode() != null) {
+                    lineItem.addExtension(new Extension(EXT_LINE_CODE, new StringType(line.getCode())));
+                }
+                if (line.getQuantity() != null) {
+                    lineItem.addExtension(new Extension(EXT_LINE_QUANTITY, new IntegerType(line.getQuantity())));
+                }
+                if (line.getUnitPrice() != null) {
+                    lineItem.addExtension(new Extension(EXT_LINE_UNIT_PRICE, new StringType(line.getUnitPrice())));
+                }
+
+                // Price component for amount
+                if (line.getAmount() != null) {
+                    Invoice.InvoiceLineItemPriceComponentComponent priceComponent = lineItem.addPriceComponent();
+                    priceComponent.setType(Invoice.InvoicePriceComponentType.BASE);
+                    Money amount = new Money();
+                    amount.setValue(new BigDecimal(line.getAmount()));
+                    amount.setCurrency(dto.getCurrency() != null ? dto.getCurrency() : "USD");
+                    priceComponent.setAmount(amount);
+                }
+            }
+        }
+
+        // Payments as extension (FHIR Invoice doesn't have native payment tracking)
+        if (dto.getPayments() != null && !dto.getPayments().isEmpty()) {
+            StringBuilder paymentsJson = new StringBuilder("[");
+            for (int i = 0; i < dto.getPayments().size(); i++) {
+                PaymentDto p = dto.getPayments().get(i);
+                if (i > 0) paymentsJson.append(",");
+                paymentsJson.append("{")
+                        .append("\"date\":\"").append(p.getDate() != null ? p.getDate() : "").append("\",")
+                        .append("\"amount\":\"").append(p.getAmount() != null ? p.getAmount() : "").append("\",")
+                        .append("\"method\":\"").append(p.getMethod() != null ? p.getMethod() : "").append("\",")
+                        .append("\"reference\":\"").append(p.getReference() != null ? p.getReference() : "").append("\",")
+                        .append("\"note\":\"").append(p.getNote() != null ? p.getNote() : "").append("\"")
+                        .append("}");
+            }
+            paymentsJson.append("]");
+            inv.addExtension(new Extension(EXT_PAYMENTS, new StringType(paymentsJson.toString())));
+        }
+
+        return inv;
+    }
+
+    private InvoiceDto fromFhirInvoice(Invoice inv) {
+        InvoiceDto dto = new InvoiceDto();
+        dto.setExternalId(inv.getIdElement().getIdPart());
+
+        // Status
+        if (inv.hasStatus()) {
+            dto.setStatus(inv.getStatus().toCode());
+        }
+
+        // Subject -> patientId
+        if (inv.hasSubject() && inv.getSubject().hasReference()) {
+            String ref = inv.getSubject().getReference();
+            if (ref.startsWith("Patient/")) {
+                try {
+                    dto.setPatientId(Long.parseLong(ref.substring("Patient/".length())));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Encounter extension
+        Extension encExt = inv.getExtensionByUrl(EXT_ENCOUNTER);
+        if (encExt != null && encExt.getValue() instanceof Reference) {
+            String ref = ((Reference) encExt.getValue()).getReference();
+            if (ref != null && ref.startsWith("Encounter/")) {
+                try {
+                    dto.setEncounterId(Long.parseLong(ref.substring("Encounter/".length())));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Invoice number
+        dto.setInvoiceNumber(getExtensionString(inv, EXT_INVOICE_NUMBER));
+
+        // Issue date
+        if (inv.hasDate()) {
+            dto.setIssueDate(inv.getDateElement().getValueAsString());
+        }
+
+        // Due date
+        dto.setDueDate(getExtensionString(inv, EXT_DUE_DATE));
+
+        // Payer
+        dto.setPayer(getExtensionString(inv, EXT_PAYER));
+
+        // Currency
+        dto.setCurrency(getExtensionString(inv, EXT_CURRENCY));
+
+        // Notes
+        if (inv.hasNote()) {
+            dto.setNotes(inv.getNoteFirstRep().getText());
+        }
+
+        // Total gross
+        if (inv.hasTotalGross()) {
+            dto.setTotalGross(inv.getTotalGross().getValue().toPlainString());
+        }
+
+        // Total net
+        if (inv.hasTotalNet()) {
+            dto.setTotalNet(inv.getTotalNet().getValue().toPlainString());
+        }
+
+        // Line items
+        List<LineDto> lines = new ArrayList<>();
+        for (Invoice.InvoiceLineItemComponent lineItem : inv.getLineItem()) {
+            LineDto line = new LineDto();
+            
+            Extension descExt = lineItem.getExtensionByUrl("http://ciyex.com/fhir/StructureDefinition/line-description");
+            if (descExt != null && descExt.getValue() instanceof StringType) {
+                line.setDescription(((StringType) descExt.getValue()).getValue());
+            }
+            
+            Extension codeExt = lineItem.getExtensionByUrl(EXT_LINE_CODE);
+            if (codeExt != null && codeExt.getValue() instanceof StringType) {
+                line.setCode(((StringType) codeExt.getValue()).getValue());
+            }
+            
+            Extension qtyExt = lineItem.getExtensionByUrl(EXT_LINE_QUANTITY);
+            if (qtyExt != null && qtyExt.getValue() instanceof IntegerType) {
+                line.setQuantity(((IntegerType) qtyExt.getValue()).getValue());
+            }
+            
+            Extension priceExt = lineItem.getExtensionByUrl(EXT_LINE_UNIT_PRICE);
+            if (priceExt != null && priceExt.getValue() instanceof StringType) {
+                line.setUnitPrice(((StringType) priceExt.getValue()).getValue());
+            }
+
+            if (lineItem.hasPriceComponent()) {
+                line.setAmount(lineItem.getPriceComponentFirstRep().getAmount().getValue().toPlainString());
+            }
+            
+            lines.add(line);
         }
         dto.setLines(lines);
 
-        List<InvoiceDto.PaymentDto> pays = new ArrayList<>();
-        for (InvoicePayment p : e.getPayments()) {
-            InvoiceDto.PaymentDto pd = new InvoiceDto.PaymentDto();
-            pd.setId(p.getId()); pd.setDate(p.getDate()); pd.setAmount(val(p.getAmount()));
-            pd.setMethod(p.getMethod()); pd.setReference(p.getReference()); pd.setNote(p.getNote());
-            pays.add(pd);
+        // Payments from extension
+        String paymentsJson = getExtensionString(inv, EXT_PAYMENTS);
+        if (paymentsJson != null) {
+            dto.setPayments(parsePaymentsJson(paymentsJson));
         }
-        dto.setPayments(pays);
 
-        InvoiceDto.Audit a = new InvoiceDto.Audit();
-        if (e.getCreatedAt()!=null) a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-        if (e.getUpdatedAt()!=null) a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
-        dto.setAudit(a);
         return dto;
     }
 
-    private BigDecimal dec(String s){ return (s==null||s.isBlank())? null : new BigDecimal(s); }
-    private String val(BigDecimal d){ return d==null? null : d.toPlainString(); }
+    // -------- Helpers --------
 
-    /**
-     * Validates mandatory fields in InvoiceDto.
-     * Throws IllegalArgumentException if any mandatory field is missing or empty.
-     */
+    private boolean hasEncounter(Invoice inv, Long encounterId) {
+        Extension encExt = inv.getExtensionByUrl(EXT_ENCOUNTER);
+        if (encExt != null && encExt.getValue() instanceof Reference) {
+            String ref = ((Reference) encExt.getValue()).getReference();
+            return ref != null && ref.equals("Encounter/" + encounterId);
+        }
+        return false;
+    }
+
+    private String getExtensionString(Invoice inv, String url) {
+        Extension ext = inv.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
+    }
+
+    private BigDecimal calculateGross(List<LineDto> lines) {
+        if (lines == null) return BigDecimal.ZERO;
+        return lines.stream()
+                .map(l -> l.getAmount() != null ? new BigDecimal(l.getAmount()) : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calculatePaid(List<PaymentDto> payments) {
+        if (payments == null) return BigDecimal.ZERO;
+        return payments.stream()
+                .map(p -> p.getAmount() != null ? new BigDecimal(p.getAmount()) : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private List<PaymentDto> parsePaymentsJson(String json) {
+        List<PaymentDto> payments = new ArrayList<>();
+        // Simple JSON parsing for payments array
+        if (json == null || json.equals("[]")) return payments;
+        
+        try {
+            String content = json.substring(1, json.length() - 1); // Remove [ ]
+            if (content.isEmpty()) return payments;
+            
+            // Split by },{ pattern
+            String[] items = content.split("\\},\\{");
+            for (String item : items) {
+                item = item.replace("{", "").replace("}", "");
+                PaymentDto p = new PaymentDto();
+                for (String pair : item.split(",")) {
+                    String[] kv = pair.split(":", 2);
+                    if (kv.length == 2) {
+                        String key = kv[0].replace("\"", "").trim();
+                        String value = kv[1].replace("\"", "").trim();
+                        switch (key) {
+                            case "date" -> p.setDate(value.isEmpty() ? null : value);
+                            case "amount" -> p.setAmount(value.isEmpty() ? null : value);
+                            case "method" -> p.setMethod(value.isEmpty() ? null : value);
+                            case "reference" -> p.setReference(value.isEmpty() ? null : value);
+                            case "note" -> p.setNote(value.isEmpty() ? null : value);
+                        }
+                    }
+                }
+                payments.add(p);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse payments JSON: {}", e.getMessage());
+        }
+        return payments;
+    }
+
     private void validateInvoiceDto(InvoiceDto dto) {
         List<String> errors = new ArrayList<>();
 
-        // Validate main invoice fields
         if (!StringUtils.hasText(dto.getInvoiceNumber())) {
             errors.add("Invoice number is mandatory");
         }
@@ -232,7 +458,6 @@ public class InvoiceService {
             errors.add("Payer is mandatory");
         }
 
-        // Validate lines (optional, but if provided must be valid)
         if (dto.getLines() != null && !dto.getLines().isEmpty()) {
             for (int i = 0; i < dto.getLines().size(); i++) {
                 LineDto line = dto.getLines().get(i);
@@ -249,32 +474,13 @@ public class InvoiceService {
                 }
                 if (!StringUtils.hasText(line.getUnitPrice())) {
                     errors.add(prefix + "Unit price is mandatory");
-                } else {
-                    try {
-                        BigDecimal price = new BigDecimal(line.getUnitPrice());
-                        if (price.compareTo(BigDecimal.ZERO) <= 0) {
-                            errors.add(prefix + "Unit price must be greater than 0");
-                        }
-                    } catch (NumberFormatException e) {
-                        errors.add(prefix + "Unit price must be a valid number");
-                    }
                 }
                 if (!StringUtils.hasText(line.getAmount())) {
                     errors.add(prefix + "Amount is mandatory");
-                } else {
-                    try {
-                        BigDecimal amount = new BigDecimal(line.getAmount());
-                        if (amount.compareTo(BigDecimal.ZERO) < 0) {
-                            errors.add(prefix + "Amount cannot be negative");
-                        }
-                    } catch (NumberFormatException e) {
-                        errors.add(prefix + "Amount must be a valid number");
-                    }
                 }
             }
         }
 
-        // If there are any validation errors, throw exception
         if (!errors.isEmpty()) {
             String errorMessage = "Validation failed: " + String.join("; ", errors);
             log.error("Invoice validation failed: {}", errorMessage);

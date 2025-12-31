@@ -1,13 +1,11 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import com.qiaben.ciyex.dto.PatientEducationAssignmentDto;
-import com.qiaben.ciyex.entity.PatientEducation;
-import com.qiaben.ciyex.entity.PatientEducationAssignment;
-import com.qiaben.ciyex.entity.Patient;
-import com.qiaben.ciyex.repository.PatientEducationAssignmentRepository;
-import com.qiaben.ciyex.repository.PatientEducationRepository;
-import com.qiaben.ciyex.repository.PatientRepository;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -15,108 +13,218 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * FHIR-only PatientEducationAssignment Service.
+ * Uses FHIR ServiceRequest resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PatientEducationAssignmentService {
+
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    private final PatientEducationRepository educationRepository;
-    private final PatientEducationAssignmentRepository assignmentRepository;
-    private final PatientRepository patientRepository;
+    // Extension URLs
+    private static final String EXT_PATIENT_NAME = "http://ciyex.com/fhir/StructureDefinition/patient-name";
+    private static final String EXT_NOTES = "http://ciyex.com/fhir/StructureDefinition/notes";
+    private static final String EXT_DELIVERED = "http://ciyex.com/fhir/StructureDefinition/delivered";
+    private static final String EXT_ASSIGNED_DATE = "http://ciyex.com/fhir/StructureDefinition/assigned-date";
+    private static final String EXT_TOPIC_ID = "http://ciyex.com/fhir/StructureDefinition/topic-id";
+    private static final String EXT_TOPIC_TITLE = "http://ciyex.com/fhir/StructureDefinition/topic-title";
+    private static final String EXT_TOPIC_SUMMARY = "http://ciyex.com/fhir/StructureDefinition/topic-summary";
+    private static final String EXT_TOPIC_CATEGORY = "http://ciyex.com/fhir/StructureDefinition/topic-category";
+    private static final String EXT_TOPIC_LANGUAGE = "http://ciyex.com/fhir/StructureDefinition/topic-language";
+    private static final String EXT_TOPIC_READING_LEVEL = "http://ciyex.com/fhir/StructureDefinition/topic-reading-level";
+    private static final String EXT_TOPIC_CONTENT = "http://ciyex.com/fhir/StructureDefinition/topic-content";
+    private static final String EXT_TOPIC_FHIR_ID = "http://ciyex.com/fhir/StructureDefinition/topic-fhir-id";
 
-    private PatientEducationAssignmentDto toDto(PatientEducationAssignment a) {
-        PatientEducationAssignmentDto dto = new PatientEducationAssignmentDto();
-        dto.setId(a.getId());
-        dto.setPatientId(a.getPatientId());
-        dto.setNotes(a.getNotes());
-        dto.setDelivered(a.isDelivered());
-        dto.setPatientName(a.getPatientName());
-        dto.setAssignedDate(
-                a.getAssignedDate() != null
-                        ? a.getAssignedDate().format(DateTimeFormatter.ISO_DATE_TIME)
-                        : null
-        );
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
 
-        // Wrap education into topic
-        PatientEducation edu = a.getEducation();
-        if (edu != null) {
-            PatientEducationAssignmentDto.TopicDto topic = new PatientEducationAssignmentDto.TopicDto();
-            topic.setId(edu.getId());
-            topic.setTitle(edu.getTitle());
-            topic.setSummary(edu.getSummary());
-            topic.setCategory(edu.getCategory());
-            topic.setLanguage(edu.getLanguage());
-            topic.setReadingLevel(edu.getReadingLevel());
-            topic.setContent(edu.getContent());
-            topic.setFhirId(edu.getExternalId());
-            dto.setTopic(topic);
-        }
+    // ASSIGN (CREATE)
+    public PatientEducationAssignmentDto assign(String educationId, PatientEducationAssignmentDto dto) {
+        log.debug("Creating FHIR ServiceRequest (education assignment) for patient: {}", dto.getPatientId());
 
-        PatientEducationAssignmentDto.Audit audit = new PatientEducationAssignmentDto.Audit();
-        if (a.getCreatedDate() != null) {
-            audit.setCreatedDate(a.getCreatedDate().format(DATE_FORMATTER));
-        }
-        if (a.getLastModifiedDate() != null) {
-            audit.setLastModifiedDate(a.getLastModifiedDate().format(DATE_FORMATTER));
-        }
-        dto.setAudit(audit);
+        dto.setDelivered(true);
+        dto.setAssignedDate(LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
+
+        ServiceRequest sr = toFhirServiceRequest(dto);
+        var outcome = fhirClientService.create(sr, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
+
+        dto.setFhirId(fhirId);
+        log.info("Created FHIR ServiceRequest (education assignment) with id: {}", fhirId);
 
         return dto;
     }
 
-    public PatientEducationAssignmentDto assign(Long educationId, PatientEducationAssignmentDto dto) {
-        PatientEducation education = educationRepository.findById(educationId)
-                .orElseThrow(() -> new RuntimeException("Education not found"));
+    // GET BY PATIENT
+    public List<PatientEducationAssignmentDto> getByPatient(Long patientId) {
+        log.debug("Getting FHIR ServiceRequests (education assignments) for patient: {}", patientId);
 
-        // If fhirId is provided in the request, update the education entity
-        if (dto.getFhirId() != null) {
-            education.setExternalId(dto.getFhirId());
-            educationRepository.save(education);
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                .forResource(ServiceRequest.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .returnBundle(Bundle.class)
+                .execute();
+
+        List<ServiceRequest> requests = fhirClientService.extractResources(bundle, ServiceRequest.class);
+        return requests.stream()
+                .filter(this::isEducationAssignment)
+                .map(this::fromFhirServiceRequest)
+                .collect(Collectors.toList());
+    }
+
+    // GET ALL
+    public List<PatientEducationAssignmentDto> getAll() {
+        log.debug("Getting all FHIR ServiceRequests (education assignments)");
+
+        Bundle bundle = fhirClientService.search(ServiceRequest.class, getPracticeId());
+        List<ServiceRequest> requests = fhirClientService.extractResources(bundle, ServiceRequest.class);
+
+        return requests.stream()
+                .filter(this::isEducationAssignment)
+                .map(this::fromFhirServiceRequest)
+                .collect(Collectors.toList());
+    }
+
+    // DELETE
+    public void delete(String fhirId) {
+        log.debug("Deleting FHIR ServiceRequest (education assignment): {}", fhirId);
+        fhirClientService.delete(ServiceRequest.class, fhirId, getPracticeId());
+    }
+
+    // MARK DELIVERED
+    public PatientEducationAssignmentDto markDelivered(String fhirId) {
+        log.debug("Marking FHIR ServiceRequest (education assignment) as delivered: {}", fhirId);
+
+        ServiceRequest sr = fhirClientService.read(ServiceRequest.class, fhirId, getPracticeId());
+        
+        // Update delivered extension
+        sr.getExtension().removeIf(e -> EXT_DELIVERED.equals(e.getUrl()));
+        sr.addExtension(new Extension(EXT_DELIVERED, new BooleanType(true)));
+        sr.setStatus(ServiceRequest.ServiceRequestStatus.COMPLETED);
+
+        fhirClientService.update(sr, getPracticeId());
+        return fromFhirServiceRequest(sr);
+    }
+
+    // COUNT
+    public long count() {
+        return getAll().size();
+    }
+
+    // -------- FHIR Mapping --------
+
+    private ServiceRequest toFhirServiceRequest(PatientEducationAssignmentDto dto) {
+        ServiceRequest sr = new ServiceRequest();
+        sr.setStatus(dto.isDelivered() ? ServiceRequest.ServiceRequestStatus.COMPLETED : ServiceRequest.ServiceRequestStatus.ACTIVE);
+        sr.setIntent(ServiceRequest.ServiceRequestIntent.ORDER);
+
+        // Category = education assignment
+        sr.addCategory().addCoding()
+                .setSystem("http://ciyex.com/fhir/CodeSystem/service-request-category")
+                .setCode("education-assignment")
+                .setDisplay("Patient Education Assignment");
+
+        // Subject (Patient)
+        if (dto.getPatientId() != null) {
+            sr.setSubject(new Reference("Patient/" + dto.getPatientId()));
         }
 
-        // Fetch patient to get their name
-        Patient patient = patientRepository.findById(dto.getPatientId())
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+        // Extensions
+        addStringExtension(sr, EXT_PATIENT_NAME, dto.getPatientName());
+        addStringExtension(sr, EXT_NOTES, dto.getNotes());
+        addStringExtension(sr, EXT_ASSIGNED_DATE, dto.getAssignedDate());
+        sr.addExtension(new Extension(EXT_DELIVERED, new BooleanType(dto.isDelivered())));
 
-        PatientEducationAssignment assignment = PatientEducationAssignment.builder()
-                .education(education)
-                .patientId(patient.getId())
-                .patientName(patient.getFirstName() + " " + patient.getLastName()) // populate patientName
-                .notes(dto.getNotes())
-                .delivered(true)
-                .assignedDate(LocalDateTime.now())
-                .build();
+        // Topic extensions
+        if (dto.getTopic() != null) {
+            PatientEducationAssignmentDto.TopicDto topic = dto.getTopic();
+            if (topic.getId() != null) {
+                sr.addExtension(new Extension(EXT_TOPIC_ID, new StringType(topic.getId().toString())));
+            }
+            addStringExtension(sr, EXT_TOPIC_TITLE, topic.getTitle());
+            addStringExtension(sr, EXT_TOPIC_SUMMARY, topic.getSummary());
+            addStringExtension(sr, EXT_TOPIC_CATEGORY, topic.getCategory());
+            addStringExtension(sr, EXT_TOPIC_LANGUAGE, topic.getLanguage());
+            addStringExtension(sr, EXT_TOPIC_READING_LEVEL, topic.getReadingLevel());
+            addStringExtension(sr, EXT_TOPIC_CONTENT, topic.getContent());
+            addStringExtension(sr, EXT_TOPIC_FHIR_ID, topic.getFhirId());
+        }
 
-        return toDto(assignmentRepository.save(assignment));
+        return sr;
     }
 
-    public List<PatientEducationAssignmentDto> getByPatient(Long patientId) {
-        return assignmentRepository.findByPatientId(patientId)
-                .stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+    private PatientEducationAssignmentDto fromFhirServiceRequest(ServiceRequest sr) {
+        PatientEducationAssignmentDto dto = new PatientEducationAssignmentDto();
+        dto.setFhirId(sr.getIdElement().getIdPart());
+
+        // Subject -> patientId
+        if (sr.hasSubject() && sr.getSubject().hasReference()) {
+            String ref = sr.getSubject().getReference();
+            if (ref.startsWith("Patient/")) {
+                try {
+                    dto.setPatientId(Long.parseLong(ref.substring("Patient/".length())));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Extensions
+        dto.setPatientName(getExtensionString(sr, EXT_PATIENT_NAME));
+        dto.setNotes(getExtensionString(sr, EXT_NOTES));
+        dto.setAssignedDate(getExtensionString(sr, EXT_ASSIGNED_DATE));
+
+        Extension deliveredExt = sr.getExtensionByUrl(EXT_DELIVERED);
+        if (deliveredExt != null && deliveredExt.getValue() instanceof BooleanType) {
+            dto.setDelivered(((BooleanType) deliveredExt.getValue()).booleanValue());
+        }
+
+        // Topic
+        PatientEducationAssignmentDto.TopicDto topic = new PatientEducationAssignmentDto.TopicDto();
+        String topicIdStr = getExtensionString(sr, EXT_TOPIC_ID);
+        if (topicIdStr != null) {
+            try {
+                topic.setId(Long.parseLong(topicIdStr));
+            } catch (NumberFormatException ignored) {}
+        }
+        topic.setTitle(getExtensionString(sr, EXT_TOPIC_TITLE));
+        topic.setSummary(getExtensionString(sr, EXT_TOPIC_SUMMARY));
+        topic.setCategory(getExtensionString(sr, EXT_TOPIC_CATEGORY));
+        topic.setLanguage(getExtensionString(sr, EXT_TOPIC_LANGUAGE));
+        topic.setReadingLevel(getExtensionString(sr, EXT_TOPIC_READING_LEVEL));
+        topic.setContent(getExtensionString(sr, EXT_TOPIC_CONTENT));
+        topic.setFhirId(getExtensionString(sr, EXT_TOPIC_FHIR_ID));
+        dto.setTopic(topic);
+
+        return dto;
     }
 
-    public void delete(Long id) {
-        assignmentRepository.deleteById(id);
+    // -------- Helpers --------
+
+    private boolean isEducationAssignment(ServiceRequest sr) {
+        if (!sr.hasCategory()) return false;
+        return sr.getCategory().stream()
+                .flatMap(cc -> cc.getCoding().stream())
+                .anyMatch(c -> "education-assignment".equals(c.getCode()));
     }
 
-    public PatientEducationAssignmentDto markDelivered(Long id) {
-        PatientEducationAssignment assignment = assignmentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Assignment not found"));
-        assignment.setDelivered(true);
-        return toDto(assignmentRepository.save(assignment));
+    private void addStringExtension(ServiceRequest sr, String url, String value) {
+        if (value != null) {
+            sr.addExtension(new Extension(url, new StringType(value)));
+        }
     }
 
-    public long count() {
-        return assignmentRepository.count();
-    }
-
-    public List<PatientEducationAssignmentDto> getAll() {
-        return assignmentRepository.findAll()
-                .stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+    private String getExtensionString(ServiceRequest sr, String url) {
+        Extension ext = sr.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
     }
 }

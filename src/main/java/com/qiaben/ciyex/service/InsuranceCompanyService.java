@@ -1,198 +1,189 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.InsuranceCompanyDto;
-import com.qiaben.ciyex.entity.InsuranceCompany;
-import com.qiaben.ciyex.entity.InsuranceStatus;
-import com.qiaben.ciyex.exception.ResourceNotFoundException;
-import com.qiaben.ciyex.repository.InsuranceCompanyRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * FHIR-only InsuranceCompany Service.
+ * Uses FHIR Organization (type: ins) resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class InsuranceCompanyService {
 
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    private final InsuranceCompanyRepository repository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    // Extension URLs
+    private static final String EXT_PAYER_ID = "http://ciyex.com/fhir/StructureDefinition/payer-id";
+    private static final String EXT_STATUS = "http://ciyex.com/fhir/StructureDefinition/insurance-status";
 
-    @Autowired
-    public InsuranceCompanyService(InsuranceCompanyRepository repository, ExternalStorageResolver storageResolver, OrgIntegrationConfigProvider configProvider) {
-        this.repository = repository;
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
-    @Transactional
+    // CREATE
     public InsuranceCompanyDto create(InsuranceCompanyDto dto) {
-        // Validate mandatory fields
         validateMandatoryFields(dto);
 
-        InsuranceCompany insuranceCompany = mapToEntity(dto);
+        log.debug("Creating FHIR Organization (insurance): {}", dto.getName());
 
-        String externalId = dto.getExternalId(); // Start with DTO's externalId
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            try {
-                ExternalStorage<InsuranceCompanyDto> externalStorage = storageResolver.resolve(InsuranceCompanyDto.class);
-                externalId = externalStorage.create(dto); // Override with external storage ID if available
-                log.info("Successfully created insurance company in external storage with externalId: {}", externalId);
-            } catch (Exception e) {
-                log.warn("Failed to sync with external storage, falling back to local generation: {}", e.getMessage());
-                // Fall back to auto-generation if external storage fails
-                externalId = null;
-            }
-        }
+        Organization org = toFhirOrganization(dto);
+        var outcome = fhirClientService.create(org, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        // Auto-generate externalId if not provided, no external storage, or external storage failed
-        if (externalId == null) {
-            externalId = "INS-" + System.currentTimeMillis();
-            log.info("Auto-generated externalId: {}", externalId);
-        }
-
-        insuranceCompany.setFhirId(externalId);
-        insuranceCompany = repository.save(insuranceCompany);
-        log.info("Created insurance company with id: {} and fhirId: {}", insuranceCompany.getId(), insuranceCompany.getFhirId());
-
-        return mapToDto(insuranceCompany);
-    }
-
-    @Transactional
-    public InsuranceCompanyDto updateStatus(Long id, InsuranceStatus status) {
-        InsuranceCompany entity = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Insurance company not found with id: " + id));
-        entity.setStatus(status);
-        entity = repository.save(entity);
-        return mapToDto(entity);
-    }
-
-
-    @Transactional(readOnly = true)
-    public InsuranceCompanyDto getById(Long id) {
-        InsuranceCompany entity = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Insurance company not found with id: " + id));
-        return mapToDto(entity);
-    }
-
-    @Transactional
-    public InsuranceCompanyDto update(Long id, InsuranceCompanyDto dto) {
-        InsuranceCompany entity = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Insurance company not found with id: " + id));
-        entity = updateEntityFromDto(entity, dto);
-        // Determine externalId priority: DTO.externalId > existing entity.fhirId
-        String externalId = dto.getExternalId() != null ? dto.getExternalId() : entity.getFhirId();
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-
-        if (storageType != null) {
-            try {
-                ExternalStorage<InsuranceCompanyDto> externalStorage = storageResolver.resolve(InsuranceCompanyDto.class);
-                if (externalId != null) {
-                    // Try update in external storage
-                    externalStorage.update(dto, externalId);
-                    log.info("Updated insurance company in external storage with externalId={}", externalId);
-                } else {
-                    // No external id yet - try creating in external storage
-                    String created = externalStorage.create(dto);
-                    if (created != null) {
-                        externalId = created;
-                        log.info("Created insurance company in external storage with externalId={}", externalId);
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Failed to sync with external storage during update, falling back to local state: {}", e.getMessage());
-                // fall back to local handling below
-                externalId = null;
-            }
-        }
-
-        // Ensure we have an external/fhir id; prefer DTO value, then existing entity, else generate
-        if (externalId == null) {
-            if (dto.getExternalId() != null) externalId = dto.getExternalId();
-            else if (entity.getFhirId() != null) externalId = entity.getFhirId();
-            else externalId = "INS-" + System.currentTimeMillis();
-            log.info("Using local externalId for insurance company id={} externalId={}", entity.getId(), externalId);
-        }
-
-        entity.setFhirId(externalId);
-        entity = repository.save(entity);
-        return mapToDto(entity);
-    }
-
-    @Transactional
-    public void delete(Long id) {
-        InsuranceCompany entity = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Insurance company not found with id: " + id));
-        repository.delete(entity);
-    }
-
-    @Transactional(readOnly = true)
-    public List<InsuranceCompanyDto> getAll() {
-        List<InsuranceCompany> entities = repository.findAll();
-        return entities.stream().map(this::mapToDto).collect(Collectors.toList());
-    }
-
-    private InsuranceCompanyDto mapToDto(InsuranceCompany entity) {
-        InsuranceCompanyDto dto = new InsuranceCompanyDto();
-        dto.setId(entity.getId());
-        dto.setName(entity.getName());
-        dto.setAddress(entity.getAddress());
-        dto.setCity(entity.getCity());
-        dto.setState(entity.getState());
-        dto.setPostalCode(entity.getPostalCode());
-        dto.setCountry(entity.getCountry());
-        dto.setFhirId(entity.getFhirId());
-        dto.setExternalId(entity.getFhirId()); // externalId is an alias for fhirId
-        dto.setPayerId(entity.getPayerId());
-        dto.setStatus(entity.getStatus().name());
-
-        // Initialize and set audit dates
-        InsuranceCompanyDto.Audit audit = new InsuranceCompanyDto.Audit();
-        if (entity.getCreatedDate() != null) {
-            audit.setCreatedDate(entity.getCreatedDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        }
-        if (entity.getLastModifiedDate() != null) {
-            audit.setLastModifiedDate(entity.getLastModifiedDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        }
-        dto.setAudit(audit);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        log.info("Created FHIR Organization (insurance) with id: {}", fhirId);
 
         return dto;
     }
 
-    private InsuranceCompany mapToEntity(InsuranceCompanyDto dto) {
-        return InsuranceCompany.builder()
-                .name(dto.getName())
-                .address(dto.getAddress())
-                .city(dto.getCity())
-                .state(dto.getState())
-                .postalCode(dto.getPostalCode())
-                .country(dto.getCountry())
-                .payerId(dto.getPayerId())
-                .status(InsuranceStatus.ACTIVE)
-                .build();
+    // GET BY ID
+    public InsuranceCompanyDto getById(String fhirId) {
+        log.debug("Getting FHIR Organization (insurance): {}", fhirId);
+        Organization org = fhirClientService.read(Organization.class, fhirId, getPracticeId());
+        return fromFhirOrganization(org);
     }
 
-    private InsuranceCompany updateEntityFromDto(InsuranceCompany entity, InsuranceCompanyDto dto) {
-        if (dto.getName() != null) entity.setName(dto.getName());
-        if (dto.getAddress() != null) entity.setAddress(dto.getAddress());
-        if (dto.getCity() != null) entity.setCity(dto.getCity());
-        if (dto.getState() != null) entity.setState(dto.getState());
-        if (dto.getPostalCode() != null) entity.setPostalCode(dto.getPostalCode());
-        if (dto.getCountry() != null) entity.setCountry(dto.getCountry());
-        if (dto.getPayerId() != null) entity.setPayerId(dto.getPayerId()); //
-        return entity;
+    // GET ALL
+    public List<InsuranceCompanyDto> getAll() {
+        log.debug("Getting all FHIR Organizations (insurance)");
+
+        Bundle bundle = fhirClientService.search(Organization.class, getPracticeId());
+        List<Organization> orgs = fhirClientService.extractResources(bundle, Organization.class);
+
+        // Filter by type = ins
+        return orgs.stream()
+                .filter(this::isInsuranceOrg)
+                .map(this::fromFhirOrganization)
+                .collect(Collectors.toList());
     }
+
+    // UPDATE
+    public InsuranceCompanyDto update(String fhirId, InsuranceCompanyDto dto) {
+        log.debug("Updating FHIR Organization (insurance): {}", fhirId);
+
+        Organization org = toFhirOrganization(dto);
+        org.setId(fhirId);
+        fhirClientService.update(org, getPracticeId());
+
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        return dto;
+    }
+
+    // UPDATE STATUS
+    public InsuranceCompanyDto updateStatus(String fhirId, String status) {
+        log.debug("Updating status for FHIR Organization (insurance): {} to {}", fhirId, status);
+
+        Organization org = fhirClientService.read(Organization.class, fhirId, getPracticeId());
+        
+        // Remove existing status extension and add new one
+        org.getExtension().removeIf(e -> EXT_STATUS.equals(e.getUrl()));
+        org.addExtension(new Extension(EXT_STATUS, new StringType(status)));
+        
+        fhirClientService.update(org, getPracticeId());
+        return fromFhirOrganization(org);
+    }
+
+    // DELETE
+    public void delete(String fhirId) {
+        log.debug("Deleting FHIR Organization (insurance): {}", fhirId);
+        fhirClientService.delete(Organization.class, fhirId, getPracticeId());
+    }
+
+    // -------- FHIR Mapping --------
+
+    private Organization toFhirOrganization(InsuranceCompanyDto dto) {
+        Organization org = new Organization();
+        org.setActive(true);
+
+        // Type = insurance
+        org.addType().addCoding()
+                .setSystem("http://terminology.hl7.org/CodeSystem/organization-type")
+                .setCode("ins")
+                .setDisplay("Insurance Company");
+
+        // Name
+        if (dto.getName() != null) {
+            org.setName(dto.getName());
+        }
+
+        // Address
+        Address address = org.addAddress();
+        if (dto.getAddress() != null) address.addLine(dto.getAddress());
+        if (dto.getCity() != null) address.setCity(dto.getCity());
+        if (dto.getState() != null) address.setState(dto.getState());
+        if (dto.getPostalCode() != null) address.setPostalCode(dto.getPostalCode());
+        if (dto.getCountry() != null) address.setCountry(dto.getCountry());
+
+        // Payer ID extension
+        if (dto.getPayerId() != null) {
+            org.addExtension(new Extension(EXT_PAYER_ID, new StringType(dto.getPayerId())));
+        }
+
+        // Status extension
+        String status = dto.getStatus() != null ? dto.getStatus() : "ACTIVE";
+        org.addExtension(new Extension(EXT_STATUS, new StringType(status)));
+
+        return org;
+    }
+
+    private InsuranceCompanyDto fromFhirOrganization(Organization org) {
+        InsuranceCompanyDto dto = new InsuranceCompanyDto();
+        dto.setFhirId(org.getIdElement().getIdPart());
+        dto.setExternalId(org.getIdElement().getIdPart());
+
+        // Name
+        if (org.hasName()) {
+            dto.setName(org.getName());
+        }
+
+        // Address
+        if (org.hasAddress()) {
+            Address addr = org.getAddressFirstRep();
+            if (addr.hasLine()) dto.setAddress(addr.getLine().get(0).getValue());
+            if (addr.hasCity()) dto.setCity(addr.getCity());
+            if (addr.hasState()) dto.setState(addr.getState());
+            if (addr.hasPostalCode()) dto.setPostalCode(addr.getPostalCode());
+            if (addr.hasCountry()) dto.setCountry(addr.getCountry());
+        }
+
+        // Payer ID extension
+        Extension payerExt = org.getExtensionByUrl(EXT_PAYER_ID);
+        if (payerExt != null && payerExt.getValue() instanceof StringType) {
+            dto.setPayerId(((StringType) payerExt.getValue()).getValue());
+        }
+
+        // Status extension
+        Extension statusExt = org.getExtensionByUrl(EXT_STATUS);
+        if (statusExt != null && statusExt.getValue() instanceof StringType) {
+            dto.setStatus(((StringType) statusExt.getValue()).getValue());
+        } else {
+            dto.setStatus("ACTIVE");
+        }
+
+        return dto;
+    }
+
+    private boolean isInsuranceOrg(Organization org) {
+        if (!org.hasType()) return false;
+        return org.getType().stream()
+                .flatMap(cc -> cc.getCoding().stream())
+                .anyMatch(c -> "ins".equals(c.getCode()));
+    }
+
+    // -------- Validation --------
 
     private void validateMandatoryFields(InsuranceCompanyDto dto) {
         StringBuilder errors = new StringBuilder();

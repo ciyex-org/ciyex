@@ -1,8 +1,8 @@
 // OrgConfigController.java
 package com.qiaben.ciyex.controller;
 
-import com.qiaben.ciyex.entity.OrgConfig;
 import com.qiaben.ciyex.service.OrgConfigService;
+import com.qiaben.ciyex.service.OrgConfigService.OrgConfigResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,9 +23,9 @@ public class OrgConfigController {
     private final OrgConfigService orgConfigService;
 
     @GetMapping
-    public ResponseEntity<List<OrgConfig>> getAllConfigs() {
+    public ResponseEntity<List<OrgConfigResult>> getAllConfigs() {
         log.info("[GET] /api/orgConfig - fetching all configs");
-        List<OrgConfig> configs = orgConfigService.getAllConfigs();
+        List<OrgConfigResult> configs = orgConfigService.getAllConfigs();
         log.info("[GET] /api/orgConfig - fetched {} rows", configs.size());
         return ResponseEntity.ok(configs);
     }

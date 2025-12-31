@@ -40,7 +40,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> transferOutstandingToPatient(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
+            @PathVariable String invoiceId,
             @RequestBody TransferRequest body) {
         try {
             PatientInvoiceDto updated = service.transferOutstandingToPatient(patientId, invoiceId, body.amount);
@@ -56,7 +56,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> transferOutstandingToInsurance(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
+            @PathVariable String invoiceId,
             @RequestBody TransferRequest body) {
         try {
             PatientInvoiceDto updated = service.transferOutstandingToInsurance(patientId, invoiceId, body.amount);
@@ -84,7 +84,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> backdateInvoice(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
+            @PathVariable String invoiceId,
             @RequestBody BackdateRequest body) {
         try {
             var data = service.backdateInvoice(patientId, invoiceId,
@@ -122,7 +122,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> adjustInvoice(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
+            @PathVariable String invoiceId,
             @RequestBody InvoiceAdjustmentRequest body) {
         try {
             var data = service.adjustInvoice(patientId, invoiceId, body);
@@ -179,7 +179,7 @@ public class PatientBillingController {
     @PutMapping("/invoices/{invoiceId}")
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> updateInvoiceFromProcedure(
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
+            @PathVariable String invoiceId,
             @RequestBody PatientBillingService.UpdateInvoiceRequest body) {
         try {
             if (body == null) {
@@ -202,7 +202,7 @@ public class PatientBillingController {
     @DeleteMapping("/invoices/{invoiceId}")
     public ResponseEntity<ApiResponse<Void>> deleteInvoice(
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
         try {
             service.deleteInvoice(patientId, invoiceId);
             return ResponseEntity.ok(ApiResponse.ok("Invoice deleted", null));
@@ -220,7 +220,7 @@ public class PatientBillingController {
     @GetMapping("/invoices/{invoiceId}/lines")
     public ResponseEntity<ApiResponse<List<PatientInvoiceLineDto>>> getInvoiceLines(
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
         try {
             var data = service.getInvoiceLines(patientId, invoiceId);
             return ResponseEntity.ok(ApiResponse.ok("Invoice lines loaded", data));
@@ -239,8 +239,8 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> updateInvoiceLineAmount(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @PathVariable Long lineId,
+            @PathVariable String invoiceId,
+            @PathVariable String lineId,
             @RequestBody PatientBillingService.UpdateLineAmountRequest body) {
         try {
             if (body == null || body.newCharge() == null) {
@@ -264,7 +264,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> applyInvoicePercentageAdjustment(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
+            @PathVariable String invoiceId,
             @RequestBody PatientBillingService.PercentageAdjustmentRequest body) {
         try {
             if (body == null) {
@@ -311,7 +311,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientClaimDto>> getActiveClaimForInvoice(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
         try {
             var data = service.getActiveClaimForInvoice(patientId, invoiceId);
             return ResponseEntity.ok(ApiResponse.ok("Claim loaded", data));
@@ -329,7 +329,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<List<PatientClaimDto>>> listClaimsForInvoice(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
         try {
             var data = service.listClaimsForInvoice(patientId, invoiceId);
             return ResponseEntity.ok(ApiResponse.ok("Invoice claims loaded", data));
@@ -347,7 +347,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientClaimDto>> promoteClaim(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
         try {
             var data = service.promoteClaim(patientId, invoiceId);
             return ResponseEntity.ok(ApiResponse.ok("Claim promoted", data));
@@ -365,7 +365,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientClaimDto>> sendClaimToBatch(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
         try {
             var data = service.sendClaimToBatch(patientId, invoiceId);
             return ResponseEntity.ok(ApiResponse.ok("Claim moved to batch", data));
@@ -383,7 +383,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientClaimDto>> submitClaim(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
         try {
             var data = service.submitClaim(patientId, invoiceId);
             return ResponseEntity.ok(ApiResponse.ok("Claim submitted", data));
@@ -401,7 +401,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientClaimDto>> closeClaim(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
         try {
             var data = service.closeClaim(patientId, invoiceId);
             return ResponseEntity.ok(ApiResponse.ok("Claim closed", data));
@@ -419,7 +419,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientClaimDto>> voidAndRecreateClaim(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
         try {
             var data = service.voidAndRecreateClaim(patientId, invoiceId);
             return ResponseEntity.ok(ApiResponse.ok("Claim voided and recreated", data));
@@ -438,7 +438,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientClaimDto>> updateClaim(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
+            @PathVariable String invoiceId,
             @RequestBody PatientBillingService.PatientClaimCoreUpdate body) {
         try {
             if (body == null) {
@@ -458,10 +458,10 @@ public class PatientBillingController {
     }
 
     /** Get claim line details (DOS, code, description, provider, total submitted amount) */
-    @GetMapping("/claims/{claimId}/lines")
+    @GetMapping("/{claimId}/lines")
     public ResponseEntity<ApiResponse<List<ClaimLineDetailDto>>> getClaimLineDetails(
             @PathVariable Long patientId,
-            @PathVariable Long claimId) {
+            @PathVariable String claimId) {
         try {
             var data = service.getClaimLineDetails(claimId);
             return ResponseEntity.ok(ApiResponse.ok("Claim lines loaded", data));
@@ -480,7 +480,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<Void>> uploadClaimAttachment(
 
             @PathVariable Long patientId,
-            @PathVariable Long claimId,
+            @PathVariable String claimId,
             @RequestParam("file") MultipartFile file) {
         try {
             service.uploadClaimAttachment(patientId, claimId, file);
@@ -498,7 +498,7 @@ public class PatientBillingController {
     public ResponseEntity<byte[]> getClaimAttachment(
 
             @PathVariable Long patientId,
-            @PathVariable Long claimId) {
+            @PathVariable String claimId) {
         try {
             byte[] data = service.getClaimAttachment(patientId, claimId);
             return ResponseEntity.ok()
@@ -514,7 +514,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<Void>> uploadClaimEob(
 
             @PathVariable Long patientId,
-            @PathVariable Long claimId,
+            @PathVariable String claimId,
             @RequestParam("file") MultipartFile file) {
         try {
             service.uploadClaimEob(patientId, claimId, file);
@@ -532,7 +532,7 @@ public class PatientBillingController {
     public ResponseEntity<byte[]> getClaimEob(
 
             @PathVariable Long patientId,
-            @PathVariable Long claimId) {
+            @PathVariable String claimId) {
         try {
             byte[] data = service.getClaimEob(patientId, claimId);
             return ResponseEntity.ok()
@@ -571,7 +571,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<List<PatientInsuranceRemitLineDto>>> listInsurancePaymentsForInvoice(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
         try {
             var data = service.listInsurancePayments(patientId, invoiceId, null, null);
             return ResponseEntity.ok(ApiResponse.ok("Insurance payments for invoice loaded", data));
@@ -590,7 +590,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> applyInsurancePayment(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
+            @PathVariable String invoiceId,
             @RequestBody PatientInsurancePaymentRequestDto body) {
         try {
             if (body == null || body.lines() == null || body.lines().isEmpty()) {
@@ -614,8 +614,8 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> editInsuranceRemitLine(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @PathVariable Long remitId,
+            @PathVariable String invoiceId,
+            @PathVariable String remitId,
             @RequestBody PatientInsuranceRemitLineDto body) {
         try {
             if (body == null) {
@@ -639,8 +639,8 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> voidInsurancePayment(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @PathVariable Long remitId,
+            @PathVariable String invoiceId,
+            @PathVariable String remitId,
             @RequestBody(required = false) PatientBillingService.VoidReason reason) {
         try {
             var data = service.voidInsurancePayment(patientId, invoiceId, remitId, reason);
@@ -660,8 +660,8 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> refundInsurancePayment(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @PathVariable Long remitId,
+            @PathVariable String invoiceId,
+            @PathVariable String remitId,
             @RequestBody PatientBillingService.RefundRequest body) {
         try {
             if (body == null || body.amount() == null) {
@@ -688,8 +688,8 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> transferInsuranceCreditToPatient(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @PathVariable Long remitId,
+            @PathVariable String invoiceId,
+            @PathVariable String remitId,
             @RequestBody PatientBillingService.TransferCreditRequest body) {
         try {
             if (body == null || body.amount() == null) {
@@ -715,8 +715,8 @@ public class PatientBillingController {
     @GetMapping("/invoices/{invoiceId}/insurance-payments/{remitId}/details")
     public ResponseEntity<ApiResponse<InsurancePaymentDetailDto>> getInsurancePaymentDetails(
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @PathVariable Long remitId) {
+            @PathVariable String invoiceId,
+            @PathVariable String remitId) {
         try {
             log.info("Getting insurance payment details for patient {} invoice {} remit {}", patientId, invoiceId, remitId);
             InsurancePaymentDetailDto details = service.getInsurancePaymentDetails(patientId, invoiceId, remitId);
@@ -741,7 +741,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> applyPatientPayment(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
+            @PathVariable String invoiceId,
             @RequestBody PatientPatientPaymentRequestDto body) {
         try {
             if (body == null || body.allocations() == null || body.allocations().isEmpty()) {
@@ -775,8 +775,8 @@ public class PatientBillingController {
     @GetMapping("/invoices/{invoiceId}/patient-payments/{paymentId}/details")
     public ResponseEntity<ApiResponse<PatientPaymentDetailDto>> getPatientPaymentDetails(
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @PathVariable Long paymentId) {
+            @PathVariable String invoiceId,
+            @PathVariable String paymentId) {
         try {
             log.info("Getting patient payment details for patient {} invoice {} payment {}", patientId, invoiceId, paymentId);
             PatientPaymentDetailDto details = service.getPatientPaymentDetails(patientId, invoiceId, paymentId);
@@ -817,7 +817,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<List<PatientPatientPaymentAllocationDto>>> getPaymentsByInvoice(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
         try {
             var data = service.getPatientPaymentsByInvoice(patientId, invoiceId);
             return ResponseEntity.ok(ApiResponse.ok("Patient payments for invoice fetched", data));
@@ -836,8 +836,8 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> editPatientPayment(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @PathVariable Long paymentId,
+            @PathVariable String invoiceId,
+            @PathVariable String paymentId,
             @RequestBody PatientPaymentDto body) {
         try {
             if (body == null) {
@@ -861,8 +861,8 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> voidPatientPayment(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @PathVariable Long paymentId,
+            @PathVariable String invoiceId,
+            @PathVariable String paymentId,
             @RequestBody(required = false) PatientBillingService.VoidReason reason) {
         try {
             var data = service.voidPatientPayment(patientId, invoiceId, paymentId, reason);
@@ -882,8 +882,8 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientInvoiceDto>> refundPatientPayment(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @PathVariable Long paymentId,
+            @PathVariable String invoiceId,
+            @PathVariable String paymentId,
             @RequestBody PatientBillingService.RefundRequest body) {
         try {
             if (body == null || body.amount() == null) {
@@ -957,7 +957,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<List<PatientBillingNoteDto>>> listInvoiceNotes(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
 
         var data = service.listInvoiceNotes(patientId, invoiceId);
         var resp = new ApiResponse.Builder<List<PatientBillingNoteDto>>()
@@ -975,7 +975,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientBillingNoteDto>> createInvoiceNote(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
+            @PathVariable String invoiceId,
             @RequestBody @Valid PatientBillingNoteDto body) { // Add @Valid if validation annotations are added to DTO
 
         var data = service.createInvoiceNote(patientId, invoiceId, body);
@@ -994,8 +994,8 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientBillingNoteDto>> updateInvoiceNote(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @PathVariable Long noteId,
+            @PathVariable String invoiceId,
+            @PathVariable String noteId,
             @RequestBody @Valid PatientBillingNoteDto body) { // Add @Valid if validation annotations are added to DTO
 
         var data = service.updateInvoiceNote(patientId, invoiceId, noteId, body);
@@ -1014,8 +1014,8 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<Void>> deleteInvoiceNote(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
-            @PathVariable Long noteId) {
+            @PathVariable String invoiceId,
+            @PathVariable String noteId) {
 
         service.deleteInvoiceNote(patientId, invoiceId, noteId);
         var resp = new ApiResponse.Builder<Void>()
@@ -1068,7 +1068,7 @@ public class PatientBillingController {
     @GetMapping("/deposit/{depositId}")
     public ResponseEntity<ApiResponse<PatientDepositDto>> getPatientDeposit(
             @PathVariable Long patientId,
-            @PathVariable Long depositId) {
+            @PathVariable String depositId) {
         try {
             PatientDepositDto deposit = service.getPatientDeposit(patientId, depositId);
             return ResponseEntity.ok(ApiResponse.ok("Deposit retrieved successfully", deposit));
@@ -1086,7 +1086,7 @@ public class PatientBillingController {
     @PutMapping("/deposit/{depositId}")
     public ResponseEntity<ApiResponse<PatientDepositDto>> updatePatientDeposit(
             @PathVariable Long patientId,
-            @PathVariable Long depositId,
+            @PathVariable String depositId,
             @RequestBody PatientDepositRequest request) {
         try {
             if (request == null || request.amount() == null) {
@@ -1109,7 +1109,7 @@ public class PatientBillingController {
     @DeleteMapping("/deposit/{depositId}")
     public ResponseEntity<ApiResponse<Void>> deletePatientDeposit(
             @PathVariable Long patientId,
-            @PathVariable Long depositId) {
+            @PathVariable String depositId) {
         try {
             service.deletePatientDeposit(patientId, depositId);
             return ResponseEntity.ok(ApiResponse.ok("Deposit deleted successfully", null));
@@ -1143,7 +1143,7 @@ public class PatientBillingController {
     @GetMapping("/insurance-deposit/{depositId}")
     public ResponseEntity<ApiResponse<InsuranceDepositDto>> getInsuranceDeposit(
             @PathVariable Long patientId,
-            @PathVariable Long depositId) {
+            @PathVariable String depositId) {
         try {
             var data = service.getInsuranceDeposit(patientId, depositId);
             return ResponseEntity.ok(ApiResponse.ok("Insurance deposit retrieved", data));
@@ -1170,7 +1170,7 @@ public class PatientBillingController {
     @PutMapping("/insurance-deposit/{depositId}")
     public ResponseEntity<ApiResponse<InsuranceDepositDto>> updateInsuranceDeposit(
             @PathVariable Long patientId,
-            @PathVariable Long depositId,
+            @PathVariable String depositId,
             @RequestBody InsuranceDepositDto request) {
         try {
             var data = service.updateInsuranceDeposit(patientId, depositId, request);
@@ -1185,7 +1185,7 @@ public class PatientBillingController {
     @DeleteMapping("/insurance-deposit/{depositId}")
     public ResponseEntity<ApiResponse<Void>> deleteInsuranceDeposit(
             @PathVariable Long patientId,
-            @PathVariable Long depositId) {
+            @PathVariable String depositId) {
         try {
             service.deleteInsuranceDeposit(patientId, depositId);
             return ResponseEntity.ok(ApiResponse.ok("Insurance deposit deleted", null));
@@ -1215,7 +1215,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<InvoiceCourtesyCreditDto>> applyCourtesyCreditToInvoice(
 
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
+            @PathVariable String invoiceId,
             @RequestBody CourtesyCreditRequest request
     ) {
         var data = service.applyCourtesyCreditToInvoice(patientId, invoiceId, request);
@@ -1229,7 +1229,7 @@ public class PatientBillingController {
     @GetMapping("/invoices/{invoiceId}/courtesy-credit")
     public ResponseEntity<ApiResponse<List<InvoiceCourtesyCreditDto>>> getInvoiceCourtesyCredit(
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId
+            @PathVariable String invoiceId
     ) {
         var data = service.getInvoiceWithCourtesyCredit(patientId, invoiceId);
         return ResponseEntity.ok(ApiResponse.ok("Invoice courtesy credit details retrieved", data));
@@ -1241,7 +1241,7 @@ public class PatientBillingController {
     @PutMapping("/invoices/{invoiceId}/courtesy-credit")
     public ResponseEntity<ApiResponse<InvoiceCourtesyCreditDto>> updateInvoiceCourtesyCredit(
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId,
+            @PathVariable String invoiceId,
             @RequestBody CourtesyCreditRequest request
     ) {
         var data = service.updateInvoiceCourtesyCredit(patientId, invoiceId, request);
@@ -1254,7 +1254,7 @@ public class PatientBillingController {
     @DeleteMapping("/invoices/{invoiceId}/courtesy-credit")
     public ResponseEntity<ApiResponse<InvoiceCourtesyCreditDto>> removeInvoiceCourtesyCredit(
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId
+            @PathVariable String invoiceId
     ) {
         var data = service.removeInvoiceCourtesyCredit(patientId, invoiceId);
         return ResponseEntity.ok(ApiResponse.ok("Courtesy credit removed from invoice successfully", data));
@@ -1267,7 +1267,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientClaimDto>> lockClaim(
 
             @PathVariable Long patientId,
-            @PathVariable Long claimId) {
+            @PathVariable String claimId) {
         try {
             service.lockClaim(patientId, claimId);
             PatientClaimDto dto = service.toClaimDto(service.getClaimOrThrow(patientId, claimId));
@@ -1286,7 +1286,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientClaimDto>> changeClaimStatus(
 
             @PathVariable Long patientId,
-            @PathVariable Long claimId,
+            @PathVariable String claimId,
             @RequestBody ClaimStatusUpdateDto dto
     ) {
         try {
@@ -1305,7 +1305,7 @@ public class PatientBillingController {
     public ResponseEntity<ApiResponse<PatientClaimDto>> submitClaimAttachment(
 
             @PathVariable Long patientId,
-            @PathVariable Long claimId,
+            @PathVariable String claimId,
             @RequestParam("file") MultipartFile file) throws Exception {
         try {
             service.submitClaimAttachment(patientId, claimId, file);
@@ -1326,7 +1326,7 @@ public class PatientBillingController {
     @GetMapping("/invoices/{invoiceId}/print")
     public ResponseEntity<ApiResponse<PatientInvoicePrintDto>> getPrintableInvoice(
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
         try {
             PatientInvoicePrintDto dto = service.getPrintableInvoice(patientId, invoiceId);
             return ResponseEntity.ok(ApiResponse.ok("Invoice loaded for printing", dto));
@@ -1340,7 +1340,7 @@ public class PatientBillingController {
     @GetMapping("/invoices/{invoiceId}/credit-adjustment")
     public ResponseEntity<ApiResponse<CreditAdjustmentDetailDto>> getCreditAdjustment(
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
         try {
             CreditAdjustmentDetailDto dto = service.getCreditAdjustment(patientId, invoiceId);
             return ResponseEntity.ok(ApiResponse.ok("Credit adjustment loaded", dto));
@@ -1354,7 +1354,7 @@ public class PatientBillingController {
     @GetMapping("/invoices/{invoiceId}/transfer-of-credit")
     public ResponseEntity<ApiResponse<TransferOfCreditDetailDto>> getTransferOfCredit(
             @PathVariable Long patientId,
-            @PathVariable Long invoiceId) {
+            @PathVariable String invoiceId) {
         try {
             TransferOfCreditDetailDto dto = service.getTransferOfCredit(patientId, invoiceId);
             return ResponseEntity.ok(ApiResponse.ok("Transfer of credit loaded", dto));
@@ -1371,7 +1371,7 @@ public class PatientBillingController {
     @GetMapping("/claims/{claimId}/ehr-form-data")
     public ResponseEntity<ApiResponse<EhrClaimFormDataDto>> getEhrClaimFormData(
             @PathVariable Long patientId,
-            @PathVariable Long claimId) {
+            @PathVariable String claimId) {
         try {
             EhrClaimFormDataDto data = service.getEhrClaimFormData(patientId, claimId);
             return ResponseEntity.ok(ApiResponse.ok("EHR claim form data loaded", data));

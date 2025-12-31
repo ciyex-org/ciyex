@@ -5,27 +5,23 @@ import com.qiaben.ciyex.dto.GlobalEncounterSaveDto;
 import com.qiaben.ciyex.dto.ChiefComplaintDto;
 import com.qiaben.ciyex.dto.AssignedProviderDto;
 import com.qiaben.ciyex.dto.CodeDto;
-import com.qiaben.ciyex.entity.Encounter;
-import com.qiaben.ciyex.repository.EncounterRepository;
-import com.qiaben.ciyex.repository.PatientRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 
 /**
- * Service to handle global save functionality for all encounter-related fields.
- * Processes only the sections that have data and delegates to appropriate services.
+ * FHIR-only Global Encounter Save Service.
+ * Processes only the sections that have data and delegates to appropriate FHIR services.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class GlobalEncounterSaveService {
 
-    private final EncounterRepository encounterRepository;
-    private final PatientRepository patientRepository;
+    private final EncounterService encounterService;
+    private final PatientService patientService;
     private final ChiefComplaintService chiefComplaintService;
     private final AssignedProviderService assignedProviderService;
     private final HistoryOfPresentIllnessService historyOfPresentIllnessService;
@@ -288,18 +284,16 @@ public class GlobalEncounterSaveService {
     }
 
     /**
-     * Validate patient and encounter existence in a separate read-only transaction
-     * Prevents transaction rollback issues from mixing validation with writes
+     * Validate patient and encounter existence using FHIR services
      */
-    @Transactional(readOnly = true)
     protected void validatePatientAndEncounter(Long patientId, Long encounterId) {
-        if (!patientRepository.existsById(patientId)) {
+        if (patientService.getById(patientId) == null) {
             throw new IllegalArgumentException(
                 String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
             );
         }
 
-        if (!encounterRepository.findByIdAndPatientId(encounterId, patientId).isPresent()) {
+        if (encounterService.getEncounter(patientId, encounterId) == null) {
             throw new IllegalArgumentException(
                 String.format("Encounter not found with ID: %d for Patient ID: %d.", encounterId, patientId)
             );

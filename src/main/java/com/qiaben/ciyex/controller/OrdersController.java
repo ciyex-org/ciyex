@@ -50,7 +50,7 @@ public class OrdersController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<OrderDto>> get(@PathVariable("id") Long id) {
+    public ResponseEntity<ApiResponse<OrderDto>> get(@PathVariable("id") String id) {
         try {
             return ResponseEntity.ok(ApiResponse.<OrderDto>builder()
                     .success(true)
@@ -67,7 +67,7 @@ public class OrdersController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<OrderDto>> update(@PathVariable("id") Long id, @RequestBody OrderDto dto) {
+    public ResponseEntity<ApiResponse<OrderDto>> update(@PathVariable("id") String id, @RequestBody OrderDto dto) {
         try {
             // Validate mandatory fields
             String validationError = validateMandatoryFields(dto);
@@ -93,7 +93,7 @@ public class OrdersController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") String id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -130,7 +130,7 @@ public class OrdersController {
 
     @PutMapping("/{orderId}/receive")
     public ResponseEntity<ApiResponse<OrderDto>> receiveOrder(
-            @PathVariable("orderId") Long orderId,
+            @PathVariable("orderId") String orderId,
             @RequestBody(required = false) OrderDto dto
     ) {
         try {

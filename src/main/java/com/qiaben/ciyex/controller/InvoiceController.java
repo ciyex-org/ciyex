@@ -33,7 +33,7 @@ public class InvoiceController {
 
     @GetMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<ApiResponse<InvoiceDto>> getOne(
-            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id) {
+            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable String id) {
         var dto = service.getOne(patientId, encounterId, id);
         return ResponseEntity.ok(ApiResponse.<InvoiceDto>builder().success(true).message("Invoice fetched").data(dto).build());
     }
@@ -47,7 +47,7 @@ public class InvoiceController {
 
     @PutMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<ApiResponse<InvoiceDto>> update(
-            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id,
+            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable String id,
             @Valid @RequestBody InvoiceDto dto) {
         var updated = service.update(patientId, encounterId, id, dto);
         return ResponseEntity.ok(ApiResponse.<InvoiceDto>builder().success(true).message("Invoice updated").data(updated).build());
@@ -55,7 +55,7 @@ public class InvoiceController {
 
     @DeleteMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id) {
+            @PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable String id) {
         service.delete(patientId, encounterId, id);
         return ResponseEntity.ok(ApiResponse.<Void>builder().success(true).message("Invoice deleted").build());
     }

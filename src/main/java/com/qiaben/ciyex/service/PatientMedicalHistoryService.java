@@ -1,141 +1,8 @@
-//package com.qiaben.ciyex.service;
-//
-//import com.qiaben.ciyex.dto.PatientMedicalHistoryDto;
-//import com.qiaben.ciyex.entity.PatientMedicalHistory;
-//import com.qiaben.ciyex.repository.PatientMedicalHistoryRepository;
-//import com.qiaben.ciyex.storage.ExternalPatientMedicalHistoryStorage;
-//import lombok.RequiredArgsConstructor;
-//import lombok.extern.slf4j.Slf4j;
-//import org.springframework.stereotype.Service;
-//
-//import java.time.ZoneId;
-//import java.time.format.DateTimeFormatter;
-//import java.util.List;
-//import java.util.Optional;
-//
-//@Service
-//@RequiredArgsConstructor
-//@Slf4j
-//public class PatientMedicalHistoryService {
-//
-//    private final PatientMedicalHistoryRepository repo;
-//    private final Optional<ExternalPatientMedicalHistoryStorage> external;
-//
-//    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-//
-//    // CREATE
-//    public PatientMedicalHistoryDto create(Long patientId, Long encounterId, PatientMedicalHistoryDto in) {
-//        PatientMedicalHistory toSave = PatientMedicalHistory.builder()
-
-//                .patientId(patientId)
-//                .encounterId(encounterId)
-//                .description(in.getDescription())
-//                .build();
-//
-//        // persist locally
-//        final PatientMedicalHistory saved = repo.save(toSave);
-//
-//        // use final references inside lambda
-//        external.ifPresent(ext -> {
-//            final PatientMedicalHistory snapshotRef = saved; // final reference
-//            String externalId = ext.create(mapToDto(snapshotRef));
-//            snapshotRef.setExternalId(externalId);
-//            repo.save(snapshotRef);
-//        });
-//
-//        return mapToDto(saved);
-//    }
-//
-//    // UPDATE
-//    public PatientMedicalHistoryDto update(Long patientId, Long encounterId, Long id, PatientMedicalHistoryDto in) {
-//        PatientMedicalHistory entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
-//
-//        entity.setDescription(in.getDescription());
-//        final PatientMedicalHistory updated = repo.save(entity);
-//
-//        // capture a final reference for lambda use
-//        external.ifPresent(ext -> {
-//            final PatientMedicalHistory e = updated;
-//            if (e.getExternalId() != null) {
-//                ext.update(e.getExternalId(), mapToDto(e));
-//            }
-//        });
-//
-//        return mapToDto(updated);
-//    }
-//
-//    // DELETE
-//    public void delete(Long patientId, Long encounterId, Long id) {
-//        PatientMedicalHistory entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
-//
-//        final PatientMedicalHistory toDelete = entity; // final for lambda
-//        external.ifPresent(ext -> {
-//            if (toDelete.getExternalId() != null) {
-//                ext.delete(toDelete.getExternalId());
-//            }
-//        });
-//
-//        repo.delete(toDelete);
-//    }
-//
-//    // GET ONE
-//    public PatientMedicalHistoryDto getOne(Long patientId, Long encounterId, Long id) {
-//        PatientMedicalHistory entity = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-//                .orElseThrow(() -> new IllegalArgumentException("PMH not found"));
-//        return mapToDto(entity);
-//    }
-//
-//    // GET ALL by patient
-//    public List<PatientMedicalHistoryDto> getAllByPatient(Long patientId) {
-//        return repo.findByPatientId(patientId)
-//                .stream().map(this::mapToDto).toList();
-//    }
-//
-//    // GET ALL by patient + encounter
-//    public List<PatientMedicalHistoryDto> getAllByEncounter(Long patientId, Long encounterId) {
-//        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
-//                .stream().map(this::mapToDto).toList();
-//    }
-//
-//    // Mapping
-//    private PatientMedicalHistoryDto mapToDto(PatientMedicalHistory e) {
-//        PatientMedicalHistoryDto dto = new PatientMedicalHistoryDto();
-//        dto.setId(e.getId());
-//        dto.setExternalId(e.getExternalId());
-//        dto.setOrgId(e.getOrgId());
-//        dto.setPatientId(e.getPatientId());
-//        dto.setEncounterId(e.getEncounterId());
-//        dto.setDescription(e.getDescription());
-//
-//        PatientMedicalHistoryDto.Audit audit = new PatientMedicalHistoryDto.Audit();
-//        if (e.getCreatedAt() != null) {
-//            audit.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-//        }
-//        if (e.getUpdatedAt() != null) {
-//            audit.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
-//        }
-//        dto.setAudit(audit);
-//
-//        return dto;
-//    }
-//}
-
-
-
-
-
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
 import com.qiaben.ciyex.dto.PatientMedicalHistoryDto;
-import com.qiaben.ciyex.entity.PatientMedicalHistory;
-import com.qiaben.ciyex.repository.PatientMedicalHistoryRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.storage.StorageType;
-import com.qiaben.ciyex.storage.fhir.FhirExternalPatientMedicalHistoryStorage;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -143,262 +10,185 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.stream.Collectors;
 
-
+/**
+ * FHIR-only PatientMedicalHistory Service.
+ * Uses FHIR Condition resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ * Retains PDF rendering and e-signing business logic.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class PatientMedicalHistoryService {
-    public List<PatientMedicalHistoryDto> getAllByPatient(Long patientId) {
-        return repo.findByPatientId(patientId)
-            .stream().map(this::toDto).toList();
-    }
 
-    private final PatientMedicalHistoryRepository repo;
-    private final EncounterService encounterService;
-    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
-    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
-
-    @Autowired
-    private ExternalStorageResolver storageResolver;
-
-    @Autowired
-    private OrgIntegrationConfigProvider configProvider;
-
-    @Autowired(required = false)
-    private FhirExternalPatientMedicalHistoryStorage fhirExternalPatientMedicalHistoryStorage;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    // Create
+    // Extension URLs
+    private static final String EXT_ENCOUNTER = "http://ciyex.com/fhir/StructureDefinition/encounter-reference";
+    private static final String EXT_CONDITION_NAME = "http://ciyex.com/fhir/StructureDefinition/condition-name";
+    private static final String EXT_STATUS = "http://ciyex.com/fhir/StructureDefinition/status";
+    private static final String EXT_IS_CHRONIC = "http://ciyex.com/fhir/StructureDefinition/is-chronic";
+    private static final String EXT_DIAGNOSIS_DATE = "http://ciyex.com/fhir/StructureDefinition/diagnosis-date";
+    private static final String EXT_ONSET_DATE = "http://ciyex.com/fhir/StructureDefinition/onset-date";
+    private static final String EXT_RESOLVED_DATE = "http://ciyex.com/fhir/StructureDefinition/resolved-date";
+    private static final String EXT_TREATMENT = "http://ciyex.com/fhir/StructureDefinition/treatment-details";
+    private static final String EXT_DIAGNOSIS_DETAILS = "http://ciyex.com/fhir/StructureDefinition/diagnosis-details";
+    private static final String EXT_DESCRIPTION = "http://ciyex.com/fhir/StructureDefinition/description";
+    private static final String EXT_E_SIGNED = "http://ciyex.com/fhir/StructureDefinition/e-signed";
+    private static final String EXT_SIGNED_AT = "http://ciyex.com/fhir/StructureDefinition/signed-at";
+    private static final String EXT_SIGNED_BY = "http://ciyex.com/fhir/StructureDefinition/signed-by";
+    private static final String EXT_PRINTED_AT = "http://ciyex.com/fhir/StructureDefinition/printed-at";
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+    // CREATE
     public PatientMedicalHistoryDto create(Long patientId, Long encounterId, PatientMedicalHistoryDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
+        log.debug("Creating FHIR Condition (PMH) for patient: {} encounter: {}", patientId, encounterId);
 
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
 
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+        Condition condition = toFhirCondition(dto);
+        var outcome = fhirClientService.create(condition, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        // Step 4: Create the patient medical history
-        PatientMedicalHistory e = new PatientMedicalHistory();
-        e.setPatientId(patientId);
-        e.setEncounterId(encounterId);
-        applyDto(e, dto);
-        e = repo.save(e);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        log.info("Created FHIR Condition (PMH) with id: {}", fhirId);
 
-        // Step 5: External sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("PatientMedicalHistory create - storageType for current org: {}", storageType);
-
-        if (storageType != null) {
-            try {
-                if ("fhir".equals(storageType)) {
-                    String externalId = fhirExternalPatientMedicalHistoryStorage.create(toDto(e));
-                    if (externalId != null) {
-                        e.setExternalId(externalId);
-                        e.setFhirId(externalId);
-                        e = repo.save(e);
-                    }
-                } else {
-                    ExternalStorage<PatientMedicalHistoryDto> storage = storageResolver.resolve(PatientMedicalHistoryDto.class);
-                    if (storage != null) {
-                        String externalId = storage.create(toDto(e));
-                        if (externalId != null) {
-                            e.setExternalId(externalId);
-                            e.setFhirId(externalId);
-                            e = repo.save(e);
-                        }
-                    }
-                }
-            } catch (Exception ex) {
-                log.warn("Failed to sync PMH to external storage", ex);
-            }
-        } else if (fhirExternalPatientMedicalHistoryStorage != null) {
-            try {
-                String externalId = fhirExternalPatientMedicalHistoryStorage.create(toDto(e));
-                if (externalId != null) {
-                    e.setExternalId(externalId);
-                    e.setFhirId(externalId);
-                    e = repo.save(e);
-                }
-            } catch (Exception ex) {
-                log.warn("Failed to sync PMH to FHIR", ex);
-            }
-        } else {
-            log.info("No external storage configured for PMH");
-        }
-
-        if (e.getExternalId() == null) {
-            String generatedId = "PMH-" + System.currentTimeMillis();
-            e.setExternalId(generatedId);
-            e.setFhirId(generatedId);
-            e = repo.save(e);
-            log.info("Auto-generated externalId: {}", generatedId);
-        } else {
-            e.setFhirId(e.getExternalId());
-            e = repo.save(e);
-        }
-
-        return toDto(e);
+        return dto;
     }
 
-    // Read one
-    public PatientMedicalHistoryDto getOne(Long patientId, Long encounterId, Long id) {
-        PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Patient Medical History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-        return toDto(e);
+    // GET ONE
+    public PatientMedicalHistoryDto getOne(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Getting FHIR Condition (PMH): {}", fhirId);
+        Condition condition = fhirClientService.read(Condition.class, fhirId, getPracticeId());
+        return fromFhirCondition(condition);
     }
 
-    // List
+    // LIST BY ENCOUNTER
     public List<PatientMedicalHistoryDto> list(Long patientId, Long encounterId) {
-        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
-                .stream().map(this::toDto).toList();
+        log.debug("Getting FHIR Conditions (PMH) for patient: {} encounter: {}", patientId, encounterId);
+
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                .forResource(Condition.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .returnBundle(Bundle.class)
+                .execute();
+
+        List<Condition> conditions = fhirClientService.extractResources(bundle, Condition.class);
+        return conditions.stream()
+                .filter(c -> hasEncounter(c, encounterId))
+                .map(this::fromFhirCondition)
+                .collect(Collectors.toList());
     }
 
-    // Update (blocked if signed)
-    public PatientMedicalHistoryDto update(Long patientId, Long encounterId, Long id, PatientMedicalHistoryDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
+    // GET ALL BY PATIENT
+    public List<PatientMedicalHistoryDto> getAllByPatient(Long patientId) {
+        log.debug("Getting all FHIR Conditions (PMH) for patient: {}", patientId);
 
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                .forResource(Condition.class)
+                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                .returnBundle(Bundle.class)
+                .execute();
 
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+        List<Condition> conditions = fhirClientService.extractResources(bundle, Condition.class);
+        return conditions.stream()
+                .map(this::fromFhirCondition)
+                .collect(Collectors.toList());
+    }
 
-        // Step 4: Find the patient medical history
-        PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Patient Medical History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
+    // UPDATE
+    public PatientMedicalHistoryDto update(Long patientId, Long encounterId, String fhirId, PatientMedicalHistoryDto dto) {
+        log.debug("Updating FHIR Condition (PMH): {}", fhirId);
 
-        // Step 5: Check if entry itself is signed
-        if (Boolean.TRUE.equals(e.getESigned())) {
+        // Check if signed
+        Condition existing = fhirClientService.read(Condition.class, fhirId, getPracticeId());
+        PatientMedicalHistoryDto existingDto = fromFhirCondition(existing);
+        if (Boolean.TRUE.equals(existingDto.getESigned())) {
             throw new IllegalStateException("Signed entries are read-only.");
         }
 
-        // Step 6: Update the entry
-        applyDto(e, dto);
-        e = repo.save(e);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
 
-        // Step 7: External sync
-        if (e.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            try {
-                if ("fhir".equals(storageType)) {
-                    fhirExternalPatientMedicalHistoryStorage.update(toDto(e), e.getExternalId());
-                } else {
-                    ExternalStorage<PatientMedicalHistoryDto> storage = storageResolver.resolve(PatientMedicalHistoryDto.class);
-                    if (storage != null) {
-                        storage.update(toDto(e), e.getExternalId());
-                    }
-                }
-            } catch (Exception ex) {
-                log.warn("Failed to sync PMH update to external storage", ex);
-            }
-        }
+        Condition condition = toFhirCondition(dto);
+        condition.setId(fhirId);
+        fhirClientService.update(condition, getPracticeId());
 
-        return toDto(e);
+        return dto;
     }
 
-    // Delete (blocked if signed)
-    public void delete(Long patientId, Long encounterId, Long id) {
-        // Step 1: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+    // DELETE
+    public void delete(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Deleting FHIR Condition (PMH): {}", fhirId);
 
-        // Step 2: Find the patient medical history
-        PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Patient Medical History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-
-        // Step 3: Check if entry itself is signed
-        if (Boolean.TRUE.equals(e.getESigned())) {
+        // Check if signed
+        Condition existing = fhirClientService.read(Condition.class, fhirId, getPracticeId());
+        PatientMedicalHistoryDto existingDto = fromFhirCondition(existing);
+        if (Boolean.TRUE.equals(existingDto.getESigned())) {
             throw new IllegalStateException("Signed entries cannot be deleted.");
         }
 
-        // Step 4: External sync
-        if (e.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            try {
-                if ("fhir".equals(storageType)) {
-                    fhirExternalPatientMedicalHistoryStorage.delete(e.getExternalId());
-                } else {
-                    ExternalStorage<PatientMedicalHistoryDto> storage = storageResolver.resolve(PatientMedicalHistoryDto.class);
-                    if (storage != null) {
-                        storage.delete(e.getExternalId());
-                    }
-                }
-            } catch (Exception ex) {
-                log.warn("Failed to sync PMH delete to external storage", ex);
-            }
+        fhirClientService.delete(Condition.class, fhirId, getPracticeId());
+    }
+
+    // E-SIGN
+    public PatientMedicalHistoryDto eSign(Long patientId, Long encounterId, String fhirId, String signedBy) {
+        log.debug("E-signing FHIR Condition (PMH): {}", fhirId);
+
+        Condition condition = fhirClientService.read(Condition.class, fhirId, getPracticeId());
+        PatientMedicalHistoryDto dto = fromFhirCondition(condition);
+
+        if (Boolean.TRUE.equals(dto.getESigned())) {
+            return dto; // idempotent
         }
 
-        repo.delete(e);
+        dto.setESigned(true);
+        dto.setSignedBy(StringUtils.hasText(signedBy) ? signedBy : "system");
+        dto.setSignedAt(OffsetDateTime.now(ZoneOffset.UTC));
+
+        Condition updatedCondition = toFhirCondition(dto);
+        updatedCondition.setId(fhirId);
+        fhirClientService.update(updatedCondition, getPracticeId());
+
+        return dto;
     }
 
-    // eSign (idempotent)
-    public PatientMedicalHistoryDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
-        PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Patient Medical History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-        if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
+    // RENDER PDF
+    public byte[] renderPdf(Long patientId, Long encounterId, String fhirId) {
+        Condition condition = fhirClientService.read(Condition.class, fhirId, getPracticeId());
+        PatientMedicalHistoryDto dto = fromFhirCondition(condition);
 
-        e.setESigned(true);
-        e.setSignedBy(StringUtils.hasText(signedBy) ? signedBy : "system");
-        e.setSignedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
-        e = repo.save(e);
-        return toDto(e);
-    }
-
-    // Print (PDF) — stamps printedAt
-    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
-        PatientMedicalHistory e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Patient Medical History not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-
-        e.setPrintedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC));
-        repo.save(e);
+        // Update printed timestamp
+        dto.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        Condition updatedCondition = toFhirCondition(dto);
+        updatedCondition.setId(fhirId);
+        try {
+            fhirClientService.update(updatedCondition, getPracticeId());
+        } catch (Exception ignore) {}
 
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             PDPage page = new PDPage(PDRectangle.LETTER);
@@ -416,24 +206,24 @@ public class PatientMedicalHistoryService {
                 y -= 26;
                 draw(cs, x, y, "Patient ID:", String.valueOf(patientId)); y -= 16;
                 draw(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 16;
-                draw(cs, x, y, "ID:", String.valueOf(id)); y -= 22;
+                draw(cs, x, y, "ID:", fhirId); y -= 22;
 
-                if (e.getConditionName() != null) { draw(cs, x, y, "Condition:", e.getConditionName()); y -= 16; }
-                if (e.getStatus() != null) { draw(cs, x, y, "Status:", e.getStatus()); y -= 16; }
-                if (e.getIsChronic() != null) { draw(cs, x, y, "Chronic:", e.getIsChronic() ? "Yes" : "No"); y -= 16; }
-                if (e.getDiagnosisDate() != null) { draw(cs, x, y, "Diagnosis Date:", e.getDiagnosisDate().toString()); y -= 16; }
-                if (e.getOnsetDate() != null) { draw(cs, x, y, "Onset Date:", e.getOnsetDate().toString()); y -= 16; }
-                if (e.getResolvedDate() != null) { draw(cs, x, y, "Resolved Date:", e.getResolvedDate().toString()); y -= 16; }
+                if (dto.getConditionName() != null) { draw(cs, x, y, "Condition:", dto.getConditionName()); y -= 16; }
+                if (dto.getStatus() != null) { draw(cs, x, y, "Status:", dto.getStatus()); y -= 16; }
+                if (dto.getIsChronic() != null) { draw(cs, x, y, "Chronic:", dto.getIsChronic() ? "Yes" : "No"); y -= 16; }
+                if (dto.getDiagnosisDate() != null) { draw(cs, x, y, "Diagnosis Date:", dto.getDiagnosisDate().toString()); y -= 16; }
+                if (dto.getOnsetDate() != null) { draw(cs, x, y, "Onset Date:", dto.getOnsetDate().toString()); y -= 16; }
+                if (dto.getResolvedDate() != null) { draw(cs, x, y, "Resolved Date:", dto.getResolvedDate().toString()); y -= 16; }
 
-                if (has(e.getDescription())) { draw(cs, x, y, "Description:", e.getDescription()); y -= 16; }
-                if (has(e.getTreatmentDetails())) { draw(cs, x, y, "Treatment:", e.getTreatmentDetails()); y -= 16; }
-                if (has(e.getDiagnosisDetails())) { draw(cs, x, y, "Diagnosis Details:", e.getDiagnosisDetails()); y -= 16; }
-                if (has(e.getNotes())) { draw(cs, x, y, "Notes:", e.getNotes()); y -= 16; }
+                if (has(dto.getDescription())) { draw(cs, x, y, "Description:", dto.getDescription()); y -= 16; }
+                if (has(dto.getTreatmentDetails())) { draw(cs, x, y, "Treatment:", dto.getTreatmentDetails()); y -= 16; }
+                if (has(dto.getDiagnosisDetails())) { draw(cs, x, y, "Diagnosis Details:", dto.getDiagnosisDetails()); y -= 16; }
+                if (has(dto.getNotes())) { draw(cs, x, y, "Notes:", dto.getNotes()); y -= 16; }
 
                 y -= 8;
-                draw(cs, x, y, "eSigned:", Boolean.TRUE.equals(e.getESigned()) ? "Yes" : "No"); y -= 16;
-                if (e.getSignedAt() != null) { draw(cs, x, y, "Signed At:", e.getSignedAt().toString()); y -= 16; }
-                if (has(e.getSignedBy())) { draw(cs, x, y, "Signed By:", e.getSignedBy()); y -= 16; }
+                draw(cs, x, y, "eSigned:", Boolean.TRUE.equals(dto.getESigned()) ? "Yes" : "No"); y -= 16;
+                if (dto.getSignedAt() != null) { draw(cs, x, y, "Signed At:", dto.getSignedAt().toString()); y -= 16; }
+                if (has(dto.getSignedBy())) { draw(cs, x, y, "Signed By:", dto.getSignedBy()); y -= 16; }
             }
 
             doc.save(baos);
@@ -443,67 +233,175 @@ public class PatientMedicalHistoryService {
         }
     }
 
-    // ----- helpers
+    // -------- FHIR Mapping --------
+
+    private Condition toFhirCondition(PatientMedicalHistoryDto dto) {
+        Condition c = new Condition();
+
+        // Subject (Patient)
+        if (dto.getPatientId() != null) {
+            c.setSubject(new Reference("Patient/" + dto.getPatientId()));
+        }
+
+        // Encounter extension
+        if (dto.getEncounterId() != null) {
+            c.addExtension(new Extension(EXT_ENCOUNTER, new Reference("Encounter/" + dto.getEncounterId())));
+        }
+
+        // Code (medical condition)
+        if (dto.getMedicalCondition() != null) {
+            c.getCode().setText(dto.getMedicalCondition());
+        }
+
+        // Notes
+        if (dto.getNotes() != null) {
+            c.addNote().setText(dto.getNotes());
+        }
+
+        // Extensions
+        addStringExtension(c, EXT_CONDITION_NAME, dto.getConditionName());
+        addStringExtension(c, EXT_STATUS, dto.getStatus());
+        addStringExtension(c, EXT_TREATMENT, dto.getTreatmentDetails());
+        addStringExtension(c, EXT_DIAGNOSIS_DETAILS, dto.getDiagnosisDetails());
+        addStringExtension(c, EXT_DESCRIPTION, dto.getDescription());
+        addStringExtension(c, EXT_SIGNED_BY, dto.getSignedBy());
+
+        if (dto.getIsChronic() != null) {
+            c.addExtension(new Extension(EXT_IS_CHRONIC, new BooleanType(dto.getIsChronic())));
+        }
+        if (dto.getDiagnosisDate() != null) {
+            c.addExtension(new Extension(EXT_DIAGNOSIS_DATE, new StringType(dto.getDiagnosisDate().toString())));
+        }
+        if (dto.getOnsetDate() != null) {
+            c.addExtension(new Extension(EXT_ONSET_DATE, new StringType(dto.getOnsetDate().toString())));
+        }
+        if (dto.getResolvedDate() != null) {
+            c.addExtension(new Extension(EXT_RESOLVED_DATE, new StringType(dto.getResolvedDate().toString())));
+        }
+        if (dto.getESigned() != null) {
+            c.addExtension(new Extension(EXT_E_SIGNED, new BooleanType(dto.getESigned())));
+        }
+        if (dto.getSignedAt() != null) {
+            c.addExtension(new Extension(EXT_SIGNED_AT, new StringType(dto.getSignedAt().toString())));
+        }
+        if (dto.getPrintedAt() != null) {
+            c.addExtension(new Extension(EXT_PRINTED_AT, new StringType(dto.getPrintedAt().toString())));
+        }
+
+        return c;
+    }
+
+    private PatientMedicalHistoryDto fromFhirCondition(Condition c) {
+        PatientMedicalHistoryDto dto = new PatientMedicalHistoryDto();
+        dto.setFhirId(c.getIdElement().getIdPart());
+        dto.setExternalId(dto.getFhirId());
+
+        // Subject -> patientId
+        if (c.hasSubject() && c.getSubject().hasReference()) {
+            String ref = c.getSubject().getReference();
+            if (ref.startsWith("Patient/")) {
+                try {
+                    dto.setPatientId(Long.parseLong(ref.substring("Patient/".length())));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Encounter extension
+        Extension encExt = c.getExtensionByUrl(EXT_ENCOUNTER);
+        if (encExt != null && encExt.getValue() instanceof Reference) {
+            String ref = ((Reference) encExt.getValue()).getReference();
+            if (ref != null && ref.startsWith("Encounter/")) {
+                try {
+                    dto.setEncounterId(Long.parseLong(ref.substring("Encounter/".length())));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Code -> medicalCondition
+        if (c.hasCode() && c.getCode().hasText()) {
+            dto.setMedicalCondition(c.getCode().getText());
+        }
+
+        // Notes
+        if (c.hasNote()) {
+            dto.setNotes(c.getNoteFirstRep().getText());
+        }
+
+        // Extensions
+        dto.setConditionName(getExtensionString(c, EXT_CONDITION_NAME));
+        dto.setStatus(getExtensionString(c, EXT_STATUS));
+        dto.setTreatmentDetails(getExtensionString(c, EXT_TREATMENT));
+        dto.setDiagnosisDetails(getExtensionString(c, EXT_DIAGNOSIS_DETAILS));
+        dto.setDescription(getExtensionString(c, EXT_DESCRIPTION));
+        dto.setSignedBy(getExtensionString(c, EXT_SIGNED_BY));
+
+        Extension chronicExt = c.getExtensionByUrl(EXT_IS_CHRONIC);
+        if (chronicExt != null && chronicExt.getValue() instanceof BooleanType) {
+            dto.setIsChronic(((BooleanType) chronicExt.getValue()).booleanValue());
+        }
+
+        Extension eSignedExt = c.getExtensionByUrl(EXT_E_SIGNED);
+        if (eSignedExt != null && eSignedExt.getValue() instanceof BooleanType) {
+            dto.setESigned(((BooleanType) eSignedExt.getValue()).booleanValue());
+        }
+
+        String diagDateStr = getExtensionString(c, EXT_DIAGNOSIS_DATE);
+        if (diagDateStr != null) {
+            try { dto.setDiagnosisDate(LocalDateTime.parse(diagDateStr)); } catch (Exception ignored) {}
+        }
+
+        String onsetDateStr = getExtensionString(c, EXT_ONSET_DATE);
+        if (onsetDateStr != null) {
+            try { dto.setOnsetDate(LocalDate.parse(onsetDateStr)); } catch (Exception ignored) {}
+        }
+
+        String resolvedDateStr = getExtensionString(c, EXT_RESOLVED_DATE);
+        if (resolvedDateStr != null) {
+            try { dto.setResolvedDate(LocalDate.parse(resolvedDateStr)); } catch (Exception ignored) {}
+        }
+
+        String signedAtStr = getExtensionString(c, EXT_SIGNED_AT);
+        if (signedAtStr != null) {
+            try { dto.setSignedAt(OffsetDateTime.parse(signedAtStr)); } catch (Exception ignored) {}
+        }
+
+        String printedAtStr = getExtensionString(c, EXT_PRINTED_AT);
+        if (printedAtStr != null) {
+            try { dto.setPrintedAt(OffsetDateTime.parse(printedAtStr)); } catch (Exception ignored) {}
+        }
+
+        return dto;
+    }
+
+    // -------- Helpers --------
+
+    private boolean hasEncounter(Condition c, Long encounterId) {
+        Extension encExt = c.getExtensionByUrl(EXT_ENCOUNTER);
+        if (encExt != null && encExt.getValue() instanceof Reference) {
+            String ref = ((Reference) encExt.getValue()).getReference();
+            return ref != null && ref.equals("Encounter/" + encounterId);
+        }
+        return false;
+    }
+
     private static boolean has(String s) { return s != null && !s.isBlank(); }
+
+    private void addStringExtension(Condition c, String url, String value) {
+        if (value != null) {
+            c.addExtension(new Extension(url, new StringType(value)));
+        }
+    }
+
+    private String getExtensionString(Condition c, String url) {
+        Extension ext = c.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
+    }
 
     private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
-    }
-
-    private PatientMedicalHistoryDto toDto(PatientMedicalHistory e) {
-        PatientMedicalHistoryDto d = new PatientMedicalHistoryDto();
-        d.setId(e.getId());
-        d.setPatientId(e.getPatientId());
-        d.setEncounterId(e.getEncounterId());
-        d.setExternalId(e.getExternalId());
-        d.setFhirId(e.getFhirId());
-
-        d.setMedicalCondition(e.getMedicalCondition());
-        d.setConditionName(e.getConditionName());
-        d.setStatus(e.getStatus());
-        d.setIsChronic(e.getIsChronic());
-
-        d.setDiagnosisDate(e.getDiagnosisDate());
-        d.setOnsetDate(e.getOnsetDate());
-        d.setResolvedDate(e.getResolvedDate());
-
-        d.setTreatmentDetails(e.getTreatmentDetails());
-        d.setDiagnosisDetails(e.getDiagnosisDetails());
-        d.setNotes(e.getNotes());
-        d.setDescription(e.getDescription());
-
-        d.setESigned(e.getESigned());
-        d.setSignedAt(e.getSignedAt());
-        d.setSignedBy(e.getSignedBy());
-        d.setPrintedAt(e.getPrintedAt());
-
-        PatientMedicalHistoryDto.Audit a = new PatientMedicalHistoryDto.Audit();
-        if (e.getCreatedDate() != null) {
-            a.setCreatedDate(DTF.format(e.getCreatedDate().atZone(java.time.ZoneId.systemDefault())));
-        }
-        if (e.getLastModifiedDate() != null) {
-            a.setLastModifiedDate(DTF.format(e.getLastModifiedDate().atZone(java.time.ZoneId.systemDefault())));
-        }
-        d.setAudit(a);
-        return d;
-    }
-
-    private void applyDto(PatientMedicalHistory e, PatientMedicalHistoryDto d) {
-        e.setExternalId(d.getExternalId());
-        e.setFhirId(d.getFhirId());
-        e.setMedicalCondition(d.getMedicalCondition());
-        e.setConditionName(d.getConditionName());
-        e.setStatus(d.getStatus());
-        e.setIsChronic(d.getIsChronic());
-
-        e.setDiagnosisDate(d.getDiagnosisDate());
-        e.setOnsetDate(d.getOnsetDate());
-        e.setResolvedDate(d.getResolvedDate());
-        e.setTreatmentDetails(d.getTreatmentDetails());
-        e.setDiagnosisDetails(d.getDiagnosisDetails());
-        e.setNotes(d.getNotes());
-        e.setDescription(d.getDescription());
-        // eSign fields managed only via eSign()
     }
 }

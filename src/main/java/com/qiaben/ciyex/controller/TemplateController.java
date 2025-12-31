@@ -39,7 +39,7 @@ public class TemplateController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<TemplateDto>> get(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<TemplateDto>> get(@PathVariable String id) {
         try {
             TemplateDto dto = service.getById(id);
             return ResponseEntity.ok(ApiResponse.<TemplateDto>builder()
@@ -57,7 +57,7 @@ public class TemplateController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<TemplateDto>> update(@PathVariable Long id, @RequestBody TemplateDto dto) {
+    public ResponseEntity<ApiResponse<TemplateDto>> update(@PathVariable String id, @RequestBody TemplateDto dto) {
         try {
             TemplateDto updated = service.update(id, dto);
             return ResponseEntity.ok(ApiResponse.<TemplateDto>builder()
@@ -75,7 +75,7 @@ public class TemplateController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()

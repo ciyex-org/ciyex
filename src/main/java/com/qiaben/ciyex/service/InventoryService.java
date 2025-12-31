@@ -3,178 +3,137 @@ package com.qiaben.ciyex.service;
 import com.qiaben.ciyex.dto.InventoryDto;
 import com.qiaben.ciyex.dto.MonthlyOrderCountDto;
 import com.qiaben.ciyex.dto.OrderDto;
-import com.qiaben.ciyex.entity.Inventory;
-import com.qiaben.ciyex.exception.ResourceNotFoundException;
-import com.qiaben.ciyex.repository.InventoryRepository;
-import com.qiaben.ciyex.storage.ExternalInventoryStorage;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import com.qiaben.ciyex.dto.integration.RequestContext;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.time.Month;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 import java.time.LocalDate;
-import java.time.format.TextStyle;
+import java.time.Month;
 import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
 import java.util.*;
+import java.util.stream.Collectors;
 
+/**
+ * FHIR-only Inventory Service.
+ * Uses FHIR Device resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class InventoryService {
 
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-
-    private final InventoryRepository repository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
     private final OrderService orderService;
 
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    public InventoryService(InventoryRepository repository,
-                            ExternalStorageResolver storageResolver,
-                            OrgIntegrationConfigProvider configProvider,
-                            OrderService orderService) {
-        this.repository = repository;
-        this.storageResolver = storageResolver;
-        this.configProvider = configProvider;
-        this.orderService = orderService;
+    // Extension URLs
+    private static final String EXT_CATEGORY = "http://ciyex.com/fhir/StructureDefinition/category";
+    private static final String EXT_LOT = "http://ciyex.com/fhir/StructureDefinition/lot";
+    private static final String EXT_EXPIRY = "http://ciyex.com/fhir/StructureDefinition/expiry";
+    private static final String EXT_SKU = "http://ciyex.com/fhir/StructureDefinition/sku";
+    private static final String EXT_STOCK = "http://ciyex.com/fhir/StructureDefinition/stock";
+    private static final String EXT_UNIT = "http://ciyex.com/fhir/StructureDefinition/unit";
+    private static final String EXT_MIN_STOCK = "http://ciyex.com/fhir/StructureDefinition/min-stock";
+    private static final String EXT_LOCATION = "http://ciyex.com/fhir/StructureDefinition/location";
+    private static final String EXT_STATUS = "http://ciyex.com/fhir/StructureDefinition/status";
+    private static final String EXT_SUPPLIER = "http://ciyex.com/fhir/StructureDefinition/supplier";
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
 
-
-    @Transactional
+    // CREATE
     public InventoryDto create(InventoryDto dto) {
-        // Validate mandatory fields
         validateInventoryDto(dto);
-        
-        Inventory entity = mapToEntity(dto);
 
+        log.debug("Creating FHIR Device (inventory): {}", dto.getName());
 
-        // External sync (optional, based on org configuration)
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null) {
-            ExternalStorage<InventoryDto> storage = storageResolver.resolve(InventoryDto.class);
-            String externalId = storage.create(dto);
-            entity.setExternalId(externalId);
-        }
+        Device device = toFhirDevice(dto);
+        var outcome = fhirClientService.create(device, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        return mapToDto(repository.save(entity));
+        dto.setFhirId(fhirId);
+        log.info("Created FHIR Device (inventory) with id: {}", fhirId);
+
+        return dto;
     }
 
-    @Transactional(readOnly = true)
-    public InventoryDto getById(Long id) {
-        Inventory entity = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found with id: " + id));
-        return mapToDto(entity);
+    // GET BY ID
+    public InventoryDto getById(String fhirId) {
+        log.debug("Getting FHIR Device (inventory): {}", fhirId);
+        Device device = fhirClientService.read(Device.class, fhirId, getPracticeId());
+        return fromFhirDevice(device);
     }
 
-    @Transactional
-    public InventoryDto update(Long id, InventoryDto dto) {
-        Inventory entity = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found with id: " + id));
-
-        if (dto.getFhirId() != null) entity.setExternalId(dto.getFhirId());
-        entity.setSupplier(dto.getSupplier());
-        entity.setName(dto.getName());
-        entity.setCategory(dto.getCategory());
-        entity.setLot(dto.getLot());
-        entity.setExpiry(dto.getExpiry());
-        entity.setSku(dto.getSku());
-        entity.setStock(dto.getStock());
-        entity.setUnit(dto.getUnit());
-        entity.setMinStock(dto.getMinStock());
-        entity.setLocation(dto.getLocation());
-        entity.setStatus(dto.getStatus());
-
-
-        // External sync (if configured & item linked)
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && entity.getExternalId() != null) {
-            ExternalStorage<InventoryDto> storage = storageResolver.resolve(InventoryDto.class);
-            storage.update(mapToDto(entity), entity.getExternalId());
-        }
-
-        return mapToDto(repository.save(entity));
-    }
-
-    @Transactional
-    public void delete(Long id) {
-        Inventory entity = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found with id: " + id));
-
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        if (storageType != null && entity.getExternalId() != null) {
-            ExternalStorage<InventoryDto> storage = storageResolver.resolve(InventoryDto.class);
-            storage.delete(entity.getExternalId());
-        }
-
-        repository.delete(entity);
-    }
-
-    @Transactional(readOnly = true)
+    // GET ALL
     public List<InventoryDto> getAll() {
-        return repository.findAll()
-                .stream()
-                .map(this::mapToDto)
+        log.debug("Getting all FHIR Devices (inventory)");
+
+        Bundle bundle = fhirClientService.search(Device.class, getPracticeId());
+        List<Device> devices = fhirClientService.extractResources(bundle, Device.class);
+
+        return devices.stream()
+                .map(this::fromFhirDevice)
                 .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
+    // GET ALL (Paginated)
     public Page<InventoryDto> getAll(Pageable pageable) {
-
-        return repository.findAll(pageable).map(this::mapToDto);
+        List<InventoryDto> all = getAll();
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), all.size());
+        List<InventoryDto> pageContent = all.subList(start, end);
+        return new PageImpl<>(pageContent, pageable, all.size());
     }
 
-    @Transactional
-    public OrderDto createReorder(Long inventoryId, OrderDto dto) {
-        Inventory entity = repository.findById(inventoryId)
-                .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found with id: " + inventoryId));
+    // UPDATE
+    public InventoryDto update(String fhirId, InventoryDto dto) {
+        log.debug("Updating FHIR Device (inventory): {}", fhirId);
 
-        // use dto.getStock() instead of getQuantity()
-        return orderService.createOrder(entity, dto.getStock(), dto.getSupplier());
+        Device device = toFhirDevice(dto);
+        device.setId(fhirId);
+        fhirClientService.update(device, getPracticeId());
+
+        dto.setFhirId(fhirId);
+        return dto;
     }
 
+    // DELETE
+    public void delete(String fhirId) {
+        log.debug("Deleting FHIR Device (inventory): {}", fhirId);
+        fhirClientService.delete(Device.class, fhirId, getPracticeId());
+    }
 
-    @Transactional(readOnly = true)
+    // CREATE REORDER
+    public OrderDto createReorder(String inventoryId, OrderDto dto) {
+        InventoryDto inventory = getById(inventoryId);
+        return orderService.createOrder(inventory.getName(), inventory.getCategory(), dto.getStock(), dto.getSupplier());
+    }
+
+    // ANALYTICS - Weekly Consumption (simplified for FHIR)
     public List<Map<String, Object>> getWeeklyConsumption() {
-
-        List<Inventory> items = repository.findAll();
-
-        Map<String, Integer> grouped = items.stream()
-                .filter(i -> i.getLastModifiedDate() != null)  // use entity field, not audit
-                .collect(Collectors.groupingBy(
-                        i -> {
-                            LocalDate date = i.getLastModifiedDate().toLocalDate();
-                            return date.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
-                        },
-                        Collectors.summingInt(Inventory::getStock)
-                ));
-
-        List<String> order = Arrays.asList("Mon","Tue","Wed","Thu","Fri","Sat","Sun");
+        // FHIR doesn't track consumption history natively
+        // Return placeholder data structure
+        List<String> order = Arrays.asList("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun");
         List<Map<String, Object>> result = new ArrayList<>();
         for (String d : order) {
-            result.add(Map.of(
-                    "day", d,
-                    "stock", grouped.getOrDefault(d, 0)
-            ));
+            result.add(Map.of("day", d, "stock", 0));
         }
         return result;
     }
 
-
-    @Transactional(readOnly = true)
+    // ANALYTICS - Monthly Orders
     public List<Map<String, Object>> getMonthlyOrders() {
-
         List<MonthlyOrderCountDto> counts = orderService.countOrdersByMonth();
-
         return counts.stream()
                 .map(c -> {
                     Map<String, Object> row = new HashMap<>();
@@ -183,19 +142,16 @@ public class InventoryService {
                     return row;
                 })
                 .collect(Collectors.toList());
-
     }
 
-
-    @Transactional(readOnly = true)
+    // COUNT ALL
     public long countAll() {
-        return repository.count();
+        return getAll().size();
     }
 
-    @Transactional(readOnly = true)
+    // COUNT LOW AND CRITICAL
     public Map<String, Long> countLowAndCritical() {
-
-        List<Inventory> items = repository.findAll();
+        List<InventoryDto> items = getAll();
 
         long low = items.stream()
                 .filter(i -> i.getStock() != null && i.getMinStock() != null
@@ -209,54 +165,82 @@ public class InventoryService {
         return Map.of("low", low, "critical", critical);
     }
 
+    // -------- FHIR Mapping --------
 
+    private Device toFhirDevice(InventoryDto dto) {
+        Device d = new Device();
 
+        // Device name
+        if (dto.getName() != null) {
+            d.addDeviceName().setName(dto.getName()).setType(Device.DeviceNameType.USERFRIENDLYNAME);
+        }
 
+        // Extensions for all custom fields
+        addStringExtension(d, EXT_CATEGORY, dto.getCategory());
+        addStringExtension(d, EXT_LOT, dto.getLot());
+        addStringExtension(d, EXT_EXPIRY, dto.getExpiry());
+        addStringExtension(d, EXT_SKU, dto.getSku());
+        addStringExtension(d, EXT_UNIT, dto.getUnit());
+        addStringExtension(d, EXT_LOCATION, dto.getLocation());
+        addStringExtension(d, EXT_STATUS, dto.getStatus());
+        addStringExtension(d, EXT_SUPPLIER, dto.getSupplier());
 
-    private Inventory mapToEntity(InventoryDto dto) {
-        return Inventory.builder()
-                .id(dto.getId())
-                .name(dto.getName())
-                .category(dto.getCategory())
-                .lot(dto.getLot())
-                .expiry(dto.getExpiry())
-                .sku(dto.getSku())
-                .stock(dto.getStock())
-                .supplier(dto.getSupplier())
-                .unit(dto.getUnit())
-                .minStock(dto.getMinStock())
-                .location(dto.getLocation())
-                .status(dto.getStatus())
-                .externalId(dto.getFhirId())
-                .build();
+        if (dto.getStock() != null) {
+            d.addExtension(new Extension(EXT_STOCK, new IntegerType(dto.getStock())));
+        }
+        if (dto.getMinStock() != null) {
+            d.addExtension(new Extension(EXT_MIN_STOCK, new IntegerType(dto.getMinStock())));
+        }
+
+        return d;
     }
 
-    private InventoryDto mapToDto(Inventory e) {
+    private InventoryDto fromFhirDevice(Device d) {
         InventoryDto dto = new InventoryDto();
-        dto.setId(e.getId());
-        dto.setName(e.getName());
-        dto.setCategory(e.getCategory());
-        dto.setLot(e.getLot());
-        dto.setExpiry(e.getExpiry());
-        dto.setSku(e.getSku());
-        dto.setStock(e.getStock());
-        dto.setUnit(e.getUnit());
-        dto.setMinStock(e.getMinStock());
-        dto.setLocation(e.getLocation());
-        dto.setStatus(e.getStatus());
-        dto.setSupplier(e.getSupplier());
-        dto.setFhirId(e.getExternalId());
+        dto.setFhirId(d.getIdElement().getIdPart());
 
-        InventoryDto.Audit audit = new InventoryDto.Audit();
-        if (e.getCreatedDate() != null) {
-            audit.setCreatedDate(e.getCreatedDate().format(DATE_FORMATTER));
+        // Device name
+        if (d.hasDeviceName()) {
+            dto.setName(d.getDeviceNameFirstRep().getName());
         }
-        if (e.getLastModifiedDate() != null) {
-            audit.setLastModifiedDate(e.getLastModifiedDate().format(DATE_FORMATTER));
+
+        // Extensions
+        dto.setCategory(getExtensionString(d, EXT_CATEGORY));
+        dto.setLot(getExtensionString(d, EXT_LOT));
+        dto.setExpiry(getExtensionString(d, EXT_EXPIRY));
+        dto.setSku(getExtensionString(d, EXT_SKU));
+        dto.setUnit(getExtensionString(d, EXT_UNIT));
+        dto.setLocation(getExtensionString(d, EXT_LOCATION));
+        dto.setStatus(getExtensionString(d, EXT_STATUS));
+        dto.setSupplier(getExtensionString(d, EXT_SUPPLIER));
+
+        Extension stockExt = d.getExtensionByUrl(EXT_STOCK);
+        if (stockExt != null && stockExt.getValue() instanceof IntegerType) {
+            dto.setStock(((IntegerType) stockExt.getValue()).getValue());
         }
-        dto.setAudit(audit);
+
+        Extension minStockExt = d.getExtensionByUrl(EXT_MIN_STOCK);
+        if (minStockExt != null && minStockExt.getValue() instanceof IntegerType) {
+            dto.setMinStock(((IntegerType) minStockExt.getValue()).getValue());
+        }
 
         return dto;
+    }
+
+    // -------- Helpers --------
+
+    private void addStringExtension(Device d, String url, String value) {
+        if (value != null) {
+            d.addExtension(new Extension(url, new StringType(value)));
+        }
+    }
+
+    private String getExtensionString(Device d, String url) {
+        Extension ext = d.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
     }
 
     private void validateInventoryDto(InventoryDto dto) {
@@ -299,9 +283,5 @@ public class InventoryService {
             log.error("Inventory validation failed: {}", errorMessage);
             throw new IllegalArgumentException(errorMessage);
         }
-    }
-
-    private String now() {
-        return LocalDateTime.now().toString();
     }
 }

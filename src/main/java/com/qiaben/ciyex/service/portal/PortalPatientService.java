@@ -2,68 +2,72 @@ package com.qiaben.ciyex.service.portal;
 
 import com.qiaben.ciyex.dto.portal.ApiResponse;
 import com.qiaben.ciyex.dto.portal.PortalPatientDto;
-import com.qiaben.ciyex.entity.portal.PortalPatient;
-import com.qiaben.ciyex.entity.portal.PortalUser;
-import com.qiaben.ciyex.enums.PortalStatus;
-import com.qiaben.ciyex.repository.portal.PortalPatientRepository;
-import com.qiaben.ciyex.repository.portal.PortalUserRepository;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
+import com.qiaben.ciyex.fhir.FhirClientService;
+import com.qiaben.ciyex.service.PracticeContextService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Date;
+import java.util.List;
 
+/**
+ * FHIR-only Portal Patient Service.
+ * Uses FHIR Person resource for portal patients.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PortalPatientService {
 
-    private final PortalPatientRepository patientRepository;
-    private final PortalUserRepository userRepository;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    @PersistenceContext
-    private EntityManager entityManager;
+    private static final String EXT_STATUS = "http://ciyex.com/fhir/StructureDefinition/portal-status";
+    private static final String EXT_DOB = "http://ciyex.com/fhir/StructureDefinition/date-of-birth";
+    private static final String EXT_GENDER = "http://ciyex.com/fhir/StructureDefinition/gender";
+    private static final String EXT_ADDRESS1 = "http://ciyex.com/fhir/StructureDefinition/address-line1";
+    private static final String EXT_ADDRESS2 = "http://ciyex.com/fhir/StructureDefinition/address-line2";
+    private static final String EXT_CITY = "http://ciyex.com/fhir/StructureDefinition/city";
+    private static final String EXT_STATE = "http://ciyex.com/fhir/StructureDefinition/state";
+    private static final String EXT_POSTAL_CODE = "http://ciyex.com/fhir/StructureDefinition/postal-code";
+    private static final String EXT_COUNTRY = "http://ciyex.com/fhir/StructureDefinition/country";
+    private static final String EXT_EMERGENCY_NAME = "http://ciyex.com/fhir/StructureDefinition/emergency-contact-name";
+    private static final String EXT_EMERGENCY_PHONE = "http://ciyex.com/fhir/StructureDefinition/emergency-contact-phone";
+    private static final String EXT_EHR_PATIENT_ID = "http://ciyex.com/fhir/StructureDefinition/ehr-patient-id";
+    private static final String EXT_MRN = "http://ciyex.com/fhir/StructureDefinition/medical-record-number";
 
-    /**
-     * Get patient's own information (for portal dashboard)
-     * Creates a basic patient profile if one doesn't exist
-     */
-    @Transactional
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
     public ApiResponse<PortalPatientDto> getPatientInfo(String email) {
         try {
-            PortalUser portalUser = userRepository.findByEmail(email)
+            Bundle bundle = fhirClientService.search(Person.class, getPracticeId());
+            Person person = fhirClientService.extractResources(bundle, Person.class).stream()
+                    .filter(p -> email.equalsIgnoreCase(getEmail(p)))
+                    .findFirst()
                     .orElse(null);
 
-            if (portalUser == null) {
+            if (person == null) {
                 return ApiResponse.<PortalPatientDto>builder()
                         .success(false)
                         .message("Portal user not found")
                         .build();
             }
 
-            if (portalUser.getStatus() != PortalStatus.APPROVED) {
+            String status = getStringExt(person, EXT_STATUS);
+            if (!"APPROVED".equals(status)) {
                 return ApiResponse.<PortalPatientDto>builder()
                         .success(false)
                         .message("User not approved")
                         .build();
             }
 
-            PortalPatient patient = patientRepository.findByPortalUser_Id(portalUser.getId())
-                    .orElse(null);
-
-            // If patient profile doesn't exist, create a basic one
-            if (patient == null) {
-                log.info("Creating basic patient profile for portal user: {}", portalUser.getEmail());
-                patient = createBasicPatientProfile(portalUser);
-            }
-
-            // ✅ Auto-link portal patient to EHR if a matching record exists
-            linkToEhrPatientIfExists(patient);
-
-            PortalPatientDto dto = PortalPatientDto.fromEntity(patient, portalUser);
+            PortalPatientDto dto = toPortalPatientDto(person);
 
             return ApiResponse.<PortalPatientDto>builder()
                     .success(true)
@@ -80,51 +84,66 @@ public class PortalPatientService {
         }
     }
 
-    /**
-     * Update patient's own information
-     */
-    @Transactional
     public ApiResponse<PortalPatientDto> updatePatientInfo(String email, PortalPatientDto updateDto) {
         try {
-            PortalUser portalUser = userRepository.findByEmail(email)
+            Bundle bundle = fhirClientService.search(Person.class, getPracticeId());
+            Person person = fhirClientService.extractResources(bundle, Person.class).stream()
+                    .filter(p -> email.equalsIgnoreCase(getEmail(p)))
+                    .findFirst()
                     .orElse(null);
 
-            if (portalUser == null) {
+            if (person == null) {
                 return ApiResponse.<PortalPatientDto>builder()
                         .success(false)
                         .message("Portal user not found")
                         .build();
             }
 
-            if (portalUser.getStatus() != PortalStatus.APPROVED) {
+            String status = getStringExt(person, EXT_STATUS);
+            if (!"APPROVED".equals(status)) {
                 return ApiResponse.<PortalPatientDto>builder()
                         .success(false)
                         .message("User not approved")
                         .build();
             }
 
-            PortalPatient patient = patientRepository.findByPortalUser_Id(portalUser.getId())
-                    .orElse(null);
-
-            if (patient == null) {
-                return ApiResponse.<PortalPatientDto>builder()
-                        .success(false)
-                        .message("Patient profile not found")
-                        .build();
+            // Update fields
+            if (updateDto.getAddressLine1() != null) {
+                person.getExtension().removeIf(e -> EXT_ADDRESS1.equals(e.getUrl()));
+                person.addExtension(new Extension(EXT_ADDRESS1, new StringType(updateDto.getAddressLine1())));
+            }
+            if (updateDto.getAddressLine2() != null) {
+                person.getExtension().removeIf(e -> EXT_ADDRESS2.equals(e.getUrl()));
+                person.addExtension(new Extension(EXT_ADDRESS2, new StringType(updateDto.getAddressLine2())));
+            }
+            if (updateDto.getCity() != null) {
+                person.getExtension().removeIf(e -> EXT_CITY.equals(e.getUrl()));
+                person.addExtension(new Extension(EXT_CITY, new StringType(updateDto.getCity())));
+            }
+            if (updateDto.getState() != null) {
+                person.getExtension().removeIf(e -> EXT_STATE.equals(e.getUrl()));
+                person.addExtension(new Extension(EXT_STATE, new StringType(updateDto.getState())));
+            }
+            if (updateDto.getPostalCode() != null) {
+                person.getExtension().removeIf(e -> EXT_POSTAL_CODE.equals(e.getUrl()));
+                person.addExtension(new Extension(EXT_POSTAL_CODE, new StringType(updateDto.getPostalCode())));
+            }
+            if (updateDto.getCountry() != null) {
+                person.getExtension().removeIf(e -> EXT_COUNTRY.equals(e.getUrl()));
+                person.addExtension(new Extension(EXT_COUNTRY, new StringType(updateDto.getCountry())));
+            }
+            if (updateDto.getEmergencyContactName() != null) {
+                person.getExtension().removeIf(e -> EXT_EMERGENCY_NAME.equals(e.getUrl()));
+                person.addExtension(new Extension(EXT_EMERGENCY_NAME, new StringType(updateDto.getEmergencyContactName())));
+            }
+            if (updateDto.getEmergencyContactPhone() != null) {
+                person.getExtension().removeIf(e -> EXT_EMERGENCY_PHONE.equals(e.getUrl()));
+                person.addExtension(new Extension(EXT_EMERGENCY_PHONE, new StringType(updateDto.getEmergencyContactPhone())));
             }
 
-            // Update patient fields
-            if (updateDto.getAddressLine1() != null) patient.setAddressLine1(updateDto.getAddressLine1());
-            if (updateDto.getAddressLine2() != null) patient.setAddressLine2(updateDto.getAddressLine2());
-            if (updateDto.getCity() != null) patient.setCity(updateDto.getCity());
-            if (updateDto.getState() != null) patient.setState(updateDto.getState());
-            if (updateDto.getPostalCode() != null) patient.setPostalCode(updateDto.getPostalCode());
-            if (updateDto.getCountry() != null) patient.setCountry(updateDto.getCountry());
-            if (updateDto.getEmergencyContactName() != null) patient.setEmergencyContactName(updateDto.getEmergencyContactName());
-            if (updateDto.getEmergencyContactPhone() != null) patient.setEmergencyContactPhone(updateDto.getEmergencyContactPhone());
+            fhirClientService.update(person, getPracticeId());
 
-            PortalPatient savedPatient = patientRepository.save(patient);
-            PortalPatientDto dto = PortalPatientDto.fromEntity(savedPatient, portalUser);
+            PortalPatientDto dto = toPortalPatientDto(person);
 
             return ApiResponse.<PortalPatientDto>builder()
                     .success(true)
@@ -141,59 +160,78 @@ public class PortalPatientService {
         }
     }
 
-    /**
-     * Create a basic patient profile for a portal user
-     */
-    @Transactional
-    public PortalPatient createBasicPatientProfile(PortalUser portalUser) {
-        try {
-            PortalPatient patient = PortalPatient.builder()
-                    .portalUser(portalUser)
-                    .dateOfBirth(LocalDate.now().minusYears(25)) // Default age 25
-                    .country("USA")
-                    .build();
+    // -------- Helper Methods --------
 
-            return patientRepository.save(patient);
-        } catch (Exception e) {
-            log.error("Error creating basic patient profile for user: {}", portalUser.getId(), e);
-            throw new RuntimeException("Failed to create patient profile", e);
+    private PortalPatientDto toPortalPatientDto(Person person) {
+        String fhirId = person.getIdElement().getIdPart();
+
+        PortalPatientDto dto = PortalPatientDto.builder()
+                .id((long) Math.abs(fhirId.hashCode()))
+                .portalUserId((long) Math.abs(fhirId.hashCode()))
+                .addressLine1(getStringExt(person, EXT_ADDRESS1))
+                .addressLine2(getStringExt(person, EXT_ADDRESS2))
+                .city(getStringExt(person, EXT_CITY))
+                .state(getStringExt(person, EXT_STATE))
+                .postalCode(getStringExt(person, EXT_POSTAL_CODE))
+                .country(getStringExt(person, EXT_COUNTRY))
+                .emergencyContactName(getStringExt(person, EXT_EMERGENCY_NAME))
+                .emergencyContactPhone(getStringExt(person, EXT_EMERGENCY_PHONE))
+                .gender(getStringExt(person, EXT_GENDER))
+                .medicalRecordNumber(getStringExt(person, EXT_MRN))
+                .build();
+
+        // Name
+        if (person.hasName()) {
+            HumanName name = person.getNameFirstRep();
+            dto.setFirstName(name.getGivenAsSingleString());
+            dto.setLastName(name.getFamily());
         }
+
+        // Email & Phone
+        dto.setEmail(getEmail(person));
+        dto.setPhoneNumber(getPhone(person));
+
+        // DOB
+        Extension dobExt = person.getExtensionByUrl(EXT_DOB);
+        if (dobExt != null && dobExt.getValue() instanceof DateType) {
+            Date date = ((DateType) dobExt.getValue()).getValue();
+            if (date != null) {
+                dto.setDateOfBirth(date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate());
+            }
+        }
+
+        // EHR Patient ID
+        String ehrPatientIdStr = getStringExt(person, EXT_EHR_PATIENT_ID);
+        if (ehrPatientIdStr != null) {
+            try {
+                dto.setEhrPatientId(Long.parseLong(ehrPatientIdStr));
+            } catch (NumberFormatException ignored) {}
+        }
+
+        return dto;
     }
 
-    /**
-     * Auto-link portal patient to EHR if matching record exists
-     */
-    @Transactional
-    public void linkToEhrPatientIfExists(PortalPatient portalPatient) {
-        try {
-            // Only attempt linking if not already linked
-            if (portalPatient.getEhrPatientId() != null) {
-                log.info("Portal patient {} already linked to EHR ID {}", portalPatient.getId(), portalPatient.getEhrPatientId());
-                return;
-            }
+    private String getEmail(Person person) {
+        return person.getTelecom().stream()
+                .filter(cp -> cp.getSystem() == ContactPoint.ContactPointSystem.EMAIL)
+                .map(ContactPoint::getValue)
+                .findFirst()
+                .orElse(null);
+    }
 
-            String email = portalPatient.getPortalUser().getEmail();
+    private String getPhone(Person person) {
+        return person.getTelecom().stream()
+                .filter(cp -> cp.getSystem() == ContactPoint.ContactPointSystem.PHONE)
+                .map(ContactPoint::getValue)
+                .findFirst()
+                .orElse(null);
+    }
 
-            // Check if EHR patient exists with same email
-            Object ehrPatientIdObj = entityManager
-                    .createNativeQuery("SELECT id FROM patients WHERE LOWER(email) = LOWER(?) LIMIT 1")
-                    .setParameter(1, email)
-                    .getSingleResult();
-
-            if (ehrPatientIdObj != null) {
-                Long ehrPatientId = ((Number) ehrPatientIdObj).longValue();
-                portalPatient.setEhrPatientId(ehrPatientId);
-                patientRepository.save(portalPatient);
-
-                log.info("✅ Linked PortalPatient ID {} → EHR Patient ID {}", portalPatient.getId(), ehrPatientId);
-            } else {
-                log.warn("⚠️ No matching EHR patient found for email {}", email);
-            }
-
-        } catch (jakarta.persistence.NoResultException e) {
-            log.warn("⚠️ No matching EHR patient found for email {}", portalPatient.getPortalUser().getEmail());
-        } catch (Exception e) {
-            log.error("❌ Error linking portal patient to EHR patient", e);
+    private String getStringExt(Person person, String url) {
+        Extension ext = person.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
         }
+        return null;
     }
 }

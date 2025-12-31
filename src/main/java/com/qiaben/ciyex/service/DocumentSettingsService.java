@@ -4,110 +4,116 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiaben.ciyex.dto.DocumentSettingsDto;
-// import com.qiaben.ciyex.dto.integration.RequestContext; // not used here
-import com.qiaben.ciyex.entity.DocumentSettings;
-import com.qiaben.ciyex.repository.DocumentSettingsRepo;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
+/**
+ * FHIR-only Document Settings Service.
+ * Uses FHIR Basic resource for storing document settings.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class DocumentSettingsService {
 
-    private final DocumentSettingsRepo repository;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
     private final ObjectMapper objectMapper;
 
-    /**
-     * Get document settings for an organization
-     */
-    public DocumentSettingsDto get() {
-        DocumentSettings entity = repository.findFirstByOrderByIdAsc()
-            .orElseGet(() -> {
-                DocumentSettings created = createDefaultSettings();
-                return repository.save(created);
-            });
+    private static final String SETTINGS_TYPE_SYSTEM = "http://ciyex.com/fhir/resource-type";
+    private static final String SETTINGS_TYPE_CODE = "document-settings";
+    private static final String EXT_MAX_UPLOAD = "http://ciyex.com/fhir/StructureDefinition/max-upload-bytes";
+    private static final String EXT_ENABLE_AUDIO = "http://ciyex.com/fhir/StructureDefinition/enable-audio";
+    private static final String EXT_ENCRYPTION = "http://ciyex.com/fhir/StructureDefinition/encryption-enabled";
+    private static final String EXT_FILE_TYPES = "http://ciyex.com/fhir/StructureDefinition/allowed-file-types";
+    private static final String EXT_CATEGORIES = "http://ciyex.com/fhir/StructureDefinition/categories";
 
-        return toDto(entity);
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
     }
-    /**
-     * Create or update document settings
-     */
-    @Transactional
-    public DocumentSettingsDto save(DocumentSettingsDto dto, String updatedBy) {
-        // Upsert: load existing or create a new default entity if none persisted yet
-        DocumentSettings entity = repository.findFirstByOrderByIdAsc().orElse(null);
-        boolean isNew = (entity == null);
-        if (entity == null) {
-            entity = createDefaultSettings();
+
+    // GET (creates default if not exists)
+    public DocumentSettingsDto get() {
+        log.debug("Getting document settings");
+
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+        List<Basic> settings = fhirClientService.extractResources(bundle, Basic.class).stream()
+                .filter(this::isDocumentSettings)
+                .toList();
+
+        if (!settings.isEmpty()) {
+            return fromFhirBasic(settings.get(0));
         }
 
-        // Apply incoming values (override defaults)
-        entity.setMaxUploadBytes(dto.getMaxUploadSizeMB() * 1024L * 1024L);
-        entity.setEnableAudio(dto.isEnableAudio());
-        entity.setEncryptionEnabled(dto.isEncryptionEnabled());
+        // Create default settings
+        log.info("No document settings found, creating defaults");
+        return save(createDefaultDto(), "system");
+    }
+
+    // SAVE (create or update)
+    public DocumentSettingsDto save(DocumentSettingsDto dto, String updatedBy) {
+        log.debug("Saving document settings");
+
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+        List<Basic> settings = fhirClientService.extractResources(bundle, Basic.class).stream()
+                .filter(this::isDocumentSettings)
+                .toList();
 
         // Ensure JPG and JPEG are always together
         List<String> fileTypes = new ArrayList<>(dto.getAllowedFileTypes());
         boolean hasJpg = fileTypes.stream().anyMatch(ft -> ft.equalsIgnoreCase("JPG"));
         boolean hasJpeg = fileTypes.stream().anyMatch(ft -> ft.equalsIgnoreCase("JPEG"));
+        if (hasJpg && !hasJpeg) fileTypes.add("JPEG");
+        else if (hasJpeg && !hasJpg) fileTypes.add("JPG");
+        dto.setAllowedFileTypes(fileTypes);
 
-        if (hasJpg && !hasJpeg) {
-            fileTypes.add("JPEG");
-        } else if (hasJpeg && !hasJpg) {
-            fileTypes.add("JPG");
+        Basic basic = toFhirBasic(dto);
+
+        if (settings.isEmpty()) {
+            // Create new
+            var outcome = fhirClientService.create(basic, getPracticeId());
+            String fhirId = outcome.getId().getIdPart();
+            log.info("Created document settings with FHIR ID: {}", fhirId);
+        } else {
+            // Update existing
+            String fhirId = settings.get(0).getIdElement().getIdPart();
+            basic.setId(fhirId);
+            fhirClientService.update(basic, getPracticeId());
+            log.info("Updated document settings with FHIR ID: {}", fhirId);
         }
 
-        try {
-            entity.setAllowedFileTypesJson(objectMapper.writeValueAsString(fileTypes));
-            entity.setCategoriesJson(objectMapper.writeValueAsString(dto.getCategories()));
-        } catch (JsonProcessingException e) {
-            log.error("Error serializing document settings", e);
-            throw new RuntimeException("Failed to save document settings", e);
-        }
-
-        entity.setUpdatedBy(updatedBy);
-        entity.setUpdatedAt(Instant.now());
-
-        DocumentSettings saved = repository.save(entity);
-        log.debug("DocumentSettings {} (id={}) saved", isNew ? "created" : "updated", saved.getId());
-        return toDto(saved);
+        return dto;
     }
 
-    /**
-     * Get all document settings
-     */
+    // GET ALL
     public List<DocumentSettingsDto> getAll() {
-        return repository.findAll().stream()
-                .map(this::toDto)
-                .toList();
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+        return fhirClientService.extractResources(bundle, Basic.class).stream()
+                .filter(this::isDocumentSettings)
+                .map(this::fromFhirBasic)
+                .collect(Collectors.toList());
     }
 
-    /**
-     * Get categories for an organization
-     */
+    // GET CATEGORIES
     public List<DocumentSettingsDto.Category> getCategories() {
-        DocumentSettingsDto dto = get();
-        return dto.getCategories();
+        return get().getCategories();
     }
 
-    /**
-     * Add a category to an organization's document settings
-     */
-    @Transactional
+    // ADD CATEGORY
     public List<DocumentSettingsDto.Category> addCategory(String name, boolean active, String updatedBy) {
         DocumentSettingsDto dto = get();
         if (name == null || name.trim().isEmpty()) {
             throw new RuntimeException("Category name cannot be empty");
         }
 
-        // Prevent duplicates (case-insensitive); if exists, just update active flag
         boolean updatedExisting = false;
         for (DocumentSettingsDto.Category c : dto.getCategories()) {
             if (c.getName().equalsIgnoreCase(name.trim())) {
@@ -117,89 +123,99 @@ public class DocumentSettingsService {
             }
         }
         if (!updatedExisting) {
-            DocumentSettingsDto.Category newCategory = new DocumentSettingsDto.Category(name.trim(), active);
-            dto.getCategories().add(newCategory);
+            dto.getCategories().add(new DocumentSettingsDto.Category(name.trim(), active));
         }
 
-        // Persist changes via upsert save
         save(dto, updatedBy);
         return dto.getCategories();
     }
 
-    /**
-     * Delete a specific category by name
-     */
-    @Transactional
+    // DELETE CATEGORY
     public List<DocumentSettingsDto.Category> deleteCategory(String name, String updatedBy) {
         DocumentSettingsDto dto = get();
-
         if (name == null || name.trim().isEmpty()) {
             throw new RuntimeException("Category name cannot be empty");
         }
 
-        // Remove category (case-insensitive)
-        boolean removed = dto.getCategories().removeIf(
-                c -> c.getName().equalsIgnoreCase(name.trim())
-        );
-
+        boolean removed = dto.getCategories().removeIf(c -> c.getName().equalsIgnoreCase(name.trim()));
         if (!removed) {
             throw new RuntimeException("Category not found: " + name);
         }
 
-        // Persist changes
         save(dto, updatedBy);
         return dto.getCategories();
     }
 
-    /**
-     * Delete all categories
-     */
-    @Transactional
+    // DELETE ALL CATEGORIES
     public List<DocumentSettingsDto.Category> deleteAllCategories(String updatedBy) {
         DocumentSettingsDto dto = get();
         dto.getCategories().clear();
-
-        // Persist changes
         save(dto, updatedBy);
         return dto.getCategories();
     }
 
-    // Private helper methods
+    // -------- FHIR Mapping --------
 
-    private DocumentSettings createDefaultSettings() {
-        DocumentSettings settings = new DocumentSettings();
-        settings.setMaxUploadBytes(10 * 1024 * 1024); // 10 MB default
-        settings.setEnableAudio(false);
-        settings.setEncryptionEnabled(false);
+    private Basic toFhirBasic(DocumentSettingsDto dto) {
+        Basic basic = new Basic();
+
+        CodeableConcept code = new CodeableConcept();
+        code.addCoding().setSystem(SETTINGS_TYPE_SYSTEM).setCode(SETTINGS_TYPE_CODE).setDisplay("Document Settings");
+        basic.setCode(code);
+
+        basic.addExtension(new Extension(EXT_MAX_UPLOAD, new IntegerType(dto.getMaxUploadSizeMB() * 1024 * 1024)));
+        basic.addExtension(new Extension(EXT_ENABLE_AUDIO, new BooleanType(dto.isEnableAudio())));
+        basic.addExtension(new Extension(EXT_ENCRYPTION, new BooleanType(dto.isEncryptionEnabled())));
 
         try {
-            settings.setAllowedFileTypesJson(objectMapper.writeValueAsString(
-                List.of("PDF", "JPG", "JPEG", "PNG", "DOC", "DOCX", "TXT")));
-            settings.setCategoriesJson(objectMapper.writeValueAsString(
-                    List.of(
-                            new DocumentSettingsDto.Category("Medical Records", true),
-                            new DocumentSettingsDto.Category("Lab Results", true)
-                    )));
+            basic.addExtension(new Extension(EXT_FILE_TYPES, new StringType(objectMapper.writeValueAsString(dto.getAllowedFileTypes()))));
+            basic.addExtension(new Extension(EXT_CATEGORIES, new StringType(objectMapper.writeValueAsString(dto.getCategories()))));
         } catch (JsonProcessingException e) {
-            log.error("Error creating default settings", e);
+            log.error("Error serializing document settings", e);
         }
 
-        return settings;
+        return basic;
     }
 
-    private DocumentSettingsDto toDto(DocumentSettings entity) {
+    private DocumentSettingsDto fromFhirBasic(Basic basic) {
         DocumentSettingsDto dto = new DocumentSettingsDto();
-        dto.setMaxUploadSizeMB((int) (entity.getMaxUploadBytes() / (1024 * 1024)));
-        dto.setEnableAudio(entity.isEnableAudio());
-        dto.setEncryptionEnabled(entity.isEncryptionEnabled());
+
+        Extension maxUploadExt = basic.getExtensionByUrl(EXT_MAX_UPLOAD);
+        if (maxUploadExt != null && maxUploadExt.getValue() instanceof IntegerType) {
+            int bytes = ((IntegerType) maxUploadExt.getValue()).getValue();
+            dto.setMaxUploadSizeMB(bytes / (1024 * 1024));
+        } else {
+            dto.setMaxUploadSizeMB(10);
+        }
+
+        Extension audioExt = basic.getExtensionByUrl(EXT_ENABLE_AUDIO);
+        if (audioExt != null && audioExt.getValue() instanceof BooleanType) {
+            dto.setEnableAudio(((BooleanType) audioExt.getValue()).booleanValue());
+        }
+
+        Extension encryptExt = basic.getExtensionByUrl(EXT_ENCRYPTION);
+        if (encryptExt != null && encryptExt.getValue() instanceof BooleanType) {
+            dto.setEncryptionEnabled(((BooleanType) encryptExt.getValue()).booleanValue());
+        }
 
         try {
-            dto.setAllowedFileTypes(objectMapper.readValue(
-                    entity.getAllowedFileTypesJson(),
-                    new TypeReference<List<String>>() {}));
-            dto.setCategories(objectMapper.readValue(
-                    entity.getCategoriesJson(),
-                    new TypeReference<List<DocumentSettingsDto.Category>>() {}));
+            Extension fileTypesExt = basic.getExtensionByUrl(EXT_FILE_TYPES);
+            if (fileTypesExt != null && fileTypesExt.getValue() instanceof StringType) {
+                dto.setAllowedFileTypes(objectMapper.readValue(
+                        ((StringType) fileTypesExt.getValue()).getValue(),
+                        new TypeReference<List<String>>() {}));
+            } else {
+                dto.setAllowedFileTypes(new ArrayList<>());
+            }
+
+            Extension categoriesExt = basic.getExtensionByUrl(EXT_CATEGORIES);
+            if (categoriesExt != null && categoriesExt.getValue() instanceof StringType) {
+                dto.setCategories(objectMapper.readValue(
+                        ((StringType) categoriesExt.getValue()).getValue(),
+                        new TypeReference<List<DocumentSettingsDto.Category>>() {}));
+            } else {
+                dto.setCategories(new ArrayList<>());
+            }
         } catch (JsonProcessingException e) {
             log.error("Error deserializing document settings", e);
             dto.setAllowedFileTypes(new ArrayList<>());
@@ -207,5 +223,24 @@ public class DocumentSettingsService {
         }
 
         return dto;
+    }
+
+    private boolean isDocumentSettings(Basic basic) {
+        if (!basic.hasCode()) return false;
+        return basic.getCode().getCoding().stream()
+                .anyMatch(c -> SETTINGS_TYPE_SYSTEM.equals(c.getSystem()) && SETTINGS_TYPE_CODE.equals(c.getCode()));
+    }
+
+    private DocumentSettingsDto createDefaultDto() {
+        return DocumentSettingsDto.builder()
+                .maxUploadSizeMB(10)
+                .enableAudio(false)
+                .encryptionEnabled(false)
+                .allowedFileTypes(List.of("PDF", "JPG", "JPEG", "PNG", "DOC", "DOCX", "TXT"))
+                .categories(List.of(
+                        new DocumentSettingsDto.Category("Medical Records", true),
+                        new DocumentSettingsDto.Category("Lab Results", true)
+                ))
+                .build();
     }
 }

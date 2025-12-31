@@ -1,149 +1,112 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.PatientCodeListDto;
-import com.qiaben.ciyex.entity.PatientCodeList;
-import com.qiaben.ciyex.repository.PatientCodeListRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * FHIR-only PatientCodeList Service.
+ * Uses FHIR List resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class PatientCodeListService {
 
-    private final PatientCodeListRepository repo;
-    private final ExternalStorageResolver externalStorageResolver;
-    private final OrgIntegrationConfigProvider orgIntegrationConfigProvider;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    // Extension URLs
+    private static final String EXT_ORDER = "http://ciyex.com/fhir/StructureDefinition/order-index";
+    private static final String EXT_IS_DEFAULT = "http://ciyex.com/fhir/StructureDefinition/is-default";
+    private static final String EXT_ACTIVE = "http://ciyex.com/fhir/StructureDefinition/active";
+    private static final String EXT_CODES = "http://ciyex.com/fhir/StructureDefinition/codes";
 
-    @PersistenceContext
-    private EntityManager em;
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
 
-    @Transactional(readOnly = true)
+    // FIND ALL
     public List<PatientCodeListDto> findAll() {
-        return repo.findAll()
-                .stream().map(this::toDto).collect(Collectors.toList());
+        log.debug("Getting all FHIR Lists (patient code lists)");
+
+        Bundle bundle = fhirClientService.search(ListResource.class, getPracticeId());
+        List<ListResource> lists = fhirClientService.extractResources(bundle, ListResource.class);
+
+        return lists.stream()
+                .filter(this::isPatientCodeList)
+                .map(this::fromFhirList)
+                .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
-    public PatientCodeListDto getById(Long id) {
-        Optional<PatientCodeList> opt = repo.findById(id);
-        return opt.map(this::toDto).orElse(null);
+    // GET BY ID
+    public PatientCodeListDto getById(String fhirId) {
+        log.debug("Getting FHIR List (patient code list): {}", fhirId);
+        ListResource list = fhirClientService.read(ListResource.class, fhirId, getPracticeId());
+        return fromFhirList(list);
     }
 
-    @Transactional
+    // CREATE
     public PatientCodeListDto create(PatientCodeListDto dto) {
-        PatientCodeList entity = fromDto(dto, new PatientCodeList());
-        PatientCodeList saved = repo.save(entity);
-        if (saved.isDefault()) {
-            repo.clearDefaultsExcept(saved.getId());
+        log.debug("Creating FHIR List (patient code list): {}", dto.title);
+
+        ListResource list = toFhirList(dto);
+        var outcome = fhirClientService.create(list, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
+
+        dto.fhirId = fhirId;
+        dto.externalId = fhirId;
+
+        // If this is default, clear other defaults
+        if (dto.isDefault) {
+            clearOtherDefaults(fhirId);
         }
 
-        // External sync
-        String storageType = orgIntegrationConfigProvider.getStorageType();
-        if (!"none".equals(storageType)) {
-            try {
-                log.info("Attempting FHIR sync for PatientCodeList ID: {}", saved.getId());
-                ExternalStorage<PatientCodeListDto> ext = externalStorageResolver.resolve(PatientCodeListDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                PatientCodeListDto snapshot = toDto(saved);
-                String externalId = ext.create(snapshot);
-                log.info("FHIR create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    saved.setExternalId(externalId);
-                    saved = repo.save(saved);
-                    log.info("Created FHIR resource for PatientCodeList ID: {} with externalId: {}", saved.getId(), externalId);
-                } else {
-                    log.warn("FHIR create returned null or empty externalId for PatientCodeList ID: {}", saved.getId());
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync PatientCodeList to external storage", ex);
-            }
-        }
-
-        if (saved.getExternalId() == null) {
-            String generatedId = "CL-" + System.currentTimeMillis();
-            saved.setExternalId(generatedId);
-            saved.setFhirId(generatedId);
-            saved = repo.save(saved);
-            log.info("Auto-generated externalId: {}", generatedId);
-        } else {
-            saved.setFhirId(saved.getExternalId());
-            saved = repo.save(saved);
-        }
-
-        return toDto(saved);
+        log.info("Created FHIR List (patient code list) with id: {}", fhirId);
+        return dto;
     }
 
-    @Transactional
-    public PatientCodeListDto update(Long id, PatientCodeListDto dto) {
-        PatientCodeList entity = repo.findById(id).orElse(null);
-        if (entity == null) return null;
+    // UPDATE
+    public PatientCodeListDto update(String fhirId, PatientCodeListDto dto) {
+        log.debug("Updating FHIR List (patient code list): {}", fhirId);
 
-        entity = fromDto(dto, entity);
-        PatientCodeList saved = repo.save(entity);
-        if (saved.isDefault()) {
-            repo.clearDefaultsExcept(saved.getId());
+        ListResource list = toFhirList(dto);
+        list.setId(fhirId);
+        fhirClientService.update(list, getPracticeId());
+
+        dto.fhirId = fhirId;
+        dto.externalId = fhirId;
+
+        // If this is default, clear other defaults
+        if (dto.isDefault) {
+            clearOtherDefaults(fhirId);
         }
 
-        // External sync
-        String storageType = orgIntegrationConfigProvider.getStorageType();
-        if (!"none".equals(storageType)) {
-            ExternalStorage<PatientCodeListDto> ext = externalStorageResolver.resolve(PatientCodeListDto.class);
-            PatientCodeListDto snapshot = toDto(saved);
-            if (saved.getExternalId() != null) {
-                ext.update(snapshot, saved.getExternalId());
-            }
-        }
-
-        if (saved.getExternalId() == null) {
-            String generatedId = "CL-" + System.currentTimeMillis();
-            saved.setExternalId(generatedId);
-            saved.setFhirId(generatedId);
-            saved = repo.save(saved);
-            log.info("Auto-generated externalId for update: {}", generatedId);
-        }
-
-        return toDto(saved);
+        return dto;
     }
 
-    @Transactional
-    public boolean delete(Long id) {
-        PatientCodeList entity = repo.findById(id).orElse(null);
-        if (entity == null) return false;
-
-        // External sync
-        String storageType = orgIntegrationConfigProvider.getStorageType();
-        if (!"none".equals(storageType) && entity.getExternalId() != null) {
-            ExternalStorage<PatientCodeListDto> ext = externalStorageResolver.resolve(PatientCodeListDto.class);
-            ext.delete(entity.getExternalId());
+    // DELETE
+    public boolean delete(String fhirId) {
+        log.debug("Deleting FHIR List (patient code list): {}", fhirId);
+        try {
+            fhirClientService.delete(ListResource.class, fhirId, getPracticeId());
+            return true;
+        } catch (Exception e) {
+            log.error("Failed to delete patient code list: {}", e.getMessage());
+            return false;
         }
-
-        repo.deleteById(id);
-        return true;
     }
 
-    @Transactional
+    // SAVE BULK
     public List<PatientCodeListDto> saveBulk(List<PatientCodeListDto> rows) {
-
-        
         boolean seenDefault = false;
         for (PatientCodeListDto r : rows) {
             if (r.isDefault) {
@@ -152,68 +115,123 @@ public class PatientCodeListService {
             }
         }
 
-        List<PatientCodeList> entities = rows.stream()
+        return rows.stream()
+                .sorted(Comparator.comparingInt(r -> r.order != null ? r.order : 0))
                 .map(r -> {
-                    PatientCodeList e = (r.id != null)
-                            ? repo.findById(r.id).orElse(new PatientCodeList())
-                            : new PatientCodeList();
-                    return fromDto(r, e);
+                    if (r.fhirId != null && !r.fhirId.isEmpty()) {
+                        return update(r.fhirId, r);
+                    } else {
+                        return create(r);
+                    }
                 })
-                .sorted(Comparator.comparing(PatientCodeList::getOrderIndex))
                 .collect(Collectors.toList());
-
-        List<PatientCodeList> saved = repo.saveAll(entities);
-
-        Long keepId = saved.stream().filter(PatientCodeList::isDefault)
-                .findFirst().map(PatientCodeList::getId).orElse(null);
-        if (keepId == null) repo.clearAllDefaults();
-        else repo.clearDefaultsExcept(keepId);
-
-        return saved.stream().map(this::toDto).collect(Collectors.toList());
     }
 
-    @Transactional
-    public PatientCodeListDto setDefault(Long id) {
-        PatientCodeList e = repo.findById(id).orElse(null);
-        if (e == null) return null;
-        e.setDefault(true);
-        repo.save(e);
-        repo.clearDefaultsExcept(e.getId());
-        return toDto(e);
+    // SET DEFAULT
+    public PatientCodeListDto setDefault(String fhirId) {
+        PatientCodeListDto dto = getById(fhirId);
+        if (dto == null) return null;
+        
+        dto.isDefault = true;
+        update(fhirId, dto);
+        clearOtherDefaults(fhirId);
+        
+        return dto;
     }
 
-    // ---- mapping helpers ----
+    // -------- FHIR Mapping --------
 
-    private PatientCodeList fromDto(PatientCodeListDto dto, PatientCodeList e) {
-        if (dto.title != null) e.setTitle(dto.title);
-        if (dto.order != null) e.setOrderIndex(dto.order);
-        e.setDefault(dto.isDefault);
-        e.setActive(dto.active);
-        e.setNotes(dto.notes);
-        e.setCodes(dto.codes);
-        e.setExternalId(dto.externalId);
-        e.setFhirId(dto.fhirId);
-        return e;
+    private ListResource toFhirList(PatientCodeListDto dto) {
+        ListResource list = new ListResource();
+        list.setStatus(ListResource.ListStatus.CURRENT);
+        list.setMode(ListResource.ListMode.WORKING);
+
+        // Code to identify as patient code list
+        list.setCode(new CodeableConcept().addCoding(
+                new Coding()
+                        .setSystem("http://ciyex.com/fhir/CodeSystem/list-type")
+                        .setCode("patient-code-list")
+                        .setDisplay("Patient Code List")
+        ));
+
+        // Title
+        if (dto.title != null) {
+            list.setTitle(dto.title);
+        }
+
+        // Notes
+        if (dto.notes != null) {
+            list.addNote().setText(dto.notes);
+        }
+
+        // Extensions
+        if (dto.order != null) {
+            list.addExtension(new Extension(EXT_ORDER, new IntegerType(dto.order)));
+        }
+        list.addExtension(new Extension(EXT_IS_DEFAULT, new BooleanType(dto.isDefault)));
+        list.addExtension(new Extension(EXT_ACTIVE, new BooleanType(dto.active)));
+        
+        if (dto.codes != null) {
+            list.addExtension(new Extension(EXT_CODES, new StringType(dto.codes)));
+        }
+
+        return list;
     }
 
-    private PatientCodeListDto toDto(PatientCodeList e) {
-        PatientCodeListDto d = new PatientCodeListDto();
-        d.id = e.getId();
-        d.title = e.getTitle();
-        d.order = e.getOrderIndex();
-        d.isDefault = e.isDefault();
-        d.active = e.isActive();
-        d.notes = e.getNotes();
-        d.codes = e.getCodes();
-        String idValue = e.getFhirId() != null ? e.getFhirId() : ("CL-" + e.getId());
-        d.externalId = idValue;
-        d.fhirId = idValue;
+    private PatientCodeListDto fromFhirList(ListResource list) {
+        PatientCodeListDto dto = new PatientCodeListDto();
+        dto.fhirId = list.getIdElement().getIdPart();
+        dto.externalId = dto.fhirId;
 
-        PatientCodeListDto.Audit a = new PatientCodeListDto.Audit();
-        if (e.getCreatedDate() != null) a.createdDate = DAY.format(e.getCreatedDate().atZone(ZoneId.systemDefault()));
-        if (e.getLastModifiedDate() != null) a.lastModifiedDate = DAY.format(e.getLastModifiedDate().atZone(ZoneId.systemDefault()));
-        d.audit = a;
+        // Title
+        if (list.hasTitle()) {
+            dto.title = list.getTitle();
+        }
 
-        return d;
+        // Notes
+        if (list.hasNote()) {
+            dto.notes = list.getNoteFirstRep().getText();
+        }
+
+        // Extensions
+        Extension orderExt = list.getExtensionByUrl(EXT_ORDER);
+        if (orderExt != null && orderExt.getValue() instanceof IntegerType) {
+            dto.order = ((IntegerType) orderExt.getValue()).getValue();
+        }
+
+        Extension defaultExt = list.getExtensionByUrl(EXT_IS_DEFAULT);
+        if (defaultExt != null && defaultExt.getValue() instanceof BooleanType) {
+            dto.isDefault = ((BooleanType) defaultExt.getValue()).booleanValue();
+        }
+
+        Extension activeExt = list.getExtensionByUrl(EXT_ACTIVE);
+        if (activeExt != null && activeExt.getValue() instanceof BooleanType) {
+            dto.active = ((BooleanType) activeExt.getValue()).booleanValue();
+        }
+
+        Extension codesExt = list.getExtensionByUrl(EXT_CODES);
+        if (codesExt != null && codesExt.getValue() instanceof StringType) {
+            dto.codes = ((StringType) codesExt.getValue()).getValue();
+        }
+
+        return dto;
+    }
+
+    // -------- Helpers --------
+
+    private boolean isPatientCodeList(ListResource list) {
+        if (!list.hasCode()) return false;
+        return list.getCode().getCoding().stream()
+                .anyMatch(c -> "patient-code-list".equals(c.getCode()));
+    }
+
+    private void clearOtherDefaults(String exceptFhirId) {
+        List<PatientCodeListDto> all = findAll();
+        for (PatientCodeListDto item : all) {
+            if (!item.fhirId.equals(exceptFhirId) && item.isDefault) {
+                item.isDefault = false;
+                update(item.fhirId, item);
+            }
+        }
     }
 }

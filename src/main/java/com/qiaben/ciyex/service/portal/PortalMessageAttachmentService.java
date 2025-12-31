@@ -137,7 +137,7 @@ public class PortalMessageAttachmentService {
     /**
      * Delete message attachment (portal user access)
      */
-    public ApiResponse<Void> deleteMessageAttachment(Long portalUserId, Long messageId, Long attachmentId) {
+    public ApiResponse<Void> deleteMessageAttachment(Long portalUserId, Long messageId, String attachmentId) {
         try {
             PortalUser portalUser = portalUserRepository.findById(portalUserId)
                     .orElse(null);
@@ -210,7 +210,7 @@ public class PortalMessageAttachmentService {
         if (bytes < 1024 * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
         return String.format("%.1f GB", bytes / (1024.0 * 1024.0 * 1024.0));
     }
-    public MessageAttachmentService.DownloadResult getAttachmentDownload(Long portalUserId, Long messageId, Long attachmentId) {
+    public MessageAttachmentService.DownloadResult getAttachmentDownload(Long portalUserId, Long messageId, String attachmentId) {
         try {
             PortalUser portalUser = portalUserRepository.findById(portalUserId)
                     .orElseThrow(() -> new RuntimeException("Portal user not found"));

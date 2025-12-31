@@ -1,565 +1,330 @@
-//package com.qiaben.ciyex.service;
-//
-//import com.qiaben.ciyex.dto.CodeDto;
-//import com.qiaben.ciyex.entity.Code;
-//import com.qiaben.ciyex.repository.CodeRepository;
-//import com.qiaben.ciyex.storage.ExternalCodeStorage;
-//import lombok.RequiredArgsConstructor;
-//import lombok.extern.slf4j.Slf4j;
-//import org.springframework.stereotype.Service;
-//
-//import java.time.ZoneId;
-//import java.time.format.DateTimeFormatter;
-//import java.util.List;
-//import java.util.Optional;
-//
-//@Service
-//@RequiredArgsConstructor
-//@Slf4j
-//public class CodeService {
-//
-//    private final CodeRepository repo;
-//    private final Optional<ExternalCodeStorage> external;
-//
-//    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-//
-//    public CodeDto create(Long patientId, Long encounterId, CodeDto in) {
-//        Code e = Code.builder()
-
-//                .codeType(in.getCodeType()).code(in.getCode()).modifier(in.getModifier())
-//                .active(in.getActive())
-//                .description(in.getDescription()).shortDescription(in.getShortDescription())
-//                .category(in.getCategory())
-//                .diagnosisReporting(in.getDiagnosisReporting())
-//                .serviceReporting(in.getServiceReporting())
-//                .relateTo(in.getRelateTo())
-//                .feeStandard(in.getFeeStandard())
-//                .build();
-//
-//        final Code saved = repo.save(e);
-//
-//        external.ifPresent(ext -> {
-//            final Code ref = saved;
-//            String extId = ext.create(mapToDto(ref));
-//            ref.setExternalId(extId);
-//            repo.save(ref);
-//        });
-//
-//        return mapToDto(saved);
-//    }
-//
-//    public CodeDto update(Long patientId, Long encounterId, Long id, CodeDto in) {
-//        Code e = repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
-//                .filter(c -> c.getId().equals(id))
-//                .findFirst()
-//                .orElseThrow(() -> new IllegalArgumentException("Code not found in this encounter"));
-//
-//        e.setCodeType(in.getCodeType());
-//        e.setCode(in.getCode());
-//        e.setModifier(in.getModifier());
-//        e.setActive(in.getActive());
-//        e.setDescription(in.getDescription());
-//        e.setShortDescription(in.getShortDescription());
-//        e.setCategory(in.getCategory());
-//        e.setDiagnosisReporting(in.getDiagnosisReporting());
-//        e.setServiceReporting(in.getServiceReporting());
-//        e.setRelateTo(in.getRelateTo());
-//        e.setFeeStandard(in.getFeeStandard());
-//
-//        final Code updated = repo.save(e);
-//
-//        external.ifPresent(ext -> {
-//            final Code ref = updated;
-//            if (ref.getExternalId() != null) ext.update(ref.getExternalId(), mapToDto(ref));
-//        });
-//
-//        return mapToDto(updated);
-//    }
-//
-//    public void delete(Long patientId, Long encounterId, Long id) {
-//        Code e = repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
-//                .filter(c -> c.getId().equals(id))
-//                .findFirst().orElseThrow(() -> new IllegalArgumentException("Code not found"));
-//        external.ifPresent(ext -> { if (e.getExternalId() != null) ext.delete(e.getExternalId()); });
-//        repo.delete(e);
-//    }
-//
-//    public CodeDto getOne(Long patientId, Long encounterId, Long id) {
-//        return repo.findByPatientIdAndEncounterId(patientId, encounterId).stream()
-//                .filter(c -> c.getId().equals(id))
-//                .findFirst()
-//                .map(this::mapToDto)
-//                .orElseThrow(() -> new IllegalArgumentException("Code not found"));
-//    }
-//
-//    public List<CodeDto> getAllByPatient(Long patientId) {
-//        return repo.findByPatientId(patientId).stream().map(this::mapToDto).toList();
-//    }
-//
-//    public List<CodeDto> getAllByEncounter(Long patientId, Long encounterId) {
-//        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
-//                .stream().map(this::mapToDto).toList();
-//    }
-//
-//    public List<CodeDto> searchInEncounter(Long patientId, Long encounterId,
-//                                           String codeType, Boolean active, String q) {
-//        return repo.searchInEncounter(patientId, encounterId, codeType, active, q)
-//                .stream().map(this::mapToDto).toList();
-//    }
-//
-//    private CodeDto mapToDto(Code e) {
-//        CodeDto dto = new CodeDto();
-//        dto.setId(e.getId());
-//        dto.setExternalId(e.getExternalId());
-//        dto.setOrgId(e.getOrgId());
-//        dto.setPatientId(e.getPatientId());
-//        dto.setEncounterId(e.getEncounterId());
-//        dto.setCodeType(e.getCodeType());
-//        dto.setCode(e.getCode());
-//        dto.setModifier(e.getModifier());
-//        dto.setActive(e.getActive());
-//        dto.setDescription(e.getDescription());
-//        dto.setShortDescription(e.getShortDescription());
-//        dto.setCategory(e.getCategory());
-//        dto.setDiagnosisReporting(e.getDiagnosisReporting());
-//        dto.setServiceReporting(e.getServiceReporting());
-//        dto.setRelateTo(e.getRelateTo());
-//        dto.setFeeStandard(e.getFeeStandard());
-//
-//        CodeDto.Audit a = new CodeDto.Audit();
-//        if (e.getCreatedAt() != null) a.setCreatedDate(DTF.format(e.getCreatedAt().atZone(ZoneId.systemDefault())));
-//        if (e.getUpdatedAt() != null) a.setLastModifiedDate(DTF.format(e.getUpdatedAt().atZone(ZoneId.systemDefault())));
-//        dto.setAudit(a);
-//        return dto;
-//    }
-//}
-
-
-
-
-
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.CodeDto;
-import com.qiaben.ciyex.dto.CodeTypeDto;
-import com.qiaben.ciyex.entity.Code;
-import com.qiaben.ciyex.repository.CodeRepository;
-import com.qiaben.ciyex.storage.ExternalStorage;
-import com.qiaben.ciyex.storage.ExternalStorageResolver;
-import com.qiaben.ciyex.storage.fhir.FhirExternalCodeStorage;
-import com.qiaben.ciyex.util.OrgIntegrationConfigProvider;
+import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.util.StringUtils;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.*;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
+/**
+ * FHIR-only Code Service (billing/diagnosis codes per encounter).
+ * Uses FHIR CodeSystem resource directly via FhirClientService.
+ * No local database storage - all data stored in FHIR server.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class CodeService {
 
-    private final CodeRepository repo;
-    private final EncounterService encounterService;
-    private final com.qiaben.ciyex.repository.PatientRepository patientRepository;
-    private final com.qiaben.ciyex.repository.EncounterRepository encounterRepository;
-    private final ExternalStorageResolver storageResolver;
-    private final OrgIntegrationConfigProvider configProvider;
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
 
-    @Autowired(required = false)
-    private FhirExternalCodeStorage fhirStorage;
+    private static final String EXT_PATIENT = "http://ciyex.com/fhir/StructureDefinition/patient-reference";
+    private static final String EXT_ENCOUNTER = "http://ciyex.com/fhir/StructureDefinition/encounter-reference";
+    private static final String EXT_CODE_TYPE = "http://ciyex.com/fhir/StructureDefinition/code-type";
+    private static final String EXT_MODIFIER = "http://ciyex.com/fhir/StructureDefinition/modifier";
+    private static final String EXT_CATEGORY = "http://ciyex.com/fhir/StructureDefinition/category";
+    private static final String EXT_SHORT_DESC = "http://ciyex.com/fhir/StructureDefinition/short-description";
+    private static final String EXT_DIAGNOSIS_REPORTING = "http://ciyex.com/fhir/StructureDefinition/diagnosis-reporting";
+    private static final String EXT_SERVICE_REPORTING = "http://ciyex.com/fhir/StructureDefinition/service-reporting";
+    private static final String EXT_RELATE_TO = "http://ciyex.com/fhir/StructureDefinition/relate-to";
+    private static final String EXT_FEE_STANDARD = "http://ciyex.com/fhir/StructureDefinition/fee-standard";
+    private static final String EXT_ESIGNED = "http://ciyex.com/fhir/StructureDefinition/esigned";
+    private static final String EXT_SIGNED_BY = "http://ciyex.com/fhir/StructureDefinition/signed-by";
+    private static final String EXT_SIGNED_AT = "http://ciyex.com/fhir/StructureDefinition/signed-at";
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
 
     // CREATE
     public CodeDto create(Long patientId, Long encounterId, CodeDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
+        log.debug("Creating FHIR CodeSystem for patient {} encounter {}", patientId, encounterId);
 
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
+        CodeSystem cs = toFhirCodeSystem(dto, patientId, encounterId);
+        var outcome = fhirClientService.create(cs, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
 
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+        dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
 
-        // Step 4: Create the code
-        Code e = new Code();
-        e.setPatientId(patientId);
-        e.setEncounterId(encounterId);
-        applyDto(e, dto);
-        e = repo.save(e);
-        
-        // Step 5: Optional external FHIR sync
-        String storageType = configProvider.getStorageTypeForCurrentOrg();
-        log.info("Code create - storageType for current org: {}", storageType);
-
-        if (storageType != null) {
-            try {
-                log.info("Attempting FHIR sync for Code ID: {}", e.getId());
-                ExternalStorage<CodeDto> ext = storageResolver.resolve(CodeDto.class);
-                log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                CodeDto snapshot = toDto(e);
-                String externalId = ext.create(snapshot);
-                log.info("FHIR create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource for Code ID: {} with externalId: {}", e.getId(), externalId);
-                } else {
-                    log.warn("FHIR create returned null or empty externalId for Code ID: {}", e.getId());
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync Code to external storage", ex);
-            }
-        } else if (fhirStorage != null) {
-            try {
-                log.info("No storage type configured, falling back to direct FHIR storage for Code ID: {}", e.getId());
-                CodeDto snapshot = toDto(e);
-                String externalId = fhirStorage.create(snapshot);
-                log.info("FHIR fallback create returned externalId: {}", externalId);
-
-                if (externalId != null && !externalId.isEmpty()) {
-                    e.setExternalId(externalId);
-                    e = repo.save(e);
-                    log.info("Created FHIR resource (fallback) for Code ID: {} with externalId: {}", e.getId(), externalId);
-                }
-            } catch (Exception ex) {
-                log.error("Failed to sync Code to external storage (fallback)", ex);
-            }
-        } else {
-            log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Code ID: {}", e.getId());
-        }
-
-        if (e.getExternalId() == null) {
-            String generatedId = "C-" + System.currentTimeMillis();
-            e.setExternalId(generatedId);
-            e.setFhirId(generatedId);
-            e = repo.save(e);
-            log.info("Auto-generated externalId: {}", generatedId);
-        } else {
-            e.setFhirId(e.getExternalId());
-            e = repo.save(e);
-        }
-
-        return toDto(e);
+        log.info("Created FHIR CodeSystem with id: {}", fhirId);
+        return dto;
     }
+
     // GET ALL by patient
     public List<CodeDto> getAllByPatient(Long patientId) {
-        return repo.findByPatientId(patientId)
-                .stream().map(this::toDto).toList();
+        log.debug("Getting all codes for patient {}", patientId);
+        Bundle bundle = fhirClientService.search(CodeSystem.class, getPracticeId());
+        return fhirClientService.extractResources(bundle, CodeSystem.class).stream()
+                .filter(cs -> patientId.equals(getPatientId(cs)))
+                .map(this::fromFhirCodeSystem)
+                .collect(Collectors.toList());
     }
 
-
-    // LIST
+    // LIST by encounter
     public List<CodeDto> list(Long patientId, Long encounterId) {
-        return repo.findByPatientIdAndEncounterId(patientId, encounterId)
-                .stream().map(this::toDto).toList();
+        log.debug("Listing codes for patient {} encounter {}", patientId, encounterId);
+        Bundle bundle = fhirClientService.search(CodeSystem.class, getPracticeId());
+        return fhirClientService.extractResources(bundle, CodeSystem.class).stream()
+                .filter(cs -> patientId.equals(getPatientId(cs)) && encounterId.equals(getEncounterId(cs)))
+                .map(this::fromFhirCodeSystem)
+                .collect(Collectors.toList());
     }
 
     // GET ONE
-    public CodeDto getOne(Long patientId, Long encounterId, Long id) {
-        Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Code not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-        return toDto(e);
+    public CodeDto getOne(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Getting code {} for patient {} encounter {}", fhirId, patientId, encounterId);
+        CodeSystem cs = fhirClientService.read(CodeSystem.class, fhirId, getPracticeId());
+        return fromFhirCodeSystem(cs);
     }
 
-    // UPDATE (blocked if signed)
-    public CodeDto update(Long patientId, Long encounterId, Long id, CodeDto dto) {
-        // Step 1: Validate Patient exists
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
+    // UPDATE
+    public CodeDto update(Long patientId, Long encounterId, String fhirId, CodeDto dto) {
+        log.debug("Updating code {} for patient {} encounter {}", fhirId, patientId, encounterId);
 
-        // Step 2: Validate Encounter exists and belongs to the Patient
-        var encounterOpt = encounterRepository.findByIdAndPatientId(encounterId, patientId);
-        if (encounterOpt.isEmpty()) {
-            throw new IllegalArgumentException(
-                String.format("Encounter not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Encounter ID are correct and that the encounter belongs to this patient.",
-                    encounterId, patientId)
-            );
-        }
+        CodeSystem cs = toFhirCodeSystem(dto, patientId, encounterId);
+        cs.setId(fhirId);
+        fhirClientService.update(cs, getPracticeId());
 
-        // Step 3: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        dto.setPatientId(patientId);
+        dto.setEncounterId(encounterId);
+        return dto;
+    }
 
-        // Step 4: Find the code
-        Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Code not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
+    // DELETE
+    public void delete(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Deleting code {} for patient {} encounter {}", fhirId, patientId, encounterId);
+        fhirClientService.delete(CodeSystem.class, fhirId, getPracticeId());
+    }
 
-        // Step 5: Check if code itself is signed
-        if (Boolean.TRUE.equals(e.getESigned())) {
-            throw new IllegalStateException("Signed codes are read-only.");
-        }
+    // ESIGN
+    public CodeDto eSign(Long patientId, Long encounterId, String fhirId, String signedBy) {
+        log.debug("E-signing code {} for patient {} encounter {}", fhirId, patientId, encounterId);
+        CodeSystem cs = fhirClientService.read(CodeSystem.class, fhirId, getPracticeId());
 
-        // Step 6: Update the code
-        applyDto(e, dto);
-        e = repo.save(e);
+        cs.getExtension().removeIf(e -> EXT_ESIGNED.equals(e.getUrl()));
+        cs.addExtension(new Extension(EXT_ESIGNED, new BooleanType(true)));
+        cs.getExtension().removeIf(e -> EXT_SIGNED_BY.equals(e.getUrl()));
+        cs.addExtension(new Extension(EXT_SIGNED_BY, new StringType(signedBy != null ? signedBy : "system")));
+        cs.getExtension().removeIf(e -> EXT_SIGNED_AT.equals(e.getUrl()));
+        cs.addExtension(new Extension(EXT_SIGNED_AT, new StringType(LocalDate.now().format(DAY))));
 
-        // Step 7: Optional external FHIR sync
-        if (e.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("Code update - storageType for current org: {}", storageType);
+        fhirClientService.update(cs, getPracticeId());
+        return fromFhirCodeSystem(cs);
+    }
 
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR sync for Code ID: {}", e.getId());
-                    ExternalStorage<CodeDto> ext = storageResolver.resolve(CodeDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
+    // PRINT (PDF) - returns empty for now, can be implemented later
+    public byte[] renderPdf(Long patientId, Long encounterId, String fhirId) {
+        log.debug("Rendering PDF for code {} patient {} encounter {}", fhirId, patientId, encounterId);
+        return new byte[0];
+    }
 
-                    CodeDto snapshot = toDto(e);
-                    ext.update(snapshot, e.getExternalId());
-                    log.info("Updated FHIR resource for Code ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Code update to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for Code ID: {}", e.getId());
-                    CodeDto snapshot = toDto(e);
-                    fhirStorage.update(snapshot, e.getExternalId());
-                    log.info("Updated FHIR resource (fallback) for Code ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Code update to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Code ID: {}", e.getId());
+    // -------- FHIR Mapping --------
+
+    private CodeSystem toFhirCodeSystem(CodeDto dto, Long patientId, Long encounterId) {
+        CodeSystem cs = new CodeSystem();
+        cs.setStatus(Enumerations.PublicationStatus.ACTIVE);
+
+        // Code and description
+        if (dto.getCode() != null) {
+            cs.setName(dto.getCode());
+            cs.setTitle(dto.getCode());
+            CodeSystem.ConceptDefinitionComponent concept = cs.addConcept();
+            concept.setCode(dto.getCode());
+            concept.setDisplay(dto.getShortDescription() != null ? dto.getShortDescription() : dto.getCode());
+            if (dto.getDescription() != null) {
+                concept.setDefinition(dto.getDescription());
             }
         }
 
-        return toDto(e);
-    }
+        // Patient reference
+        cs.addExtension(new Extension(EXT_PATIENT, new StringType(patientId.toString())));
 
-    // DELETE (blocked if signed)
-    public void delete(Long patientId, Long encounterId, Long id) {
-        // Step 1: Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+        // Encounter reference
+        cs.addExtension(new Extension(EXT_ENCOUNTER, new StringType(encounterId.toString())));
 
-        // Step 2: Find the code
-        Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Code not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-
-        // Step 3: Check if code itself is signed
-        if (Boolean.TRUE.equals(e.getESigned())) {
-            throw new IllegalStateException("Signed codes cannot be deleted.");
+        // Code type (ICD9, ICD10, CPT4, HCPCS, CUSTOM)
+        if (dto.getCodeType() != null) {
+            cs.addExtension(new Extension(EXT_CODE_TYPE, new StringType(dto.getCodeType())));
         }
 
-        // Optional external FHIR sync
-        if (e.getExternalId() != null) {
-            String storageType = configProvider.getStorageTypeForCurrentOrg();
-            log.info("Code delete - storageType for current org: {}", storageType);
-
-            if (storageType != null) {
-                try {
-                    log.info("Attempting FHIR delete for Code ID: {}", e.getId());
-                    ExternalStorage<CodeDto> ext = storageResolver.resolve(CodeDto.class);
-                    log.info("Resolved external storage: {}", ext.getClass().getName());
-
-                    ext.delete(e.getExternalId());
-                    log.info("Deleted FHIR resource for Code ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Code delete to external storage", ex);
-                }
-            } else if (fhirStorage != null) {
-                try {
-                    log.info("No storage type configured, falling back to direct FHIR storage for Code ID: {}", e.getId());
-                    fhirStorage.delete(e.getExternalId());
-                    log.info("Deleted FHIR resource (fallback) for Code ID: {} with externalId: {}", e.getId(), e.getExternalId());
-                } catch (Exception ex) {
-                    log.error("Failed to sync Code delete to external storage (fallback)", ex);
-                }
-            } else {
-                log.warn("No storage type configured for current org and no FHIR fallback available - skipping FHIR sync for Code ID: {}", e.getId());
-            }
+        // Modifier
+        if (dto.getModifier() != null) {
+            cs.addExtension(new Extension(EXT_MODIFIER, new StringType(dto.getModifier())));
         }
 
-        repo.delete(e);
-    }
-
-    // ESIGN (idempotent, no request body)
-    public CodeDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
-        Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Code not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-
-        if (Boolean.TRUE.equals(e.getESigned())) return toDto(e);
-
-        e.setESigned(true);
-        e.setSignedBy(StringUtils.hasText(signedBy) ? signedBy : "system");
-        e.setSignedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        e = repo.save(e);
-        return toDto(e);
-    }
-
-    // PRINT (PDF) — stamps printedAt
-    public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
-        Code e = repo.findByPatientIdAndEncounterIdAndId(patientId, encounterId, id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                    String.format("Code not found with ID: %d for Patient ID: %d and Encounter ID: %d. Please verify all IDs are correct.",
-                        id, patientId, encounterId)
-                ));
-
-        e.setPrintedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        repo.save(e);
-
-        try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            PDPage page = new PDPage(PDRectangle.LETTER);
-            doc.addPage(page);
-
-            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
-                float x = 64, y = 740;
-
-                // Title
-                cs.beginText();
-                cs.setFont(PDType1Font.HELVETICA_BOLD, 18);
-                cs.newLineAtOffset(x, y);
-                cs.showText("Billing Code");
-                cs.endText();
-
-                y -= 26;
-                draw(cs, x, y, "Patient ID:", String.valueOf(patientId)); y -= 16;
-                draw(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 16;
-                draw(cs, x, y, "Code ID:", String.valueOf(id)); y -= 20;
-
-                draw(cs, x, y, "Type:", orDash(e.getCodeType())); y -= 16;
-                draw(cs, x, y, "Code:", orDash(e.getCode()) + (StringUtils.hasText(e.getModifier()) ? "-" + e.getModifier() : "")); y -= 16;
-                draw(cs, x, y, "Status:", Boolean.TRUE.equals(e.getActive()) ? "Active" : "Inactive"); y -= 16;
-
-                if (e.getFeeStandard() != null) { draw(cs, x, y, "Fee (Std):", e.getFeeStandard().toPlainString()); y -= 16; }
-                if (StringUtils.hasText(e.getCategory())) { draw(cs, x, y, "Category:", e.getCategory()); y -= 16; }
-                if (StringUtils.hasText(e.getRelateTo())) { draw(cs, x, y, "Relate To:", e.getRelateTo()); y -= 16; }
-
-                String rep = (Boolean.TRUE.equals(e.getDiagnosisReporting()) ? "Dx" : "")
-                        + ((Boolean.TRUE.equals(e.getDiagnosisReporting()) && Boolean.TRUE.equals(e.getServiceReporting())) ? " · " : "")
-                        + (Boolean.TRUE.equals(e.getServiceReporting()) ? "Service" : "");
-                if (StringUtils.hasText(rep)) { draw(cs, x, y, "Reporting:", rep); y -= 16; }
-
-                if (StringUtils.hasText(e.getShortDescription())) {
-                    draw(cs, x, y, "Short Description:", ""); y -= 14;
-                    textBlock(cs, x + 16, y, e.getShortDescription()); y -= 4;
-                }
-                if (StringUtils.hasText(e.getDescription())) {
-                    y -= 8;
-                    draw(cs, x, y, "Description:", ""); y -= 14;
-                    textBlock(cs, x + 16, y, e.getDescription()); y -= 4;
-                }
-
-                y -= 10;
-                draw(cs, x, y, "eSigned:", Boolean.TRUE.equals(e.getESigned()) ? "Yes" : "No"); y -= 16;
-                if (e.getSignedAt() != null) { draw(cs, x, y, "Signed At:", e.getSignedAt().format(ISO)); y -= 16; }
-                if (StringUtils.hasText(e.getSignedBy())) { draw(cs, x, y, "Signed By:", e.getSignedBy()); y -= 16; }
-
-                y -= 10;
-                if (e.getCreatedAt() != null) { draw(cs, x, y, "Created:", e.getCreatedAt().format(DAY)); y -= 16; }
-                if (e.getUpdatedAt() != null) { draw(cs, x, y, "Updated:", e.getUpdatedAt().format(DAY)); y -= 16; }
-            }
-
-            doc.save(baos);
-            return baos.toByteArray();
-        } catch (IOException ex) {
-            throw new RuntimeException("Failed to generate Code PDF", ex);
+        // Category
+        if (dto.getCategory() != null) {
+            cs.addExtension(new Extension(EXT_CATEGORY, new StringType(dto.getCategory())));
         }
-    }
 
-    // --- helpers
-    private static String orDash(String s) { return StringUtils.hasText(s) ? s : "-"; }
-
-    private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
-        cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
-        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
-    }
-
-    private static void textBlock(PDPageContentStream cs, float x, float startY, String text) throws IOException {
-        float y = startY;
-        for (String ln : text.split("\\R")) {
-            cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x, y); cs.showText(ln); cs.endText();
-            y -= 14;
+        // Short description
+        if (dto.getShortDescription() != null) {
+            cs.addExtension(new Extension(EXT_SHORT_DESC, new StringType(dto.getShortDescription())));
         }
+
+        // Diagnosis reporting
+        if (dto.getDiagnosisReporting() != null) {
+            cs.addExtension(new Extension(EXT_DIAGNOSIS_REPORTING, new BooleanType(dto.getDiagnosisReporting())));
+        }
+
+        // Service reporting
+        if (dto.getServiceReporting() != null) {
+            cs.addExtension(new Extension(EXT_SERVICE_REPORTING, new BooleanType(dto.getServiceReporting())));
+        }
+
+        // Relate to
+        if (dto.getRelateTo() != null) {
+            cs.addExtension(new Extension(EXT_RELATE_TO, new StringType(dto.getRelateTo())));
+        }
+
+        // Fee standard
+        if (dto.getFeeStandard() != null) {
+            cs.addExtension(new Extension(EXT_FEE_STANDARD, new DecimalType(BigDecimal.valueOf(dto.getFeeStandard()))));
+        }
+
+        // Active status
+        if (dto.getActive() != null && !dto.getActive()) {
+            cs.setStatus(Enumerations.PublicationStatus.RETIRED);
+        }
+
+        return cs;
     }
 
-    private CodeDto toDto(Code e) {
-        CodeDto d = new CodeDto();
-        d.setId(e.getId());
-        d.setExternalId(e.getExternalId());
-        d.setFhirId(e.getFhirId());
-        d.setPatientId(e.getPatientId());
-        d.setEncounterId(e.getEncounterId());
+    private CodeDto fromFhirCodeSystem(CodeSystem cs) {
+        CodeDto dto = new CodeDto();
 
-        d.setCodeType(e.getCodeType());
-        d.setCode(e.getCode());
-        d.setModifier(e.getModifier());
-        d.setActive(e.getActive());
-        d.setDescription(e.getDescription());
-        d.setShortDescription(e.getShortDescription());
-        d.setCategory(e.getCategory());
-        d.setDiagnosisReporting(e.getDiagnosisReporting());
-        d.setServiceReporting(e.getServiceReporting());
-        d.setRelateTo(e.getRelateTo());
-        d.setFeeStandard(e.getFeeStandard() != null ? e.getFeeStandard().doubleValue() : null);
+        String fhirId = cs.getIdElement().getIdPart();
+        dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
 
-        d.setESigned(e.getESigned());
-        d.setSignedAt(e.getSignedAt() != null ? e.getSignedAt().format(ISO) : null);
-        d.setSignedBy(e.getSignedBy());
-        d.setPrintedAt(e.getPrintedAt() != null ? e.getPrintedAt().format(ISO) : null);
+        // Code from concept
+        if (cs.hasConcept() && !cs.getConcept().isEmpty()) {
+            CodeSystem.ConceptDefinitionComponent concept = cs.getConcept().get(0);
+            dto.setCode(concept.getCode());
+            dto.setDescription(concept.getDefinition());
+        } else if (cs.hasName()) {
+            dto.setCode(cs.getName());
+        }
 
-        CodeDto.Audit a = new CodeDto.Audit();
-        if (e.getCreatedAt() != null) a.setCreatedDate(e.getCreatedAt().toLocalDate().format(DAY));
-        if (e.getUpdatedAt() != null) a.setLastModifiedDate(e.getUpdatedAt().toLocalDate().format(DAY));
-        d.setAudit(a);
+        // Patient ID
+        dto.setPatientId(getPatientId(cs));
 
-        return d;
+        // Encounter ID
+        dto.setEncounterId(getEncounterId(cs));
+
+        // Code type
+        Extension codeTypeExt = cs.getExtensionByUrl(EXT_CODE_TYPE);
+        if (codeTypeExt != null && codeTypeExt.getValue() instanceof StringType) {
+            dto.setCodeType(((StringType) codeTypeExt.getValue()).getValue());
+        }
+
+        // Modifier
+        Extension modifierExt = cs.getExtensionByUrl(EXT_MODIFIER);
+        if (modifierExt != null && modifierExt.getValue() instanceof StringType) {
+            dto.setModifier(((StringType) modifierExt.getValue()).getValue());
+        }
+
+        // Category
+        Extension categoryExt = cs.getExtensionByUrl(EXT_CATEGORY);
+        if (categoryExt != null && categoryExt.getValue() instanceof StringType) {
+            dto.setCategory(((StringType) categoryExt.getValue()).getValue());
+        }
+
+        // Short description
+        Extension shortDescExt = cs.getExtensionByUrl(EXT_SHORT_DESC);
+        if (shortDescExt != null && shortDescExt.getValue() instanceof StringType) {
+            dto.setShortDescription(((StringType) shortDescExt.getValue()).getValue());
+        }
+
+        // Diagnosis reporting
+        Extension diagExt = cs.getExtensionByUrl(EXT_DIAGNOSIS_REPORTING);
+        if (diagExt != null && diagExt.getValue() instanceof BooleanType) {
+            dto.setDiagnosisReporting(((BooleanType) diagExt.getValue()).booleanValue());
+        }
+
+        // Service reporting
+        Extension svcExt = cs.getExtensionByUrl(EXT_SERVICE_REPORTING);
+        if (svcExt != null && svcExt.getValue() instanceof BooleanType) {
+            dto.setServiceReporting(((BooleanType) svcExt.getValue()).booleanValue());
+        }
+
+        // Relate to
+        Extension relateExt = cs.getExtensionByUrl(EXT_RELATE_TO);
+        if (relateExt != null && relateExt.getValue() instanceof StringType) {
+            dto.setRelateTo(((StringType) relateExt.getValue()).getValue());
+        }
+
+        // Fee standard
+        Extension feeExt = cs.getExtensionByUrl(EXT_FEE_STANDARD);
+        if (feeExt != null && feeExt.getValue() instanceof DecimalType) {
+            dto.setFeeStandard(((DecimalType) feeExt.getValue()).getValue().doubleValue());
+        }
+
+        // Active status
+        dto.setActive(cs.getStatus() != Enumerations.PublicationStatus.RETIRED);
+
+        // E-signed
+        Extension esignedExt = cs.getExtensionByUrl(EXT_ESIGNED);
+        if (esignedExt != null && esignedExt.getValue() instanceof BooleanType) {
+            dto.setESigned(((BooleanType) esignedExt.getValue()).booleanValue());
+        }
+
+        // Signed by
+        Extension signedByExt = cs.getExtensionByUrl(EXT_SIGNED_BY);
+        if (signedByExt != null && signedByExt.getValue() instanceof StringType) {
+            dto.setSignedBy(((StringType) signedByExt.getValue()).getValue());
+        }
+
+        // Signed at
+        Extension signedAtExt = cs.getExtensionByUrl(EXT_SIGNED_AT);
+        if (signedAtExt != null && signedAtExt.getValue() instanceof StringType) {
+            dto.setSignedAt(((StringType) signedAtExt.getValue()).getValue());
+        }
+
+        // Audit
+        CodeDto.Audit audit = new CodeDto.Audit();
+        audit.setCreatedDate(LocalDate.now().format(DAY));
+        audit.setLastModifiedDate(LocalDate.now().format(DAY));
+        dto.setAudit(audit);
+
+        return dto;
     }
 
-    private void applyDto(Code e, CodeDto d) {
-        e.setExternalId(d.getExternalId());
-        e.setCodeType(d.getCodeType());
-        e.setCode(d.getCode());
-        e.setModifier(d.getModifier());
-        e.setActive(d.getActive());
-        e.setDescription(d.getDescription());
-        e.setShortDescription(d.getShortDescription());
-        e.setCategory(d.getCategory());
-        e.setDiagnosisReporting(d.getDiagnosisReporting());
-        e.setServiceReporting(d.getServiceReporting());
-        e.setRelateTo(d.getRelateTo());
-        e.setFeeStandard(d.getFeeStandard() != null ? BigDecimal.valueOf(d.getFeeStandard()) : null);
-        // eSign fields managed only via eSign()
+    private Long getPatientId(CodeSystem cs) {
+        Extension ext = cs.getExtensionByUrl(EXT_PATIENT);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            try {
+                return Long.parseLong(((StringType) ext.getValue()).getValue());
+            } catch (NumberFormatException ignored) {}
+        }
+        return null;
+    }
+
+    private Long getEncounterId(CodeSystem cs) {
+        Extension ext = cs.getExtensionByUrl(EXT_ENCOUNTER);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            try {
+                return Long.parseLong(((StringType) ext.getValue()).getValue());
+            } catch (NumberFormatException ignored) {}
+        }
+        return null;
     }
 }

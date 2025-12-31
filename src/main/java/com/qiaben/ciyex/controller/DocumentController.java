@@ -86,7 +86,7 @@ public class DocumentController {
 
     @GetMapping("/{documentId}/download")
     public ResponseEntity<InputStreamResource> download(
-            @PathVariable Long documentId) {
+            @PathVariable String documentId) {
         try {
             DownloadResult result = service.download(documentId);
             return ResponseEntity.ok()
@@ -107,7 +107,7 @@ public class DocumentController {
 
     @DeleteMapping("/{documentId}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long documentId) {
+            @PathVariable String documentId) {
         try {
             service.delete(documentId);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
