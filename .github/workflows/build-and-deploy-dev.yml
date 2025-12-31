@@ -81,23 +81,6 @@ jobs:
             -n ciyex-dev \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Remove old deployments and router
-        run: |
-          # Remove old per-practice deployments
-          kubectl delete deployment dev-500-ciyex-app -n ciyex-dev --ignore-not-found
-          kubectl delete deployment dev-501-ciyex-app -n ciyex-dev --ignore-not-found
-          kubectl delete deployment dev-502-ciyex-app -n ciyex-dev --ignore-not-found
-          kubectl delete service dev-500-ciyex-app -n ciyex-dev --ignore-not-found
-          kubectl delete service dev-501-ciyex-app -n ciyex-dev --ignore-not-found
-          kubectl delete service dev-502-ciyex-app -n ciyex-dev --ignore-not-found
-          kubectl delete ingress dev-500-ciyex-ingress -n ciyex-dev --ignore-not-found
-          kubectl delete ingress dev-501-ciyex-ingress -n ciyex-dev --ignore-not-found
-          kubectl delete ingress dev-502-ciyex-ingress -n ciyex-dev --ignore-not-found
-          # Remove router
-          kubectl delete deployment dev-ciyex-router -n ciyex-dev --ignore-not-found
-          kubectl delete service dev-ciyex-router -n ciyex-dev --ignore-not-found
-          kubectl delete ingress dev-ciyex-router-ingress -n ciyex-dev --ignore-not-found
-
       - name: Deploy to Kubernetes
         run: |
           kubectl apply -k k8s/overlays/dev
