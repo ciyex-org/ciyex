@@ -48,36 +48,5 @@ ciyex:
     name: ${CIYEX_SCHEMA_NAME:public}
   audit:
     enabled: true
-    log-successful-operations: true
-    log-failed-operations: true
-    auto-log-controller-methods: true
-    auto-log-service-methods: true
-    capture-detailed-info: true
-    max-description-length: 500
-    max-details-length: 10000
-    anonymize-user-info: false
-    retention-period-days: 2555
-    archive-old-logs: true
-    batch-size: 100
-    async-logging: false
-    async-thread-pool-size: 5
-    validate-integrity: true
-    log-ip-addresses: true
-    log-user-agent: true
-    log-session-info: true
-    enable-alerts: true
-    failed-login-alert-threshold: 5
-    failed-login-time-window-minutes: 15
-    enable-compliance-monitoring: true
-    generate-daily-reports: true
-    enable-tamper-detection: true
-    use-digital-signatures: false
-    excluded-endpoints:
-      - /health
-      - /metrics
-      - /info
-      - /actuator
-      - /api/audit
-    excluded-user-roles:
-      - SYSTEM
-      - HEALTH_CHECK
+  super-admin:
+    orgs: ${CIYEX_SUPER_ADMIN_ORGS:hinisoft-dev}
