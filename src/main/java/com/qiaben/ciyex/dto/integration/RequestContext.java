@@ -7,6 +7,7 @@ public class RequestContext {
     private static final ThreadLocal<RequestContext> context = new ThreadLocal<>();
     private String authToken;
     private String orgName;  // Organization/Practice name (e.g., "practice_1", "hinisoft")
+    private boolean superAdmin;  // True if user belongs to a super admin org
 
     public static void set(RequestContext ctx) {
         context.set(ctx);
