@@ -99,11 +99,9 @@ public class PatientService {
         MethodOutcome outcome = fhirClientService.create(fhirPatient, getPracticeId());
         
         String fhirId = outcome.getId().getIdPart();
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
+        Patient created = fhirClientService.read(Patient.class, fhirId, getPracticeId());
         
-        log.info("Created FHIR patient with ID: {}", fhirId);
-        return dto;
+        return toPatientDto(created);
     }
 
     // ✅ Retrieve patient by FHIR ID
@@ -297,8 +295,14 @@ public class PatientService {
 
         // FHIR ID
         if (fhirPatient.hasId()) {
-            dto.setFhirId(fhirPatient.getIdElement().getIdPart());
-            dto.setExternalId(fhirPatient.getIdElement().getIdPart());
+            String idPart = fhirPatient.getIdElement().getIdPart();
+            dto.setFhirId(idPart);
+            dto.setExternalId(idPart);
+            try {
+                dto.setId(Long.parseLong(idPart));
+            } catch (NumberFormatException e) {
+                // FHIR ID is not numeric
+            }
         }
 
         // Identifiers
@@ -356,6 +360,16 @@ public class PatientService {
 
         // Status
         dto.setStatus(fhirPatient.getActive() ? "Active" : "Inactive");
+
+        // Audit fields from FHIR metadata
+        if (fhirPatient.hasMeta()) {
+            PatientDto.Audit audit = new PatientDto.Audit();
+            if (fhirPatient.getMeta().hasLastUpdated()) {
+                audit.setCreatedDate(formatDate(fhirPatient.getMeta().getLastUpdated()));
+                audit.setLastModifiedDate(formatDate(fhirPatient.getMeta().getLastUpdated()));
+            }
+            dto.setAudit(audit);
+        }
 
         return dto;
     }

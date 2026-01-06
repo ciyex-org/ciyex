@@ -73,8 +73,15 @@ public class SignoffService {
         var outcome = fhirClientService.create(task, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        
+        Task created = (Task) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
+        
         log.info("Created FHIR Task (signoff) with id: {}", fhirId);
 
         return dto;
@@ -119,7 +126,9 @@ public class SignoffService {
     public SignoffDto getOne(Long patientId, Long encounterId, String fhirId) {
         log.debug("Getting FHIR Task (signoff): {}", fhirId);
         Task task = fhirClientService.read(Task.class, fhirId, getPracticeId());
-        return fromFhirTask(task);
+        SignoffDto dto = fromFhirTask(task);
+        dto.setId(Long.parseLong(fhirId));
+        return dto;
     }
 
     // UPDATE
@@ -142,7 +151,7 @@ public class SignoffService {
         task.setId(fhirId);
         fhirClientService.update(task, getPracticeId());
 
-        return dto;
+        return getOne(patientId, encounterId, fhirId);
     }
 
     // DELETE
@@ -308,8 +317,10 @@ public class SignoffService {
 
     private SignoffDto fromFhirTask(Task task) {
         SignoffDto dto = new SignoffDto();
-        dto.setFhirId(task.getIdElement().getIdPart());
-        dto.setExternalId(dto.getFhirId());
+        String fhirId = task.getIdElement().getIdPart();
+        dto.setId(Long.parseLong(fhirId));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
 
         // Patient
         if (task.hasFor() && task.getFor().hasReference()) {
@@ -359,6 +370,10 @@ public class SignoffService {
         dto.setAttestationText(getExtensionString(task, EXT_ATTESTATION));
         dto.setComments(getExtensionString(task, EXT_COMMENTS));
         dto.setPrintedAt(getExtensionString(task, EXT_PRINTED_AT));
+        
+        if (task.hasMeta()) {
+            populateAudit(dto, task.getMeta());
+        }
 
         return dto;
     }
@@ -405,5 +420,14 @@ public class SignoffService {
     private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
+    }
+    
+    private void populateAudit(SignoffDto dto, Meta meta) {
+        SignoffDto.Audit audit = new SignoffDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(java.time.ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(java.time.ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }

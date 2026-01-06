@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -75,10 +76,16 @@ public class ProcedureService {
         MethodOutcome outcome = fhirClientService.create(procedure, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         dto.setPatientId(patientId);
         dto.setEncounterId(encounterId);
+        
+        org.hl7.fhir.r4.model.Procedure created = (org.hl7.fhir.r4.model.Procedure) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
 
         // Create invoice for the procedure
         createInvoiceForProcedure(patientId, dto);
@@ -124,7 +131,9 @@ public class ProcedureService {
         try {
             org.hl7.fhir.r4.model.Procedure procedure = fhirClientService.read(
                     org.hl7.fhir.r4.model.Procedure.class, fhirId, getPracticeId());
-            return toProcedureDto(procedure, patientId, encounterId);
+            ProcedureDto dto = toProcedureDto(procedure, patientId, encounterId);
+            dto.setId(id);
+            return dto;
         } catch (Exception e) {
             throw new IllegalArgumentException(
                     String.format("Procedure not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id));
@@ -140,9 +149,7 @@ public class ProcedureService {
         procedure.setId(fhirId);
         fhirClientService.update(procedure, getPracticeId());
 
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        return dto;
+        return getOne(patientId, encounterId, id);
     }
 
     // ✅ Delete Procedure
@@ -204,8 +211,10 @@ public class ProcedureService {
         ProcedureDto dto = new ProcedureDto();
 
         if (procedure.hasId()) {
-            dto.setFhirId(procedure.getIdElement().getIdPart());
-            dto.setExternalId(procedure.getIdElement().getIdPart());
+            String fhirId = procedure.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         dto.setPatientId(patientId);
@@ -236,6 +245,10 @@ public class ProcedureService {
                 dto.setProvidername(performer.getActor().getDisplay());
             }
         }
+        
+        if (procedure.hasMeta()) {
+            populateAudit(dto, procedure.getMeta());
+        }
 
         return dto;
     }
@@ -250,5 +263,14 @@ public class ProcedureService {
             }
         }
         return items;
+    }
+    
+    private void populateAudit(ProcedureDto dto, Meta meta) {
+        ProcedureDto.Audit audit = new ProcedureDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }

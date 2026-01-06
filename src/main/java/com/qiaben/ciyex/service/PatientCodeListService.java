@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 
+import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -51,7 +52,9 @@ public class PatientCodeListService {
     public PatientCodeListDto getById(String fhirId) {
         log.debug("Getting FHIR List (patient code list): {}", fhirId);
         ListResource list = fhirClientService.read(ListResource.class, fhirId, getPracticeId());
-        return fromFhirList(list);
+        PatientCodeListDto dto = fromFhirList(list);
+        dto.id = Long.parseLong(fhirId);
+        return dto;
     }
 
     // CREATE
@@ -62,8 +65,14 @@ public class PatientCodeListService {
         var outcome = fhirClientService.create(list, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.id = Long.parseLong(fhirId);
         dto.fhirId = fhirId;
         dto.externalId = fhirId;
+        
+        ListResource created = (ListResource) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
 
         // If this is default, clear other defaults
         if (dto.isDefault) {
@@ -90,7 +99,7 @@ public class PatientCodeListService {
             clearOtherDefaults(fhirId);
         }
 
-        return dto;
+        return getById(fhirId);
     }
 
     // DELETE
@@ -180,8 +189,10 @@ public class PatientCodeListService {
 
     private PatientCodeListDto fromFhirList(ListResource list) {
         PatientCodeListDto dto = new PatientCodeListDto();
-        dto.fhirId = list.getIdElement().getIdPart();
-        dto.externalId = dto.fhirId;
+        String fhirId = list.getIdElement().getIdPart();
+        dto.id = Long.parseLong(fhirId);
+        dto.fhirId = fhirId;
+        dto.externalId = fhirId;
 
         // Title
         if (list.hasTitle()) {
@@ -213,6 +224,10 @@ public class PatientCodeListService {
         if (codesExt != null && codesExt.getValue() instanceof StringType) {
             dto.codes = ((StringType) codesExt.getValue()).getValue();
         }
+        
+        if (list.hasMeta()) {
+            populateAudit(dto, list.getMeta());
+        }
 
         return dto;
     }
@@ -233,5 +248,14 @@ public class PatientCodeListService {
                 update(item.fhirId, item);
             }
         }
+    }
+    
+    private void populateAudit(PatientCodeListDto dto, Meta meta) {
+        PatientCodeListDto.Audit audit = new PatientCodeListDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.lastModifiedDate = meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString();
+            audit.createdDate = meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString();
+        }
+        dto.audit = audit;
     }
 }

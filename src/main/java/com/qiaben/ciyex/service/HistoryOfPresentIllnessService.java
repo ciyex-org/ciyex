@@ -81,10 +81,16 @@ public class HistoryOfPresentIllnessService {
         MethodOutcome outcome = fhirClientService.create(condition, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         dto.setPatientId(patientId);
         dto.setEncounterId(encounterId);
+        
+        Condition created = (Condition) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
 
         log.info("Created FHIR Condition (HPI) with ID: {}", fhirId);
         return dto;
@@ -113,7 +119,9 @@ public class HistoryOfPresentIllnessService {
 
         try {
             Condition condition = fhirClientService.read(Condition.class, fhirId, getPracticeId());
-            return toHpiDto(condition, patientId, encounterId);
+            HistoryOfPresentIllnessDto dto = toHpiDto(condition, patientId, encounterId);
+            dto.setId(id);
+            return dto;
         } catch (Exception e) {
             throw new IllegalArgumentException(
                     String.format("History of Present Illness not found with ID: %d for Patient ID: %d and Encounter ID: %d",
@@ -136,9 +144,7 @@ public class HistoryOfPresentIllnessService {
         condition.setId(fhirId);
         fhirClientService.update(condition, getPracticeId());
 
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        return dto;
+        return getOne(patientId, encounterId, id);
     }
 
     // ✅ Delete HPI
@@ -271,8 +277,10 @@ public class HistoryOfPresentIllnessService {
         HistoryOfPresentIllnessDto dto = new HistoryOfPresentIllnessDto();
 
         if (condition.hasId()) {
-            dto.setFhirId(condition.getIdElement().getIdPart());
-            dto.setExternalId(condition.getIdElement().getIdPart());
+            String fhirId = condition.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         dto.setPatientId(patientId);
@@ -281,6 +289,10 @@ public class HistoryOfPresentIllnessService {
         // Description from note
         if (condition.hasNote()) {
             dto.setDescription(condition.getNoteFirstRep().getText());
+        }
+        
+        if (condition.hasMeta()) {
+            populateAudit(dto, condition.getMeta());
         }
 
         // Check sign metadata
@@ -333,5 +345,14 @@ public class HistoryOfPresentIllnessService {
             }
         }
         return y;
+    }
+    
+    private void populateAudit(HistoryOfPresentIllnessDto dto, Meta meta) {
+        HistoryOfPresentIllnessDto.Audit audit = new HistoryOfPresentIllnessDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }

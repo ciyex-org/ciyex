@@ -71,8 +71,15 @@ public class PatientMedicalHistoryService {
         var outcome = fhirClientService.create(condition, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        
+        Condition created = (Condition) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
+        
         log.info("Created FHIR Condition (PMH) with id: {}", fhirId);
 
         return dto;
@@ -82,7 +89,9 @@ public class PatientMedicalHistoryService {
     public PatientMedicalHistoryDto getOne(Long patientId, Long encounterId, String fhirId) {
         log.debug("Getting FHIR Condition (PMH): {}", fhirId);
         Condition condition = fhirClientService.read(Condition.class, fhirId, getPracticeId());
-        return fromFhirCondition(condition);
+        PatientMedicalHistoryDto dto = fromFhirCondition(condition);
+        dto.setId(Long.parseLong(fhirId));
+        return dto;
     }
 
     // LIST BY ENCOUNTER
@@ -138,7 +147,7 @@ public class PatientMedicalHistoryService {
         condition.setId(fhirId);
         fhirClientService.update(condition, getPracticeId());
 
-        return dto;
+        return getOne(patientId, encounterId, fhirId);
     }
 
     // DELETE
@@ -293,8 +302,10 @@ public class PatientMedicalHistoryService {
 
     private PatientMedicalHistoryDto fromFhirCondition(Condition c) {
         PatientMedicalHistoryDto dto = new PatientMedicalHistoryDto();
-        dto.setFhirId(c.getIdElement().getIdPart());
-        dto.setExternalId(dto.getFhirId());
+        String fhirId = c.getIdElement().getIdPart();
+        dto.setId(Long.parseLong(fhirId));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
 
         // Subject -> patientId
         if (c.hasSubject() && c.getSubject().hasReference()) {
@@ -369,6 +380,10 @@ public class PatientMedicalHistoryService {
         if (printedAtStr != null) {
             try { dto.setPrintedAt(OffsetDateTime.parse(printedAtStr)); } catch (Exception ignored) {}
         }
+        
+        if (c.hasMeta()) {
+            populateAudit(dto, c.getMeta());
+        }
 
         return dto;
     }
@@ -403,5 +418,14 @@ public class PatientMedicalHistoryService {
     private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
+    }
+    
+    private void populateAudit(PatientMedicalHistoryDto dto, Meta meta) {
+        PatientMedicalHistoryDto.Audit audit = new PatientMedicalHistoryDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }

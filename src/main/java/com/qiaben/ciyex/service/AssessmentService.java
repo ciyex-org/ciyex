@@ -78,10 +78,18 @@ public class AssessmentService {
         MethodOutcome outcome = fhirClientService.create(ci, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         dto.setPatientId(patientId);
         dto.setEncounterId(encounterId);
+
+        
+        // Populate audit info
+        ClinicalImpression created = (ClinicalImpression) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
 
         log.info("Created FHIR ClinicalImpression (assessment) with ID: {}", fhirId);
         return dto;
@@ -94,7 +102,9 @@ public class AssessmentService {
 
         try {
             ClinicalImpression ci = fhirClientService.read(ClinicalImpression.class, fhirId, getPracticeId());
-            return toAssessmentDto(ci, patientId, encounterId);
+            AssessmentDto dto = toAssessmentDto(ci, patientId, encounterId);
+            dto.setId(id);
+            return dto;
         } catch (Exception e) {
             throw new IllegalArgumentException(
                     String.format("Assessment not found with ID: %d for Patient ID: %d and Encounter ID: %d",
@@ -131,9 +141,8 @@ public class AssessmentService {
         ci.setId(fhirId);
         fhirClientService.update(ci, getPracticeId());
 
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        return dto;
+        // Re-read to get updated metadata and return complete DTO
+        return getOne(patientId, encounterId, id);
     }
 
     // ✅ Delete assessment
@@ -245,6 +254,11 @@ public class AssessmentService {
             ci.setDescription(dto.getAssessmentText());
         }
 
+        // Priority - store as extension
+        if (dto.getPriority() != null) {
+            ci.addExtension("http://ciyex.com/fhir/priority", new StringType(dto.getPriority()));
+        }
+
         // Finding (diagnosis)
         if (dto.getDiagnosisCode() != null || dto.getDiagnosisName() != null) {
             ClinicalImpression.ClinicalImpressionFindingComponent finding = ci.addFinding();
@@ -270,8 +284,10 @@ public class AssessmentService {
         AssessmentDto dto = new AssessmentDto();
 
         if (ci.hasId()) {
-            dto.setFhirId(ci.getIdElement().getIdPart());
-            dto.setExternalId(ci.getIdElement().getIdPart());
+            String fhirId = ci.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         dto.setPatientId(patientId);
@@ -304,6 +320,23 @@ public class AssessmentService {
         // Notes
         if (ci.hasNote()) {
             dto.setNotes(ci.getNoteFirstRep().getText());
+        }
+        
+        // Priority - retrieve from extension
+        if (ci.hasExtension()) {
+            ci.getExtension().stream()
+                .filter(ext -> ext.getUrl().equals("http://ciyex.com/fhir/priority"))
+                .findFirst()
+                .ifPresent(ext -> {
+                    if (ext.getValue() instanceof StringType) {
+                        dto.setPriority(((StringType) ext.getValue()).getValue());
+                    }
+                });
+        }
+        
+        // Populate audit from FHIR metadata
+        if (ci.hasMeta()) {
+            populateAudit(dto, ci.getMeta());
         }
 
         // Check sign metadata
@@ -350,4 +383,25 @@ public class AssessmentService {
     }
 
     private static String nullTo(String v, String fb) { return (v == null || v.isBlank()) ? fb : v; }
+    
+    private void populateAudit(AssessmentDto dto, Meta meta) {
+        AssessmentDto.Audit audit = new AssessmentDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        if (meta.hasExtension()) {
+            meta.getExtension().stream()
+                .filter(ext -> ext.getUrl().contains("created"))
+                .findFirst()
+                .ifPresent(ext -> {
+                    if (ext.getValue() instanceof DateTimeType) {
+                        audit.setCreatedDate(((DateTimeType) ext.getValue()).getValue().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+                    }
+                });
+        }
+        if (audit.getCreatedDate() == null && meta.hasLastUpdated()) {
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
+    }
 }

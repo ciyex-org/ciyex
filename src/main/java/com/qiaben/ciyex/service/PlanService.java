@@ -82,10 +82,16 @@ public class PlanService {
         MethodOutcome outcome = fhirClientService.create(carePlan, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         dto.setPatientId(patientId);
         dto.setEncounterId(encounterId);
+        
+        CarePlan created = (CarePlan) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
 
         log.info("Created FHIR CarePlan with ID: {}", fhirId);
         return dto;
@@ -112,7 +118,9 @@ public class PlanService {
 
         try {
             CarePlan carePlan = fhirClientService.read(CarePlan.class, fhirId, getPracticeId());
-            return toPlanDto(carePlan, patientId, encounterId);
+            PlanDto dto = toPlanDto(carePlan, patientId, encounterId);
+            dto.setId(id);
+            return dto;
         } catch (Exception e) {
             throw new IllegalArgumentException(
                     String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id));
@@ -134,9 +142,7 @@ public class PlanService {
         carePlan.setId(fhirId);
         fhirClientService.update(carePlan, getPracticeId());
 
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        return dto;
+        return getOne(patientId, encounterId, id);
     }
 
     // ✅ Delete Plan
@@ -276,8 +282,10 @@ public class PlanService {
         PlanDto dto = new PlanDto();
 
         if (carePlan.hasId()) {
-            dto.setFhirId(carePlan.getIdElement().getIdPart());
-            dto.setExternalId(carePlan.getIdElement().getIdPart());
+            String fhirId = carePlan.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         dto.setPatientId(patientId);
@@ -311,6 +319,10 @@ public class PlanService {
                 dto.setSignedBy(meta.signedBy);
                 dto.setPrintedAt(meta.printedAt != null ? meta.printedAt.format(ISO) : null);
             }
+        }
+        
+        if (carePlan.hasMeta()) {
+            populateAudit(dto, carePlan.getMeta());
         }
 
         return dto;
@@ -382,5 +394,14 @@ public class PlanService {
             out.add(line.toString());
         }
         return out;
+    }
+    
+    private void populateAudit(PlanDto dto, Meta meta) {
+        PlanDto.Audit audit = new PlanDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }

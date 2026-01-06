@@ -81,10 +81,16 @@ public class ChiefComplaintService {
         MethodOutcome outcome = fhirClientService.create(condition, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         dto.setPatientId(patientId);
         dto.setEncounterId(encounterId);
+        
+        Condition created = (Condition) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
 
         log.info("Created FHIR Condition (chief complaint) with ID: {}", fhirId);
         return dto;
@@ -113,7 +119,9 @@ public class ChiefComplaintService {
 
         try {
             Condition condition = fhirClientService.read(Condition.class, fhirId, getPracticeId());
-            return toChiefComplaintDto(condition, patientId, encounterId);
+            ChiefComplaintDto dto = toChiefComplaintDto(condition, patientId, encounterId);
+            dto.setId(id);
+            return dto;
         } catch (Exception e) {
             throw new IllegalArgumentException(
                     String.format("Chief Complaint not found with ID: %d for Patient ID: %d and Encounter ID: %d",
@@ -136,9 +144,7 @@ public class ChiefComplaintService {
         condition.setId(fhirId);
         fhirClientService.update(condition, getPracticeId());
 
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        return dto;
+        return getOne(patientId, encounterId, id);
     }
 
     // ✅ Delete chief complaint
@@ -285,8 +291,10 @@ public class ChiefComplaintService {
         ChiefComplaintDto dto = new ChiefComplaintDto();
 
         if (condition.hasId()) {
-            dto.setFhirId(condition.getIdElement().getIdPart());
-            dto.setExternalId(condition.getIdElement().getIdPart());
+            String fhirId = condition.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         dto.setPatientId(patientId);
@@ -310,6 +318,10 @@ public class ChiefComplaintService {
         // Details from note
         if (condition.hasNote()) {
             dto.setDetails(condition.getNoteFirstRep().getText());
+        }
+        
+        if (condition.hasMeta()) {
+            populateAudit(dto, condition.getMeta());
         }
 
         // Check sign metadata
@@ -344,5 +356,14 @@ public class ChiefComplaintService {
     private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
+    }
+    
+    private void populateAudit(ChiefComplaintDto dto, Meta meta) {
+        ChiefComplaintDto.Audit audit = new ChiefComplaintDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }

@@ -51,12 +51,9 @@ public class EncounterService {
         MethodOutcome outcome = fhirClientService.create(fhirEncounter, getPracticeId());
         
         String fhirId = outcome.getId().getIdPart();
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        dto.setPatientId(patientId);
+        Encounter created = fhirClientService.read(Encounter.class, fhirId, getPracticeId());
         
-        log.info("Created FHIR Encounter with ID: {}", fhirId);
-        return dto;
+        return toEncounterDto(created);
     }
 
     // ✅ List encounters by patient
@@ -231,6 +228,13 @@ public class EncounterService {
                     .setText(dto.getDischargeDisposition());
         }
 
+        // Sensitivity
+        if (dto.getSensitivity() != null) {
+            encounter.getMeta().addSecurity()
+                    .setSystem("http://terminology.hl7.org/CodeSystem/v3-Confidentiality")
+                    .setCode(dto.getSensitivity());
+        }
+
         return encounter;
     }
 
@@ -239,8 +243,14 @@ public class EncounterService {
 
         // FHIR ID
         if (encounter.hasId()) {
-            dto.setFhirId(encounter.getIdElement().getIdPart());
-            dto.setExternalId(encounter.getIdElement().getIdPart());
+            String idPart = encounter.getIdElement().getIdPart();
+            dto.setFhirId(idPart);
+            dto.setExternalId(idPart);
+            try {
+                dto.setId(Long.parseLong(idPart));
+            } catch (NumberFormatException e) {
+                // FHIR ID is not numeric
+            }
         }
 
         // Status
@@ -292,6 +302,21 @@ public class EncounterService {
         if (encounter.hasHospitalization() && 
             encounter.getHospitalization().hasDischargeDisposition()) {
             dto.setDischargeDisposition(encounter.getHospitalization().getDischargeDisposition().getText());
+        }
+
+        // Sensitivity
+        if (encounter.hasMeta() && encounter.getMeta().hasSecurity()) {
+            dto.setSensitivity(encounter.getMeta().getSecurityFirstRep().getCode());
+        }
+
+        // Audit fields from FHIR metadata
+        if (encounter.hasMeta()) {
+            EncounterDto.Audit audit = new EncounterDto.Audit();
+            if (encounter.getMeta().hasLastUpdated()) {
+                audit.setCreatedDate(formatDate(encounter.getMeta().getLastUpdated()));
+                audit.setLastModifiedDate(formatDate(encounter.getMeta().getLastUpdated()));
+            }
+            dto.setAudit(audit);
         }
 
         return dto;

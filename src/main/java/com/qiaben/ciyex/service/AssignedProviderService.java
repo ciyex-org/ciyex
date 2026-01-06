@@ -70,8 +70,15 @@ public class AssignedProviderService {
         var outcome = fhirClientService.create(careTeam, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        
+        CareTeam created = (CareTeam) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
+        
         log.info("Created FHIR CareTeam with id: {}", fhirId);
 
         return dto;
@@ -81,7 +88,9 @@ public class AssignedProviderService {
     public AssignedProviderDto getOne(Long patientId, Long encounterId, String fhirId) {
         log.debug("Getting FHIR CareTeam: {}", fhirId);
         CareTeam careTeam = fhirClientService.read(CareTeam.class, fhirId, getPracticeId());
-        return fromFhirCareTeam(careTeam);
+        AssignedProviderDto dto = fromFhirCareTeam(careTeam);
+        dto.setId(Long.parseLong(fhirId));
+        return dto;
     }
 
     // LIST BY PATIENT
@@ -138,7 +147,7 @@ public class AssignedProviderService {
         careTeam.setId(fhirId);
         fhirClientService.update(careTeam, getPracticeId());
 
-        return dto;
+        return getOne(patientId, encounterId, fhirId);
     }
 
     // DELETE
@@ -295,8 +304,10 @@ public class AssignedProviderService {
 
     private AssignedProviderDto fromFhirCareTeam(CareTeam ct) {
         AssignedProviderDto dto = new AssignedProviderDto();
-        dto.setFhirId(ct.getIdElement().getIdPart());
-        dto.setExternalId(ct.getIdElement().getIdPart());
+        String fhirId = ct.getIdElement().getIdPart();
+        dto.setId(Long.parseLong(fhirId));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
 
         // Status
         if (ct.hasStatus()) {
@@ -376,6 +387,10 @@ public class AssignedProviderService {
                 dto.setPrintedAt(OffsetDateTime.parse(((StringType) printedAtExt.getValue()).getValue()));
             } catch (Exception ignored) {}
         }
+        
+        if (ct.hasMeta()) {
+            populateAudit(dto, ct.getMeta());
+        }
 
         return dto;
     }
@@ -397,4 +412,13 @@ public class AssignedProviderService {
     }
 
     private static String nullTo(String v, String fb) { return (v == null || v.isBlank()) ? fb : v; }
+    
+    private void populateAudit(AssignedProviderDto dto, Meta meta) {
+        AssignedProviderDto.Audit audit = new AssignedProviderDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
+    }
 }

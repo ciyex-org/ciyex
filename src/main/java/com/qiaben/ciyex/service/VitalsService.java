@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
@@ -92,8 +93,14 @@ public class VitalsService {
         MethodOutcome outcome = fhirClientService.create(fhirObservation, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        
+        Observation created = (Observation) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
 
         log.info("Created FHIR Observation (vitals) with ID: {}", fhirId);
         return dto;
@@ -101,14 +108,18 @@ public class VitalsService {
 
     // ✅ Get vitals by ID
     public VitalsDto get(Long patientId, Long encounterId, Long id) {
-        return getByFhirId(String.valueOf(id));
+        VitalsDto dto = getByFhirId(String.valueOf(id));
+        dto.setId(id);
+        return dto;
     }
 
     public VitalsDto getByFhirId(String fhirId) {
         log.debug("Reading FHIR Observation (vitals) with ID: {}", fhirId);
         try {
             Observation fhirObservation = fhirClientService.read(Observation.class, fhirId, getPracticeId());
-            return toVitalsDto(fhirObservation);
+            VitalsDto dto = toVitalsDto(fhirObservation);
+            dto.setId(Long.parseLong(fhirId));
+            return dto;
         } catch (ResourceNotFoundException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vitals not found with FHIR ID: " + fhirId);
         }
@@ -153,11 +164,7 @@ public class VitalsService {
 
         fhirClientService.update(fhirObservation, getPracticeId());
 
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-
-        log.info("Updated FHIR Observation (vitals) with ID: {}", fhirId);
-        return dto;
+        return get(patientId, encounterId, id);
     }
 
     // ✅ Delete vitals from FHIR
@@ -445,8 +452,10 @@ public class VitalsService {
 
         // FHIR ID
         if (observation.hasId()) {
-            dto.setFhirId(observation.getIdElement().getIdPart());
-            dto.setExternalId(observation.getIdElement().getIdPart());
+            String fhirId = observation.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         // Signed status (FINAL = signed)
@@ -506,6 +515,10 @@ public class VitalsService {
         if (observation.hasNote()) {
             dto.setNotes(observation.getNoteFirstRep().getText());
         }
+        
+        if (observation.hasMeta()) {
+            populateAudit(dto, observation.getMeta());
+        }
 
         return dto;
     }
@@ -534,5 +547,14 @@ public class VitalsService {
     private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
+    }
+    
+    private void populateAudit(VitalsDto dto, Meta meta) {
+        VitalsDto.Audit audit = new VitalsDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }

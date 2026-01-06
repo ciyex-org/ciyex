@@ -91,10 +91,16 @@ public class FamilyHistoryService {
 
         // Return DTO with first ID as container ID
         String containerId = createdIds.isEmpty() ? "FH-" + System.currentTimeMillis() : createdIds.get(0);
+        dto.setId(Long.parseLong(containerId));
         dto.setFhirId(containerId);
         dto.setExternalId(containerId);
         dto.setPatientId(patientId);
         dto.setEncounterId(encounterId);
+        
+        FamilyHistoryDto.Audit audit = new FamilyHistoryDto.Audit();
+        audit.setCreatedDate(java.time.LocalDate.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDate.now().toString());
+        dto.setAudit(audit);
 
         return dto;
     }
@@ -106,7 +112,9 @@ public class FamilyHistoryService {
 
         try {
             FamilyMemberHistory fmh = fhirClientService.read(FamilyMemberHistory.class, fhirId, getPracticeId());
-            return toFamilyHistoryDto(fmh, patientId, encounterId);
+            FamilyHistoryDto dto = toFamilyHistoryDto(fmh, patientId, encounterId);
+            dto.setId(id);
+            return dto;
         } catch (Exception e) {
             throw new IllegalArgumentException(
                     String.format("Family History not found with ID: %d for Patient ID: %d and Encounter ID: %d",
@@ -147,9 +155,7 @@ public class FamilyHistoryService {
             fhirClientService.update(fmh, getPracticeId());
         }
 
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        return dto;
+        return getOne(patientId, encounterId, id);
     }
 
     // ✅ Delete family history
@@ -293,8 +299,10 @@ public class FamilyHistoryService {
         FamilyHistoryDto dto = new FamilyHistoryDto();
 
         if (fmh.hasId()) {
-            dto.setFhirId(fmh.getIdElement().getIdPart());
-            dto.setExternalId(fmh.getIdElement().getIdPart());
+            String fhirId = fmh.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         dto.setPatientId(patientId);
@@ -337,6 +345,10 @@ public class FamilyHistoryService {
                 dto.setSignedEntryId(meta.signedEntryId);
             }
         }
+        
+        if (fmh.hasMeta()) {
+            populateAudit(dto, fmh.getMeta());
+        }
 
         return dto;
     }
@@ -374,5 +386,14 @@ public class FamilyHistoryService {
 
     private static String nullTo(String v, String fb) {
         return (v == null || v.isBlank()) ? fb : v;
+    }
+    
+    private void populateAudit(FamilyHistoryDto dto, Meta meta) {
+        FamilyHistoryDto.Audit audit = new FamilyHistoryDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }

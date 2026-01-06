@@ -84,10 +84,16 @@ public class ReviewOfSystemService {
         MethodOutcome outcome = fhirClientService.create(observation, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         dto.setPatientId(patientId);
         dto.setEncounterId(encounterId);
+        
+        Observation created = (Observation) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
 
         log.info("Created FHIR Observation (ROS) with ID: {}", fhirId);
         return dto;
@@ -116,7 +122,9 @@ public class ReviewOfSystemService {
 
         try {
             Observation observation = fhirClientService.read(Observation.class, fhirId, getPracticeId());
-            return toRosDto(observation, patientId, encounterId);
+            ReviewOfSystemDto dto = toRosDto(observation, patientId, encounterId);
+            dto.setId(id);
+            return dto;
         } catch (Exception e) {
             throw new IllegalArgumentException(
                     String.format("Review of System not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id));
@@ -138,9 +146,7 @@ public class ReviewOfSystemService {
         observation.setId(fhirId);
         fhirClientService.update(observation, getPracticeId());
 
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        return dto;
+        return getOne(patientId, encounterId, id);
     }
 
     // ✅ Delete ROS
@@ -268,8 +274,10 @@ public class ReviewOfSystemService {
         ReviewOfSystemDto dto = new ReviewOfSystemDto();
 
         if (observation.hasId()) {
-            dto.setFhirId(observation.getIdElement().getIdPart());
-            dto.setExternalId(observation.getIdElement().getIdPart());
+            String fhirId = observation.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         dto.setPatientId(patientId);
@@ -301,6 +309,10 @@ public class ReviewOfSystemService {
                     log.error("Failed to deserialize ROS data", ex);
                 }
             }
+        }
+        
+        if (observation.hasMeta()) {
+            populateAudit(dto, observation.getMeta());
         }
 
         // Check sign metadata
@@ -335,5 +347,14 @@ public class ReviewOfSystemService {
     private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
+    }
+    
+    private void populateAudit(ReviewOfSystemDto dto, Meta meta) {
+        ReviewOfSystemDto.Audit audit = new ReviewOfSystemDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }

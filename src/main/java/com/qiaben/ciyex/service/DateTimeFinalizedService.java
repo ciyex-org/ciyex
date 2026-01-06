@@ -67,6 +67,11 @@ public class DateTimeFinalizedService {
         dto.setExternalId(fhirId);
         dto.setPatientId(patientId);
         dto.setEncounterId(encounterId);
+        
+        Provenance created = (Provenance) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
 
         log.info("Created FHIR Provenance (DateTimeFinalized) with id: {}", fhirId);
         return dto;
@@ -76,7 +81,9 @@ public class DateTimeFinalizedService {
     public DateTimeFinalizedDto getOne(Long patientId, Long encounterId, String fhirId) {
         log.debug("Getting DateTimeFinalized {} for patient {} encounter {}", fhirId, patientId, encounterId);
         Provenance prov = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
-        return fromFhirProvenance(prov);
+        DateTimeFinalizedDto dto = fromFhirProvenance(prov);
+        dto.setId((long) Math.abs(fhirId.hashCode()));
+        return dto;
     }
 
     // LIST by encounter
@@ -115,11 +122,7 @@ public class DateTimeFinalizedService {
         prov.setId(fhirId);
         fhirClientService.update(prov, getPracticeId());
 
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        dto.setPatientId(patientId);
-        dto.setEncounterId(encounterId);
-        return dto;
+        return getOne(patientId, encounterId, fhirId);
     }
 
     // DELETE
@@ -272,6 +275,10 @@ public class DateTimeFinalizedService {
         audit.setCreatedDate(LocalDate.now().format(DAY));
         audit.setLastModifiedDate(LocalDate.now().format(DAY));
         dto.setAudit(audit);
+        
+        if (prov.hasMeta()) {
+            populateAudit(dto, prov.getMeta());
+        }
 
         return dto;
     }
@@ -308,5 +315,16 @@ public class DateTimeFinalizedService {
             return ((BooleanType) ext.getValue()).booleanValue();
         }
         return null;
+    }
+    
+    private void populateAudit(DateTimeFinalizedDto dto, Meta meta) {
+        DateTimeFinalizedDto.Audit audit = dto.getAudit() != null ? dto.getAudit() : new DateTimeFinalizedDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            if (audit.getCreatedDate() == null) {
+                audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            }
+        }
+        dto.setAudit(audit);
     }
 }

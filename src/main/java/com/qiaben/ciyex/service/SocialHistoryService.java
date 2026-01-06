@@ -93,10 +93,16 @@ public class SocialHistoryService {
 
         // Return DTO with first ID as container ID
         String containerId = createdIds.isEmpty() ? "SH-" + System.currentTimeMillis() : createdIds.get(0);
+        dto.setId(Long.parseLong(containerId));
         dto.setFhirId(containerId);
         dto.setExternalId(containerId);
         dto.setPatientId(patientId);
         dto.setEncounterId(encounterId);
+        
+        SocialHistoryDto.Audit audit = new SocialHistoryDto.Audit();
+        audit.setCreatedDate(java.time.LocalDate.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDate.now().toString());
+        dto.setAudit(audit);
 
         return dto;
     }
@@ -129,7 +135,9 @@ public class SocialHistoryService {
 
         try {
             Observation obs = fhirClientService.read(Observation.class, fhirId, getPracticeId());
-            return toSocialHistoryDto(obs, patientId, encounterId);
+            SocialHistoryDto dto = toSocialHistoryDto(obs, patientId, encounterId);
+            dto.setId(id);
+            return dto;
         } catch (Exception e) {
             throw new IllegalArgumentException(
                     String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d",
@@ -156,9 +164,7 @@ public class SocialHistoryService {
             fhirClientService.update(obs, getPracticeId());
         }
 
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        return dto;
+        return getById(patientId, encounterId, id);
     }
 
     // ✅ Delete social history
@@ -307,8 +313,10 @@ public class SocialHistoryService {
         SocialHistoryDto dto = new SocialHistoryDto();
 
         if (obs.hasId()) {
-            dto.setFhirId(obs.getIdElement().getIdPart());
-            dto.setExternalId(obs.getIdElement().getIdPart());
+            String fhirId = obs.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         dto.setPatientId(patientId);
@@ -344,6 +352,10 @@ public class SocialHistoryService {
                 dto.setPrintedAt(meta.printedAt);
             }
         }
+        
+        if (obs.hasMeta()) {
+            populateAudit(dto, obs.getMeta());
+        }
 
         return dto;
     }
@@ -365,5 +377,14 @@ public class SocialHistoryService {
     private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
+    }
+    
+    private void populateAudit(SocialHistoryDto dto, Meta meta) {
+        SocialHistoryDto.Audit audit = new SocialHistoryDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }

@@ -82,10 +82,16 @@ public class PhysicalExamService {
         MethodOutcome outcome = fhirClientService.create(observation, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         dto.setPatientId(patientId);
         dto.setEncounterId(encounterId);
+        
+        Observation created = (Observation) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
 
         log.info("Created FHIR Observation (Physical Exam) with ID: {}", fhirId);
         return dto;
@@ -114,7 +120,9 @@ public class PhysicalExamService {
 
         try {
             Observation observation = fhirClientService.read(Observation.class, fhirId, getPracticeId());
-            return toPhysicalExamDto(observation, patientId, encounterId);
+            PhysicalExamDto dto = toPhysicalExamDto(observation, patientId, encounterId);
+            dto.setId(id);
+            return dto;
         } catch (Exception e) {
             throw new IllegalArgumentException(
                     String.format("Physical Exam not found with ID: %d for Patient ID: %d and Encounter ID: %d",
@@ -137,9 +145,7 @@ public class PhysicalExamService {
         observation.setId(fhirId);
         fhirClientService.update(observation, getPracticeId());
 
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        return dto;
+        return getOne(patientId, encounterId, id);
     }
 
     // ✅ Delete Physical Exam
@@ -289,8 +295,10 @@ public class PhysicalExamService {
         PhysicalExamDto dto = new PhysicalExamDto();
 
         if (observation.hasId()) {
-            dto.setFhirId(observation.getIdElement().getIdPart());
-            dto.setExternalId(observation.getIdElement().getIdPart());
+            String fhirId = observation.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         dto.setPatientId(patientId);
@@ -332,6 +340,10 @@ public class PhysicalExamService {
                 dto.setPrintedAt(meta.printedAt);
             }
         }
+        
+        if (observation.hasMeta()) {
+            populateAudit(dto, observation.getMeta());
+        }
 
         return dto;
     }
@@ -353,5 +365,14 @@ public class PhysicalExamService {
     private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
+    }
+    
+    private void populateAudit(PhysicalExamDto dto, Meta meta) {
+        PhysicalExamDto.Audit audit = new PhysicalExamDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }

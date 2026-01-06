@@ -82,10 +82,16 @@ public class ProviderNoteService {
         MethodOutcome outcome = fhirClientService.create(docRef, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         dto.setPatientId(patientId);
         dto.setEncounterId(encounterId);
+        
+        DocumentReference created = (DocumentReference) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
 
         log.info("Created FHIR DocumentReference with ID: {}", fhirId);
         return dto;
@@ -112,7 +118,9 @@ public class ProviderNoteService {
 
         try {
             DocumentReference docRef = fhirClientService.read(DocumentReference.class, fhirId, getPracticeId());
-            return toNoteDto(docRef, patientId, encounterId);
+            ProviderNoteDto dto = toNoteDto(docRef, patientId, encounterId);
+            dto.setId(id);
+            return dto;
         } catch (Exception e) {
             throw new IllegalArgumentException(
                     String.format("Provider Note not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id));
@@ -134,9 +142,7 @@ public class ProviderNoteService {
         docRef.setId(fhirId);
         fhirClientService.update(docRef, getPracticeId());
 
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        return dto;
+        return getOne(patientId, encounterId, id);
     }
 
     // ✅ Delete Provider Note
@@ -293,8 +299,10 @@ public class ProviderNoteService {
         ProviderNoteDto dto = new ProviderNoteDto();
 
         if (docRef.hasId()) {
-            dto.setFhirId(docRef.getIdElement().getIdPart());
-            dto.setExternalId(docRef.getIdElement().getIdPart());
+            String fhirId = docRef.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         dto.setPatientId(patientId);
@@ -342,6 +350,10 @@ public class ProviderNoteService {
                 dto.setPrintedAt(meta.printedAt != null ? meta.printedAt.format(ISO) : null);
             }
         }
+        
+        if (docRef.hasMeta()) {
+            populateAudit(dto, docRef.getMeta());
+        }
 
         return dto;
     }
@@ -372,5 +384,14 @@ public class ProviderNoteService {
         cs.newLineAtOffset(x + 140, y);
         cs.showText(value != null ? value : "-");
         cs.endText();
+    }
+    
+    private void populateAudit(ProviderNoteDto dto, Meta meta) {
+        ProviderNoteDto.Audit audit = new ProviderNoteDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }
