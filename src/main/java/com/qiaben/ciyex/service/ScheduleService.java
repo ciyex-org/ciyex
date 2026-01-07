@@ -60,8 +60,16 @@ public class ScheduleService {
         var outcome = fhirClientService.create(schedule, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+
+        // Set audit information
+        ScheduleDto.Audit audit = new ScheduleDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
+
         log.info("Created FHIR Schedule with id: {}", fhirId);
 
         return dto;
@@ -77,10 +85,10 @@ public class ScheduleService {
     // GET ALL
     public ApiResponse<List<ScheduleDto>> getAllSchedules() {
         log.debug("Getting all FHIR Schedules");
-        
+
         Bundle bundle = fhirClientService.search(Schedule.class, getPracticeId());
         List<Schedule> schedules = fhirClientService.extractResources(bundle, Schedule.class);
-        
+
         List<ScheduleDto> dtos = schedules.stream()
                 .map(this::fromFhirSchedule)
                 .collect(Collectors.toList());
@@ -95,13 +103,13 @@ public class ScheduleService {
     // GET BY PROVIDER
     public List<ScheduleDto> getByProviderId(Long providerId) {
         log.debug("Getting FHIR Schedules for provider: {}", providerId);
-        
+
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Schedule.class)
                 .where(new ReferenceClientParam("actor").hasId("Practitioner/" + providerId))
                 .returnBundle(Bundle.class)
                 .execute();
-        
+
         List<Schedule> schedules = fhirClientService.extractResources(bundle, Schedule.class);
         return schedules.stream().map(this::fromFhirSchedule).collect(Collectors.toList());
     }
@@ -109,11 +117,11 @@ public class ScheduleService {
     // UPDATE
     public ScheduleDto update(String fhirId, ScheduleDto dto) {
         log.debug("Updating FHIR Schedule: {}", fhirId);
-        
+
         Schedule schedule = toFhirSchedule(dto);
         schedule.setId(fhirId);
         fhirClientService.update(schedule, getPracticeId());
-        
+
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         return dto;
@@ -196,6 +204,7 @@ public class ScheduleService {
         ScheduleDto dto = new ScheduleDto();
         dto.setFhirId(s.getIdElement().getIdPart());
         dto.setExternalId(s.getIdElement().getIdPart());
+        dto.setId(Long.parseLong(s.getIdElement().getIdPart()));
         dto.setStatus(s.getActive() ? "active" : "inactive");
 
         // Actors
@@ -255,6 +264,12 @@ public class ScheduleService {
             if (tz != null) dto.setTimezone(tz);
             if (hasAnyRecurrence(r)) dto.setRecurrence(r);
         }
+
+        // Set audit information
+        ScheduleDto.Audit audit = new ScheduleDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
 
         return dto;
     }

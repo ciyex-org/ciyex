@@ -56,8 +56,15 @@ public class PatientEducationAssignmentService {
         ServiceRequest sr = toFhirServiceRequest(dto);
         var outcome = fhirClientService.create(sr, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
-
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
+
+        // Set audit information
+        PatientEducationAssignmentDto.Audit audit = new PatientEducationAssignmentDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
+
         log.info("Created FHIR ServiceRequest (education assignment) with id: {}", fhirId);
 
         return dto;
@@ -104,7 +111,7 @@ public class PatientEducationAssignmentService {
         log.debug("Marking FHIR ServiceRequest (education assignment) as delivered: {}", fhirId);
 
         ServiceRequest sr = fhirClientService.read(ServiceRequest.class, fhirId, getPracticeId());
-        
+
         // Update delivered extension
         sr.getExtension().removeIf(e -> EXT_DELIVERED.equals(e.getUrl()));
         sr.addExtension(new Extension(EXT_DELIVERED, new BooleanType(true)));
@@ -164,6 +171,7 @@ public class PatientEducationAssignmentService {
     private PatientEducationAssignmentDto fromFhirServiceRequest(ServiceRequest sr) {
         PatientEducationAssignmentDto dto = new PatientEducationAssignmentDto();
         dto.setFhirId(sr.getIdElement().getIdPart());
+        dto.setId(Long.parseLong(sr.getIdElement().getIdPart()));
 
         // Subject -> patientId
         if (sr.hasSubject() && sr.getSubject().hasReference()) {
@@ -201,6 +209,12 @@ public class PatientEducationAssignmentService {
         topic.setContent(getExtensionString(sr, EXT_TOPIC_CONTENT));
         topic.setFhirId(getExtensionString(sr, EXT_TOPIC_FHIR_ID));
         dto.setTopic(topic);
+
+        // Set audit information
+        PatientEducationAssignmentDto.Audit audit = new PatientEducationAssignmentDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
 
         return dto;
     }

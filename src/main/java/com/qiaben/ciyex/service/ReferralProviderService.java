@@ -46,8 +46,15 @@ public class ReferralProviderService {
         Practitioner pract = toFhirPractitioner(dto);
         var outcome = fhirClientService.create(pract, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
-
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
+
+        // Set audit information
+        ReferralProviderDto.Audit audit = new ReferralProviderDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
+
         log.info("Created FHIR Practitioner (referral) with id: {}", fhirId);
 
         return dto;
@@ -150,7 +157,7 @@ public class ReferralProviderService {
         }
 
         // Practice reference
-        Long practiceId = dto.getPracticeId() != null ? dto.getPracticeId() 
+        Long practiceId = dto.getPracticeId() != null ? dto.getPracticeId()
                 : (dto.getPractice() != null ? dto.getPractice().getId() : null);
         if (practiceId != null) {
             p.addExtension(new Extension(EXT_PRACTICE_ID, new StringType(practiceId.toString())));
@@ -165,6 +172,7 @@ public class ReferralProviderService {
     private ReferralProviderDto fromFhirPractitioner(Practitioner p) {
         ReferralProviderDto dto = new ReferralProviderDto();
         dto.setFhirId(p.getIdElement().getIdPart());
+        dto.setId(Long.parseLong(p.getIdElement().getIdPart()));
 
         // Name
         if (p.hasName()) {
@@ -208,6 +216,12 @@ public class ReferralProviderService {
                 dto.setPractice(pi);
             } catch (NumberFormatException ignored) {}
         }
+
+        // Set audit information
+        ReferralProviderDto.Audit audit = new ReferralProviderDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
 
         return dto;
     }

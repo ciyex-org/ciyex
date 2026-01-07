@@ -40,15 +40,22 @@ public class LocationService {
     // ✅ Create location in FHIR
     public LocationDto create(LocationDto dto) {
         log.info("Creating location in FHIR: {}", dto.getName());
-        
+
         Location fhirLocation = toFhirLocation(dto);
         fhirLocation.setManagingOrganization(new Reference("Organization/" + getPracticeId()));
-        
+
         MethodOutcome outcome = fhirClientService.create(fhirLocation, getPracticeId());
-        
+
         String fhirId = outcome.getId().getIdPart();
+        dto.setId(Long.parseLong(fhirId));
         dto.setExternalId(fhirId);
-        
+
+        // Set audit information
+        LocationDto.Audit audit = new LocationDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
+
         log.info("Created FHIR Location with ID: {}", fhirId);
         return dto;
     }
@@ -75,14 +82,14 @@ public class LocationService {
 
     public LocationDto updateByFhirId(String fhirId, LocationDto dto) {
         log.info("Updating FHIR Location with ID: {}", fhirId);
-        
+
         Location fhirLocation = toFhirLocation(dto);
         fhirLocation.setId(fhirId);
-        
+
         fhirClientService.update(fhirLocation, getPracticeId());
-        
+
         dto.setExternalId(fhirId);
-        
+
         log.info("Updated FHIR Location with ID: {}", fhirId);
         return dto;
     }
@@ -101,40 +108,40 @@ public class LocationService {
     // ✅ Get all locations with pagination
     public Page<LocationDto> getAll(Pageable pageable) {
         log.debug("Getting all FHIR Locations for practice {}", getPracticeId());
-        
+
         Bundle bundle = fhirClientService.search(Location.class, getPracticeId());
         List<LocationDto> allLocations = extractLocations(bundle);
-        
+
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), allLocations.size());
-        
-        List<LocationDto> pageContent = start < allLocations.size() 
-                ? allLocations.subList(start, end) 
+
+        List<LocationDto> pageContent = start < allLocations.size()
+                ? allLocations.subList(start, end)
                 : new ArrayList<>();
-        
+
         return new PageImpl<>(pageContent, pageable, allLocations.size());
     }
 
     // ✅ Search locations by keyword
     public Page<LocationDto> search(String keyword, Pageable pageable) {
         log.debug("Searching FHIR Locations by keyword: {}", keyword);
-        
+
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(Location.class)
                 .where(new StringClientParam("name").matches().value(keyword))
-                
+
                 .returnBundle(Bundle.class)
                 .execute();
-        
+
         List<LocationDto> allLocations = extractLocations(bundle);
-        
+
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), allLocations.size());
-        
-        List<LocationDto> pageContent = start < allLocations.size() 
-                ? allLocations.subList(start, end) 
+
+        List<LocationDto> pageContent = start < allLocations.size()
+                ? allLocations.subList(start, end)
                 : new ArrayList<>();
-        
+
         return new PageImpl<>(pageContent, pageable, allLocations.size());
     }
 
@@ -175,9 +182,11 @@ public class LocationService {
     private LocationDto toLocationDto(Location location) {
         LocationDto dto = new LocationDto();
 
-        // FHIR ID
+        // FHIR ID and ID
         if (location.hasId()) {
-            dto.setExternalId(location.getIdElement().getIdPart());
+            String fhirId = location.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setExternalId(fhirId);
         }
 
         // Name
@@ -192,6 +201,12 @@ public class LocationService {
             dto.setPostalCode(address.getPostalCode());
             dto.setCountry(address.getCountry());
         }
+
+        // Set audit information
+        LocationDto.Audit audit = new LocationDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
 
         return dto;
     }

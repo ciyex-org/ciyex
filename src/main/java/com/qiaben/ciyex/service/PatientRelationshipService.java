@@ -44,7 +44,13 @@ public class PatientRelationshipService {
         var outcome = fhirClientService.create(rp, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
-        dto.setId(Long.parseLong(fhirId.hashCode() + ""));
+        dto.setId(Long.parseLong(fhirId));
+        
+        // Set audit information
+        LocalDateTime currentTime = LocalDateTime.now();
+        dto.setCreatedDate(currentTime);
+        dto.setLastModifiedDate(currentTime);
+        
         log.info("Created FHIR RelatedPerson with id: {}", fhirId);
 
         return dto;
@@ -78,6 +84,14 @@ public class PatientRelationshipService {
         RelatedPerson rp = toFhirRelatedPerson(dto);
         rp.setId(fhirId);
         fhirClientService.update(rp, getPracticeId());
+
+        dto.setId(Long.parseLong(fhirId));
+        
+        // Set audit information - preserve createdDate, update lastModifiedDate
+        if (dto.getCreatedDate() == null) {
+            dto.setCreatedDate(LocalDateTime.now());
+        }
+        dto.setLastModifiedDate(LocalDateTime.now());
 
         return dto;
     }
@@ -138,6 +152,14 @@ public class PatientRelationshipService {
 
     private PatientRelationshipDto fromFhirRelatedPerson(RelatedPerson rp) {
         PatientRelationshipDto dto = PatientRelationshipDto.builder().build();
+        
+        String fhirId = rp.getIdElement().getIdPart();
+        dto.setId(Long.parseLong(fhirId));
+        
+        // Set audit information
+        LocalDateTime currentTime = LocalDateTime.now();
+        dto.setCreatedDate(currentTime);
+        dto.setLastModifiedDate(currentTime);
 
         // Patient -> patientId
         if (rp.hasPatient() && rp.getPatient().hasReference()) {

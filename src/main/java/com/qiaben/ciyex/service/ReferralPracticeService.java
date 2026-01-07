@@ -40,8 +40,15 @@ public class ReferralPracticeService {
         Organization org = toFhirOrganization(dto);
         var outcome = fhirClientService.create(org, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
-
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
+
+        // Set audit information
+        ReferralPracticeDto.Audit audit = new ReferralPracticeDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
+
         log.info("Created FHIR Organization (referral practice) with id: {}", fhirId);
 
         return dto;
@@ -133,6 +140,7 @@ public class ReferralPracticeService {
     private ReferralPracticeDto fromFhirOrganization(Organization org) {
         ReferralPracticeDto dto = new ReferralPracticeDto();
         dto.setFhirId(org.getIdElement().getIdPart());
+        dto.setId(Long.parseLong(org.getIdElement().getIdPart()));
 
         // Name
         if (org.hasName()) {
@@ -161,6 +169,12 @@ public class ReferralPracticeService {
         // Extensions
         dto.setNpiId(getExtensionString(org, EXT_NPI_ID));
         dto.setTaxId(getExtensionString(org, EXT_TAX_ID));
+
+        // Set audit information
+        ReferralPracticeDto.Audit audit = new ReferralPracticeDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
 
         return dto;
     }

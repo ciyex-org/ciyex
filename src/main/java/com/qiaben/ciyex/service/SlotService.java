@@ -44,8 +44,16 @@ public class SlotService {
         var outcome = fhirClientService.create(slot, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+
+        // Set audit information
+        SlotDto.Audit audit = new SlotDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
+
         log.info("Created FHIR Slot with id: {}", fhirId);
 
         return dto;
@@ -144,6 +152,7 @@ public class SlotService {
 
     private SlotDto fromFhirSlot(Slot s) {
         SlotDto dto = new SlotDto();
+        dto.setId(Long.parseLong(s.getIdElement().getIdPart()));
         dto.setFhirId(s.getIdElement().getIdPart());
         dto.setExternalId(s.getIdElement().getIdPart());
 
@@ -177,6 +186,12 @@ public class SlotService {
         if (s.hasComment()) {
             dto.setComment(s.getComment());
         }
+
+        // Set audit information
+        SlotDto.Audit audit = new SlotDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
 
         return dto;
     }
