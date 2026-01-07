@@ -11,6 +11,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -56,6 +58,15 @@ public class RecallService {
         String fhirId = outcome.getId().getIdPart();
 
         dto.setFhirId(fhirId);
+        dto.setId(Long.parseLong(fhirId));
+
+        // Set audit information
+        RecallDto.Audit audit = new RecallDto.Audit();
+        String currentTime = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        dto.setAudit(audit);
+
         log.info("Created FHIR Flag (recall) with id: {}", fhirId);
 
         return dto;
@@ -99,6 +110,19 @@ public class RecallService {
         fhirClientService.update(flag, getPracticeId());
 
         dto.setFhirId(fhirId);
+        dto.setId(Long.parseLong(fhirId));
+
+        // Set audit information
+        RecallDto.Audit audit = new RecallDto.Audit();
+        String currentTime = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        if (dto.getAudit() != null && dto.getAudit().getCreatedDate() != null) {
+            audit.setCreatedDate(dto.getAudit().getCreatedDate());
+        } else {
+            audit.setCreatedDate(currentTime);
+        }
+        audit.setLastModifiedDate(currentTime);
+        dto.setAudit(audit);
+
         return dto;
     }
 
@@ -142,11 +166,11 @@ public class RecallService {
         addStringExtension(f, EXT_LAST_VISIT, dto.getLastVisit());
         addStringExtension(f, EXT_RECALL_DATE, dto.getRecallDate());
         addStringExtension(f, EXT_RECALL_REASON, dto.getRecallReason());
-        
+
         if (dto.getProviderId() != null) {
             f.addExtension(new Extension(EXT_PROVIDER_ID, new StringType(dto.getProviderId().toString())));
         }
-        
+
         f.addExtension(new Extension(EXT_SMS_CONSENT, new BooleanType(dto.isSmsConsent())));
         f.addExtension(new Extension(EXT_EMAIL_CONSENT, new BooleanType(dto.isEmailConsent())));
 
@@ -155,7 +179,16 @@ public class RecallService {
 
     private RecallDto fromFhirFlag(Flag f) {
         RecallDto dto = new RecallDto();
-        dto.setFhirId(f.getIdElement().getIdPart());
+        String fhirId = f.getIdElement().getIdPart();
+        dto.setFhirId(fhirId);
+        dto.setId(Long.parseLong(fhirId));
+
+        // Set audit information
+        RecallDto.Audit audit = new RecallDto.Audit();
+        String currentTime = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        dto.setAudit(audit);
 
         // Subject -> patientId
         if (f.hasSubject() && f.getSubject().hasReference()) {
@@ -183,7 +216,7 @@ public class RecallService {
         dto.setZip(getExtensionString(f, EXT_ZIP));
         dto.setLastVisit(getExtensionString(f, EXT_LAST_VISIT));
         dto.setRecallDate(getExtensionString(f, EXT_RECALL_DATE));
-        
+
         String providerIdStr = getExtensionString(f, EXT_PROVIDER_ID);
         if (providerIdStr != null) {
             try {

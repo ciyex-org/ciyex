@@ -60,8 +60,15 @@ public class InventoryService {
         Device device = toFhirDevice(dto);
         var outcome = fhirClientService.create(device, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
-
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
+
+        // Set audit information
+        InventoryDto.Audit audit = new InventoryDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
+
         log.info("Created FHIR Device (inventory) with id: {}", fhirId);
 
         return dto;
@@ -198,6 +205,7 @@ public class InventoryService {
     private InventoryDto fromFhirDevice(Device d) {
         InventoryDto dto = new InventoryDto();
         dto.setFhirId(d.getIdElement().getIdPart());
+        dto.setId(Long.parseLong(d.getIdElement().getIdPart()));
 
         // Device name
         if (d.hasDeviceName()) {
@@ -223,6 +231,12 @@ public class InventoryService {
         if (minStockExt != null && minStockExt.getValue() instanceof IntegerType) {
             dto.setMinStock(((IntegerType) minStockExt.getValue()).getValue());
         }
+
+        // Set audit information
+        InventoryDto.Audit audit = new InventoryDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
 
         return dto;
     }

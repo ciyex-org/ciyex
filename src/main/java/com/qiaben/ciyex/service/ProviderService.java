@@ -48,17 +48,24 @@ public class ProviderService {
     public ProviderDto create(ProviderDto dto) {
         validateMandatoryFields(dto);
 
-        log.info("Creating provider in FHIR: {} {}", 
+        log.info("Creating provider in FHIR: {} {}",
                 dto.getIdentification() != null ? dto.getIdentification().getFirstName() : "",
                 dto.getIdentification() != null ? dto.getIdentification().getLastName() : "");
-        
+
         Practitioner fhirPractitioner = toFhirPractitioner(dto);
-        
+
         MethodOutcome outcome = fhirClientService.create(fhirPractitioner, getPracticeId());
-        
+
         String fhirId = outcome.getId().getIdPart();
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
-        
+
+        // Set audit information
+        ProviderDto.Audit audit = new ProviderDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
+
         log.info("Created FHIR Practitioner with ID: {}", fhirId);
         return dto;
     }
@@ -85,14 +92,14 @@ public class ProviderService {
 
     public ProviderDto updateByFhirId(String fhirId, ProviderDto dto) {
         log.info("Updating FHIR Practitioner with ID: {}", fhirId);
-        
+
         Practitioner fhirPractitioner = toFhirPractitioner(dto);
         fhirPractitioner.setId(fhirId);
-        
+
         fhirClientService.update(fhirPractitioner, getPracticeId());
-        
+
         dto.setFhirId(fhirId);
-        
+
         log.info("Updated FHIR Practitioner with ID: {}", fhirId);
         return dto;
     }
@@ -111,7 +118,7 @@ public class ProviderService {
     // ✅ Get all providers from FHIR
     public ApiResponse<List<ProviderDto>> getAllProviders() {
         log.debug("Getting all FHIR Practitioners for practice {}", getPracticeId());
-        
+
         Bundle bundle = fhirClientService.search(Practitioner.class, getPracticeId());
         List<ProviderDto> dtos = extractPractitioners(bundle);
 
@@ -132,7 +139,7 @@ public class ProviderService {
     public ProviderDto updateStatus(Long id, ProviderStatus status) {
         String fhirId = String.valueOf(id);
         log.info("Updating status for FHIR Practitioner with ID: {} to {}", fhirId, status);
-        
+
         try {
             Practitioner fhirPractitioner = fhirClientService.read(Practitioner.class, fhirId, getPracticeId());
             fhirPractitioner.setActive(status == ProviderStatus.ACTIVE);
@@ -262,9 +269,11 @@ public class ProviderService {
     private ProviderDto toProviderDto(Practitioner practitioner) {
         ProviderDto dto = new ProviderDto();
 
-        // FHIR ID
+        // FHIR ID and ID
         if (practitioner.hasId()) {
-            dto.setFhirId(practitioner.getIdElement().getIdPart());
+            String fhirId = practitioner.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
         }
 
         // Identifiers
@@ -358,6 +367,12 @@ public class ProviderService {
         ProviderDto.SystemAccess systemAccess = new ProviderDto.SystemAccess();
         systemAccess.setStatus(practitioner.getActive() ? ProviderStatus.ACTIVE : ProviderStatus.ARCHIVED);
         dto.setSystemAccess(systemAccess);
+
+        // Set audit information
+        ProviderDto.Audit audit = new ProviderDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
 
         return dto;
     }
