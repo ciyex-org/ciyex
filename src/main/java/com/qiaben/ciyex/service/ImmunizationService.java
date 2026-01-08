@@ -58,6 +58,14 @@ public class ImmunizationService {
             item.setFhirId(fhirId);
             item.setExternalId(fhirId);
             item.setPatientId(dto.getPatientId());
+            
+            // Set ID from FHIR ID
+            try {
+                item.setId(Long.valueOf(fhirId));
+            } catch (NumberFormatException e) {
+                item.setId((long) fhirId.hashCode());
+            }
+            
             createdItems.add(item);
 
             log.info("Created FHIR Immunization with ID: {}", fhirId);
@@ -66,6 +74,14 @@ public class ImmunizationService {
         ImmunizationDto result = new ImmunizationDto();
         result.setPatientId(dto.getPatientId());
         result.setImmunizations(createdItems);
+        
+        // Add audit information
+        ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
+        String currentTime = java.time.Instant.now().toString();
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        result.setAudit(audit);
+        
         return result;
     }
 
@@ -85,6 +101,14 @@ public class ImmunizationService {
         ImmunizationDto dto = new ImmunizationDto();
         dto.setPatientId(patientId);
         dto.setImmunizations(items);
+        
+        // Add audit information
+        ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
+        String currentTime = java.time.Instant.now().toString();
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        dto.setAudit(audit);
+        
         return dto;
     }
 
@@ -162,6 +186,14 @@ public class ImmunizationService {
 
         patch.setFhirId(fhirId);
         patch.setExternalId(fhirId);
+        
+        // Set ID from FHIR ID
+        try {
+            patch.setId(Long.valueOf(fhirId));
+        } catch (NumberFormatException e) {
+            patch.setId((long) fhirId.hashCode());
+        }
+        
         return patch;
     }
 
@@ -280,8 +312,16 @@ public class ImmunizationService {
 
         // FHIR ID
         if (fhirImmunization.hasId()) {
-            item.setFhirId(fhirImmunization.getIdElement().getIdPart());
-            item.setExternalId(fhirImmunization.getIdElement().getIdPart());
+            String fhirId = fhirImmunization.getIdElement().getIdPart();
+            item.setFhirId(fhirId);
+            item.setExternalId(fhirId);
+            
+            // Set ID from FHIR ID
+            try {
+                item.setId(Long.valueOf(fhirId));
+            } catch (NumberFormatException e) {
+                item.setId((long) fhirId.hashCode());
+            }
         }
 
         // Patient ID

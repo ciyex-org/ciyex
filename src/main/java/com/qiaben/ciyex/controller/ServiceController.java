@@ -39,7 +39,7 @@ public class ServiceController {
 
     /* ------------------- GET ONE ------------------- */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<ServicebillDto>> getById(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<ServicebillDto>> getById(@PathVariable("id") String id) {
         try {
             ServicebillDto dto = serviceService.getById(id);
             return ResponseEntity.ok(ApiResponse.<ServicebillDto>builder()
@@ -77,7 +77,7 @@ public class ServiceController {
 
     /* ------------------- UPDATE ------------------- */
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<ServicebillDto>> update(@PathVariable String id, @RequestBody ServicebillDto dto) {
+    public ResponseEntity<ApiResponse<ServicebillDto>> update(@PathVariable("id") String id, @RequestBody ServicebillDto dto) {
         try {
             ServicebillDto updated = serviceService.update(id, dto);
             return ResponseEntity.ok(ApiResponse.<ServicebillDto>builder()
@@ -96,7 +96,7 @@ public class ServiceController {
 
     /* ------------------- DELETE ------------------- */
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") String id) {
         try {
             serviceService.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()

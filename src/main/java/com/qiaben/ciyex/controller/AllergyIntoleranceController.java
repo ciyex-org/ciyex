@@ -42,7 +42,7 @@ public class AllergyIntoleranceController {
 
     @GetMapping("/{patientId}")
     public ResponseEntity<ApiResponse<AllergyIntoleranceDto>> getByPatient(
-            @PathVariable Long patientId) {
+            @PathVariable("patientId") Long patientId) {
         try {
             AllergyIntoleranceDto dto = service.getByPatientId(patientId);
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto>builder()
@@ -62,7 +62,7 @@ public class AllergyIntoleranceController {
 
     @PutMapping("/{patientId}")
     public ResponseEntity<ApiResponse<AllergyIntoleranceDto>> updateByPatient(
-            @PathVariable Long patientId,
+            @PathVariable("patientId") Long patientId,
             @RequestBody AllergyIntoleranceDto dto) {
         try {
             AllergyIntoleranceDto updated = service.updateByPatientId(patientId, dto);
@@ -82,7 +82,7 @@ public class AllergyIntoleranceController {
 
     @DeleteMapping("/{patientId}")
     public ResponseEntity<ApiResponse<Void>> deleteByPatient(
-            @PathVariable Long patientId) {
+            @PathVariable("patientId") Long patientId) {
         try {
             service.deleteByPatientId(patientId);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -102,8 +102,8 @@ public class AllergyIntoleranceController {
 
     @GetMapping("/{patientId}/{intoleranceId}")
     public ResponseEntity<ApiResponse<AllergyIntoleranceDto.AllergyItem>> getItem(
-            @PathVariable Long patientId,
-            @PathVariable Long intoleranceId) {
+            @PathVariable("patientId") Long patientId,
+            @PathVariable("intoleranceId") Long intoleranceId) {
         try {
             var item = service.getItem(patientId, intoleranceId);
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto.AllergyItem>builder()
@@ -122,10 +122,18 @@ public class AllergyIntoleranceController {
 
     @PutMapping("/{patientId}/{intoleranceId}")
     public ResponseEntity<ApiResponse<AllergyIntoleranceDto.AllergyItem>> updateItem(
-            @PathVariable Long patientId,
-            @PathVariable Long intoleranceId,
-            @RequestBody AllergyIntoleranceDto.AllergyItem patch) {
+            @PathVariable("patientId") Long patientId,
+            @PathVariable("intoleranceId") Long intoleranceId,
+            @RequestBody AllergyIntoleranceDto dto) {
         try {
+            // Extract the first allergy item from the allergiesList
+            AllergyIntoleranceDto.AllergyItem patch = null;
+            if (dto.getAllergiesList() != null && !dto.getAllergiesList().isEmpty()) {
+                patch = dto.getAllergiesList().get(0);
+            } else {
+                throw new IllegalArgumentException("allergiesList is required and must contain at least one item");
+            }
+            
             var updated = service.updateItem(patientId, intoleranceId, patch);
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto.AllergyItem>builder()
                     .success(true)
@@ -143,8 +151,8 @@ public class AllergyIntoleranceController {
 
     @DeleteMapping("/{patientId}/{intoleranceId}")
     public ResponseEntity<ApiResponse<Void>> deleteItem(
-            @PathVariable Long patientId,
-            @PathVariable Long intoleranceId) {
+            @PathVariable("patientId") Long patientId,
+            @PathVariable("intoleranceId") Long intoleranceId) {
         try {
             service.deleteItem(patientId, intoleranceId);
             return ResponseEntity.ok(ApiResponse.<Void>builder()

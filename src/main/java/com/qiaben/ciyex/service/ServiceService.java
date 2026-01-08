@@ -38,6 +38,21 @@ public class ServiceService {
         String fhirId = outcome.getId().getIdPart();
 
         dto.setId(Long.parseLong(fhirId.hashCode() + ""));
+        
+        // Set ID from FHIR ID
+        try {
+            dto.setId(Long.valueOf(fhirId));
+        } catch (NumberFormatException e) {
+            dto.setId((long) fhirId.hashCode());
+        }
+        
+        // Add audit information
+        ServicebillDto.Audit audit = new ServicebillDto.Audit();
+        String currentTime = java.time.Instant.now().toString();
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        dto.setAudit(audit);
+        
         log.info("Created FHIR ActivityDefinition (service) with id: {}", fhirId);
 
         return dto;
@@ -69,9 +84,11 @@ public class ServiceService {
 
         ActivityDefinition ad = toFhirActivityDefinition(dto);
         ad.setId(fhirId);
-        fhirClientService.update(ad, getPracticeId());
-
-        return dto;
+        var outcome = fhirClientService.update(ad, getPracticeId());
+        
+        // Read back the updated resource to get proper audit info
+        ActivityDefinition updated = fhirClientService.read(ActivityDefinition.class, fhirId, getPracticeId());
+        return fromFhirActivityDefinition(updated);
     }
 
     // DELETE
@@ -112,6 +129,13 @@ public class ServiceService {
         // Use FHIR ID hash as Long ID for compatibility
         String fhirId = ad.getIdElement().getIdPart();
         dto.setId((long) Math.abs(fhirId.hashCode()));
+        
+        // Set ID from FHIR ID
+        try {
+            dto.setId(Long.valueOf(fhirId));
+        } catch (NumberFormatException e) {
+            dto.setId((long) fhirId.hashCode());
+        }
 
         // Name
         if (ad.hasName()) {
@@ -125,6 +149,19 @@ public class ServiceService {
         if (priceExt != null && priceExt.getValue() instanceof StringType) {
             dto.setDefaultPrice(((StringType) priceExt.getValue()).getValue());
         }
+        
+        // Add audit information
+        ServicebillDto.Audit audit = new ServicebillDto.Audit();
+        if (ad.getMeta() != null && ad.getMeta().hasLastUpdated()) {
+            String timestamp = ad.getMeta().getLastUpdated().toInstant().toString();
+            audit.setLastModifiedDate(timestamp);
+            audit.setCreatedDate(timestamp);
+        } else {
+            String currentTime = java.time.Instant.now().toString();
+            audit.setCreatedDate(currentTime);
+            audit.setLastModifiedDate(currentTime);
+        }
+        dto.setAudit(audit);
 
         return dto;
     }
