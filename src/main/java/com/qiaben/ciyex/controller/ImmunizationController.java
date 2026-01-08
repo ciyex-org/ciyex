@@ -50,7 +50,7 @@ public class ImmunizationController {
 
     @GetMapping("/{patientId}")
     public ResponseEntity<ApiResponse<ImmunizationDto>> getByPatient(
-            @PathVariable Long patientId) {
+            @PathVariable("patientId") Long patientId) {
         try {
             ImmunizationDto dto = service.getByPatientId(patientId);
             return ResponseEntity.ok(ApiResponse.<ImmunizationDto>builder()
@@ -70,7 +70,7 @@ public class ImmunizationController {
 
     @PutMapping("/{patientId}")
     public ResponseEntity<ApiResponse<ImmunizationDto>> updateByPatient(
-            @PathVariable Long patientId,
+            @PathVariable("patientId") Long patientId,
             @RequestBody ImmunizationDto dto) {
         try {
             ImmunizationDto updated = service.updateByPatientId(patientId, dto);
@@ -96,7 +96,7 @@ public class ImmunizationController {
 
     @DeleteMapping("/{patientId}")
     public ResponseEntity<ApiResponse<Void>> deleteByPatient(
-            @PathVariable Long patientId) {
+            @PathVariable("patientId") Long patientId) {
         try {
             service.deleteByPatientId(patientId);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -116,8 +116,8 @@ public class ImmunizationController {
 
     @GetMapping("/{patientId}/{immunizationId}")
     public ResponseEntity<ApiResponse<ImmunizationDto.ImmunizationItem>> getItem(
-            @PathVariable Long patientId,
-            @PathVariable Long immunizationId) {
+            @PathVariable("patientId") Long patientId,
+            @PathVariable("immunizationId") Long immunizationId) {
         try {
             var item = service.getItem(patientId, immunizationId);
             return ResponseEntity.ok(ApiResponse.<ImmunizationDto.ImmunizationItem>builder()
@@ -136,10 +136,18 @@ public class ImmunizationController {
 
     @PutMapping("/{patientId}/{immunizationId}")
     public ResponseEntity<ApiResponse<ImmunizationDto.ImmunizationItem>> updateItem(
-            @PathVariable Long patientId,
-            @PathVariable Long immunizationId,
-            @RequestBody ImmunizationDto.ImmunizationItem patch) {
+            @PathVariable("patientId") Long patientId,
+            @PathVariable("immunizationId") Long immunizationId,
+            @RequestBody ImmunizationDto dto) {
         try {
+            // Extract the first immunization item from the immunizations list
+            ImmunizationDto.ImmunizationItem patch = null;
+            if (dto.getImmunizations() != null && !dto.getImmunizations().isEmpty()) {
+                patch = dto.getImmunizations().get(0);
+            } else {
+                throw new IllegalArgumentException("immunizations list is required and must contain at least one item");
+            }
+            
             var updated = service.updateItem(patientId, immunizationId, patch);
             return ResponseEntity.ok(ApiResponse.<ImmunizationDto.ImmunizationItem>builder()
                     .success(true)
@@ -163,8 +171,8 @@ public class ImmunizationController {
 
     @DeleteMapping("/{patientId}/{immunizationId}")
     public ResponseEntity<ApiResponse<Void>> deleteItem(
-            @PathVariable Long patientId,
-            @PathVariable Long immunizationId) {
+            @PathVariable("patientId") Long patientId,
+            @PathVariable("immunizationId") Long immunizationId) {
         try {
             service.deleteItem(patientId, immunizationId);
             return ResponseEntity.ok(ApiResponse.<Void>builder()

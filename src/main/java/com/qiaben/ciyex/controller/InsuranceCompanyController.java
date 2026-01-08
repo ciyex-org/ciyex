@@ -29,19 +29,19 @@ public class InsuranceCompanyController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<InsuranceCompanyDto> get(@PathVariable String id) {
+    public ResponseEntity<InsuranceCompanyDto> get(@PathVariable("id") String id) {
         InsuranceCompanyDto dto = service.getById(id);
         return ResponseEntity.ok(dto);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<InsuranceCompanyDto> update(@PathVariable String id, @Valid @RequestBody InsuranceCompanyDto dto) {
+    public ResponseEntity<InsuranceCompanyDto> update(@PathVariable("id") String id, @Valid @RequestBody InsuranceCompanyDto dto) {
         InsuranceCompanyDto updatedDto = service.update(id, dto);
         return ResponseEntity.ok(updatedDto);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, String>> delete(@PathVariable String id) {
+    public ResponseEntity<Map<String, String>> delete(@PathVariable("id") String id) {
         service.delete(id);
         Map<String, String> response = new HashMap<>();
         response.put("message", "Insurance company deleted successfully");
@@ -51,12 +51,12 @@ public class InsuranceCompanyController {
 
     // 🔹 New endpoints for status toggle
     @PostMapping("/{id}/archive")
-    public ResponseEntity<InsuranceCompanyDto> archive(@PathVariable String id) {
+    public ResponseEntity<InsuranceCompanyDto> archive(@PathVariable("id") String id) {
         return ResponseEntity.ok(service.updateStatus(id, "ARCHIVED"));
     }
 
     @PostMapping("/{id}/activate")
-    public ResponseEntity<InsuranceCompanyDto> activate(@PathVariable String id) {
+    public ResponseEntity<InsuranceCompanyDto> activate(@PathVariable("id") String id) {
         return ResponseEntity.ok(service.updateStatus(id, "ACTIVE"));
     }
 

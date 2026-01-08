@@ -55,6 +55,14 @@ public class AllergyIntoleranceService {
                 item.setFhirId(fhirId);
                 item.setExternalId(fhirId);
                 item.setPatientId(dto.getPatientId());
+                
+                // Set ID from FHIR ID
+                try {
+                    item.setId(Long.valueOf(fhirId));
+                } catch (NumberFormatException e) {
+                    item.setId((long) fhirId.hashCode());
+                }
+                
                 createdItems.add(item);
 
                 log.info("Created FHIR AllergyIntolerance with ID: {}", fhirId);
@@ -63,10 +71,14 @@ public class AllergyIntoleranceService {
 
         AllergyIntoleranceDto result = new AllergyIntoleranceDto();
         result.setAllergiesList(createdItems);
-        if (!createdItems.isEmpty()) {
-            result.setFhirId(createdItems.get(0).getFhirId());
-            result.setExternalId(createdItems.get(0).getFhirId());
-        }
+        
+        // Add audit information
+        AllergyIntoleranceDto.Audit audit = new AllergyIntoleranceDto.Audit();
+        String currentTime = java.time.Instant.now().toString();
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        result.setAudit(audit);
+        
         return result;
     }
 
@@ -85,10 +97,14 @@ public class AllergyIntoleranceService {
 
         AllergyIntoleranceDto dto = new AllergyIntoleranceDto();
         dto.setAllergiesList(items);
-        if (!items.isEmpty()) {
-            dto.setFhirId(items.get(0).getFhirId());
-            dto.setExternalId(items.get(0).getFhirId());
-        }
+        
+        // Add audit information
+        AllergyIntoleranceDto.Audit audit = new AllergyIntoleranceDto.Audit();
+        String currentTime = java.time.Instant.now().toString();
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        dto.setAudit(audit);
+        
         return dto;
     }
 
@@ -143,12 +159,21 @@ public class AllergyIntoleranceService {
         validateDates(patch.getStartDate(), patch.getEndDate());
 
         AllergyIntolerance fhirAllergy = toFhirAllergyIntolerance(patch, patientId);
+        patch.setPatientId(patientId);
         fhirAllergy.setId(fhirId);
 
         fhirClientService.update(fhirAllergy, getPracticeId());
 
         patch.setFhirId(fhirId);
         patch.setExternalId(fhirId);
+        
+        // Set ID from FHIR ID
+        try {
+            patch.setId(Long.valueOf(fhirId));
+        } catch (NumberFormatException e) {
+            patch.setId((long) fhirId.hashCode());
+        }
+        
         return patch;
     }
 
@@ -175,10 +200,6 @@ public class AllergyIntoleranceService {
         for (var entry : byPatient.entrySet()) {
             AllergyIntoleranceDto dto = new AllergyIntoleranceDto();
             dto.setAllergiesList(entry.getValue());
-            if (!entry.getValue().isEmpty()) {
-                dto.setFhirId(entry.getValue().get(0).getFhirId());
-                dto.setExternalId(entry.getValue().get(0).getFhirId());
-            }
             dtos.add(dto);
         }
 
@@ -241,6 +262,17 @@ public class AllergyIntoleranceService {
             }
         }
 
+        // End date - store as extension since FHIR doesn't have native endDate
+        if (item.getEndDate() != null) {
+            try {
+                Extension endDateExt = new Extension("http://ciyex.com/fhir/StructureDefinition/allergy-end-date");
+                endDateExt.setValue(new DateType(item.getEndDate()));
+                allergy.addExtension(endDateExt);
+            } catch (Exception e) {
+                // Ignore invalid date format
+            }
+        }
+
         // Notes/Comments
         if (item.getComments() != null) {
             allergy.addNote().setText(item.getComments());
@@ -254,8 +286,16 @@ public class AllergyIntoleranceService {
 
         // FHIR ID
         if (fhirAllergy.hasId()) {
-            item.setFhirId(fhirAllergy.getIdElement().getIdPart());
-            item.setExternalId(fhirAllergy.getIdElement().getIdPart());
+            String fhirId = fhirAllergy.getIdElement().getIdPart();
+            item.setFhirId(fhirId);
+            item.setExternalId(fhirId);
+            
+            // Set ID from FHIR ID
+            try {
+                item.setId(Long.valueOf(fhirId));
+            } catch (NumberFormatException e) {
+                item.setId((long) fhirId.hashCode());
+            }
         }
 
         // Patient ID
@@ -296,6 +336,13 @@ public class AllergyIntoleranceService {
         // Onset date
         if (fhirAllergy.hasOnsetDateTimeType()) {
             item.setStartDate(fhirAllergy.getOnsetDateTimeType().getValueAsString().substring(0, 10));
+        }
+
+        // End date - retrieve from extension
+        Extension endDateExt = fhirAllergy.getExtensionByUrl("http://ciyex.com/fhir/StructureDefinition/allergy-end-date");
+        if (endDateExt != null && endDateExt.getValue() instanceof DateType) {
+            DateType endDate = (DateType) endDateExt.getValue();
+            item.setEndDate(endDate.getValueAsString());
         }
 
         // Notes

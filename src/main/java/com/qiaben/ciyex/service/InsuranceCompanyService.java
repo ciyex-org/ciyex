@@ -43,6 +43,21 @@ public class InsuranceCompanyService {
 
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        
+        // Set ID from FHIR ID
+        try {
+            dto.setId(Long.valueOf(fhirId));
+        } catch (NumberFormatException e) {
+            dto.setId((long) fhirId.hashCode());
+        }
+        
+        // Add audit information
+        InsuranceCompanyDto.Audit audit = new InsuranceCompanyDto.Audit();
+        String currentTime = java.time.Instant.now().toString();
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        dto.setAudit(audit);
+        
         log.info("Created FHIR Organization (insurance) with id: {}", fhirId);
 
         return dto;
@@ -79,6 +94,21 @@ public class InsuranceCompanyService {
 
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        
+        // Set ID from FHIR ID
+        try {
+            dto.setId(Long.valueOf(fhirId));
+        } catch (NumberFormatException e) {
+            dto.setId((long) fhirId.hashCode());
+        }
+        
+        // Add audit information
+        InsuranceCompanyDto.Audit audit = new InsuranceCompanyDto.Audit();
+        String currentTime = java.time.Instant.now().toString();
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        dto.setAudit(audit);
+        
         return dto;
     }
 
@@ -141,8 +171,16 @@ public class InsuranceCompanyService {
 
     private InsuranceCompanyDto fromFhirOrganization(Organization org) {
         InsuranceCompanyDto dto = new InsuranceCompanyDto();
-        dto.setFhirId(org.getIdElement().getIdPart());
-        dto.setExternalId(org.getIdElement().getIdPart());
+        String fhirId = org.getIdElement().getIdPart();
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+        
+        // Set ID from FHIR ID
+        try {
+            dto.setId(Long.valueOf(fhirId));
+        } catch (NumberFormatException e) {
+            dto.setId((long) fhirId.hashCode());
+        }
 
         // Name
         if (org.hasName()) {
@@ -172,6 +210,19 @@ public class InsuranceCompanyService {
         } else {
             dto.setStatus("ACTIVE");
         }
+        
+        // Add audit information
+        InsuranceCompanyDto.Audit audit = new InsuranceCompanyDto.Audit();
+        if (org.getMeta() != null && org.getMeta().hasLastUpdated()) {
+            String timestamp = org.getMeta().getLastUpdated().toInstant().toString();
+            audit.setLastModifiedDate(timestamp);
+            audit.setCreatedDate(timestamp);
+        } else {
+            String currentTime = java.time.Instant.now().toString();
+            audit.setCreatedDate(currentTime);
+            audit.setLastModifiedDate(currentTime);
+        }
+        dto.setAudit(audit);
 
         return dto;
     }
