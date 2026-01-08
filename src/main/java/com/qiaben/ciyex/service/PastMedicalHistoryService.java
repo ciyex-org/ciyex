@@ -58,6 +58,7 @@ public class PastMedicalHistoryService {
 
     // ✅ Get all by patient
     public List<PastMedicalHistoryDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
         log.debug("Getting FHIR Conditions (PMH) for patient: {}", patientId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -74,6 +75,10 @@ public class PastMedicalHistoryService {
 
     // ✅ Create PMH
     public PastMedicalHistoryDto create(Long patientId, Long encounterId, PastMedicalHistoryDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.info("Creating PMH in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
         Condition condition = toFhirCondition(dto, patientId, encounterId);
@@ -97,6 +102,11 @@ public class PastMedicalHistoryService {
 
     // ✅ Get one PMH
     public PastMedicalHistoryDto getOne(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Past Medical History ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.debug("Getting FHIR Condition (PMH) with ID: {}", fhirId);
 
@@ -106,14 +116,14 @@ public class PastMedicalHistoryService {
             dto.setId(id);
             return dto;
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                    String.format("Past Medical History not found with ID: %d for Patient ID: %d and Encounter ID: %d",
-                            id, patientId, encounterId));
+            throw new IllegalArgumentException("Past Medical History ID is invalid. Past Medical History not found: " + id);
         }
     }
 
     // ✅ List PMH for encounter
     public List<PastMedicalHistoryDto> list(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
         log.debug("Listing FHIR Conditions (PMH) for patient: {}, encounter: {}", patientId, encounterId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -130,10 +140,20 @@ public class PastMedicalHistoryService {
 
     // ✅ Update PMH
     public PastMedicalHistoryDto update(Long patientId, Long encounterId, Long id, PastMedicalHistoryDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Past Medical History ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Updating FHIR Condition (PMH) with ID: {}", fhirId);
 
-        // Check if signed
+        try {
+            fhirClientService.read(Condition.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Past Medical History ID is invalid. Past Medical History not found: " + id);
+        }
+
         SignMetadata meta = signMetadataCache.get(fhirId);
         if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed PMH entries are read-only.");
@@ -148,10 +168,20 @@ public class PastMedicalHistoryService {
 
     // ✅ Delete PMH
     public void delete(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Past Medical History ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Deleting FHIR Condition (PMH) with ID: {}", fhirId);
 
-        // Check if signed
+        try {
+            fhirClientService.read(Condition.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Past Medical History ID is invalid. Past Medical History not found: " + id);
+        }
+
         SignMetadata meta = signMetadataCache.get(fhirId);
         if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed PMH entries cannot be deleted.");
@@ -163,6 +193,9 @@ public class PastMedicalHistoryService {
 
     // ✅ eSign PMH
     public PastMedicalHistoryDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Past Medical History ID");
         String fhirId = String.valueOf(id);
         log.info("E-signing FHIR Condition (PMH) with ID: {}", fhirId);
 
@@ -186,6 +219,9 @@ public class PastMedicalHistoryService {
 
     // ✅ Render PDF
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Past Medical History ID");
         String fhirId = String.valueOf(id);
         log.info("Rendering PDF for FHIR Condition (PMH) with ID: {}", fhirId);
 
@@ -357,5 +393,31 @@ public class PastMedicalHistoryService {
             audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
         }
         dto.setAudit(audit);
+    }
+    
+    // ✅ Validate path variables
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
     }
 }

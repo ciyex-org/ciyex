@@ -50,6 +50,10 @@ public class ProviderSignatureService {
 
     // CREATE
     public ProviderSignatureDto create(Long patientId, Long encounterId, ProviderSignatureDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Creating FHIR Provenance (ProviderSignature) for patient {} encounter {}", patientId, encounterId);
 
         // Compute hash if signature data present
@@ -76,22 +80,37 @@ public class ProviderSignatureService {
         return dto;
     }
 
-    // ESIGN alias
+    // CREATE
     public ProviderSignatureDto eSign(Long patientId, Long encounterId, ProviderSignatureDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         return create(patientId, encounterId, dto);
     }
 
     // GET ONE
     public ProviderSignatureDto getOne(Long patientId, Long encounterId, String fhirId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "Provider Signature ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Getting provider signature {} for patient {} encounter {}", fhirId, patientId, encounterId);
-        Provenance prov = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
-        ProviderSignatureDto dto = fromFhirProvenance(prov);
-        dto.setId((long) Math.abs(fhirId.hashCode()));
-        return dto;
+        try {
+            Provenance prov = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
+            ProviderSignatureDto dto = fromFhirProvenance(prov);
+            dto.setId((long) Math.abs(fhirId.hashCode()));
+            return dto;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Provider Signature ID is invalid. Provider Signature not found: " + fhirId);
+        }
     }
 
     // LIST by encounter
     public List<ProviderSignatureDto> list(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
         log.debug("Listing provider signatures for patient {} encounter {}", patientId, encounterId);
         Bundle bundle = fhirClientService.search(Provenance.class, getPracticeId());
 
@@ -103,6 +122,7 @@ public class ProviderSignatureService {
 
     // GET ALL by patient
     public List<ProviderSignatureDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
         log.debug("Getting all provider signatures for patient {}", patientId);
         Bundle bundle = fhirClientService.search(Provenance.class, getPracticeId());
 
@@ -114,9 +134,19 @@ public class ProviderSignatureService {
 
     // UPDATE
     public ProviderSignatureDto update(Long patientId, Long encounterId, String fhirId, ProviderSignatureDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "Provider Signature ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Updating provider signature {} for patient {} encounter {}", fhirId, patientId, encounterId);
 
-        // Compute hash if signature data present
+        try {
+            fhirClientService.read(Provenance.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Provider Signature ID is invalid. Provider Signature not found: " + fhirId);
+        }
+
         if (StringUtils.hasText(dto.getSignatureData())) {
             dto.setSignatureHash(sha256(dto.getSignatureData()));
         }
@@ -130,12 +160,27 @@ public class ProviderSignatureService {
 
     // DELETE
     public void delete(Long patientId, Long encounterId, String fhirId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "Provider Signature ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Deleting provider signature {} for patient {} encounter {}", fhirId, patientId, encounterId);
+
+        try {
+            fhirClientService.read(Provenance.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Provider Signature ID is invalid. Provider Signature not found: " + fhirId);
+        }
+
         fhirClientService.delete(Provenance.class, fhirId, getPracticeId());
     }
 
     // PRINT PDF - returns empty for now
     public byte[] renderPdf(Long patientId, Long encounterId, String fhirId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "Provider Signature ID");
         log.debug("Rendering PDF for provider signature {} patient {} encounter {}", fhirId, patientId, encounterId);
         return new byte[0];
     }
@@ -283,5 +328,37 @@ public class ProviderSignatureService {
             }
         }
         dto.setAudit(audit);
+    }
+    
+    // ✅ Validate path variables
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validateFhirId(String fhirId, String fieldName) {
+        if (fhirId == null || fhirId.trim().isEmpty()) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null or empty");
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
     }
 }

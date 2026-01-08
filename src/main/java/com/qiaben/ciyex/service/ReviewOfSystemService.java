@@ -62,6 +62,7 @@ public class ReviewOfSystemService {
 
     // ✅ Get all by patient
     public List<ReviewOfSystemDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
         log.debug("Getting FHIR Observations (ROS) for patient: {}", patientId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -78,6 +79,10 @@ public class ReviewOfSystemService {
 
     // ✅ Create ROS
     public ReviewOfSystemDto create(Long patientId, Long encounterId, ReviewOfSystemDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.info("Creating ROS in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
         Observation observation = toFhirObservation(dto, patientId, encounterId);
@@ -101,6 +106,10 @@ public class ReviewOfSystemService {
 
     // ✅ List ROS for encounter
     public List<ReviewOfSystemDto> list(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Listing FHIR Observations (ROS) for patient: {}, encounter: {}", patientId, encounterId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -117,6 +126,11 @@ public class ReviewOfSystemService {
 
     // ✅ Get one ROS
     public ReviewOfSystemDto getOne(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Review of System ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.debug("Getting FHIR Observation (ROS) with ID: {}", fhirId);
 
@@ -126,17 +140,26 @@ public class ReviewOfSystemService {
             dto.setId(id);
             return dto;
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                    String.format("Review of System not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id));
+            throw new IllegalArgumentException("Review of System ID is invalid. Review of System not found: " + id);
         }
     }
 
     // ✅ Update ROS
     public ReviewOfSystemDto update(Long patientId, Long encounterId, Long id, ReviewOfSystemDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Review of System ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Updating FHIR Observation (ROS) with ID: {}", fhirId);
 
-        // Check if signed
+        try {
+            fhirClientService.read(Observation.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Review of System ID is invalid. Review of System not found: " + id);
+        }
+
         SignMetadata meta = signMetadataCache.get(fhirId);
         if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed ROS entries are read-only.");
@@ -151,10 +174,20 @@ public class ReviewOfSystemService {
 
     // ✅ Delete ROS
     public void delete(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Review of System ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Deleting FHIR Observation (ROS) with ID: {}", fhirId);
 
-        // Check if signed
+        try {
+            fhirClientService.read(Observation.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Review of System ID is invalid. Review of System not found: " + id);
+        }
+
         SignMetadata meta = signMetadataCache.get(fhirId);
         if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed ROS entries cannot be deleted.");
@@ -166,6 +199,9 @@ public class ReviewOfSystemService {
 
     // ✅ eSign ROS
     public ReviewOfSystemDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Review of System ID");
         String fhirId = String.valueOf(id);
         log.info("E-signing FHIR Observation (ROS) with ID: {}", fhirId);
 
@@ -189,6 +225,9 @@ public class ReviewOfSystemService {
 
     // ✅ Render PDF
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Review of System ID");
         String fhirId = String.valueOf(id);
         log.info("Rendering PDF for FHIR Observation (ROS) with ID: {}", fhirId);
 
@@ -356,5 +395,31 @@ public class ReviewOfSystemService {
             audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
         }
         dto.setAudit(audit);
+    }
+    
+    // ✅ Validate path variables
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
     }
 }

@@ -43,21 +43,31 @@ public class EncounterService {
 
     // ✅ Create encounter in FHIR
     public EncounterDto createEncounter(Long patientId, EncounterDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePatientExists(patientId);
         String patientFhirId = String.valueOf(patientId);
         log.info("Creating encounter in FHIR for patient: {}", patientFhirId);
         
-        Encounter fhirEncounter = toFhirEncounter(dto, patientFhirId);
-        
-        MethodOutcome outcome = fhirClientService.create(fhirEncounter, getPracticeId());
-        
-        String fhirId = outcome.getId().getIdPart();
-        Encounter created = fhirClientService.read(Encounter.class, fhirId, getPracticeId());
-        
-        return toEncounterDto(created);
+        try {
+            Encounter fhirEncounter = toFhirEncounter(dto, patientFhirId);
+            MethodOutcome outcome = fhirClientService.create(fhirEncounter, getPracticeId());
+            String fhirId = outcome.getId().getIdPart();
+            Encounter created = fhirClientService.read(Encounter.class, fhirId, getPracticeId());
+            return toEncounterDto(created);
+        } catch (ResourceNotFoundException e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        } catch (Exception e) {
+            if (e.getMessage() != null && e.getMessage().contains("Patient/" + patientId)) {
+                throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+            }
+            throw e;
+        }
     }
 
     // ✅ List encounters by patient
     public List<EncounterDto> listByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePatientExists(patientId);
         String patientFhirId = String.valueOf(patientId);
         log.debug("Listing FHIR Encounters for patient: {}", patientFhirId);
         
@@ -73,6 +83,10 @@ public class EncounterService {
 
     // ✅ Get encounter by FHIR ID for patient
     public EncounterDto getByIdForPatient(Long id, Long patientId) {
+        validatePathVariable(id, "Encounter ID");
+        validatePathVariable(patientId, "Patient ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(id);
         return getByFhirId(String.valueOf(id));
     }
 
@@ -82,12 +96,16 @@ public class EncounterService {
             Encounter fhirEncounter = fhirClientService.read(Encounter.class, fhirId, getPracticeId());
             return toEncounterDto(fhirEncounter);
         } catch (ResourceNotFoundException e) {
-            throw new IllegalArgumentException("Encounter not found with FHIR ID: " + fhirId);
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + fhirId);
         }
     }
 
     // ✅ Update encounter in FHIR
     public EncounterDto updateEncounter(Long id, Long patientId, EncounterDto dto) {
+        validatePathVariable(id, "Encounter ID");
+        validatePathVariable(patientId, "Patient ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(id);
         String fhirId = String.valueOf(id);
         String patientFhirId = String.valueOf(patientId);
         
@@ -99,21 +117,25 @@ public class EncounterService {
         
         log.info("Updating FHIR Encounter with ID: {}", fhirId);
         
-        Encounter fhirEncounter = toFhirEncounter(dto, patientFhirId);
-        fhirEncounter.setId(fhirId);
-        
-        fhirClientService.update(fhirEncounter, getPracticeId());
-        
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        dto.setPatientId(patientId);
-        
-        log.info("Updated FHIR Encounter with ID: {}", fhirId);
-        return dto;
+        try {
+            Encounter fhirEncounter = toFhirEncounter(dto, patientFhirId);
+            fhirEncounter.setId(fhirId);
+            fhirClientService.update(fhirEncounter, getPracticeId());
+            Encounter updated = fhirClientService.read(Encounter.class, fhirId, getPracticeId());
+            log.info("Updated FHIR Encounter with ID: {}", fhirId);
+            return toEncounterDto(updated);
+        } catch (ResourceNotFoundException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Patient/" + patientId)) {
+                throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+            }
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + id);
+        }
     }
 
     // ✅ Delete encounter from FHIR
     public void deleteEncounter(Long id, Long patientId) {
+        validatePathVariable(id, "Encounter ID");
+        validatePathVariable(patientId, "Patient ID");
         String fhirId = String.valueOf(id);
         
         // Check if signed
@@ -129,16 +151,22 @@ public class EncounterService {
 
     // ✅ Sign encounter
     public EncounterDto signEncounter(Long id, Long patientId) {
+        validatePathVariable(id, "Encounter ID");
+        validatePathVariable(patientId, "Patient ID");
         return updateEncounterStatus(id, patientId, EncounterStatus.SIGNED);
     }
 
     // ✅ Unsign encounter
     public EncounterDto unsignEncounter(Long id, Long patientId) {
+        validatePathVariable(id, "Encounter ID");
+        validatePathVariable(patientId, "Patient ID");
         return updateEncounterStatus(id, patientId, EncounterStatus.UNSIGNED);
     }
 
     // ✅ Mark incomplete
     public EncounterDto markIncomplete(Long id, Long patientId) {
+        validatePathVariable(id, "Encounter ID");
+        validatePathVariable(patientId, "Patient ID");
         return updateEncounterStatus(id, patientId, EncounterStatus.INCOMPLETE);
     }
 
@@ -150,7 +178,10 @@ public class EncounterService {
             Encounter fhirEncounter = fhirClientService.read(Encounter.class, fhirId, getPracticeId());
             fhirEncounter.setStatus(mapToFhirStatus(status));
             fhirClientService.update(fhirEncounter, getPracticeId());
-            return toEncounterDto(fhirEncounter);
+            
+            // Re-fetch to get updated metadata
+            Encounter updated = fhirClientService.read(Encounter.class, fhirId, getPracticeId());
+            return toEncounterDto(updated);
         } catch (ResourceNotFoundException e) {
             throw new IllegalArgumentException("Encounter not found with FHIR ID: " + fhirId);
         }
@@ -158,6 +189,8 @@ public class EncounterService {
 
     // ✅ Validate encounter not signed
     public void validateEncounterNotSigned(Long encounterId, Long patientId) {
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(patientId, "Patient ID");
         EncounterDto dto = getByFhirId(String.valueOf(encounterId));
         if (dto.getStatus() == EncounterStatus.SIGNED) {
             throw new IllegalStateException("Cannot modify data for a signed encounter. Please unsign the encounter first.");
@@ -166,8 +199,46 @@ public class EncounterService {
 
     // ✅ Get encounter status
     public EncounterStatus getEncounterStatus(Long encounterId, Long patientId) {
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(patientId, "Patient ID");
         EncounterDto dto = getByFhirId(String.valueOf(encounterId));
         return dto.getStatus() != null ? dto.getStatus() : EncounterStatus.UNSIGNED;
+    }
+    
+    // ✅ Validate path variables
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (ResourceNotFoundException e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        } catch (Exception e) {
+            if (e.getMessage() != null && e.getMessage().contains("not found")) {
+                throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+            }
+            throw e;
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (ResourceNotFoundException e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        } catch (Exception e) {
+            if (e.getMessage() != null && e.getMessage().contains("not found")) {
+                throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+            }
+            throw e;
+        }
     }
 
     // ========== FHIR Mapping Methods ==========
@@ -370,6 +441,8 @@ public class EncounterService {
 
     // ✅ Get encounter by patient and encounter ID (alias for getByIdForPatient)
     public EncounterDto getEncounter(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
         return getByIdForPatient(encounterId, patientId);
     }
 
@@ -379,4 +452,6 @@ public class EncounterService {
         Bundle bundle = fhirClientService.search(Encounter.class, getPracticeId());
         return extractEncounters(bundle);
     }
+
+   
 }

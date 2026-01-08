@@ -59,6 +59,7 @@ public class ChiefComplaintService {
 
     // ✅ Get all by patient
     public List<ChiefComplaintDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
         log.debug("Getting FHIR Conditions (chief complaint) for patient: {}", patientId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -75,6 +76,10 @@ public class ChiefComplaintService {
 
     // ✅ Create chief complaint
     public ChiefComplaintDto create(Long patientId, Long encounterId, ChiefComplaintDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.info("Creating chief complaint in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
         Condition condition = toFhirCondition(dto, patientId, encounterId);
@@ -98,6 +103,8 @@ public class ChiefComplaintService {
 
     // ✅ List chief complaints for encounter
     public List<ChiefComplaintDto> list(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
         log.debug("Listing FHIR Conditions (chief complaint) for patient: {}, encounter: {}", patientId, encounterId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -114,6 +121,11 @@ public class ChiefComplaintService {
 
     // ✅ Get one chief complaint
     public ChiefComplaintDto getOne(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Chief Complaint ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.debug("Getting FHIR Condition (chief complaint) with ID: {}", fhirId);
 
@@ -123,16 +135,26 @@ public class ChiefComplaintService {
             dto.setId(id);
             return dto;
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                    String.format("Chief Complaint not found with ID: %d for Patient ID: %d and Encounter ID: %d",
-                            id, patientId, encounterId));
+            throw new IllegalArgumentException("Chief Complaint ID is invalid. Chief Complaint not found: " + id);
         }
     }
 
     // ✅ Update chief complaint
     public ChiefComplaintDto update(Long patientId, Long encounterId, Long id, ChiefComplaintDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Chief Complaint ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Updating FHIR Condition (chief complaint) with ID: {}", fhirId);
+
+        // Validate resource exists
+        try {
+            fhirClientService.read(Condition.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Chief Complaint ID is invalid. Chief Complaint not found: " + id);
+        }
 
         // Check if signed
         SignMetadata meta = signMetadataCache.get(fhirId);
@@ -149,8 +171,20 @@ public class ChiefComplaintService {
 
     // ✅ Delete chief complaint
     public void delete(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Chief Complaint ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Deleting FHIR Condition (chief complaint) with ID: {}", fhirId);
+
+        // Validate resource exists
+        try {
+            fhirClientService.read(Condition.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Chief Complaint ID is invalid. Chief Complaint not found: " + id);
+        }
 
         // Check if signed
         SignMetadata meta = signMetadataCache.get(fhirId);
@@ -164,6 +198,9 @@ public class ChiefComplaintService {
 
     // ✅ eSign chief complaint
     public ChiefComplaintDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Chief Complaint ID");
         String fhirId = String.valueOf(id);
         log.info("E-signing FHIR Condition (chief complaint) with ID: {}", fhirId);
 
@@ -187,6 +224,9 @@ public class ChiefComplaintService {
 
     // ✅ Render PDF
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Chief Complaint ID");
         String fhirId = String.valueOf(id);
         log.info("Rendering PDF for FHIR Condition (chief complaint) with ID: {}", fhirId);
 
@@ -365,5 +405,31 @@ public class ChiefComplaintService {
             audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
         }
         dto.setAudit(audit);
+    }
+    
+    // ✅ Validate path variables
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
     }
 }

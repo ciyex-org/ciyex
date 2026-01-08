@@ -60,6 +60,7 @@ public class PhysicalExamService {
 
     // ✅ Get all by patient
     public List<PhysicalExamDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
         log.debug("Getting FHIR Observations (Physical Exam) for patient: {}", patientId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -76,6 +77,10 @@ public class PhysicalExamService {
 
     // ✅ Create Physical Exam
     public PhysicalExamDto create(Long patientId, Long encounterId, PhysicalExamDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.info("Creating Physical Exam in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
         Observation observation = toFhirObservation(dto, patientId, encounterId);
@@ -99,6 +104,8 @@ public class PhysicalExamService {
 
     // ✅ List Physical Exams for encounter
     public List<PhysicalExamDto> list(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
         log.debug("Listing FHIR Observations (Physical Exam) for patient: {}, encounter: {}", patientId, encounterId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -115,6 +122,11 @@ public class PhysicalExamService {
 
     // ✅ Get one Physical Exam
     public PhysicalExamDto getOne(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Physical Exam ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.debug("Getting FHIR Observation (Physical Exam) with ID: {}", fhirId);
 
@@ -124,18 +136,26 @@ public class PhysicalExamService {
             dto.setId(id);
             return dto;
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                    String.format("Physical Exam not found with ID: %d for Patient ID: %d and Encounter ID: %d",
-                            id, patientId, encounterId));
+            throw new IllegalArgumentException("Physical Exam ID is invalid. Physical Exam not found: " + id);
         }
     }
 
     // ✅ Update Physical Exam
     public PhysicalExamDto update(Long patientId, Long encounterId, Long id, PhysicalExamDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Physical Exam ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Updating FHIR Observation (Physical Exam) with ID: {}", fhirId);
 
-        // Check if signed
+        try {
+            fhirClientService.read(Observation.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Physical Exam ID is invalid. Physical Exam not found: " + id);
+        }
+
         SignMetadata meta = signMetadataCache.get(fhirId);
         if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed physical exams are read-only.");
@@ -150,10 +170,20 @@ public class PhysicalExamService {
 
     // ✅ Delete Physical Exam
     public void delete(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Physical Exam ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Deleting FHIR Observation (Physical Exam) with ID: {}", fhirId);
 
-        // Check if signed
+        try {
+            fhirClientService.read(Observation.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Physical Exam ID is invalid. Physical Exam not found: " + id);
+        }
+
         SignMetadata meta = signMetadataCache.get(fhirId);
         if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed physical exams cannot be deleted.");
@@ -165,6 +195,9 @@ public class PhysicalExamService {
 
     // ✅ eSign Physical Exam
     public PhysicalExamDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Physical Exam ID");
         String fhirId = String.valueOf(id);
         log.info("E-signing FHIR Observation (Physical Exam) with ID: {}", fhirId);
 
@@ -188,6 +221,9 @@ public class PhysicalExamService {
 
     // ✅ Render PDF
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Physical Exam ID");
         String fhirId = String.valueOf(id);
         log.info("Rendering PDF for FHIR Observation (Physical Exam) with ID: {}", fhirId);
 
@@ -374,5 +410,31 @@ public class PhysicalExamService {
             audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
         }
         dto.setAudit(audit);
+    }
+    
+    // ✅ Validate path variables
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
     }
 }
