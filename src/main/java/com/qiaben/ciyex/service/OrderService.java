@@ -56,8 +56,13 @@ public class OrderService {
         var outcome = fhirClientService.create(sr, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        
+        // Set audit fields
+        dto.setAudit(createAudit());
+        
         log.info("Created FHIR SupplyRequest (order) with id: {}", fhirId);
 
         return dto;
@@ -99,8 +104,13 @@ public class OrderService {
         sr.setId(fhirId);
         fhirClientService.update(sr, getPracticeId());
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        
+        // Set audit fields
+        dto.setAudit(createAudit());
+        
         return dto;
     }
 
@@ -207,8 +217,11 @@ public class OrderService {
 
     private OrderDto fromFhirSupplyRequest(SupplyRequest sr) {
         OrderDto dto = new OrderDto();
-        dto.setFhirId(sr.getIdElement().getIdPart());
-        dto.setExternalId(sr.getIdElement().getIdPart());
+        String fhirId = sr.getIdElement().getIdPart();
+        
+        dto.setId(Long.parseLong(fhirId));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
 
         // Status
         if (sr.hasStatus()) {
@@ -250,10 +263,21 @@ public class OrderService {
             dto.setAmount(((DecimalType) amountExt.getValue()).getValue().doubleValue());
         }
 
+        // Always set audit fields
+        dto.setAudit(createAudit());
+
         return dto;
     }
 
     // -------- Helpers --------
+
+    private OrderDto.Audit createAudit() {
+        OrderDto.Audit audit = new OrderDto.Audit();
+        String currentTime = java.time.LocalDateTime.now().toString();
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        return audit;
+    }
 
     private void addStringExtension(SupplyRequest sr, String url, String value) {
         if (value != null) {

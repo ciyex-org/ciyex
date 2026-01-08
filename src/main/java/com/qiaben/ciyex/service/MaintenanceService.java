@@ -56,7 +56,7 @@ public class MaintenanceService {
         var outcome = fhirClientService.create(basic, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
-        dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         dto.setAudit(createAudit());
@@ -83,6 +83,7 @@ public class MaintenanceService {
         basic.setId(fhirId);
         fhirClientService.update(basic, getPracticeId());
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         dto.setAudit(createAudit());
@@ -185,7 +186,7 @@ public class MaintenanceService {
         MaintenanceDto dto = new MaintenanceDto();
 
         String fhirId = basic.getIdElement().getIdPart();
-        dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
 

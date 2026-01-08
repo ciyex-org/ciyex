@@ -35,8 +35,10 @@ public class HealthcareServiceService {
         var outcome = fhirClientService.create(hs, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        dto.setAudit(createAudit());
         log.info("Created FHIR HealthcareService with id: {}", fhirId);
 
         return dto;
@@ -67,8 +69,10 @@ public class HealthcareServiceService {
         hs.setId(fhirId);
         fhirClientService.update(hs, getPracticeId());
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        dto.setAudit(createAudit());
         return dto;
     }
 
@@ -94,9 +98,10 @@ public class HealthcareServiceService {
             hs.setComment(dto.getDescription());
         }
 
-        // Location reference
+        // Location (stored as extension since we're using string location)
         if (dto.getLocation() != null) {
-            hs.addLocation(new Reference("Location/" + dto.getLocation()));
+            hs.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/location-string", 
+                    new StringType(dto.getLocation())));
         }
 
         // Type (category)
@@ -115,8 +120,11 @@ public class HealthcareServiceService {
 
     private HealthcareServiceDto fromFhirHealthcareService(HealthcareService hs) {
         HealthcareServiceDto dto = new HealthcareServiceDto();
-        dto.setFhirId(hs.getIdElement().getIdPart());
-        dto.setExternalId(hs.getIdElement().getIdPart());
+        String fhirId = hs.getIdElement().getIdPart();
+        
+        dto.setId(Long.parseLong(fhirId));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
 
         // Name
         if (hs.hasName()) {
@@ -128,12 +136,10 @@ public class HealthcareServiceService {
             dto.setDescription(hs.getComment());
         }
 
-        // Location
-        if (hs.hasLocation()) {
-            String ref = hs.getLocationFirstRep().getReference();
-            if (ref != null && ref.startsWith("Location/")) {
-                dto.setLocation(ref.substring("Location/".length()));
-            }
+        // Location (from extension)
+        Extension locationExt = hs.getExtensionByUrl("http://ciyex.com/fhir/StructureDefinition/location-string");
+        if (locationExt != null && locationExt.getValue() instanceof StringType) {
+            dto.setLocation(((StringType) locationExt.getValue()).getValue());
         }
 
         // Type
@@ -147,6 +153,15 @@ public class HealthcareServiceService {
             dto.setHoursOfOperation(((StringType) hoursExt.getValue()).getValue());
         }
 
+        dto.setAudit(createAudit());
         return dto;
+    }
+
+    private HealthcareServiceDto.Audit createAudit() {
+        HealthcareServiceDto.Audit audit = new HealthcareServiceDto.Audit();
+        String currentTime = java.time.LocalDateTime.now().toString();
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        return audit;
     }
 }

@@ -38,8 +38,10 @@ public class SupplierService {
         var outcome = fhirClientService.create(org, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        dto.setAudit(createAudit());
         log.info("Created FHIR Organization (supplier) with id: {}", fhirId);
 
         return dto;
@@ -82,8 +84,10 @@ public class SupplierService {
         org.setId(fhirId);
         fhirClientService.update(org, getPracticeId());
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        dto.setAudit(createAudit());
         return dto;
     }
 
@@ -129,8 +133,11 @@ public class SupplierService {
 
     private SupplierDto fromFhirOrganization(Organization org) {
         SupplierDto dto = new SupplierDto();
-        dto.setFhirId(org.getIdElement().getIdPart());
-        dto.setExternalId(org.getIdElement().getIdPart());
+        String fhirId = org.getIdElement().getIdPart();
+        
+        dto.setId(Long.parseLong(fhirId));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
 
         // Name
         if (org.hasName()) {
@@ -146,6 +153,7 @@ public class SupplierService {
             }
         }
 
+        dto.setAudit(createAudit());
         return dto;
     }
 
@@ -153,5 +161,13 @@ public class SupplierService {
         if (!org.hasType()) return false;
         return org.getType().stream()
                 .anyMatch(cc -> "supplier".equalsIgnoreCase(cc.getText()));
+    }
+
+    private SupplierDto.Audit createAudit() {
+        SupplierDto.Audit audit = new SupplierDto.Audit();
+        String currentTime = java.time.LocalDateTime.now().toString();
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        return audit;
     }
 }
