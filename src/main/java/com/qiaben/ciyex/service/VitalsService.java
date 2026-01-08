@@ -70,13 +70,44 @@ public class VitalsService {
         return practiceContextService.getPracticeId();
     }
 
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
+    }
+
     // ✅ Get all vitals for a patient
     public List<VitalsDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePatientExists(patientId);
         return getVitalsByPatient(patientId);
     }
 
     // ✅ Create vitals in FHIR
     public VitalsDto create(Long patientId, Long encounterId, VitalsDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.info("Creating vitals in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
         // Check if encounter is signed - prevent modification
@@ -108,6 +139,11 @@ public class VitalsService {
 
     // ✅ Get vitals by ID
     public VitalsDto get(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         VitalsDto dto = getByFhirId(String.valueOf(id));
         dto.setId(id);
         return dto;
@@ -121,12 +157,16 @@ public class VitalsService {
             dto.setId(Long.parseLong(fhirId));
             return dto;
         } catch (ResourceNotFoundException e) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vitals not found with FHIR ID: " + fhirId);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vitals ID is invalid. Vitals not found: " + fhirId);
         }
     }
 
     // ✅ Get vitals by encounter
     public List<VitalsDto> getByEncounter(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Getting FHIR Observations (vitals) for encounter: {}", encounterId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -142,14 +182,21 @@ public class VitalsService {
 
     // ✅ Update vitals in FHIR
     public VitalsDto update(Long patientId, Long encounterId, Long id, VitalsDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Updating FHIR Observation (vitals) with ID: {}", fhirId);
+
+        // Validate resource exists
+        VitalsDto existing = getByFhirId(fhirId);
 
         // Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 
         // Check if vitals is signed - prevent modification
-        VitalsDto existing = getByFhirId(fhirId);
         if (Boolean.TRUE.equals(existing.getSigned())) {
             throw new IllegalStateException("Signed vitals are read-only.");
         }
@@ -169,14 +216,21 @@ public class VitalsService {
 
     // ✅ Delete vitals from FHIR
     public void delete(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Deleting FHIR Observation (vitals) with ID: {}", fhirId);
+
+        // Validate resource exists
+        VitalsDto existing = getByFhirId(fhirId);
 
         // Check if encounter is signed - prevent modification
         encounterService.validateEncounterNotSigned(encounterId, patientId);
 
         // Check if vitals is signed - prevent deletion
-        VitalsDto existing = getByFhirId(fhirId);
         if (Boolean.TRUE.equals(existing.getSigned())) {
             throw new IllegalStateException("Signed vitals cannot be deleted.");
         }
@@ -187,6 +241,11 @@ public class VitalsService {
 
     // ✅ E-Sign vitals
     public VitalsDto eSign(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("E-signing FHIR Observation (vitals) with ID: {}", fhirId);
 
@@ -197,12 +256,17 @@ public class VitalsService {
             fhirClientService.update(fhirObservation, getPracticeId());
             return toVitalsDto(fhirObservation);
         } catch (ResourceNotFoundException e) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vitals not found with FHIR ID: " + fhirId);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vitals ID is invalid. Vitals not found: " + fhirId);
         }
     }
 
     // ✅ Print vitals as PDF
     public byte[] print(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         VitalsDto vitals = get(patientId, encounterId, id);
 
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {

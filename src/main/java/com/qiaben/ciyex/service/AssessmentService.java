@@ -58,6 +58,7 @@ public class AssessmentService {
 
     // ✅ Get all by patient
     public List<AssessmentDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
         log.debug("Getting FHIR ClinicalImpressions (assessment) for patient: {}", patientId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -72,6 +73,10 @@ public class AssessmentService {
 
     // ✅ Create assessment
     public AssessmentDto create(Long patientId, Long encounterId, AssessmentDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.info("Creating assessment in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
         ClinicalImpression ci = toFhirClinicalImpression(dto, patientId, encounterId);
@@ -97,6 +102,11 @@ public class AssessmentService {
 
     // ✅ Get one assessment
     public AssessmentDto getOne(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Assessment ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.debug("Getting FHIR ClinicalImpression (assessment) with ID: {}", fhirId);
 
@@ -106,14 +116,16 @@ public class AssessmentService {
             dto.setId(id);
             return dto;
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                    String.format("Assessment not found with ID: %d for Patient ID: %d and Encounter ID: %d",
-                            id, patientId, encounterId));
+            throw new IllegalArgumentException("Assessment ID is invalid. Assessment not found: " + id);
         }
     }
 
     // ✅ Get all by encounter
     public List<AssessmentDto> getAllByEncounter(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Listing FHIR ClinicalImpressions (assessment) for patient: {}, encounter: {}", patientId, encounterId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -128,8 +140,20 @@ public class AssessmentService {
 
     // ✅ Update assessment
     public AssessmentDto update(Long patientId, Long encounterId, Long id, AssessmentDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Assessment ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Updating FHIR ClinicalImpression (assessment) with ID: {}", fhirId);
+
+        // Validate resource exists
+        try {
+            fhirClientService.read(ClinicalImpression.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Assessment ID is invalid. Assessment not found: " + id);
+        }
 
         // Check if signed
         SignMetadata meta = signMetadataCache.get(fhirId);
@@ -141,14 +165,25 @@ public class AssessmentService {
         ci.setId(fhirId);
         fhirClientService.update(ci, getPracticeId());
 
-        // Re-read to get updated metadata and return complete DTO
         return getOne(patientId, encounterId, id);
     }
 
     // ✅ Delete assessment
     public void delete(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Assessment ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Deleting FHIR ClinicalImpression (assessment) with ID: {}", fhirId);
+
+        // Validate resource exists
+        try {
+            fhirClientService.read(ClinicalImpression.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Assessment ID is invalid. Assessment not found: " + id);
+        }
 
         // Check if signed
         SignMetadata meta = signMetadataCache.get(fhirId);
@@ -162,6 +197,9 @@ public class AssessmentService {
 
     // ✅ eSign assessment
     public AssessmentDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Assessment ID");
         String fhirId = String.valueOf(id);
         log.info("E-signing FHIR ClinicalImpression (assessment) with ID: {}", fhirId);
 
@@ -185,6 +223,9 @@ public class AssessmentService {
 
     // ✅ Render PDF
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Assessment ID");
         String fhirId = String.valueOf(id);
         log.info("Rendering PDF for FHIR ClinicalImpression (assessment) with ID: {}", fhirId);
 
@@ -403,5 +444,31 @@ public class AssessmentService {
             audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
         }
         dto.setAudit(audit);
+    }
+    
+    // ✅ Validate path variables
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
     }
 }

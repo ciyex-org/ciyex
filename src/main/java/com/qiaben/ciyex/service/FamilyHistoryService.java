@@ -60,6 +60,7 @@ public class FamilyHistoryService {
 
     // ✅ Get all by patient
     public List<FamilyHistoryDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
         log.debug("Getting FHIR FamilyMemberHistory for patient: {}", patientId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -74,6 +75,10 @@ public class FamilyHistoryService {
 
     // ✅ Create family history
     public FamilyHistoryDto create(Long patientId, Long encounterId, FamilyHistoryDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.info("Creating family history in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
         List<String> createdIds = new ArrayList<>();
@@ -107,6 +112,11 @@ public class FamilyHistoryService {
 
     // ✅ Get one family history
     public FamilyHistoryDto getOne(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Family History ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.debug("Getting FHIR FamilyMemberHistory with ID: {}", fhirId);
 
@@ -116,14 +126,14 @@ public class FamilyHistoryService {
             dto.setId(id);
             return dto;
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                    String.format("Family History not found with ID: %d for Patient ID: %d and Encounter ID: %d",
-                            id, patientId, encounterId));
+            throw new IllegalArgumentException("Family History ID is invalid. Family History not found: " + id);
         }
     }
 
     // ✅ List family histories for encounter
     public List<FamilyHistoryDto> list(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
         log.debug("Listing FHIR FamilyMemberHistory for patient: {}, encounter: {}", patientId, encounterId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -138,16 +148,25 @@ public class FamilyHistoryService {
 
     // ✅ Update family history
     public FamilyHistoryDto update(Long patientId, Long encounterId, Long id, FamilyHistoryDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Family History ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Updating FHIR FamilyMemberHistory with ID: {}", fhirId);
 
-        // Check if signed
+        try {
+            fhirClientService.read(FamilyMemberHistory.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Family History ID is invalid. Family History not found: " + id);
+        }
+
         SignMetadata meta = signMetadataCache.get(fhirId);
         if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed family history is read-only.");
         }
 
-        // Update first entry (or create if entries provided)
         if (dto.getEntries() != null && !dto.getEntries().isEmpty()) {
             EntryDto entry = dto.getEntries().get(0);
             FamilyMemberHistory fmh = toFhirFamilyMemberHistory(entry, patientId, encounterId);
@@ -160,10 +179,20 @@ public class FamilyHistoryService {
 
     // ✅ Delete family history
     public void delete(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Family History ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Deleting FHIR FamilyMemberHistory with ID: {}", fhirId);
 
-        // Check if signed
+        try {
+            fhirClientService.read(FamilyMemberHistory.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Family History ID is invalid. Family History not found: " + id);
+        }
+
         SignMetadata meta = signMetadataCache.get(fhirId);
         if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed family history cannot be deleted.");
@@ -175,6 +204,9 @@ public class FamilyHistoryService {
 
     // ✅ eSign family history
     public FamilyHistoryDto eSign(Long patientId, Long encounterId, Long id, String signedBy, Long entryId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Family History ID");
         String fhirId = String.valueOf(id);
         log.info("E-signing FHIR FamilyMemberHistory with ID: {}", fhirId);
 
@@ -201,6 +233,9 @@ public class FamilyHistoryService {
 
     // ✅ Render PDF
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Family History ID");
         String fhirId = String.valueOf(id);
         log.info("Rendering PDF for FHIR FamilyMemberHistory with ID: {}", fhirId);
 
@@ -395,5 +430,31 @@ public class FamilyHistoryService {
             audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
         }
         dto.setAudit(audit);
+    }
+    
+    // ✅ Validate path variables
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
     }
 }

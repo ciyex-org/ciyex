@@ -50,6 +50,31 @@ public class SocialHistoryService {
         return practiceContextService.getPracticeId();
     }
 
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
+    }
+
     // Helper class for e-sign metadata
     private static class SignMetadata {
         Boolean eSigned = false;
@@ -60,6 +85,8 @@ public class SocialHistoryService {
 
     // ✅ Get all by patient
     public List<SocialHistoryDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePatientExists(patientId);
         log.debug("Getting FHIR Observations (social history) for patient: {}", patientId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -76,6 +103,10 @@ public class SocialHistoryService {
 
     // ✅ Create social history
     public SocialHistoryDto create(Long patientId, Long encounterId, SocialHistoryDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.info("Creating social history in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
         List<String> createdIds = new ArrayList<>();
@@ -109,6 +140,10 @@ public class SocialHistoryService {
 
     // ✅ Get one social history
     public SocialHistoryDto getOne(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Getting FHIR Observations (social history) for patient: {}, encounter: {}", patientId, encounterId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -130,6 +165,11 @@ public class SocialHistoryService {
 
     // ✅ Get by id
     public SocialHistoryDto getById(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.debug("Getting FHIR Observation (social history) with ID: {}", fhirId);
 
@@ -139,16 +179,26 @@ public class SocialHistoryService {
             dto.setId(id);
             return dto;
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                    String.format("Social History not found for Patient ID: %d, Encounter ID: %d, ID: %d",
-                            patientId, encounterId, id));
+            throw new IllegalArgumentException("Social History ID is invalid. Social History not found: " + id);
         }
     }
 
     // ✅ Update social history
     public SocialHistoryDto update(Long patientId, Long encounterId, Long id, SocialHistoryDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Updating FHIR Observation (social history) with ID: {}", fhirId);
+
+        // Validate resource exists
+        try {
+            fhirClientService.read(Observation.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Social History ID is invalid. Social History not found: " + id);
+        }
 
         // Check if signed
         SignMetadata meta = signMetadataCache.get(fhirId);
@@ -169,8 +219,20 @@ public class SocialHistoryService {
 
     // ✅ Delete social history
     public void delete(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Deleting FHIR Observation (social history) with ID: {}", fhirId);
+
+        // Validate resource exists
+        try {
+            fhirClientService.read(Observation.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Social History ID is invalid. Social History not found: " + id);
+        }
 
         // Check if signed
         SignMetadata meta = signMetadataCache.get(fhirId);
@@ -184,6 +246,9 @@ public class SocialHistoryService {
 
     // ✅ eSign social history
     public SocialHistoryDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "ID");
         String fhirId = String.valueOf(id);
         log.info("E-signing FHIR Observation (social history) with ID: {}", fhirId);
 
@@ -207,6 +272,9 @@ public class SocialHistoryService {
 
     // ✅ Render PDF
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "ID");
         String fhirId = String.valueOf(id);
         log.info("Rendering PDF for FHIR Observation (social history) with ID: {}", fhirId);
 

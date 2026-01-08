@@ -62,6 +62,7 @@ public class PlanService {
 
     // ✅ Get all by patient
     public List<PlanDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
         log.debug("Getting FHIR CarePlans for patient: {}", patientId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -76,6 +77,10 @@ public class PlanService {
 
     // ✅ Create Plan
     public PlanDto create(Long patientId, Long encounterId, PlanDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.info("Creating Plan in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
         CarePlan carePlan = toFhirCarePlan(dto, patientId, encounterId);
@@ -99,6 +104,8 @@ public class PlanService {
 
     // ✅ List Plans for encounter
     public List<PlanDto> list(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
         log.debug("Listing FHIR CarePlans for patient: {}, encounter: {}", patientId, encounterId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -113,6 +120,11 @@ public class PlanService {
 
     // ✅ Get one Plan
     public PlanDto getOne(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Plan ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.debug("Getting FHIR CarePlan with ID: {}", fhirId);
 
@@ -122,17 +134,26 @@ public class PlanService {
             dto.setId(id);
             return dto;
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                    String.format("Plan not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id));
+            throw new IllegalArgumentException("Plan ID is invalid. Plan not found: " + id);
         }
     }
 
     // ✅ Update Plan
     public PlanDto update(Long patientId, Long encounterId, Long id, PlanDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Plan ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Updating FHIR CarePlan with ID: {}", fhirId);
 
-        // Check if signed
+        try {
+            fhirClientService.read(CarePlan.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Plan ID is invalid. Plan not found: " + id);
+        }
+
         SignMetadata meta = signMetadataCache.get(fhirId);
         if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed plan is read-only.");
@@ -147,10 +168,20 @@ public class PlanService {
 
     // ✅ Delete Plan
     public void delete(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Plan ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Deleting FHIR CarePlan with ID: {}", fhirId);
 
-        // Check if signed
+        try {
+            fhirClientService.read(CarePlan.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Plan ID is invalid. Plan not found: " + id);
+        }
+
         SignMetadata meta = signMetadataCache.get(fhirId);
         if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed plan cannot be deleted.");
@@ -162,6 +193,9 @@ public class PlanService {
 
     // ✅ eSign Plan
     public PlanDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Plan ID");
         String fhirId = String.valueOf(id);
         log.info("E-signing FHIR CarePlan with ID: {}", fhirId);
 
@@ -185,6 +219,9 @@ public class PlanService {
 
     // ✅ Render PDF
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Plan ID");
         String fhirId = String.valueOf(id);
         log.info("Rendering PDF for FHIR CarePlan with ID: {}", fhirId);
 
@@ -403,5 +440,31 @@ public class PlanService {
             audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
         }
         dto.setAudit(audit);
+    }
+    
+    // ✅ Validate path variables
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
     }
 }

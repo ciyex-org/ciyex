@@ -63,6 +63,10 @@ public class SignoffService {
 
     // CREATE
     public SignoffDto create(Long patientId, Long encounterId, SignoffDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Creating FHIR Task (signoff) for patient: {} encounter: {}", patientId, encounterId);
 
         dto.setPatientId(patientId);
@@ -89,6 +93,10 @@ public class SignoffService {
 
     // LIST BY ENCOUNTER
     public List<SignoffDto> list(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Getting FHIR Tasks (signoffs) for patient: {} encounter: {}", patientId, encounterId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -107,6 +115,7 @@ public class SignoffService {
 
     // GET ALL BY PATIENT
     public List<SignoffDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
         log.debug("Getting all FHIR Tasks (signoffs) for patient: {}", patientId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -124,19 +133,38 @@ public class SignoffService {
 
     // GET ONE
     public SignoffDto getOne(Long patientId, Long encounterId, String fhirId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "Signoff ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Getting FHIR Task (signoff): {}", fhirId);
-        Task task = fhirClientService.read(Task.class, fhirId, getPracticeId());
-        SignoffDto dto = fromFhirTask(task);
-        dto.setId(Long.parseLong(fhirId));
-        return dto;
+        try {
+            Task task = fhirClientService.read(Task.class, fhirId, getPracticeId());
+            SignoffDto dto = fromFhirTask(task);
+            dto.setId(Long.parseLong(fhirId));
+            return dto;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Signoff ID is invalid. Signoff not found: " + fhirId);
+        }
     }
 
     // UPDATE
     public SignoffDto update(Long patientId, Long encounterId, String fhirId, SignoffDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "Signoff ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Updating FHIR Task (signoff): {}", fhirId);
 
-        // Check if locked
-        Task existing = fhirClientService.read(Task.class, fhirId, getPracticeId());
+        Task existing;
+        try {
+            existing = fhirClientService.read(Task.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Signoff ID is invalid. Signoff not found: " + fhirId);
+        }
+
         SignoffDto existingDto = fromFhirTask(existing);
         if (isLocked(existingDto.getStatus())) {
             throw new IllegalStateException("Signed/locked sign-offs are read-only.");
@@ -156,9 +184,20 @@ public class SignoffService {
 
     // DELETE
     public void delete(Long patientId, Long encounterId, String fhirId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "Signoff ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Deleting FHIR Task (signoff): {}", fhirId);
 
-        Task existing = fhirClientService.read(Task.class, fhirId, getPracticeId());
+        Task existing;
+        try {
+            existing = fhirClientService.read(Task.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Signoff ID is invalid. Signoff not found: " + fhirId);
+        }
+
         SignoffDto existingDto = fromFhirTask(existing);
         if (isLocked(existingDto.getStatus())) {
             throw new IllegalStateException("Signed/locked sign-offs cannot be deleted.");
@@ -169,6 +208,9 @@ public class SignoffService {
 
     // E-SIGN
     public SignoffDto eSign(Long patientId, Long encounterId, String fhirId, String signedBy) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "Signoff ID");
         log.debug("E-signing FHIR Task (signoff): {}", fhirId);
 
         Task task = fhirClientService.read(Task.class, fhirId, getPracticeId());
@@ -196,6 +238,9 @@ public class SignoffService {
 
     // RENDER PDF
     public byte[] renderPdf(Long patientId, Long encounterId, String fhirId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "Signoff ID");
         Task task = fhirClientService.read(Task.class, fhirId, getPracticeId());
         SignoffDto dto = fromFhirTask(task);
 
@@ -429,5 +474,37 @@ public class SignoffService {
             audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(java.time.ZoneOffset.UTC).toLocalDate().toString());
         }
         dto.setAudit(audit);
+    }
+    
+    // ✅ Validate path variables
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validateFhirId(String fhirId, String fieldName) {
+        if (fhirId == null || fhirId.trim().isEmpty()) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null or empty");
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
     }
 }

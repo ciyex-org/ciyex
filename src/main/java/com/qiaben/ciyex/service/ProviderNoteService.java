@@ -62,6 +62,7 @@ public class ProviderNoteService {
 
     // ✅ Get all by patient
     public List<ProviderNoteDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
         log.debug("Getting FHIR DocumentReferences for patient: {}", patientId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -76,6 +77,10 @@ public class ProviderNoteService {
 
     // ✅ Create Provider Note
     public ProviderNoteDto create(Long patientId, Long encounterId, ProviderNoteDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.info("Creating Provider Note in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
         DocumentReference docRef = toFhirDocumentReference(dto, patientId, encounterId);
@@ -99,6 +104,10 @@ public class ProviderNoteService {
 
     // ✅ List Provider Notes for encounter
     public List<ProviderNoteDto> list(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Listing FHIR DocumentReferences for patient: {}, encounter: {}", patientId, encounterId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -113,6 +122,11 @@ public class ProviderNoteService {
 
     // ✅ Get one Provider Note
     public ProviderNoteDto getOne(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Provider Note ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.debug("Getting FHIR DocumentReference with ID: {}", fhirId);
 
@@ -122,17 +136,26 @@ public class ProviderNoteService {
             dto.setId(id);
             return dto;
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                    String.format("Provider Note not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id));
+            throw new IllegalArgumentException("Provider Note ID is invalid. Provider Note not found: " + id);
         }
     }
 
     // ✅ Update Provider Note
     public ProviderNoteDto update(Long patientId, Long encounterId, Long id, ProviderNoteDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Provider Note ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Updating FHIR DocumentReference with ID: {}", fhirId);
 
-        // Check if signed
+        try {
+            fhirClientService.read(DocumentReference.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Provider Note ID is invalid. Provider Note not found: " + id);
+        }
+
         SignMetadata meta = signMetadataCache.get(fhirId);
         if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed provider notes are read-only.");
@@ -147,10 +170,20 @@ public class ProviderNoteService {
 
     // ✅ Delete Provider Note
     public void delete(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Provider Note ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Deleting FHIR DocumentReference with ID: {}", fhirId);
 
-        // Check if signed
+        try {
+            fhirClientService.read(DocumentReference.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Provider Note ID is invalid. Provider Note not found: " + id);
+        }
+
         SignMetadata meta = signMetadataCache.get(fhirId);
         if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
             throw new IllegalStateException("Signed provider notes cannot be deleted.");
@@ -162,6 +195,9 @@ public class ProviderNoteService {
 
     // ✅ eSign Provider Note
     public ProviderNoteDto eSign(Long patientId, Long encounterId, Long id, String signedBy) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Provider Note ID");
         String fhirId = String.valueOf(id);
         log.info("E-signing FHIR DocumentReference with ID: {}", fhirId);
 
@@ -185,6 +221,9 @@ public class ProviderNoteService {
 
     // ✅ Render PDF
     public byte[] renderPdf(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Provider Note ID");
         String fhirId = String.valueOf(id);
         log.info("Rendering PDF for FHIR DocumentReference with ID: {}", fhirId);
 
@@ -393,5 +432,31 @@ public class ProviderNoteService {
             audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
         }
         dto.setAudit(audit);
+    }
+    
+    // ✅ Validate path variables
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
     }
 }

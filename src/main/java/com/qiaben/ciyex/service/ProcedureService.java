@@ -41,6 +41,8 @@ public class ProcedureService {
 
     // ✅ Get all by patient
     public List<ProcedureDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePatientExists(patientId);
         log.debug("Getting FHIR Procedures for patient: {}", patientId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -55,6 +57,10 @@ public class ProcedureService {
 
     // ✅ Get all by encounter
     public List<ProcedureDto> getAllByEncounter(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Getting FHIR Procedures for patient: {}, encounter: {}", patientId, encounterId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -70,6 +76,10 @@ public class ProcedureService {
 
     // ✅ Create Procedure
     public ProcedureDto create(Long patientId, Long encounterId, ProcedureDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.info("Creating Procedure in FHIR for patient: {}, encounter: {}", patientId, encounterId);
 
         org.hl7.fhir.r4.model.Procedure procedure = toFhirProcedure(dto, patientId, encounterId);
@@ -96,6 +106,10 @@ public class ProcedureService {
 
     // ✅ Create multiple procedures
     public List<ProcedureDto> createMultiple(Long patientId, Long encounterId, ProcedureDto request) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         List<ProcedureDto> createdProcedures = new ArrayList<>();
 
         if (request.getCodeItems() != null && !request.getCodeItems().isEmpty()) {
@@ -125,6 +139,11 @@ public class ProcedureService {
 
     // ✅ Get one Procedure
     public ProcedureDto getOne(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Procedure ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.debug("Getting FHIR Procedure with ID: {}", fhirId);
 
@@ -135,15 +154,26 @@ public class ProcedureService {
             dto.setId(id);
             return dto;
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                    String.format("Procedure not found for Patient ID: %d, Encounter ID: %d, ID: %d", patientId, encounterId, id));
+            throw new IllegalArgumentException("Procedure ID is invalid. Procedure not found: " + id);
         }
     }
 
     // ✅ Update Procedure
     public ProcedureDto update(Long patientId, Long encounterId, Long id, ProcedureDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Procedure ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Updating FHIR Procedure with ID: {}", fhirId);
+
+        // Validate resource exists
+        try {
+            fhirClientService.read(org.hl7.fhir.r4.model.Procedure.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Procedure ID is invalid. Procedure not found: " + id);
+        }
 
         org.hl7.fhir.r4.model.Procedure procedure = toFhirProcedure(dto, patientId, encounterId);
         procedure.setId(fhirId);
@@ -154,8 +184,20 @@ public class ProcedureService {
 
     // ✅ Delete Procedure
     public void delete(Long patientId, Long encounterId, Long id) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePathVariable(id, "Procedure ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         String fhirId = String.valueOf(id);
         log.info("Deleting FHIR Procedure with ID: {}", fhirId);
+
+        // Validate resource exists
+        try {
+            fhirClientService.read(org.hl7.fhir.r4.model.Procedure.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Procedure ID is invalid. Procedure not found: " + id);
+        }
 
         fhirClientService.delete(org.hl7.fhir.r4.model.Procedure.class, fhirId, getPracticeId());
     }
@@ -272,5 +314,31 @@ public class ProcedureService {
             audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
         }
         dto.setAudit(audit);
+    }
+    
+    // ✅ Validate path variables
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
     }
 }

@@ -51,14 +51,12 @@ public class AssignedProviderService {
 
     // CREATE
     public AssignedProviderDto create(Long patientId, Long encounterId, AssignedProviderDto dto) {
-        if (patientId == null) {
-            throw new IllegalArgumentException("Patient ID is required");
-        }
-        if (encounterId == null) {
-            throw new IllegalArgumentException("Encounter ID is required");
-        }
-        if (dto.getProviderId() == null) {
-            throw new IllegalArgumentException("Provider ID is required");
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
+        if (dto.getProviderId() == null || dto.getProviderId() <= 0) {
+            throw new IllegalArgumentException("Provider ID is required and must be a positive number");
         }
 
         dto.setPatientId(patientId);
@@ -86,15 +84,25 @@ public class AssignedProviderService {
 
     // GET ONE
     public AssignedProviderDto getOne(Long patientId, Long encounterId, String fhirId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "Assigned Provider ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Getting FHIR CareTeam: {}", fhirId);
-        CareTeam careTeam = fhirClientService.read(CareTeam.class, fhirId, getPracticeId());
-        AssignedProviderDto dto = fromFhirCareTeam(careTeam);
-        dto.setId(Long.parseLong(fhirId));
-        return dto;
+        try {
+            CareTeam careTeam = fhirClientService.read(CareTeam.class, fhirId, getPracticeId());
+            AssignedProviderDto dto = fromFhirCareTeam(careTeam);
+            dto.setId(Long.parseLong(fhirId));
+            return dto;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Assigned Provider ID is invalid. Assigned Provider not found: " + fhirId);
+        }
     }
 
     // LIST BY PATIENT
     public List<AssignedProviderDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
         log.debug("Getting FHIR CareTeams for patient: {}", patientId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -109,6 +117,8 @@ public class AssignedProviderService {
 
     // LIST BY ENCOUNTER
     public List<AssignedProviderDto> list(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
         log.debug("Getting FHIR CareTeams for patient: {} encounter: {}", patientId, encounterId);
 
         // Search by patient and filter by encounter extension
@@ -129,10 +139,20 @@ public class AssignedProviderService {
 
     // UPDATE
     public AssignedProviderDto update(Long patientId, Long encounterId, String fhirId, AssignedProviderDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "Assigned Provider ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Updating FHIR CareTeam: {}", fhirId);
 
-        // Check if signed
-        CareTeam existing = fhirClientService.read(CareTeam.class, fhirId, getPracticeId());
+        CareTeam existing;
+        try {
+            existing = fhirClientService.read(CareTeam.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Assigned Provider ID is invalid. Assigned Provider not found: " + fhirId);
+        }
+
         AssignedProviderDto existingDto = fromFhirCareTeam(existing);
         if (Boolean.TRUE.equals(existingDto.getESigned())) {
             throw new IllegalStateException("Signed records are read-only.");
@@ -152,10 +172,20 @@ public class AssignedProviderService {
 
     // DELETE
     public void delete(Long patientId, Long encounterId, String fhirId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "Assigned Provider ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Deleting FHIR CareTeam: {}", fhirId);
 
-        // Check if signed
-        CareTeam existing = fhirClientService.read(CareTeam.class, fhirId, getPracticeId());
+        CareTeam existing;
+        try {
+            existing = fhirClientService.read(CareTeam.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Assigned Provider ID is invalid. Assigned Provider not found: " + fhirId);
+        }
+
         AssignedProviderDto existingDto = fromFhirCareTeam(existing);
         if (Boolean.TRUE.equals(existingDto.getESigned())) {
             throw new IllegalStateException("Signed records cannot be deleted.");
@@ -166,6 +196,9 @@ public class AssignedProviderService {
 
     // E-SIGN
     public AssignedProviderDto eSign(Long patientId, Long encounterId, String fhirId, String signedBy) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "Assigned Provider ID");
         log.debug("E-signing FHIR CareTeam: {}", fhirId);
 
         CareTeam careTeam = fhirClientService.read(CareTeam.class, fhirId, getPracticeId());
@@ -191,6 +224,9 @@ public class AssignedProviderService {
 
     // RENDER PDF
     public byte[] renderPdf(Long patientId, Long encounterId, String fhirId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "Assigned Provider ID");
         CareTeam careTeam = fhirClientService.read(CareTeam.class, fhirId, getPracticeId());
         AssignedProviderDto dto = fromFhirCareTeam(careTeam);
 
@@ -420,5 +456,37 @@ public class AssignedProviderService {
             audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
         }
         dto.setAudit(audit);
+    }
+    
+    // ✅ Validate path variables
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validateFhirId(String fhirId, String fieldName) {
+        if (fhirId == null || fhirId.trim().isEmpty()) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null or empty");
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
     }
 }

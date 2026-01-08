@@ -56,6 +56,10 @@ public class DateTimeFinalizedService {
 
     // CREATE
     public DateTimeFinalizedDto create(Long patientId, Long encounterId, DateTimeFinalizedDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Creating FHIR Provenance (DateTimeFinalized) for patient {} encounter {}", patientId, encounterId);
 
         Provenance prov = toFhirProvenance(dto, patientId, encounterId);
@@ -79,15 +83,26 @@ public class DateTimeFinalizedService {
 
     // GET ONE
     public DateTimeFinalizedDto getOne(Long patientId, Long encounterId, String fhirId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "DateTimeFinalized ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Getting DateTimeFinalized {} for patient {} encounter {}", fhirId, patientId, encounterId);
-        Provenance prov = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
-        DateTimeFinalizedDto dto = fromFhirProvenance(prov);
-        dto.setId((long) Math.abs(fhirId.hashCode()));
-        return dto;
+        try {
+            Provenance prov = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
+            DateTimeFinalizedDto dto = fromFhirProvenance(prov);
+            dto.setId((long) Math.abs(fhirId.hashCode()));
+            return dto;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("DateTimeFinalized ID is invalid. DateTimeFinalized not found: " + fhirId);
+        }
     }
 
     // LIST by encounter
     public List<DateTimeFinalizedDto> list(Long patientId, Long encounterId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
         log.debug("Listing DateTimeFinalized for patient {} encounter {}", patientId, encounterId);
         Bundle bundle = fhirClientService.search(Provenance.class, getPracticeId());
 
@@ -99,6 +114,7 @@ public class DateTimeFinalizedService {
 
     // GET ALL by patient
     public List<DateTimeFinalizedDto> getAllByPatient(Long patientId) {
+        validatePathVariable(patientId, "Patient ID");
         log.debug("Getting all DateTimeFinalized for patient {}", patientId);
         Bundle bundle = fhirClientService.search(Provenance.class, getPracticeId());
 
@@ -110,10 +126,20 @@ public class DateTimeFinalizedService {
 
     // UPDATE
     public DateTimeFinalizedDto update(Long patientId, Long encounterId, String fhirId, DateTimeFinalizedDto dto) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "DateTimeFinalized ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Updating DateTimeFinalized {} for patient {} encounter {}", fhirId, patientId, encounterId);
 
-        // Check if already eSigned
-        Provenance existing = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
+        Provenance existing;
+        try {
+            existing = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("DateTimeFinalized ID is invalid. DateTimeFinalized not found: " + fhirId);
+        }
+
         if (Boolean.TRUE.equals(getBoolExt(existing, EXT_ESIGNED))) {
             throw new IllegalStateException("Signed finalizations are read-only.");
         }
@@ -127,10 +153,20 @@ public class DateTimeFinalizedService {
 
     // DELETE
     public void delete(Long patientId, Long encounterId, String fhirId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "DateTimeFinalized ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Deleting DateTimeFinalized {} for patient {} encounter {}", fhirId, patientId, encounterId);
 
-        // Check if already eSigned
-        Provenance existing = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
+        Provenance existing;
+        try {
+            existing = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("DateTimeFinalized ID is invalid. DateTimeFinalized not found: " + fhirId);
+        }
+
         if (Boolean.TRUE.equals(getBoolExt(existing, EXT_ESIGNED))) {
             throw new IllegalStateException("Signed finalizations cannot be deleted.");
         }
@@ -140,6 +176,9 @@ public class DateTimeFinalizedService {
 
     // ESIGN
     public DateTimeFinalizedDto eSign(Long patientId, Long encounterId, String fhirId, String signedBy) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "DateTimeFinalized ID");
         log.debug("E-signing DateTimeFinalized {} for patient {} encounter {}", fhirId, patientId, encounterId);
 
         Provenance prov = fhirClientService.read(Provenance.class, fhirId, getPracticeId());
@@ -166,6 +205,9 @@ public class DateTimeFinalizedService {
 
     // PRINT PDF - returns empty for now
     public byte[] renderPdf(Long patientId, Long encounterId, String fhirId) {
+        validatePathVariable(patientId, "Patient ID");
+        validatePathVariable(encounterId, "Encounter ID");
+        validateFhirId(fhirId, "DateTimeFinalized ID");
         log.debug("Rendering PDF for DateTimeFinalized {} patient {} encounter {}", fhirId, patientId, encounterId);
 
         // Mark as printed
@@ -326,5 +368,37 @@ public class DateTimeFinalizedService {
             }
         }
         dto.setAudit(audit);
+    }
+    
+    // ✅ Validate path variables
+    private void validatePathVariable(Long value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null");
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " must be a positive number. Provided: " + value);
+        }
+    }
+    
+    private void validateFhirId(String fhirId, String fieldName) {
+        if (fhirId == null || fhirId.trim().isEmpty()) {
+            throw new IllegalArgumentException(fieldName + " is invalid. " + fieldName + " cannot be null or empty");
+        }
+    }
+    
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Patient ID is invalid. Patient not found: " + patientId);
+        }
+    }
+    
+    private void validateEncounterExists(Long encounterId) {
+        try {
+            fhirClientService.read(Encounter.class, String.valueOf(encounterId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Encounter ID is invalid. Encounter not found: " + encounterId);
+        }
     }
 }
