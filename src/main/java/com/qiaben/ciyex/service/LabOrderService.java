@@ -11,6 +11,7 @@ import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -45,8 +46,14 @@ public class LabOrderService {
         MethodOutcome outcome = fhirClientService.create(fhirServiceRequest, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        
+        ServiceRequest created = (ServiceRequest) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
 
         log.info("Created FHIR ServiceRequest (lab order) with ID: {}", fhirId);
         return dto;
@@ -57,7 +64,9 @@ public class LabOrderService {
         String fhirId = String.valueOf(id);
         try {
             ServiceRequest fhirServiceRequest = fhirClientService.read(ServiceRequest.class, fhirId, getPracticeId());
-            return toLabOrderDto(fhirServiceRequest);
+            LabOrderDto dto = toLabOrderDto(fhirServiceRequest);
+            dto.setId(id);
+            return dto;
         } catch (ResourceNotFoundException e) {
             throw new IllegalArgumentException("LabOrder not found for id: " + id);
         }
@@ -106,6 +115,7 @@ public class LabOrderService {
 
         fhirClientService.update(fhirServiceRequest, getPracticeId());
 
+        dto.setId(id);
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         return dto;
@@ -198,8 +208,10 @@ public class LabOrderService {
 
         // FHIR ID
         if (sr.hasId()) {
-            dto.setFhirId(sr.getIdElement().getIdPart());
-            dto.setExternalId(sr.getIdElement().getIdPart());
+            String fhirId = sr.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         // Patient ID
@@ -261,6 +273,10 @@ public class LabOrderService {
         if (sr.hasOccurrenceDateTimeType()) {
             dto.setOrderDate(sr.getOccurrenceDateTimeType().getValueAsString());
         }
+        
+        if (sr.hasMeta()) {
+            populateAudit(dto, sr.getMeta());
+        }
 
         return dto;
     }
@@ -291,5 +307,14 @@ public class LabOrderService {
 
     private boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
+    }
+    
+    private void populateAudit(LabOrderDto dto, Meta meta) {
+        LabOrderDto.Audit audit = new LabOrderDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }
