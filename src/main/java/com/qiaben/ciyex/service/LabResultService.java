@@ -11,6 +11,7 @@ import org.hl7.fhir.r4.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -86,7 +87,15 @@ public class LabResultService {
         MethodOutcome outcome = fhirClientService.create(report, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
+        dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        
+        DiagnosticReport created = (DiagnosticReport) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
+        
         log.info("Created FHIR DiagnosticReport (lab result) with ID: {}", fhirId);
         return dto;
     }
@@ -101,6 +110,8 @@ public class LabResultService {
 
         fhirClientService.update(report, getPracticeId());
 
+        dto.setId(id);
+        dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         return dto;
     }
@@ -198,7 +209,10 @@ public class LabResultService {
 
         // FHIR ID
         if (report.hasId()) {
-            dto.setExternalId(report.getIdElement().getIdPart());
+            String fhirId = report.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         // Patient ID
@@ -245,6 +259,10 @@ public class LabResultService {
         if (report.hasConclusion()) {
             dto.setRecommendations(report.getConclusion());
         }
+        
+        if (report.hasMeta()) {
+            populateAudit(dto, report.getMeta());
+        }
 
         return dto;
     }
@@ -263,5 +281,14 @@ public class LabResultService {
 
     private String safe(String s) {
         return (s == null ? "" : s).toLowerCase();
+    }
+    
+    private void populateAudit(LabResultDto dto, Meta meta) {
+        LabResultDto.Audit audit = new LabResultDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }

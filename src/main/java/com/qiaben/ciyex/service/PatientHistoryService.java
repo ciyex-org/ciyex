@@ -76,12 +76,12 @@ public class PatientHistoryService {
                     .toList();
 
             if (histories.isEmpty()) {
-                return null;
+                return new java.util.HashMap<>();
             }
 
             String historyJson = getStringExt(histories.get(0), EXT_HISTORY_DATA);
             if (historyJson == null || historyJson.isEmpty()) {
-                return null;
+                return new java.util.HashMap<>();
             }
 
             return objectMapper.readValue(historyJson, Object.class);

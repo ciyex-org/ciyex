@@ -8,15 +8,14 @@ import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * FHIR-only GlobalCode Service (global billing/diagnosis code definitions).
- * Uses FHIR CodeSystem resource directly via FhirClientService.
+ * Uses FHIR Basic resource directly via FhirClientService.
  * No local database storage - all data stored in FHIR server.
  */
 @Service
@@ -45,17 +44,26 @@ public class GlobalCodeService {
     // CREATE
     public GlobalCodeDto create(GlobalCodeDto dto) {
         validateMandatory(dto);
-        log.debug("Creating FHIR CodeSystem (GlobalCode): {}", dto.getCode());
+        log.debug("Creating FHIR Basic (GlobalCode): {}", dto.getCode());
 
-        CodeSystem cs = toFhirCodeSystem(dto);
-        var outcome = fhirClientService.create(cs, getPracticeId());
+        Basic basic = toFhirBasic(dto);
+        var outcome = fhirClientService.create(basic, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
-        dto.setId((long) Math.abs(fhirId.hashCode()));
+        try {
+            dto.setId(Long.parseLong(fhirId));
+        } catch (NumberFormatException e) {
+            dto.setId((long) Math.abs(fhirId.hashCode()));
+        }
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        
+        Basic created = (Basic) outcome.getResource();
+        if (created != null && created.hasMeta()) {
+            populateAudit(dto, created.getMeta());
+        }
 
-        log.info("Created FHIR CodeSystem (GlobalCode) with id: {}", fhirId);
+        log.info("Created FHIR Basic (GlobalCode) with id: {}", fhirId);
         return dto;
     }
 
@@ -64,9 +72,9 @@ public class GlobalCodeService {
         validateMandatory(dto);
         log.debug("Updating GlobalCode: {}", fhirId);
 
-        CodeSystem cs = toFhirCodeSystem(dto);
-        cs.setId(fhirId);
-        fhirClientService.update(cs, getPracticeId());
+        Basic basic = toFhirBasic(dto);
+        basic.setId(fhirId);
+        fhirClientService.update(basic, getPracticeId());
 
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
@@ -76,33 +84,33 @@ public class GlobalCodeService {
     // DELETE
     public void delete(String fhirId) {
         log.debug("Deleting GlobalCode: {}", fhirId);
-        fhirClientService.delete(CodeSystem.class, fhirId, getPracticeId());
+        fhirClientService.delete(Basic.class, fhirId, getPracticeId());
     }
 
     // GET ONE
     public GlobalCodeDto getOne(String fhirId) {
         log.debug("Getting GlobalCode: {}", fhirId);
-        CodeSystem cs = fhirClientService.read(CodeSystem.class, fhirId, getPracticeId());
-        return fromFhirCodeSystem(cs);
+        Basic basic = fhirClientService.read(Basic.class, fhirId, getPracticeId());
+        return fromFhirBasic(basic);
     }
 
     // GET ALL
     public List<GlobalCodeDto> getAll() {
         log.debug("Getting all GlobalCodes");
-        Bundle bundle = fhirClientService.search(CodeSystem.class, getPracticeId());
-        return fhirClientService.extractResources(bundle, CodeSystem.class).stream()
-                .filter(this::isGlobalCodeSystem)
-                .map(this::fromFhirCodeSystem)
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+        return fhirClientService.extractResources(bundle, Basic.class).stream()
+                .filter(this::isGlobalCodeBasic)
+                .map(this::fromFhirBasic)
                 .collect(Collectors.toList());
     }
 
     // SEARCH
     public List<GlobalCodeDto> search(String codeType, Boolean active, String q) {
         log.debug("Searching GlobalCodes: codeType={} active={} q={}", codeType, active, q);
-        Bundle bundle = fhirClientService.search(CodeSystem.class, getPracticeId());
-        return fhirClientService.extractResources(bundle, CodeSystem.class).stream()
-                .filter(this::isGlobalCodeSystem)
-                .map(this::fromFhirCodeSystem)
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+        return fhirClientService.extractResources(bundle, Basic.class).stream()
+                .filter(this::isGlobalCodeBasic)
+                .map(this::fromFhirBasic)
                 .filter(dto -> codeType == null || codeType.equals(dto.getCodeType()))
                 .filter(dto -> active == null || active.equals(dto.getActive()))
                 .filter(dto -> q == null || matchesQuery(dto, q))
@@ -118,153 +126,151 @@ public class GlobalCodeService {
 
     // -------- FHIR Mapping --------
 
-    private CodeSystem toFhirCodeSystem(GlobalCodeDto dto) {
-        CodeSystem cs = new CodeSystem();
-        cs.setStatus(Enumerations.PublicationStatus.ACTIVE);
+    private Basic toFhirBasic(GlobalCodeDto dto) {
+        Basic basic = new Basic();
+        
+        // Code type identifier
+        basic.getCode().addCoding()
+                .setCode("global-code")
+                .setDisplay("Global Code Definition");
 
-        // Mark as global code
-        cs.addIdentifier().setSystem("http://ciyex.com/fhir/codesystem-type").setValue("global-code");
-
-        // Code and description
+        // Code and description in extensions
         if (dto.getCode() != null) {
-            cs.setName(dto.getCode());
-            cs.setTitle(dto.getShortDescription() != null ? dto.getShortDescription() : dto.getCode());
-            CodeSystem.ConceptDefinitionComponent concept = cs.addConcept();
-            concept.setCode(dto.getCode());
-            concept.setDisplay(dto.getShortDescription() != null ? dto.getShortDescription() : dto.getCode());
-            if (dto.getDescription() != null) {
-                concept.setDefinition(dto.getDescription());
-            }
+            basic.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/code", new StringType(dto.getCode())));
+        }
+        if (dto.getDescription() != null) {
+            basic.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/description", new StringType(dto.getDescription())));
         }
 
         // Code type (ICD9, ICD10, CPT4, HCPCS, CUSTOM)
         if (dto.getCodeType() != null) {
-            cs.addExtension(new Extension(EXT_CODE_TYPE, new StringType(dto.getCodeType())));
+            basic.addExtension(new Extension(EXT_CODE_TYPE, new StringType(dto.getCodeType())));
         }
 
         // Modifier
         if (dto.getModifier() != null) {
-            cs.addExtension(new Extension(EXT_MODIFIER, new StringType(dto.getModifier())));
+            basic.addExtension(new Extension(EXT_MODIFIER, new StringType(dto.getModifier())));
         }
 
         // Category
         if (dto.getCategory() != null) {
-            cs.addExtension(new Extension(EXT_CATEGORY, new StringType(dto.getCategory())));
+            basic.addExtension(new Extension(EXT_CATEGORY, new StringType(dto.getCategory())));
         }
 
         // Short description
         if (dto.getShortDescription() != null) {
-            cs.addExtension(new Extension(EXT_SHORT_DESC, new StringType(dto.getShortDescription())));
+            basic.addExtension(new Extension(EXT_SHORT_DESC, new StringType(dto.getShortDescription())));
         }
 
         // Diagnosis reporting
         if (dto.getDiagnosisReporting() != null) {
-            cs.addExtension(new Extension(EXT_DIAGNOSIS_REPORTING, new BooleanType(dto.getDiagnosisReporting())));
+            basic.addExtension(new Extension(EXT_DIAGNOSIS_REPORTING, new BooleanType(dto.getDiagnosisReporting())));
         }
 
         // Service reporting
         if (dto.getServiceReporting() != null) {
-            cs.addExtension(new Extension(EXT_SERVICE_REPORTING, new BooleanType(dto.getServiceReporting())));
+            basic.addExtension(new Extension(EXT_SERVICE_REPORTING, new BooleanType(dto.getServiceReporting())));
         }
 
         // Relate to
         if (dto.getRelateTo() != null) {
-            cs.addExtension(new Extension(EXT_RELATE_TO, new StringType(dto.getRelateTo())));
+            basic.addExtension(new Extension(EXT_RELATE_TO, new StringType(dto.getRelateTo())));
         }
 
         // Fee standard
         if (dto.getFeeStandard() != null) {
-            cs.addExtension(new Extension(EXT_FEE_STANDARD, new DecimalType(dto.getFeeStandard())));
+            basic.addExtension(new Extension(EXT_FEE_STANDARD, new DecimalType(dto.getFeeStandard())));
         }
 
-        // Active status
-        if (dto.getActive() != null && !dto.getActive()) {
-            cs.setStatus(Enumerations.PublicationStatus.RETIRED);
-        }
-
-        return cs;
+        return basic;
     }
 
-    private GlobalCodeDto fromFhirCodeSystem(CodeSystem cs) {
+    private GlobalCodeDto fromFhirBasic(Basic basic) {
         GlobalCodeDto dto = new GlobalCodeDto();
 
-        String fhirId = cs.getIdElement().getIdPart();
-        dto.setId((long) Math.abs(fhirId.hashCode()));
+        String fhirId = basic.getIdElement().getIdPart();
+        try {
+            dto.setId(Long.parseLong(fhirId));
+        } catch (NumberFormatException e) {
+            dto.setId((long) Math.abs(fhirId.hashCode()));
+        }
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
 
-        // Code from concept
-        if (cs.hasConcept() && !cs.getConcept().isEmpty()) {
-            CodeSystem.ConceptDefinitionComponent concept = cs.getConcept().get(0);
-            dto.setCode(concept.getCode());
-            dto.setDescription(concept.getDefinition());
-        } else if (cs.hasName()) {
-            dto.setCode(cs.getName());
+        // Code from extension
+        Extension codeExt = basic.getExtensionByUrl("http://ciyex.com/fhir/StructureDefinition/code");
+        if (codeExt != null && codeExt.getValue() instanceof StringType) {
+            dto.setCode(((StringType) codeExt.getValue()).getValue());
+        }
+
+        // Description from extension
+        Extension descExt = basic.getExtensionByUrl("http://ciyex.com/fhir/StructureDefinition/description");
+        if (descExt != null && descExt.getValue() instanceof StringType) {
+            dto.setDescription(((StringType) descExt.getValue()).getValue());
         }
 
         // Code type
-        Extension codeTypeExt = cs.getExtensionByUrl(EXT_CODE_TYPE);
+        Extension codeTypeExt = basic.getExtensionByUrl(EXT_CODE_TYPE);
         if (codeTypeExt != null && codeTypeExt.getValue() instanceof StringType) {
             dto.setCodeType(((StringType) codeTypeExt.getValue()).getValue());
         }
 
         // Modifier
-        Extension modifierExt = cs.getExtensionByUrl(EXT_MODIFIER);
+        Extension modifierExt = basic.getExtensionByUrl(EXT_MODIFIER);
         if (modifierExt != null && modifierExt.getValue() instanceof StringType) {
             dto.setModifier(((StringType) modifierExt.getValue()).getValue());
         }
 
         // Category
-        Extension categoryExt = cs.getExtensionByUrl(EXT_CATEGORY);
+        Extension categoryExt = basic.getExtensionByUrl(EXT_CATEGORY);
         if (categoryExt != null && categoryExt.getValue() instanceof StringType) {
             dto.setCategory(((StringType) categoryExt.getValue()).getValue());
         }
 
         // Short description
-        Extension shortDescExt = cs.getExtensionByUrl(EXT_SHORT_DESC);
+        Extension shortDescExt = basic.getExtensionByUrl(EXT_SHORT_DESC);
         if (shortDescExt != null && shortDescExt.getValue() instanceof StringType) {
             dto.setShortDescription(((StringType) shortDescExt.getValue()).getValue());
         }
 
         // Diagnosis reporting
-        Extension diagExt = cs.getExtensionByUrl(EXT_DIAGNOSIS_REPORTING);
+        Extension diagExt = basic.getExtensionByUrl(EXT_DIAGNOSIS_REPORTING);
         if (diagExt != null && diagExt.getValue() instanceof BooleanType) {
             dto.setDiagnosisReporting(((BooleanType) diagExt.getValue()).booleanValue());
         }
 
         // Service reporting
-        Extension svcExt = cs.getExtensionByUrl(EXT_SERVICE_REPORTING);
+        Extension svcExt = basic.getExtensionByUrl(EXT_SERVICE_REPORTING);
         if (svcExt != null && svcExt.getValue() instanceof BooleanType) {
             dto.setServiceReporting(((BooleanType) svcExt.getValue()).booleanValue());
         }
 
         // Relate to
-        Extension relateExt = cs.getExtensionByUrl(EXT_RELATE_TO);
+        Extension relateExt = basic.getExtensionByUrl(EXT_RELATE_TO);
         if (relateExt != null && relateExt.getValue() instanceof StringType) {
             dto.setRelateTo(((StringType) relateExt.getValue()).getValue());
         }
 
         // Fee standard
-        Extension feeExt = cs.getExtensionByUrl(EXT_FEE_STANDARD);
+        Extension feeExt = basic.getExtensionByUrl(EXT_FEE_STANDARD);
         if (feeExt != null && feeExt.getValue() instanceof DecimalType) {
             dto.setFeeStandard(((DecimalType) feeExt.getValue()).getValue());
         }
 
-        // Active status
-        dto.setActive(cs.getStatus() != Enumerations.PublicationStatus.RETIRED);
-
-        // Audit
-        GlobalCodeDto.Audit audit = new GlobalCodeDto.Audit();
-        audit.setCreatedDate(LocalDate.now().format(DAY));
-        audit.setLastModifiedDate(LocalDate.now().format(DAY));
-        dto.setAudit(audit);
+        // Active status (default true)
+        dto.setActive(true);
+        
+        if (basic.hasMeta()) {
+            populateAudit(dto, basic.getMeta());
+        }
 
         return dto;
     }
 
-    private boolean isGlobalCodeSystem(CodeSystem cs) {
-        return cs.getIdentifier().stream()
-                .anyMatch(id -> "http://ciyex.com/fhir/codesystem-type".equals(id.getSystem()) && "global-code".equals(id.getValue()));
+    private boolean isGlobalCodeBasic(Basic basic) {
+        return basic.getCode().hasCoding() && 
+               basic.getCode().getCoding().stream()
+                       .anyMatch(coding -> "global-code".equals(coding.getCode()));
     }
 
     private void validateMandatory(GlobalCodeDto dto) {
@@ -277,5 +283,14 @@ public class GlobalCodeService {
         if (!StringUtils.hasText(dto.getCode())) {
             throw new IllegalArgumentException("code is mandatory");
         }
+    }
+    
+    private void populateAudit(GlobalCodeDto dto, Meta meta) {
+        GlobalCodeDto.Audit audit = new GlobalCodeDto.Audit();
+        if (meta.hasLastUpdated()) {
+            audit.setLastModifiedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+            audit.setCreatedDate(meta.getLastUpdated().toInstant().atOffset(ZoneOffset.UTC).toLocalDate().toString());
+        }
+        dto.setAudit(audit);
     }
 }
