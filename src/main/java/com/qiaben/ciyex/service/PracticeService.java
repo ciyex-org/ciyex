@@ -46,16 +46,25 @@ public class PracticeService {
             throw new IllegalArgumentException("Practice name is required");
         }
 
+        // Set audit fields automatically
+        PracticeDto.Audit audit = new PracticeDto.Audit();
+        String now = java.time.Instant.now().toString();
+        audit.setCreatedDate(now);
+        audit.setLastModifiedDate(now);
+        audit.setCreatedBy("system"); // Replace with user if available
+        audit.setLastModifiedBy("system"); // Replace with user if available
+        dto.setAudit(audit);
+
         log.info("Creating practice in FHIR: {}", dto.getName());
-        
+
         Organization fhirOrg = toFhirOrganization(dto);
-        
+
         MethodOutcome outcome = fhirClientService.create(fhirOrg, getPracticeId());
-        
+
         String fhirId = outcome.getId().getIdPart();
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
-        
+
         log.info("Created FHIR Organization with ID: {}", fhirId);
         return dto;
     }
@@ -82,15 +91,26 @@ public class PracticeService {
 
     public PracticeDto updateByFhirId(String fhirId, PracticeDto dto) {
         log.info("Updating FHIR Organization with ID: {}", fhirId);
-        
+
+        // Set or update audit fields automatically
+        PracticeDto.Audit audit = dto.getAudit();
+        if (audit == null) {
+            audit = new PracticeDto.Audit();
+            audit.setCreatedDate(java.time.Instant.now().toString());
+            audit.setCreatedBy("system"); // Replace with user if available
+        }
+        audit.setLastModifiedDate(java.time.Instant.now().toString());
+        audit.setLastModifiedBy("system"); // Replace with user if available
+        dto.setAudit(audit);
+
         Organization fhirOrg = toFhirOrganization(dto);
         fhirOrg.setId(fhirId);
-        
+
         fhirClientService.update(fhirOrg, getPracticeId());
-        
+
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
-        
+
         log.info("Updated FHIR Organization with ID: {}", fhirId);
         return dto;
     }
