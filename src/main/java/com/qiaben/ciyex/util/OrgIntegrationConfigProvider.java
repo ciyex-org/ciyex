@@ -203,95 +203,12 @@ public class OrgIntegrationConfigProvider {
         return cfg;
     }
 
-    public DentalExchangeConfig getDentalExchangeConfig() {
-        Map<String,String> all = loadAll();
-        boolean hasDot = all.containsKey("dentalExchange.username") || all.containsKey("dentalExchange.baseUrl");
-        boolean hasUnderscore = all.keySet().stream().anyMatch(k -> k.startsWith("dental_exchange_"));
-        if (!hasDot && !hasUnderscore) return null;
-        DentalExchangeConfig c = new DentalExchangeConfig();
-        c.setUsername(hasDot ? all.get("dentalExchange.username") : all.get("dental_exchange_username"));
-        c.setPassword(hasDot ? all.get("dentalExchange.password") : all.get("dental_exchange_password"));
-        c.setBaseUrl(hasDot ? all.get("dentalExchange.baseUrl") : all.get("dental_exchange_base_url"));
-        c.setApiKey(hasDot ? all.get("dentalExchange.apiKey") : all.get("dental_exchange_api_key"));
-        c.setEnvironment(hasDot ? all.get("dentalExchange.environment") : all.get("dental_exchange_environment"));
-        c.setDxcGroupId(hasDot ? all.get("dentalExchange.dxcGroupId") : all.get("dental_exchange_dxc_group_id"));
-        String enabled = hasDot ? all.get("dentalExchange.enabled") : all.get("dental_exchange_enabled");
-        if (enabled != null) c.setEnabled(Boolean.parseBoolean(enabled));
-        return c;
-    }
-
-    public SikkaConfig getSikkaConfig() {
-        Map<String,String> all = loadAll();
-        boolean hasDot = all.containsKey("sikka.appId") || all.containsKey("sikka.appKey");
-        boolean hasUnderscore = all.keySet().stream().anyMatch(k -> k.startsWith("sikka_"));
-        if (!hasDot && !hasUnderscore) return null;
-        SikkaConfig c = new SikkaConfig();
-        c.setAppId(hasDot ? all.get("sikka.appId") : all.get("sikka_app_id"));
-        c.setAppKey(hasDot ? all.get("sikka.appKey") : all.get("sikka_app_key"));
-        c.setRefreshKey(hasDot ? all.get("sikka.refreshKey") : all.get("sikka_refresh_key"));
-        return c;
-    }
-
-    public WenoConfig getWenoConfig() {
-        Map<String,String> all = loadAll();
-        boolean hasDot = all.containsKey("weno.userMail") || all.containsKey("weno.ezKey");
-        boolean hasUnderscore = all.keySet().stream().anyMatch(k -> k.startsWith("weno_"));
-        if (!hasDot && !hasUnderscore) return null;
-        WenoConfig c = new WenoConfig();
-        c.setUserMail(hasDot ? all.get("weno.userMail") : all.get("weno_user_mail"));
-        c.setEzKey(hasDot ? all.get("weno.ezKey") : all.get("weno_ez_key"));
-        c.setLocationId(hasDot ? all.get("weno.locationId") : all.get("weno_location_id"));
-        return c;
-    }
-
-    public GhlConfig getGhlConfig() {
-        Map<String,String> all = loadAll();
-        boolean hasDot = all.containsKey("ghl.apiKey") || all.containsKey("ghl.apiBaseUrl");
-        boolean hasUnderscore = all.keySet().stream().anyMatch(k -> k.startsWith("ghl_"));
-        if (!hasDot && !hasUnderscore) return null;
-        GhlConfig c = new GhlConfig();
-        c.setApiKey(hasDot ? all.get("ghl.apiKey") : all.get("ghl_api_key"));
-        c.setApiBaseUrl(hasDot ? all.get("ghl.apiBaseUrl") : all.get("ghl_api_base_url"));
-        c.setLocationId(hasDot ? all.get("ghl.locationId") : all.get("ghl_location_id"));
-        c.setWebhookSecret(hasDot ? all.get("ghl.webhookSecret") : all.get("ghl_webhook_secret"));
-        return c;
-    }
-
-    public RecaptchaConfig getRecaptchaConfig() {
-        Map<String,String> all = loadAll();
-        boolean hasDot = all.containsKey("recaptcha.siteKey") || all.containsKey("recaptcha.secretKey");
-        boolean hasUnderscore = all.keySet().stream().anyMatch(k -> k.startsWith("recaptcha_"));
-        if (!hasDot && !hasUnderscore) return null;
-        RecaptchaConfig c = new RecaptchaConfig();
-        c.setSiteKey(hasDot ? all.get("recaptcha.siteKey") : all.get("recaptcha_site_key"));
-        c.setSecretKey(hasDot ? all.get("recaptcha.secretKey") : all.get("recaptcha_secret_key"));
-        return c;
-    }
-
-    public GoogleOauthConfig getGoogleOauthConfig() {
-        Map<String,String> all = loadAll();
-        boolean hasDot = all.containsKey("google.oauth.clientId") || all.containsKey("google.oauth.clientSecret");
-        boolean hasUnderscore = all.keySet().stream().anyMatch(k -> k.startsWith("google_oauth_"));
-        if (!hasDot && !hasUnderscore) return null;
-        GoogleOauthConfig c = new GoogleOauthConfig();
-        c.setClientId(hasDot ? all.get("google.oauth.clientId") : all.get("google_oauth_client_id"));
-        c.setClientSecret(hasDot ? all.get("google.oauth.clientSecret") : all.get("google_oauth_client_secret"));
-        return c;
-    }
-
-    public ZuubConfig getZuubConfig() {
-        Map<String,String> all = loadAll();
-        boolean hasDot = all.containsKey("zuub.apiKey") || all.containsKey("zuub.apiUrl");
-        boolean hasUnderscore = all.keySet().stream().anyMatch(k -> k.startsWith("zuub_"));
-        if (!hasDot && !hasUnderscore) return null;
-        ZuubConfig c = new ZuubConfig();
-        c.setApiKey(hasDot ? all.get("zuub.apiKey") : all.get("zuub_api_key"));
-        c.setApiUrl(hasDot ? all.get("zuub.apiUrl") : all.get("zuub_api_url"));
-        return c;
+    public StorageConfig.S3 getS3DocumentStorage() {
+        StorageConfig cfg = getDocumentStorageConfig();
+        return cfg != null ? cfg.getS3() : null;
     }
 
     @SuppressWarnings("unchecked")
-    
     public <T> T get(IntegrationKey key) {
         return switch (key) {
             case FHIR -> (T) getFhirConfig();
@@ -306,14 +223,11 @@ public class OrgIntegrationConfigProvider {
         };
     }
 
-    // Alias for backward compatibility
     @SuppressWarnings("unchecked")
-    
     public <T> T getForCurrentTenant(IntegrationKey key) {
         return get(key);
     }
 
-    // Shortcut methods for backward compatibility
     public StripeConfig getStripeForCurrentOrg() {
         return getStripeConfig();
     }
@@ -328,12 +242,6 @@ public class OrgIntegrationConfigProvider {
 
     public StorageConfig getS3DocumentStorageForCurrentOrg() {
         return getDocumentStorageConfig();
-    }
-
-    // Return S3 config directly for DocumentService compatibility
-    public StorageConfig.S3 getS3DocumentStorage() {
-        StorageConfig cfg = getDocumentStorageConfig();
-        return cfg != null ? cfg.getS3() : null;
     }
 
     // Placeholder for IntegrationConfigController compatibility
