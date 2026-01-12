@@ -163,6 +163,7 @@ public class FhirClientService {
                 .execute();
     }
 
+
     /**
      * Extract resources from a Bundle.
      */

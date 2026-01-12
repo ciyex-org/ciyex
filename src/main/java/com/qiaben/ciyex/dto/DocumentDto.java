@@ -5,6 +5,7 @@ import lombok.Data;
 @Data
 public class DocumentDto {
     private Long id;
+    private String fhirId;  // Actual FHIR DocumentReference ID
     private Long patientId;
     private String category;
     private String type;
