@@ -44,11 +44,11 @@ public class OrgConfigController {
             log.warn("[POST] /api/orgConfig - empty body or wrong JSON shape (expected flat {\"k\":\"v\"})");
             return ResponseEntity.badRequest().body(Map.of("error", "Empty body or wrong JSON shape. Expect flat {\"key\":\"value\"}."));
         }
-        
+
         // Pre-validation: Check all keys before processing (values can be null/empty)
         for (Map.Entry<String, String> entry : configs.entrySet()) {
             String k = entry.getKey();
-            
+
             if (k == null || k.trim().isEmpty()) {
                 log.error("[POST] /api/orgConfig - validation failed: empty or null key");
                 return ResponseEntity.badRequest().body(Map.of("error", "Configuration key cannot be null or empty"));
