@@ -2,17 +2,14 @@ package com.qiaben.ciyex.dto;
 
 public enum TemplateContext {
     ENCOUNTER,
-    PATIENT,
-    PROVIDER,
-    ORGANIZATION,
-    GENERAL;
+    PORTAL;
 
     public static TemplateContext from(String value) {
-        if (value == null || value.isEmpty()) return GENERAL;
+        if (value == null || value.isEmpty()) return ENCOUNTER;
         try {
             return TemplateContext.valueOf(value.toUpperCase());
         } catch (IllegalArgumentException e) {
-            return GENERAL;
+            return ENCOUNTER;
         }
     }
 }

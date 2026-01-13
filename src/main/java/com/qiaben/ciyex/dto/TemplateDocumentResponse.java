@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.Map;
 
 public class TemplateDocumentResponse {
-    public Long id;
+    public String id;  // FHIR ID
     public TemplateContext context;
     public String name;
     public String content;

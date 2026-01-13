@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -30,7 +31,6 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class TemplateDocumentService {
 
     private final FhirClientService fhirClientService;
-    private final PracticeContextService practiceContextService;
     private final ObjectMapper objectMapper;
 
     private static final String TEMPLATE_TYPE_SYSTEM = "http://ciyex.com/fhir/document-type";
@@ -39,38 +39,34 @@ public class TemplateDocumentService {
     private static final String EXT_NAME = "http://ciyex.com/fhir/StructureDefinition/template-name";
     private static final String EXT_OPTIONS = "http://ciyex.com/fhir/StructureDefinition/template-options";
 
-    private String getPracticeId() {
-        return practiceContextService.getPracticeId();
-    }
-
     // CREATE
-    public TemplateDocumentResponse create(TemplateDocumentUpsertRequest req) {
-        log.debug("Creating FHIR DocumentReference (TemplateDocument): {}", req.name);
+    public TemplateDocumentResponse create(TemplateDocumentUpsertRequest req, String orgAlias) {
+        log.debug("Creating FHIR DocumentReference (TemplateDocument): {} for org: {}", req.name, orgAlias);
 
         DocumentReference doc = toFhirDocumentReference(req);
-        var outcome = fhirClientService.create(doc, getPracticeId());
+        var outcome = fhirClientService.create(doc, orgAlias);
         String fhirId = outcome.getId().getIdPart();
 
-        log.info("Created FHIR DocumentReference (TemplateDocument) with id={} name='{}'", fhirId, req.name);
+        log.info("Created FHIR DocumentReference (TemplateDocument) with id={} name='{}' for org: {}", fhirId, req.name, orgAlias);
         return toResponse(fhirId, req);
     }
 
     // UPDATE
-    public TemplateDocumentResponse update(String fhirId, TemplateDocumentUpsertRequest req) {
-        log.debug("Updating template document: {}", fhirId);
+    public TemplateDocumentResponse update(String fhirId, TemplateDocumentUpsertRequest req, String orgAlias) {
+        log.debug("Updating template document: {} for org: {}", fhirId, orgAlias);
 
         DocumentReference doc = toFhirDocumentReference(req);
         doc.setId(fhirId);
-        fhirClientService.update(doc, getPracticeId());
+        fhirClientService.update(doc, orgAlias);
 
-        log.info("Updated template document id={} name='{}'", fhirId, req.name);
+        log.info("Updated template document id={} name='{}' for org: {}", fhirId, req.name, orgAlias);
         return toResponse(fhirId, req);
     }
 
     // GET ONE
-    public TemplateDocumentResponse getOne(String fhirId) {
-        log.debug("Getting template document: {}", fhirId);
-        DocumentReference doc = fhirClientService.read(DocumentReference.class, fhirId, getPracticeId());
+    public TemplateDocumentResponse getOne(String fhirId, String orgAlias) {
+        log.debug("Getting template document: {} for org: {}", fhirId, orgAlias);
+        DocumentReference doc = fhirClientService.read(DocumentReference.class, fhirId, orgAlias);
         if (doc == null) {
             throw new ResponseStatusException(NOT_FOUND, "Template not found");
         }
@@ -78,29 +74,34 @@ public class TemplateDocumentService {
     }
 
     // GET ALL with optional filters
-    public List<TemplateDocumentResponse> getAll(TemplateContext context, String q) {
-        log.debug("Getting all template documents, context={}, q={}", context, q);
-        Bundle bundle = fhirClientService.search(DocumentReference.class, getPracticeId());
-
-        return fhirClientService.extractResources(bundle, DocumentReference.class).stream()
-                .filter(this::isHtmlTemplate)
-                .map(this::fromFhirDocumentReference)
-                .filter(r -> context == null || context.equals(r.context))
-                .filter(r -> q == null || q.isBlank() || (r.name != null && r.name.toLowerCase().contains(q.toLowerCase())))
-                .collect(Collectors.toList());
+    public List<TemplateDocumentResponse> getAll(TemplateContext context, String q, String orgAlias) {
+        log.debug("Getting all template documents for org: {}, context={}, q={}", orgAlias, context, q);
+        try {
+            Bundle bundle = fhirClientService.search(DocumentReference.class, orgAlias);
+            
+            return fhirClientService.extractResources(bundle, DocumentReference.class).stream()
+                    .filter(this::isHtmlTemplate)
+                    .map(this::fromFhirDocumentReference)
+                    .filter(r -> context == null || context.equals(r.context))
+                    .filter(r -> q == null || q.isBlank() || (r.name != null && r.name.toLowerCase().contains(q.toLowerCase())))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Failed to search templates: {}", e.getMessage());
+            return new ArrayList<>();
+        }
     }
 
     // DELETE
-    public void delete(String fhirId) {
-        log.debug("Deleting template document: {}", fhirId);
-        fhirClientService.delete(DocumentReference.class, fhirId, getPracticeId());
-        log.info("Deleted template document id={}", fhirId);
+    public void delete(String fhirId, String orgAlias) {
+        log.debug("Deleting template document: {} for org: {}", fhirId, orgAlias);
+        fhirClientService.delete(DocumentReference.class, fhirId, orgAlias);
+        log.info("Deleted template document id={} for org: {}", fhirId, orgAlias);
     }
 
     // GET HTML RAW
-    public String getHtmlRaw(String fhirId) {
-        log.debug("Getting raw HTML for template: {}", fhirId);
-        DocumentReference doc = fhirClientService.read(DocumentReference.class, fhirId, getPracticeId());
+    public String getHtmlRaw(String fhirId, String orgAlias) {
+        log.debug("Getting raw HTML for template: {} for org: {}", fhirId, orgAlias);
+        DocumentReference doc = fhirClientService.read(DocumentReference.class, fhirId, orgAlias);
         if (doc == null) {
             throw new ResponseStatusException(NOT_FOUND, "Template not found");
         }
@@ -162,8 +163,7 @@ public class TemplateDocumentService {
     private TemplateDocumentResponse fromFhirDocumentReference(DocumentReference doc) {
         TemplateDocumentResponse r = new TemplateDocumentResponse();
 
-        String fhirId = doc.getIdElement().getIdPart();
-        r.id = (long) Math.abs(fhirId.hashCode());
+        r.id = doc.getIdElement().getIdPart();
 
         // Context
         Extension contextExt = doc.getExtensionByUrl(EXT_CONTEXT);
@@ -209,7 +209,7 @@ public class TemplateDocumentService {
 
     private TemplateDocumentResponse toResponse(String fhirId, TemplateDocumentUpsertRequest req) {
         TemplateDocumentResponse r = new TemplateDocumentResponse();
-        r.id = (long) Math.abs(fhirId.hashCode());
+        r.id = fhirId;
         r.context = req.context;
         r.name = req.name;
         r.content = req.content;
