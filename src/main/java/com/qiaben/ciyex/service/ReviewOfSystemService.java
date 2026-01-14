@@ -173,7 +173,7 @@ public class ReviewOfSystemService {
     }
 
     // ✅ Delete ROS
-    public void delete(Long patientId, Long encounterId, Long id) {
+    public String delete(Long patientId, Long encounterId, Long id) {
         validatePathVariable(patientId, "Patient ID");
         validatePathVariable(encounterId, "Encounter ID");
         validatePathVariable(id, "Review of System ID");
@@ -195,6 +195,8 @@ public class ReviewOfSystemService {
 
         fhirClientService.delete(Observation.class, fhirId, getPracticeId());
         signMetadataCache.remove(fhirId);
+        
+        return "Review of System deleted successfully";
     }
 
     // ✅ eSign ROS

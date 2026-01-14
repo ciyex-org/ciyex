@@ -186,6 +186,17 @@ public class FhirClientService {
     }
 
     /**
+     * Load next page of results from a Bundle link.
+     */
+    public Bundle loadPage(String url, String orgAlias) {
+        log.debug("Loading next page from URL: {}", url);
+        return getClientForPartition(orgAlias).loadPage()
+                .byUrl(url)
+                .andReturnBundle(Bundle.class)
+                .execute();
+    }
+
+    /**
      * Get the FHIR client for a specific partition (org alias).
      * Use this for advanced operations.
      */

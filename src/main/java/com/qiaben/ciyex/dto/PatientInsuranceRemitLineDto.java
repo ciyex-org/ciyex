@@ -4,6 +4,9 @@ import java.math.BigDecimal;
 
 public record PatientInsuranceRemitLineDto(
         Long id,
+        Long patientId,
+        Long invoiceId,
+        Long insuranceId,
         Long invoiceLineId,
         BigDecimal submitted,
         BigDecimal balance,
@@ -13,5 +16,7 @@ public record PatientInsuranceRemitLineDto(
         BigDecimal insPay,
         Boolean updateAllowed,
         Boolean updateFlatPortion,
-        Boolean applyWriteoff
+        Boolean applyWriteoff,
+        String chequeNumber,
+        String bankBranch
 ) {}

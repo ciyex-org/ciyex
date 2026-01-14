@@ -119,8 +119,25 @@ public class PatientDepositService {
         log.debug("Getting all deposits for patient {}", patientId);
         getPatientOrThrow(patientId);
 
+        List<Observation> allObs = new java.util.ArrayList<>();
         Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
-        return fhirClientService.extractResources(bundle, Observation.class).stream()
+        
+        while (bundle != null) {
+            List<Observation> pageObs = fhirClientService.extractResources(bundle, Observation.class);
+            allObs.addAll(pageObs);
+            
+            String nextLink = bundle.getLink(Bundle.LINK_NEXT) != null 
+                ? bundle.getLink(Bundle.LINK_NEXT).getUrl() 
+                : null;
+            
+            if (nextLink != null) {
+                bundle = fhirClientService.loadPage(nextLink, getPracticeId());
+            } else {
+                break;
+            }
+        }
+        
+        return allObs.stream()
                 .filter(obs -> isPatientDeposit(obs)
                         && patientId.equals(getPatientIdFromObservation(obs))
                         && "PATIENT_DEPOSIT".equals(getDepositTypeFromObservation(obs)))
@@ -301,8 +318,25 @@ public class PatientDepositService {
         log.debug("Getting all insurance deposits for patient {}", patientId);
         getPatientOrThrow(patientId);
 
+        List<Observation> allObs = new java.util.ArrayList<>();
         Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
-        return fhirClientService.extractResources(bundle, Observation.class).stream()
+        
+        while (bundle != null) {
+            List<Observation> pageObs = fhirClientService.extractResources(bundle, Observation.class);
+            allObs.addAll(pageObs);
+            
+            String nextLink = bundle.getLink(Bundle.LINK_NEXT) != null 
+                ? bundle.getLink(Bundle.LINK_NEXT).getUrl() 
+                : null;
+            
+            if (nextLink != null) {
+                bundle = fhirClientService.loadPage(nextLink, getPracticeId());
+            } else {
+                break;
+            }
+        }
+        
+        return allObs.stream()
                 .filter(obs -> isInsuranceDeposit(obs)
                         && patientId.equals(getPatientIdFromObservation(obs))
                         && "INSURANCE_DEPOSIT".equals(getDepositTypeFromObservation(obs)))
@@ -456,12 +490,25 @@ public class PatientDepositService {
         log.debug("Getting courtesy credits for invoice {} and patient {}", invoiceId, patientId);
         getPatientOrThrow(patientId);
 
-        // Verify invoice exists
-        invoiceService.getPatientInvoice(patientId, invoiceId);
-
-        // Get all courtesy credits for this invoice
+        List<Observation> allObs = new java.util.ArrayList<>();
         Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
-        List<InvoiceCourtesyCreditDto> credits = fhirClientService.extractResources(bundle, Observation.class).stream()
+        
+        while (bundle != null) {
+            List<Observation> pageObs = fhirClientService.extractResources(bundle, Observation.class);
+            allObs.addAll(pageObs);
+            
+            String nextLink = bundle.getLink(Bundle.LINK_NEXT) != null 
+                ? bundle.getLink(Bundle.LINK_NEXT).getUrl() 
+                : null;
+            
+            if (nextLink != null) {
+                bundle = fhirClientService.loadPage(nextLink, getPracticeId());
+            } else {
+                break;
+            }
+        }
+        
+        List<InvoiceCourtesyCreditDto> credits = allObs.stream()
                 .filter(obs -> isCourtesyCredit(obs)
                         && patientId.equals(getPatientIdFromObservation(obs))
                         && invoiceId.equals(getLongExtValue(obs, EXT_INVOICE_ID))
@@ -481,16 +528,15 @@ public class PatientDepositService {
         log.debug("Updating courtesy credit on invoice {} for patient {}", invoiceId, patientId);
         getPatientOrThrow(patientId);
 
-        // Find the active courtesy credit for this invoice
+        // Find any courtesy credit for this invoice
         Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
         Observation courtesyObs = fhirClientService.extractResources(bundle, Observation.class).stream()
                 .filter(obs -> isCourtesyCredit(obs)
                         && patientId.equals(getPatientIdFromObservation(obs))
                         && invoiceId.equals(getLongExtValue(obs, EXT_INVOICE_ID))
-                        && "COURTESY_CREDIT".equals(getDepositTypeFromObservation(obs))
-                        && getBooleanExt(obs, EXT_IS_ACTIVE))
+                        && "COURTESY_CREDIT".equals(getDepositTypeFromObservation(obs)))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("No active courtesy credit found for invoice " + invoiceId));
+                .orElseThrow(() -> new IllegalArgumentException("No courtesy credit found for invoice " + invoiceId));
 
         BigDecimal oldCreditAmount = getDecimalExt(courtesyObs, EXT_DEPOSIT_AMOUNT);
         BigDecimal newCreditAmount = request.amount() != null ? request.amount() : BigDecimal.ZERO;
@@ -519,16 +565,15 @@ public class PatientDepositService {
         log.debug("Removing courtesy credit from invoice {} for patient {}", invoiceId, patientId);
         getPatientOrThrow(patientId);
 
-        // Find the active courtesy credit
+        // Find any courtesy credit for this invoice
         Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
         Observation courtesyObs = fhirClientService.extractResources(bundle, Observation.class).stream()
                 .filter(obs -> isCourtesyCredit(obs)
                         && patientId.equals(getPatientIdFromObservation(obs))
                         && invoiceId.equals(getLongExtValue(obs, EXT_INVOICE_ID))
-                        && "COURTESY_CREDIT".equals(getDepositTypeFromObservation(obs))
-                        && getBooleanExt(obs, EXT_IS_ACTIVE))
+                        && "COURTESY_CREDIT".equals(getDepositTypeFromObservation(obs)))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("No active courtesy credit found for invoice " + invoiceId));
+                .orElseThrow(() -> new IllegalArgumentException("No courtesy credit found for invoice " + invoiceId));
 
         BigDecimal creditAmountToRemove = getDecimalExt(courtesyObs, EXT_DEPOSIT_AMOUNT);
 
@@ -549,8 +594,15 @@ public class PatientDepositService {
      * Convert FHIR Observation to PatientDepositDto
      */
     private PatientDepositDto fromFhirObservation(Observation obs) {
+        String fhirId = obs.getIdElement().getIdPart();
+        Long id;
+        try {
+            id = Long.parseLong(fhirId);
+        } catch (NumberFormatException e) {
+            id = Long.valueOf(Math.abs(fhirId.hashCode()));
+        }
         return new PatientDepositDto(
-                Long.parseLong(obs.getIdElement().getIdPart()),
+                id,
                 getPatientIdFromObservation(obs),
                 getDecimalExt(obs, EXT_DEPOSIT_AMOUNT),
                 LocalDate.parse(optStringExt(obs, EXT_DEPOSIT_DATE), DATE_FORMATTER),
@@ -563,8 +615,15 @@ public class PatientDepositService {
      * Convert FHIR Observation to InsuranceDepositDto
      */
     private InsuranceDepositDto fromFhirObservationInsurance(Observation obs) {
+        String fhirId = obs.getIdElement().getIdPart();
+        Long id;
+        try {
+            id = Long.parseLong(fhirId);
+        } catch (NumberFormatException e) {
+            id = Long.valueOf(Math.abs(fhirId.hashCode()));
+        }
         return new InsuranceDepositDto(
-                Long.parseLong(obs.getIdElement().getIdPart()),
+                id,
                 getPatientIdFromObservation(obs),
                 getLongExtValue(obs, EXT_POLICY_ID),
                 getDecimalExt(obs, EXT_DEPOSIT_AMOUNT),
@@ -579,8 +638,15 @@ public class PatientDepositService {
      * Convert FHIR Observation to InvoiceCourtesyCreditDto
      */
     private InvoiceCourtesyCreditDto fromFhirObservationCourtesyCredit(Observation obs) {
+        String fhirId = obs.getIdElement().getIdPart();
+        Long id;
+        try {
+            id = Long.parseLong(fhirId);
+        } catch (NumberFormatException e) {
+            id = Long.valueOf(Math.abs(fhirId.hashCode()));
+        }
         return new InvoiceCourtesyCreditDto(
-                Long.parseLong(obs.getIdElement().getIdPart()),
+                id,
                 getPatientIdFromObservation(obs),
                 getLongExtValue(obs, EXT_INVOICE_ID),
                 optStringExt(obs, EXT_ADJUSTMENT_TYPE),

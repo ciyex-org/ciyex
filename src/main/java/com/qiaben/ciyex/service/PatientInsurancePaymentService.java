@@ -99,12 +99,69 @@ public class PatientInsurancePaymentService {
      */
     public List<PatientInsuranceRemitLineDto> listInsurancePayments(Long patientId, Long invoiceId, Long claimId, Long insuranceId) {
         log.debug("Listing insurance payments for patient {} invoice {}", patientId, invoiceId);
+        
+        List<Observation> allObs = new ArrayList<>();
         Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
-        return fhirClientService.extractResources(bundle, Observation.class).stream()
+        
+        // Handle pagination
+        while (bundle != null) {
+            List<Observation> pageObs = fhirClientService.extractResources(bundle, Observation.class);
+            allObs.addAll(pageObs);
+            
+            String nextLink = bundle.getLink(Bundle.LINK_NEXT) != null 
+                ? bundle.getLink(Bundle.LINK_NEXT).getUrl() 
+                : null;
+            
+            if (nextLink != null) {
+                bundle = fhirClientService.loadPage(nextLink, getPracticeId());
+            } else {
+                break;
+            }
+        }
+        
+        log.info("Total observations loaded: {}, filtering for remit records", allObs.size());
+        
+        return allObs.stream()
+                .filter(this::isRemitObservation)
                 .filter(obs -> patientId == null || patientId.equals(getPatientIdFromObs(obs)))
                 .filter(obs -> invoiceId == null || invoiceId.equals(getInvoiceIdFromObs(obs)))
-                .filter(this::isRemitObservation)
                 .map(this::toRemitDto)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * List insurance payments with line details included.
+     */
+    public List<PatientInsuranceRemitWithLinesDto> listInsurancePaymentsWithLines(Long patientId, Long invoiceId, Long claimId, Long insuranceId) {
+        log.debug("Listing insurance payments with lines for patient {} invoice {}", patientId, invoiceId);
+        
+        List<Observation> allObs = new ArrayList<>();
+        Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
+        
+        // Handle pagination
+        while (bundle != null) {
+            List<Observation> pageObs = fhirClientService.extractResources(bundle, Observation.class);
+            allObs.addAll(pageObs);
+            
+            String nextLink = bundle.getLink(Bundle.LINK_NEXT) != null 
+                ? bundle.getLink(Bundle.LINK_NEXT).getUrl() 
+                : null;
+            
+            if (nextLink != null) {
+                bundle = fhirClientService.loadPage(nextLink, getPracticeId());
+            } else {
+                break;
+            }
+        }
+        
+        log.info("Total observations loaded: {}, filtering for remit records with lines", allObs.size());
+        
+        return allObs.stream()
+                .filter(this::isRemitObservation)
+                .filter(obs -> patientId == null || patientId.equals(getPatientIdFromObs(obs)))
+                .filter(obs -> invoiceId == null || invoiceId.equals(getInvoiceIdFromObs(obs)))
+                .map(this::toRemitDtoWithLines)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
@@ -212,7 +269,7 @@ public class PatientInsurancePaymentService {
             line.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/line-ins-writeoff", new DecimalType(appliedWO)));
 
             line.getExtension().removeIf(e -> "http://ciyex.com/fhir/StructureDefinition/line-ins-portion".equals(e.getUrl()));
-            line.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/line-ins-portion", new DecimalType(BigDecimal.ZERO)));
+            line.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/line-ins-portion", new DecimalType(insPay)));
 
             line.getExtension().removeIf(e -> "http://ciyex.com/fhir/StructureDefinition/line-pt-portion".equals(e.getUrl()));
             line.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/line-pt-portion", new DecimalType(ptResp)));
@@ -378,7 +435,7 @@ public class PatientInsurancePaymentService {
             line.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/line-ins-writeoff", new DecimalType(insWO)));
 
             line.getExtension().removeIf(e -> "http://ciyex.com/fhir/StructureDefinition/line-ins-portion".equals(e.getUrl()));
-            line.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/line-ins-portion", new DecimalType(BigDecimal.ZERO)));
+            line.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/line-ins-portion", new DecimalType(insPay)));
 
             line.getExtension().removeIf(e -> "http://ciyex.com/fhir/StructureDefinition/line-pt-portion".equals(e.getUrl()));
             line.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/line-pt-portion", new DecimalType(ptResp)));
@@ -973,7 +1030,6 @@ public class PatientInsurancePaymentService {
      */
     private PatientInsuranceRemitLineDto toRemitDto(Observation obs) {
         try {
-            // Get remit ID from FHIR resource ID
             String fhirId = obs.getIdElement().getIdPart();
             Long id;
             try {
@@ -982,33 +1038,130 @@ public class PatientInsurancePaymentService {
                 id = Long.valueOf(Math.abs(fhirId.hashCode()));
             }
 
-            // Get totals from remit-level extensions
-            BigDecimal submitted = getDecimalExt(obs, EXT_REMIT_SUBMITTED);
-            BigDecimal balance = getDecimalExt(obs, EXT_REMIT_BALANCE);
-            BigDecimal deductible = getDecimalExt(obs, EXT_REMIT_DEDUCTIBLE);
-            BigDecimal allowed = getDecimalExt(obs, EXT_REMIT_ALLOWED);
-            BigDecimal insWriteOff = getDecimalExt(obs, EXT_REMIT_INS_WRITEOFF);
-            BigDecimal insPay = getDecimalExt(obs, EXT_REMIT_INS_PAY);
-            
-            // For backward compatibility, if no components, use old single-line format
+            Long patientId = getPatientIdFromObs(obs);
+            Long invoiceId = getInvoiceIdFromObs(obs);
+            Long insuranceId = null; // Can be added if stored in extensions
+
             Long invoiceLineId = null;
-            if (obs.getComponent() == null || obs.getComponent().isEmpty()) {
-                Extension lineExt = obs.getExtensionByUrl(EXT_LINE_ID);
+            if (obs.getComponent() != null && !obs.getComponent().isEmpty()) {
+                Extension lineExt = obs.getComponentFirstRep().getExtensionByUrl(EXT_LINE_ID);
                 if (lineExt != null && lineExt.getValue() instanceof IntegerType it) {
                     invoiceLineId = it.getValue().longValue();
                 }
             }
-            
-            Boolean updateAllowed = getBooleanExtension(obs, EXT_UPDATE_ALLOWED);
-            Boolean updateFlatPortion = getBooleanExtension(obs, EXT_UPDATE_FLAT_PORTION);
-            Boolean applyWriteoff = getBooleanExtension(obs, EXT_APPLY_WRITEOFF);
 
-            return new PatientInsuranceRemitLineDto(id, invoiceLineId, submitted, balance, deductible, 
-                    allowed, insWriteOff, insPay, updateAllowed, updateFlatPortion, applyWriteoff);
+            String chequeNumber = optStringExt(obs, "http://ciyex.com/fhir/StructureDefinition/cheque-number");
+            String bankBranch = optStringExt(obs, "http://ciyex.com/fhir/StructureDefinition/bank-branch");
+
+            return new PatientInsuranceRemitLineDto(
+                    id,
+                    patientId,
+                    invoiceId,
+                    insuranceId,
+                    invoiceLineId,
+                    getDecimalExt(obs, EXT_REMIT_SUBMITTED),
+                    getDecimalExt(obs, EXT_REMIT_BALANCE),
+                    getDecimalExt(obs, EXT_REMIT_DEDUCTIBLE),
+                    getDecimalExt(obs, EXT_REMIT_ALLOWED),
+                    getDecimalExt(obs, EXT_REMIT_INS_WRITEOFF),
+                    getDecimalExt(obs, EXT_REMIT_INS_PAY),
+                    getBooleanExtension(obs, EXT_UPDATE_ALLOWED),
+                    getBooleanExtension(obs, EXT_UPDATE_FLAT_PORTION),
+                    getBooleanExtension(obs, EXT_APPLY_WRITEOFF),
+                    chequeNumber,
+                    bankBranch
+            );
         } catch (Exception e) {
             log.warn("Error converting observation to remit DTO: {}", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Convert FHIR Observation to PatientInsuranceRemitWithLinesDto with all line details.
+     */
+    private PatientInsuranceRemitWithLinesDto toRemitDtoWithLines(Observation obs) {
+        try {
+            String fhirId = obs.getIdElement().getIdPart();
+            Long id;
+            try {
+                id = Long.parseLong(fhirId);
+            } catch (NumberFormatException e) {
+                id = Long.valueOf(Math.abs(fhirId.hashCode()));
+            }
+
+            Long patientId = getPatientIdFromObs(obs);
+            Long invoiceId = getInvoiceIdFromObs(obs);
+            Long insuranceId = null;
+
+            String chequeNumber = optStringExt(obs, "http://ciyex.com/fhir/StructureDefinition/cheque-number");
+            String bankBranch = optStringExt(obs, "http://ciyex.com/fhir/StructureDefinition/bank-branch");
+
+            // Extract all line components
+            List<PatientInsuranceRemitWithLinesDto.RemitLineDetail> lines = new ArrayList<>();
+            if (obs.getComponent() != null) {
+                for (Observation.ObservationComponentComponent comp : obs.getComponent()) {
+                    Extension lineIdExt = comp.getExtensionByUrl(EXT_LINE_ID);
+                    Long lineId = null;
+                    if (lineIdExt != null && lineIdExt.getValue() instanceof IntegerType it) {
+                        lineId = it.getValue().longValue();
+                    }
+
+                    BigDecimal submitted = getComponentDecimalFromExt(comp, EXT_REMIT_SUBMITTED);
+                    BigDecimal allowed = getComponentDecimalFromExt(comp, EXT_REMIT_ALLOWED);
+                    BigDecimal insWriteOff = getComponentDecimalFromExt(comp, EXT_REMIT_INS_WRITEOFF);
+                    BigDecimal insPay = getComponentDecimalFromExt(comp, EXT_REMIT_INS_PAY);
+                    BigDecimal balance = getComponentDecimalFromExt(comp, EXT_REMIT_BALANCE);
+                    BigDecimal deductible = getComponentDecimalFromExt(comp, EXT_REMIT_DEDUCTIBLE);
+
+                    Boolean updateAllowed = getComponentBooleanFromExt(comp, EXT_UPDATE_ALLOWED);
+                    Boolean updateFlatPortion = getComponentBooleanFromExt(comp, EXT_UPDATE_FLAT_PORTION);
+                    Boolean applyWriteoff = getComponentBooleanFromExt(comp, EXT_APPLY_WRITEOFF);
+
+                    lines.add(new PatientInsuranceRemitWithLinesDto.RemitLineDetail(
+                            lineId, submitted, allowed, insWriteOff, insPay, balance, deductible,
+                            updateAllowed, updateFlatPortion, applyWriteoff
+                    ));
+                }
+            }
+
+            return new PatientInsuranceRemitWithLinesDto(
+                    id,
+                    patientId,
+                    invoiceId,
+                    insuranceId,
+                    getDecimalExt(obs, EXT_REMIT_SUBMITTED),
+                    getDecimalExt(obs, EXT_REMIT_BALANCE),
+                    getDecimalExt(obs, EXT_REMIT_DEDUCTIBLE),
+                    getDecimalExt(obs, EXT_REMIT_ALLOWED),
+                    getDecimalExt(obs, EXT_REMIT_INS_WRITEOFF),
+                    getDecimalExt(obs, EXT_REMIT_INS_PAY),
+                    chequeNumber,
+                    bankBranch,
+                    lines
+            );
+        } catch (Exception e) {
+            log.warn("Error converting observation to remit DTO with lines: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private BigDecimal getComponentDecimalFromExt(Observation.ObservationComponentComponent comp, String url) {
+        if (comp == null) return BigDecimal.ZERO;
+        Extension ext = comp.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof DecimalType dt) {
+            return dt.getValue();
+        }
+        return BigDecimal.ZERO;
+    }
+
+    private Boolean getComponentBooleanFromExt(Observation.ObservationComponentComponent comp, String url) {
+        if (comp == null) return null;
+        Extension ext = comp.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof BooleanType bt) {
+            return bt.getValue();
+        }
+        return null;
     }
 
     /**
