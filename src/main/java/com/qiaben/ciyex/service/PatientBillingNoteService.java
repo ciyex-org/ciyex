@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -51,19 +52,52 @@ public class PatientBillingNoteService {
         // Verify invoice exists and belongs to patient
         getInvoiceOrThrow(patientId, invoiceId);
 
+        List<Observation> allObs = new ArrayList<>();
         Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
-        return fhirClientService.extractResources(bundle, Observation.class).stream()
-                .filter(obs -> isBillingNote(obs)
-                        && patientId.equals(getPatientIdFromNote(obs))
-                        && invoiceId.equals(getInvoiceIdFromNote(obs))
-                        && "INVOICE".equals(getTargetTypeFromNote(obs)))
+        
+        // Handle pagination
+        while (bundle != null) {
+            List<Observation> pageObs = fhirClientService.extractResources(bundle, Observation.class);
+            allObs.addAll(pageObs);
+            
+            String nextLink = bundle.getLink(Bundle.LINK_NEXT) != null 
+                ? bundle.getLink(Bundle.LINK_NEXT).getUrl() 
+                : null;
+            
+            if (nextLink != null) {
+                bundle = fhirClientService.loadPage(nextLink, getPracticeId());
+            } else {
+                break;
+            }
+        }
+        
+        log.info("Total observations loaded: {}, filtering for patient {} invoice {}", 
+            allObs.size(), patientId, invoiceId);
+        
+        return allObs.stream()
+                .filter(obs -> {
+                    boolean isBilling = isBillingNote(obs);
+                    Long pid = getPatientIdFromNote(obs);
+                    Long iid = getInvoiceIdFromNote(obs);
+                    String targetType = getTargetTypeFromNote(obs);
+                    
+                    boolean matches = isBilling && patientId.equals(pid) && 
+                                    invoiceId.equals(iid) && "INVOICE".equals(targetType);
+                    
+                    if (isBilling) {
+                        log.debug("Note {}: patientId={}, invoiceId={}, targetType={}, matches={}",
+                            obs.getIdElement().getIdPart(), pid, iid, targetType, matches);
+                    }
+                    
+                    return matches;
+                })
                 .sorted((a, b) -> {
                     Date da = a.getIssued();
                     Date db = b.getIssued();
                     if (da == null && db == null) return 0;
                     if (da == null) return 1;
                     if (db == null) return -1;
-                    return da.compareTo(db);
+                    return db.compareTo(da); // Newest first
                 })
                 .map(this::fromFhirObservation)
                 .collect(Collectors.toList());
@@ -206,22 +240,16 @@ public class PatientBillingNoteService {
     private PatientBillingNoteDto fromFhirObservation(Observation obs) {
         PatientBillingNoteDto dto = new PatientBillingNoteDto();
 
-        // ID from FHIR resource ID
         String fhirId = obs.getIdElement().getIdPart();
         try {
             dto.id = Long.parseLong(fhirId);
         } catch (NumberFormatException e) {
-            // If FHIR ID is not numeric, use hash code
-            dto.id = (long) Math.abs(fhirId.hashCode());
+            dto.id = Long.valueOf(Math.abs(fhirId.hashCode()));
         }
 
-        // Patient ID from extension
         dto.patientId = getPatientIdFromNote(obs);
-
-        // Invoice ID from extension
         dto.invoiceId = getInvoiceIdFromNote(obs);
 
-        // Target type from extension
         String targetTypeStr = getTargetTypeFromNote(obs);
         try {
             dto.type = NoteTargetType.valueOf(targetTypeStr != null ? targetTypeStr : "INVOICE");
@@ -229,21 +257,17 @@ public class PatientBillingNoteService {
             dto.type = NoteTargetType.INVOICE;
         }
 
-        // Target ID from extension
         Long targetId = getLongExtValue(obs, EXT_TARGET_ID);
         if (targetId != null) {
             dto.targetId = targetId;
         }
 
-        // Note text from FHIR note component
         if (obs.hasNote() && !obs.getNote().isEmpty()) {
             dto.text = obs.getNoteFirstRep().getText();
         }
 
-        // Created by from extension
         dto.createdBy = optStringExt(obs, EXT_CREATED_BY);
 
-        // Created at from issued timestamp
         Date issued = obs.getIssued();
         if (issued != null) {
             dto.createdAt = OffsetDateTime.ofInstant(issued.toInstant(), ZoneOffset.UTC);
@@ -322,7 +346,14 @@ public class PatientBillingNoteService {
      */
     private Long getLongExtValue(Observation obs, String url) {
         String val = optStringExt(obs, url);
-        return val != null && !val.isEmpty() ? Long.parseLong(val) : null;
+        if (val != null && !val.isEmpty()) {
+            try {
+                return Long.parseLong(val);
+            } catch (NumberFormatException e) {
+                log.warn("Failed to parse Long from extension {}: {}", url, val);
+            }
+        }
+        return null;
     }
 
     /**
@@ -332,7 +363,12 @@ public class PatientBillingNoteService {
         return obs.getExtension().stream()
                 .filter(e -> url.equals(e.getUrl()))
                 .findFirst()
-                .map(e -> ((StringType) e.getValue()).getValue())
-                .orElse("");
+                .map(e -> {
+                    if (e.getValue() instanceof StringType) {
+                        return ((StringType) e.getValue()).getValue();
+                    }
+                    return e.getValue() != null ? e.getValue().toString() : null;
+                })
+                .orElse(null);
     }
 }

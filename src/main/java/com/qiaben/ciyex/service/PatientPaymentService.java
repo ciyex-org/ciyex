@@ -66,10 +66,31 @@ public class PatientPaymentService {
      */
     public List<PatientPatientPaymentAllocationDto> getAllPatientPayments(Long patientId) {
         log.debug("Getting all patient payments for patient {}", patientId);
+        
+        List<Observation> allObs = new ArrayList<>();
         Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
-        return fhirClientService.extractResources(bundle, Observation.class).stream()
-                .filter(obs -> patientId.equals(getPatientIdFromObs(obs)))
+        
+        // Handle pagination
+        while (bundle != null) {
+            List<Observation> pageObs = fhirClientService.extractResources(bundle, Observation.class);
+            allObs.addAll(pageObs);
+            
+            String nextLink = bundle.getLink(Bundle.LINK_NEXT) != null 
+                ? bundle.getLink(Bundle.LINK_NEXT).getUrl() 
+                : null;
+            
+            if (nextLink != null) {
+                bundle = fhirClientService.loadPage(nextLink, getPracticeId());
+            } else {
+                break;
+            }
+        }
+        
+        log.info("Total observations loaded: {}, filtering for patient {} payments", allObs.size(), patientId);
+        
+        return allObs.stream()
                 .filter(this::isPatientPaymentObservation)
+                .filter(obs -> patientId.equals(getPatientIdFromObs(obs)))
                 .flatMap(this::extractAllocations)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -80,11 +101,33 @@ public class PatientPaymentService {
      */
     public List<PatientPatientPaymentAllocationDto> getPatientPaymentsByInvoice(Long patientId, Long invoiceId) {
         log.debug("Getting patient payments for patient {} invoice {}", patientId, invoiceId);
+        
+        List<Observation> allObs = new ArrayList<>();
         Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
-        return fhirClientService.extractResources(bundle, Observation.class).stream()
+        
+        // Handle pagination
+        while (bundle != null) {
+            List<Observation> pageObs = fhirClientService.extractResources(bundle, Observation.class);
+            allObs.addAll(pageObs);
+            
+            String nextLink = bundle.getLink(Bundle.LINK_NEXT) != null 
+                ? bundle.getLink(Bundle.LINK_NEXT).getUrl() 
+                : null;
+            
+            if (nextLink != null) {
+                bundle = fhirClientService.loadPage(nextLink, getPracticeId());
+            } else {
+                break;
+            }
+        }
+        
+        log.info("Total observations loaded: {}, filtering for patient {} invoice {} payments", 
+            allObs.size(), patientId, invoiceId);
+        
+        return allObs.stream()
+                .filter(this::isPatientPaymentObservation)
                 .filter(obs -> patientId.equals(getPatientIdFromObs(obs)))
                 .filter(obs -> invoiceId.equals(getInvoiceIdFromObs(obs)))
-                .filter(this::isPatientPaymentObservation)
                 .flatMap(this::extractAllocations)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -406,7 +449,7 @@ public class PatientPaymentService {
     }
 
     /**
-     * REFUND patient → add to patient account credit.
+     * REFUND patient �+' add to patient account credit.
      */
     public PatientInvoiceDto refundPatientPayment(Long patientId, Long invoiceId, Long paymentId, RefundRequest req) {
         // Verify invoice exists
@@ -835,11 +878,15 @@ public class PatientPaymentService {
     /**
      * Convert FHIR Observation to PatientInvoiceDto.
      */
+    
+
     private PatientInvoiceDto fromFhirObservation(Observation obs, Long patientId) {
         List<PatientInvoiceLineDto> lines = new ArrayList<>();
         if (obs.getComponent() != null) {
+            int index = 0;
             for (Observation.ObservationComponentComponent comp : obs.getComponent()) {
                 Long lineId = extractLineId(comp);
+                if (lineId == null) lineId = (long) index;
                 String dosStr = getComponentString(comp, "http://ciyex.com/fhir/StructureDefinition/line-dos");
                 LocalDate dos = dosStr != null ? LocalDate.parse(dosStr) : LocalDate.now();
                 String code = getComponentString(comp, "http://ciyex.com/fhir/StructureDefinition/line-code");
@@ -850,8 +897,8 @@ public class PatientPaymentService {
                 BigDecimal insWO = getComponentDecimal(comp, "http://ciyex.com/fhir/StructureDefinition/line-ins-writeoff");
                 BigDecimal insPortion = getComponentDecimal(comp, "http://ciyex.com/fhir/StructureDefinition/line-ins-portion");
                 BigDecimal ptPortion = getComponentDecimal(comp, "http://ciyex.com/fhir/StructureDefinition/line-pt-portion");
-
                 lines.add(new PatientInvoiceLineDto(lineId, dos, code, treatment, provider, charge, allowed, insWO, insPortion, ptPortion));
+                index++;
             }
         }
 
@@ -864,6 +911,7 @@ public class PatientPaymentService {
                 status = PatientInvoiceStatus.OPEN;
             }
         }
+
         BigDecimal insWO = getInvoiceExtDecimal(obs, "http://ciyex.com/fhir/StructureDefinition/ins-writeoff");
         BigDecimal appliedWO = BigDecimal.ZERO;
         BigDecimal ptBalance = getInvoiceExtDecimal(obs, "http://ciyex.com/fhir/StructureDefinition/pt-balance");
@@ -871,16 +919,24 @@ public class PatientPaymentService {
         BigDecimal totalCharge = getInvoiceExtDecimal(obs, "http://ciyex.com/fhir/StructureDefinition/total-charge");
 
         String fhirId = obs.getIdElement().getIdPart();
-        Long invoiceId = null;
-        try { invoiceId = Long.parseLong(fhirId); } catch (Exception ex) { invoiceId = Long.valueOf(Math.abs(fhirId.hashCode())); }
+        Long invoiceId;
+        try {
+            invoiceId = Long.parseLong(fhirId);
+        } catch (NumberFormatException e) {
+            invoiceId = Long.valueOf(Math.abs(fhirId.hashCode()));
+        }
 
-        // invoice date
         String invDateStr = optStringExt(obs, "http://ciyex.com/fhir/StructureDefinition/invoice-date");
         java.time.LocalDateTime invoiceDate = null;
         if (invDateStr != null && !invDateStr.isEmpty()) {
-            try { invoiceDate = java.time.LocalDateTime.parse(invDateStr); }
-            catch (Exception e) {
-                try { invoiceDate = java.time.LocalDate.parse(invDateStr).atStartOfDay(); } catch (Exception ex) { invoiceDate = null; }
+            try {
+                invoiceDate = java.time.LocalDateTime.parse(invDateStr);
+            } catch (Exception e) {
+                try {
+                    invoiceDate = java.time.LocalDate.parse(invDateStr).atStartOfDay();
+                } catch (Exception ex) {
+                    invoiceDate = null;
+                }
             }
         }
 

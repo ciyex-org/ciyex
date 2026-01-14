@@ -110,24 +110,43 @@ public class PatientClaimService {
     /**
      * Promote claim from DRAFT to IN_PROCESS status
      * Fetches and populates coverage data from patient's most recent coverage
+     * Auto-creates claim if it doesn't exist
      */
     public PatientClaimDto promoteClaim(Long patientId, Long invoiceId) {
-        Claim claim = getClaimOrThrow(patientId, invoiceId);
+        Claim claim;
+        try {
+            claim = getClaimOrThrow(patientId, invoiceId);
+        } catch (IllegalArgumentException e) {
+            log.warn("Claim not found for invoice {}, creating new draft claim", invoiceId);
+            claim = createDraftClaim(patientId, invoiceId);
+        }
+        
         String currentStatus = optStringExt(claim, EXT_STATUS);
         
         if ("DRAFT".equals(currentStatus)) {
-            // Update status to IN_PROCESS
             claim.getExtension().removeIf(e -> EXT_STATUS.equals(e.getUrl()));
             claim.addExtension(new Extension(EXT_STATUS, new StringType("IN_PROCESS")));
-            
-            // Fetch coverage data for the patient and populate claim fields
-            // Note: Coverage fetching from patient context would be implemented here
-            // For now, we store the extensions as placeholders
-            log.info("Promoting claim {} to IN_PROCESS status", invoiceId);
-            
+            log.info("Promoting claim for invoice {} to IN_PROCESS status", invoiceId);
             fhirClientService.update(claim, getPracticeId());
         }
         return fromFhirClaim(claim);
+    }
+
+    /**
+     * Create a draft claim for an invoice
+     */
+    private Claim createDraftClaim(Long patientId, Long invoiceId) {
+        Claim claim = new Claim();
+        claim.setStatus(Claim.ClaimStatus.ACTIVE);
+        claim.addExtension(new Extension(EXT_PATIENT, new StringType(patientId.toString())));
+        claim.addExtension(new Extension(EXT_INVOICE, new StringType(invoiceId.toString())));
+        claim.addExtension(new Extension(EXT_STATUS, new StringType("DRAFT")));
+        claim.addExtension(new Extension(EXT_CREATED_ON, new StringType(LocalDate.now().toString())));
+        claim.addExtension(new Extension(EXT_CLAIM_TYPE, new StringType("Electronic")));
+        
+        var outcome = fhirClientService.create(claim, getPracticeId());
+        log.info("Created draft claim for invoice {} and patient {}", invoiceId, patientId);
+        return fhirClientService.read(Claim.class, outcome.getId().getIdPart(), getPracticeId());
     }
 
     /**
@@ -527,11 +546,35 @@ public class PatientClaimService {
      */
     private Claim getClaimOrThrow(Long patientId, Long invoiceId) {
         Bundle bundle = fhirClientService.search(Claim.class, getPracticeId());
-        return fhirClientService.extractResources(bundle, Claim.class).stream()
-                .filter(c -> patientId.equals(getPatientFromClaim(c)) && invoiceId.equals(getInvoiceFromClaim(c)))
+        List<Claim> allClaims = fhirClientService.extractResources(bundle, Claim.class);
+        
+        log.info("Searching for claim: patientId={}, invoiceId={}, total claims={}", 
+                patientId, invoiceId, allClaims.size());
+        
+        // Debug: log each claim's patient and invoice IDs
+        for (Claim c : allClaims) {
+            Long claimPatientId = getPatientFromClaim(c);
+            Long claimInvoiceId = getInvoiceFromClaim(c);
+            String claimId = c.getIdElement().getIdPart();
+            log.info("Claim {}: patientId={}, invoiceId={}", claimId, claimPatientId, claimInvoiceId);
+        }
+        
+        return allClaims.stream()
+                .filter(c -> {
+                    Long claimPatientId = getPatientFromClaim(c);
+                    Long claimInvoiceId = getInvoiceFromClaim(c);
+                    boolean matches = patientId.equals(claimPatientId) && invoiceId.equals(claimInvoiceId);
+                    if (matches) {
+                        log.info("Found matching claim: patientId={}, invoiceId={}", claimPatientId, claimInvoiceId);
+                    }
+                    return matches;
+                })
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException(String.format(
-                    "Claim not found for Invoice ID: %d and Patient ID: %d", invoiceId, patientId)));
+                .orElseThrow(() -> {
+                    log.error("Claim not found for Invoice ID: {} and Patient ID: {}", invoiceId, patientId);
+                    return new IllegalArgumentException(String.format(
+                        "Claim not found for Invoice ID: %d and Patient ID: %d", invoiceId, patientId));
+                });
     }
 
     /**

@@ -180,12 +180,78 @@ public class PatientInvoiceService {
      * List all invoices for a patient
      */
     public List<PatientInvoiceDto> listInvoices(Long patientId) {
-        Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
-        return fhirClientService.extractResources(bundle, Observation.class).stream()
-                .filter(obs -> patientId.equals(getPatientIdFromObs(obs)) && "INVOICE".equals(getStringExt(obs, EXT_INVOICE_TYPE)))
-                .map(this::fromFhirObservation)
-                .sorted((a, b) -> Long.compare(b.id(), a.id()))
-                .collect(Collectors.toList());
+        try {
+            List<Observation> allObs = new ArrayList<>();
+            Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
+            
+            log.info("Bundle type: {}, total: {}, entries: {}", 
+                bundle.getType(), bundle.getTotal(), bundle.getEntry() != null ? bundle.getEntry().size() : 0);
+            
+            // Handle pagination - follow next links
+            while (bundle != null) {
+                List<Observation> pageObs = fhirClientService.extractResources(bundle, Observation.class);
+                allObs.addAll(pageObs);
+                
+                // Check if there's a next page
+                String nextLink = bundle.getLink(Bundle.LINK_NEXT) != null 
+                    ? bundle.getLink(Bundle.LINK_NEXT).getUrl() 
+                    : null;
+                
+                if (nextLink != null) {
+                    bundle = fhirClientService.loadPage(nextLink, getPracticeId());
+                } else {
+                    break;
+                }
+            }
+            
+            log.info("Total observations extracted: {}", allObs.size());
+            
+            // Debug: log each observation's extensions
+            for (Observation obs : allObs) {
+                String id = obs.getIdElement().getIdPart();
+                String type = getStringExt(obs, EXT_INVOICE_TYPE);
+                Long pid = getPatientIdFromObs(obs);
+                boolean hasExtensions = obs.hasExtension();
+                
+                // Check if this is an invoice by code system
+                boolean isInvoiceByCode = obs.hasCode() && 
+                    obs.getCode().hasCoding() &&
+                    obs.getCode().getCoding().stream()
+                        .anyMatch(c -> "http://ciyex.com/fhir/CodeSystem/invoice".equals(c.getSystem()) && 
+                                      "INVOICE".equals(c.getCode()));
+                
+                log.info("Observation: id={}, type={}, patientId={}, hasExtensions={}, isInvoiceByCode={}", 
+                    id, type, pid, hasExtensions, isInvoiceByCode);
+            }
+            
+            List<PatientInvoiceDto> invoices = allObs.stream()
+                    .filter(obs -> {
+                        // Check by extension first
+                        String type = getStringExt(obs, EXT_INVOICE_TYPE);
+                        Long pid = getPatientIdFromObs(obs);
+                        
+                        // Also check by code system as fallback
+                        boolean isInvoiceByCode = obs.hasCode() && 
+                            obs.getCode().hasCoding() &&
+                            obs.getCode().getCoding().stream()
+                                .anyMatch(c -> "http://ciyex.com/fhir/CodeSystem/invoice".equals(c.getSystem()) && 
+                                              "INVOICE".equals(c.getCode()));
+                        
+                        boolean isInvoice = "INVOICE".equals(type) || isInvoiceByCode;
+                        boolean matchesPatient = patientId.equals(pid);
+                        
+                        return isInvoice && matchesPatient;
+                    })
+                    .map(this::fromFhirObservation)
+                    .sorted((a, b) -> Long.compare(b.id(), a.id()))
+                    .collect(Collectors.toList());
+            
+            log.info("Returning {} invoices for patient {}", invoices.size(), patientId);
+            return invoices;
+        } catch (Exception e) {
+            log.error("Error listing invoices for patient {}", patientId, e);
+            throw e;
+        }
     }
 
     /**
@@ -274,14 +340,22 @@ public class PatientInvoiceService {
      * Create a draft claim for an invoice
      */
     private void createDraftClaimForInvoice(Long patientId, Long invoiceId, String dos) {
+        // Extension URLs must match those in PatientClaimService
+        final String EXT_INVOICE_REF = "http://ciyex.com/fhir/StructureDefinition/invoice-reference";
+        final String EXT_CLAIM_STATUS = "http://ciyex.com/fhir/StructureDefinition/claim-status";
+        final String EXT_CLAIM_CREATED_ON = "http://ciyex.com/fhir/StructureDefinition/created-on";
+        final String EXT_CLAIM_TYPE_LOCAL = "http://ciyex.com/fhir/StructureDefinition/claim-type";
+        
         Claim claim = new Claim();
+        claim.setStatus(Claim.ClaimStatus.ACTIVE);
         claim.addExtension(new Extension(EXT_PATIENT, new StringType(patientId.toString())));
-        claim.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/invoice-reference", new StringType(invoiceId.toString())));
-        claim.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/claim-status", new StringType("DRAFT")));
-        claim.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/created-on", 
+        claim.addExtension(new Extension(EXT_INVOICE_REF, new StringType(invoiceId.toString())));
+        claim.addExtension(new Extension(EXT_CLAIM_STATUS, new StringType("DRAFT")));
+        claim.addExtension(new Extension(EXT_CLAIM_CREATED_ON, 
                 new StringType(dos != null ? dos : LocalDate.now().format(DATE_FORMATTER))));
-        claim.addExtension(new Extension("http://ciyex.com/fhir/StructureDefinition/claim-type", new StringType("Electronic")));
+        claim.addExtension(new Extension(EXT_CLAIM_TYPE_LOCAL, new StringType("Electronic")));
         fhirClientService.create(claim, getPracticeId());
+        log.info("Created draft claim for invoice {} and patient {}", invoiceId, patientId);
     }
 
     /**
@@ -357,17 +431,26 @@ public class PatientInvoiceService {
 
         Observation obs = getInvoiceOrThrow(patientId, invoiceId);
 
-        if (!obs.getComponent().isEmpty()) {
-            // For FHIR model, we find the line by its position/index
-            Observation.ObservationComponentComponent component = obs.getComponent().get(0);
+        // Find the component by lineId
+        Observation.ObservationComponentComponent component = obs.getComponent().stream()
+            .filter(c -> {
+                Extension ext = c.getExtensionByUrl(EXT_LINE_ID);
+                if (ext != null && ext.getValue() instanceof IntegerType) {
+                    return lineId.equals(((IntegerType) ext.getValue()).getValue().longValue());
+                }
+                return false;
+            })
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException(
+                String.format("Invoice line not found with ID: %d. Please provide a valid Invoice Line ID.", lineId)
+            ));
             
-            BigDecimal amt = nz(b.newCharge());
-            setCompDecimal(component, EXT_LINE_CHARGE, amt);
-            setCompDecimal(component, EXT_LINE_ALLOWED, amt);
-            setCompDecimal(component, EXT_LINE_INS_WRITEOFF, BigDecimal.ZERO);
-            setCompDecimal(component, EXT_LINE_INS_PORTION, amt);
-            setCompDecimal(component, EXT_LINE_PT_PORTION, BigDecimal.ZERO);
-        }
+        BigDecimal amt = nz(b.newCharge());
+        setCompDecimal(component, EXT_LINE_CHARGE, amt);
+        setCompDecimal(component, EXT_LINE_ALLOWED, amt);
+        setCompDecimal(component, EXT_LINE_INS_WRITEOFF, BigDecimal.ZERO);
+        setCompDecimal(component, EXT_LINE_INS_PORTION, amt);
+        setCompDecimal(component, EXT_LINE_PT_PORTION, BigDecimal.ZERO);
 
         recalcInvoiceTotals(obs);
         fhirClientService.update(obs, getPracticeId());
@@ -424,7 +507,7 @@ public class PatientInvoiceService {
      */
     public PatientInvoiceDto transferOutstandingToPatient(Long patientId, Long invoiceId, Double amount) {
         Observation obs = getInvoiceOrThrow(patientId, invoiceId);
-        if (obs == null || amount == null || amount <= 0) {
+        if (amount == null || amount <= 0) {
             return fromFhirObservation(obs);
         }
         
@@ -432,10 +515,7 @@ public class PatientInvoiceService {
         BigDecimal insBal = getDecimalExt(obs, EXT_INS_BALANCE);
         BigDecimal ptBal = getDecimalExt(obs, EXT_PT_BALANCE);
         
-        // Cap the transfer amount to available insurance balance
-        if (insBal.compareTo(amt) < 0) {
-            amt = insBal;
-        }
+        if (insBal.compareTo(amt) < 0) amt = insBal;
         
         setDecimalExt(obs, EXT_INS_BALANCE, insBal.subtract(amt));
         setDecimalExt(obs, EXT_PT_BALANCE, ptBal.add(amt));
@@ -449,7 +529,7 @@ public class PatientInvoiceService {
      */
     public PatientInvoiceDto transferOutstandingToInsurance(Long patientId, Long invoiceId, Double amount) {
         Observation obs = getInvoiceOrThrow(patientId, invoiceId);
-        if (obs == null || amount == null || amount <= 0) {
+        if (amount == null || amount <= 0) {
             return fromFhirObservation(obs);
         }
         
@@ -457,10 +537,7 @@ public class PatientInvoiceService {
         BigDecimal ptBal = getDecimalExt(obs, EXT_PT_BALANCE);
         BigDecimal insBal = getDecimalExt(obs, EXT_INS_BALANCE);
         
-        // Cap the transfer amount to available patient balance
-        if (ptBal.compareTo(amt) < 0) {
-            amt = ptBal;
-        }
+        if (ptBal.compareTo(amt) < 0) amt = ptBal;
         
         setDecimalExt(obs, EXT_PT_BALANCE, ptBal.subtract(amt));
         setDecimalExt(obs, EXT_INS_BALANCE, insBal.add(amt));
@@ -509,7 +586,15 @@ public class PatientInvoiceService {
      */
     private Long getPatientIdFromObs(Observation obs) {
         String val = getStringExt(obs, EXT_PATIENT);
-        return val != null ? Long.parseLong(val) : null;
+        if (val != null) {
+            try {
+                return Long.parseLong(val);
+            } catch (NumberFormatException e) {
+                log.warn("Failed to parse patient ID from observation {}: {}", 
+                    obs.getIdElement().getIdPart(), val);
+            }
+        }
+        return null;
     }
 
     /**
@@ -518,7 +603,14 @@ public class PatientInvoiceService {
     private String getStringExt(Observation obs, String url) {
         if (obs == null) return null;
         Extension ext = obs.getExtensionByUrl(url);
-        return (ext != null && ext.getValue() instanceof StringType) ? ((StringType) ext.getValue()).getValue() : null;
+        if (ext != null && ext.getValue() != null) {
+            if (ext.getValue() instanceof StringType) {
+                return ((StringType) ext.getValue()).getValue();
+            }
+            // Fallback: try to get string representation
+            return ext.getValue().toString();
+        }
+        return null;
     }
 
     /**

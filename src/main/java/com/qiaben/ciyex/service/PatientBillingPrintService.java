@@ -176,36 +176,69 @@ public class PatientBillingPrintService {
 
         // 4. Add Insurance Payments with details
         List<PatientInvoicePrintDto.InsurancePaymentDetail> insurancePaymentDetails = new ArrayList<>();
-        int paymentCounter = 1;
-        // Insurance payments would be fetched from PatientInsurancePaymentService
-        // For now, add placeholder structure
+        try {
+            List<PatientInsuranceRemitLineDto> insurancePayments = insurancePaymentService.listInsurancePayments(patientId, invoiceId, null, null);
+            if (insurancePayments != null) {
+                for (PatientInsuranceRemitLineDto remit : insurancePayments) {
+                    PatientInvoicePrintDto.TransactionLine insPaymentLine = new PatientInvoicePrintDto.TransactionLine();
+                    insPaymentLine.date = invoiceHeader.date;
+                    insPaymentLine.description = "Insurance Payment";
+                    insPaymentLine.credit = remit.insPay();
+                    insPaymentLine.transactionType = "INSURANCE_PAYMENT";
+                    runningBalance = runningBalance.subtract(nz(remit.insPay()));
+                    insPaymentLine.balance = runningBalance;
+                    transactions.add(insPaymentLine);
+
+                    // Store insurance payment detail
+                    PatientInvoicePrintDto.InsurancePaymentDetail paymentDetail = new PatientInvoicePrintDto.InsurancePaymentDetail();
+                    paymentDetail.paymentId = remit.id();
+                    paymentDetail.paymentDate = insPaymentLine.date;
+                    paymentDetail.description = "Insurance Payment";
+                    paymentDetail.amount = remit.insPay();
+                    paymentDetail.credit = remit.insPay();
+                    insurancePaymentDetails.add(paymentDetail);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("No insurance payments found for invoice {}: {}", invoiceId, e.getMessage());
+        }
         dto.insurancePayments = insurancePaymentDetails;
 
         // 5. Add Patient Payments with details
         List<PatientInvoicePrintDto.PatientPaymentDetail> patientPaymentDetails = new ArrayList<>();
+        Map<Long, PatientInvoicePrintDto.PatientPaymentDetail> paymentMap = new HashMap<>();
         try {
             List<com.qiaben.ciyex.dto.PatientPatientPaymentAllocationDto> payments = paymentService.getPatientPaymentsByInvoice(patientId, invoiceId);
             if (payments != null) {
                 for (com.qiaben.ciyex.dto.PatientPatientPaymentAllocationDto alloc : payments) {
-                    PatientInvoicePrintDto.TransactionLine paymentLine = new PatientInvoicePrintDto.TransactionLine();
-                    paymentLine.date = alloc.createdAt() != null ? alloc.createdAt().toLocalDate() : invoiceHeader.date;
-                    paymentLine.description = "Patient Payment";
-                    paymentLine.credit = alloc.amount();
-                    paymentLine.transactionType = "PATIENT_PAYMENT";
-                    runningBalance = runningBalance.subtract(nz(alloc.amount()));
-                    paymentLine.balance = runningBalance;
-                    transactions.add(paymentLine);
+                    // Group allocations by payment ID
+                    if (!paymentMap.containsKey(alloc.id())) {
+                        PatientInvoicePrintDto.TransactionLine paymentLine = new PatientInvoicePrintDto.TransactionLine();
+                        paymentLine.date = alloc.createdAt() != null ? alloc.createdAt().toLocalDate() : invoiceHeader.date;
+                        paymentLine.description = "Patient Payment";
+                        paymentLine.credit = alloc.amount();
+                        paymentLine.transactionType = "PATIENT_PAYMENT";
+                        runningBalance = runningBalance.subtract(nz(alloc.amount()));
+                        paymentLine.balance = runningBalance;
+                        transactions.add(paymentLine);
 
-                    // Store patient payment detail
-                    PatientInvoicePrintDto.PatientPaymentDetail paymentDetail = new PatientInvoicePrintDto.PatientPaymentDetail();
-                    paymentDetail.paymentId = alloc.id();
-                    paymentDetail.paymentDate = paymentLine.date;
-                    paymentDetail.description = "Patient Payment";
-                    paymentDetail.paymentMethod = alloc.paymentMethod() != null ? alloc.paymentMethod() : "UNKNOWN";
-                    paymentDetail.amount = alloc.amount();
-                    paymentDetail.credit = alloc.amount();
-                    patientPaymentDetails.add(paymentDetail);
+                        // Store patient payment detail
+                        PatientInvoicePrintDto.PatientPaymentDetail paymentDetail = new PatientInvoicePrintDto.PatientPaymentDetail();
+                        paymentDetail.paymentId = alloc.id();
+                        paymentDetail.paymentDate = paymentLine.date;
+                        paymentDetail.description = "Patient Payment";
+                        paymentDetail.paymentMethod = alloc.paymentMethod() != null ? alloc.paymentMethod() : "UNKNOWN";
+                        paymentDetail.amount = alloc.amount();
+                        paymentDetail.credit = alloc.amount();
+                        paymentMap.put(alloc.id(), paymentDetail);
+                    } else {
+                        // Add to existing payment total
+                        PatientInvoicePrintDto.PatientPaymentDetail existing = paymentMap.get(alloc.id());
+                        existing.amount = existing.amount.add(alloc.amount());
+                        existing.credit = existing.credit.add(alloc.amount());
+                    }
                 }
+                patientPaymentDetails.addAll(paymentMap.values());
             }
         } catch (Exception e) {
             log.debug("No patient payments found for invoice {}: {}", invoiceId, e.getMessage());
@@ -281,7 +314,9 @@ public class PatientBillingPrintService {
         financialSummary.totalCharges = nz(invoice.totalCharge());
 
         // Sum all payments and deposits
-        BigDecimal totalInsPaid = BigDecimal.ZERO;
+        BigDecimal totalInsPaid = insurancePaymentDetails.stream()
+                .map(p -> nz(p.amount))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalPtPaid = patientPaymentDetails.stream()
                 .map(p -> nz(p.amount))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);

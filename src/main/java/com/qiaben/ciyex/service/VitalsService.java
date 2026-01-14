@@ -98,7 +98,13 @@ public class VitalsService {
     // ✅ Get all vitals for a patient
     public List<VitalsDto> getAllByPatient(Long patientId) {
         validatePathVariable(patientId, "Patient ID");
-        validatePatientExists(patientId);
+        
+        try {
+            validatePatientExists(patientId);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        }
+        
         return getVitalsByPatient(patientId);
     }
 
@@ -142,9 +148,26 @@ public class VitalsService {
         validatePathVariable(patientId, "Patient ID");
         validatePathVariable(encounterId, "Encounter ID");
         validatePathVariable(id, "ID");
-        validatePatientExists(patientId);
-        validateEncounterExists(encounterId);
-        VitalsDto dto = getByFhirId(String.valueOf(id));
+        
+        try {
+            validatePatientExists(patientId);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        }
+        
+        try {
+            validateEncounterExists(encounterId);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        }
+        
+        VitalsDto dto;
+        try {
+            dto = getByFhirId(String.valueOf(id));
+        } catch (ResponseStatusException e) {
+            throw new IllegalArgumentException("Vitals ID is invalid. Vitals not found: " + id);
+        }
+        
         dto.setId(id);
         return dto;
     }
@@ -165,19 +188,34 @@ public class VitalsService {
     public List<VitalsDto> getByEncounter(Long patientId, Long encounterId) {
         validatePathVariable(patientId, "Patient ID");
         validatePathVariable(encounterId, "Encounter ID");
-        validatePatientExists(patientId);
-        validateEncounterExists(encounterId);
+        
+        try {
+            validatePatientExists(patientId);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        }
+        
+        try {
+            validateEncounterExists(encounterId);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        }
+        
         log.debug("Getting FHIR Observations (vitals) for encounter: {}", encounterId);
 
-        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
-                .forResource(Observation.class)
-                .where(new ReferenceClientParam("encounter").hasId("Encounter/" + encounterId))
-                .where(Observation.CATEGORY.exactly().systemAndCode("http://terminology.hl7.org/CodeSystem/observation-category", "vital-signs"))
-                
-                .returnBundle(Bundle.class)
-                .execute();
+        try {
+            Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                    .forResource(Observation.class)
+                    .where(new ReferenceClientParam("encounter").hasId("Encounter/" + encounterId))
+                    .where(Observation.CATEGORY.exactly().systemAndCode("http://terminology.hl7.org/CodeSystem/observation-category", "vital-signs"))
+                    
+                    .returnBundle(Bundle.class)
+                    .execute();
 
-        return extractVitals(bundle);
+            return extractVitals(bundle);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to retrieve vitals for encounter: " + encounterId);
+        }
     }
 
     // ✅ Update vitals in FHIR
@@ -185,20 +223,40 @@ public class VitalsService {
         validatePathVariable(patientId, "Patient ID");
         validatePathVariable(encounterId, "Encounter ID");
         validatePathVariable(id, "ID");
-        validatePatientExists(patientId);
-        validateEncounterExists(encounterId);
+        
+        try {
+            validatePatientExists(patientId);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        }
+        
+        try {
+            validateEncounterExists(encounterId);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        }
+        
         String fhirId = String.valueOf(id);
         log.info("Updating FHIR Observation (vitals) with ID: {}", fhirId);
 
         // Validate resource exists
-        VitalsDto existing = getByFhirId(fhirId);
+        VitalsDto existing;
+        try {
+            existing = getByFhirId(fhirId);
+        } catch (ResponseStatusException e) {
+            throw new IllegalArgumentException("Vitals ID is invalid. Vitals not found: " + id);
+        }
 
         // Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+        try {
+            encounterService.validateEncounterNotSigned(encounterId, patientId);
+        } catch (IllegalStateException e) {
+            throw new IllegalArgumentException(e.getMessage());
+        }
 
         // Check if vitals is signed - prevent modification
         if (Boolean.TRUE.equals(existing.getSigned())) {
-            throw new IllegalStateException("Signed vitals are read-only.");
+            throw new IllegalArgumentException("Signed vitals are read-only.");
         }
 
         // Calculate BMI
@@ -219,20 +277,40 @@ public class VitalsService {
         validatePathVariable(patientId, "Patient ID");
         validatePathVariable(encounterId, "Encounter ID");
         validatePathVariable(id, "ID");
-        validatePatientExists(patientId);
-        validateEncounterExists(encounterId);
+        
+        try {
+            validatePatientExists(patientId);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        }
+        
+        try {
+            validateEncounterExists(encounterId);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        }
+        
         String fhirId = String.valueOf(id);
         log.info("Deleting FHIR Observation (vitals) with ID: {}", fhirId);
 
         // Validate resource exists
-        VitalsDto existing = getByFhirId(fhirId);
+        VitalsDto existing;
+        try {
+            existing = getByFhirId(fhirId);
+        } catch (ResponseStatusException e) {
+            throw new IllegalArgumentException("Vitals ID is invalid. Vitals not found: " + id);
+        }
 
         // Check if encounter is signed - prevent modification
-        encounterService.validateEncounterNotSigned(encounterId, patientId);
+        try {
+            encounterService.validateEncounterNotSigned(encounterId, patientId);
+        } catch (IllegalStateException e) {
+            throw new IllegalArgumentException(e.getMessage());
+        }
 
         // Check if vitals is signed - prevent deletion
         if (Boolean.TRUE.equals(existing.getSigned())) {
-            throw new IllegalStateException("Signed vitals cannot be deleted.");
+            throw new IllegalArgumentException("Signed vitals cannot be deleted.");
         }
 
         fhirClientService.delete(Observation.class, fhirId, getPracticeId());
@@ -244,8 +322,19 @@ public class VitalsService {
         validatePathVariable(patientId, "Patient ID");
         validatePathVariable(encounterId, "Encounter ID");
         validatePathVariable(id, "ID");
-        validatePatientExists(patientId);
-        validateEncounterExists(encounterId);
+        
+        try {
+            validatePatientExists(patientId);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        }
+        
+        try {
+            validateEncounterExists(encounterId);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        }
+        
         String fhirId = String.valueOf(id);
         log.info("E-signing FHIR Observation (vitals) with ID: {}", fhirId);
 
@@ -256,7 +345,7 @@ public class VitalsService {
             fhirClientService.update(fhirObservation, getPracticeId());
             return toVitalsDto(fhirObservation);
         } catch (ResourceNotFoundException e) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vitals ID is invalid. Vitals not found: " + fhirId);
+            throw new IllegalArgumentException("Vitals ID is invalid. Vitals not found: " + fhirId);
         }
     }
 
@@ -265,8 +354,19 @@ public class VitalsService {
         validatePathVariable(patientId, "Patient ID");
         validatePathVariable(encounterId, "Encounter ID");
         validatePathVariable(id, "ID");
-        validatePatientExists(patientId);
-        validateEncounterExists(encounterId);
+        
+        try {
+            validatePatientExists(patientId);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        }
+        
+        try {
+            validateEncounterExists(encounterId);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        }
+        
         VitalsDto vitals = get(patientId, encounterId, id);
 
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
