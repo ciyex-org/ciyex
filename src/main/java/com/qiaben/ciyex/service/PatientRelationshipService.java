@@ -40,6 +40,9 @@ public class PatientRelationshipService {
     public PatientRelationshipDto create(PatientRelationshipDto dto) {
         log.debug("Creating FHIR RelatedPerson for patient: {}", dto.getPatientId());
 
+        // Validate patient exists
+        validatePatientExists(dto.getPatientId());
+
         RelatedPerson rp = toFhirRelatedPerson(dto);
         var outcome = fhirClientService.create(rp, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
@@ -59,13 +62,23 @@ public class PatientRelationshipService {
     // GET BY ID
     public PatientRelationshipDto getById(String fhirId) {
         log.debug("Getting FHIR RelatedPerson: {}", fhirId);
-        RelatedPerson rp = fhirClientService.read(RelatedPerson.class, fhirId, getPracticeId());
-        return fromFhirRelatedPerson(rp);
+        try {
+            RelatedPerson rp = fhirClientService.read(RelatedPerson.class, fhirId, getPracticeId());
+            if (rp == null) {
+                throw new RuntimeException("Relationship with ID " + fhirId + " not found");
+            }
+            return fromFhirRelatedPerson(rp);
+        } catch (Exception e) {
+            throw new RuntimeException("Relationship with ID " + fhirId + " not found");
+        }
     }
 
     // GET ALL BY PATIENT
     public List<PatientRelationshipDto> getAllByPatientId(Long patientId) {
         log.debug("Getting FHIR RelatedPersons for patient: {}", patientId);
+
+        // Validate patient exists
+        validatePatientExists(patientId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(RelatedPerson.class)
@@ -80,6 +93,12 @@ public class PatientRelationshipService {
     // UPDATE
     public PatientRelationshipDto update(String fhirId, PatientRelationshipDto dto) {
         log.debug("Updating FHIR RelatedPerson: {}", fhirId);
+
+        // Validate relationship exists
+        getById(fhirId);
+        
+        // Validate patient exists
+        validatePatientExists(dto.getPatientId());
 
         RelatedPerson rp = toFhirRelatedPerson(dto);
         rp.setId(fhirId);
@@ -99,7 +118,20 @@ public class PatientRelationshipService {
     // DELETE
     public void delete(String fhirId) {
         log.debug("Deleting FHIR RelatedPerson: {}", fhirId);
+        
+        // Validate relationship exists
+        getById(fhirId);
+        
         fhirClientService.delete(RelatedPerson.class, fhirId, getPracticeId());
+    }
+
+    // VALIDATION
+    private void validatePatientExists(Long patientId) {
+        try {
+            fhirClientService.read(Patient.class, patientId.toString(), getPracticeId());
+        } catch (Exception e) {
+            throw new RuntimeException("Patient with ID " + patientId + " not found");
+        }
     }
 
     // -------- FHIR Mapping --------
