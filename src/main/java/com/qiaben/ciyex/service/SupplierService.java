@@ -94,6 +94,7 @@ public class SupplierService {
     // DELETE
     public void delete(String fhirId) {
         log.debug("Deleting FHIR Organization (supplier): {}", fhirId);
+        fhirClientService.read(Organization.class, fhirId, getPracticeId());
         fhirClientService.delete(Organization.class, fhirId, getPracticeId());
     }
 
@@ -109,11 +110,13 @@ public class SupplierService {
         org.setActive(true);
 
         // Type = supplier
-        org.addType().addCoding()
+        CodeableConcept type = new CodeableConcept();
+        type.addCoding()
                 .setSystem("http://terminology.hl7.org/CodeSystem/organization-type")
                 .setCode("bus")
                 .setDisplay("Non-Healthcare Business Corporation");
-        org.getTypeFirstRep().setText("supplier");
+        type.setText("supplier");
+        org.addType(type);
 
         // Name
         if (dto.getName() != null) {
