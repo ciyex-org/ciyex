@@ -40,30 +40,48 @@ public class SlotService {
 
         log.debug("Creating FHIR Slot for provider: {}", dto.getProviderId());
 
-        Slot slot = toFhirSlot(dto);
-        var outcome = fhirClientService.create(slot, getPracticeId());
-        String fhirId = outcome.getId().getIdPart();
+        try {
+            Slot slot = toFhirSlot(dto);
+            var outcome = fhirClientService.create(slot, getPracticeId());
+            String fhirId = outcome.getId().getIdPart();
 
-        dto.setId(Long.parseLong(fhirId));
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
 
-        // Set audit information
-        SlotDto.Audit audit = new SlotDto.Audit();
-        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
-        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
-        dto.setAudit(audit);
+            // Set audit information
+            SlotDto.Audit audit = new SlotDto.Audit();
+            audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+            audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+            dto.setAudit(audit);
 
-        log.info("Created FHIR Slot with id: {}", fhirId);
+            log.info("Created FHIR Slot with id: {}", fhirId);
 
-        return dto;
+            return dto;
+        } catch (Exception e) {
+            log.error("Failed to create slot: {}", e.getMessage());
+            throw new RuntimeException("Failed to create slot: " + e.getMessage(), e);
+        }
     }
 
     // GET BY ID (FHIR ID)
     public SlotDto getById(String fhirId) {
+        if (fhirId == null || fhirId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Slot ID cannot be null or empty");
+        }
+        
         log.debug("Getting FHIR Slot: {}", fhirId);
-        Slot slot = fhirClientService.read(Slot.class, fhirId, getPracticeId());
-        return fromFhirSlot(slot);
+        
+        try {
+            Slot slot = fhirClientService.read(Slot.class, fhirId, getPracticeId());
+            if (slot == null) {
+                throw new IllegalArgumentException("Slot not found for slotId=" + fhirId);
+            }
+            return fromFhirSlot(slot);
+        } catch (Exception e) {
+            log.error("Failed to retrieve slot with ID {}: {}", fhirId, e.getMessage());
+            throw new RuntimeException("Failed to retrieve slot: Slot not found for slotId=" + fhirId);
+        }
     }
 
     // GET ALL
@@ -100,21 +118,58 @@ public class SlotService {
 
     // UPDATE
     public SlotDto update(String fhirId, SlotDto dto) {
+        if (fhirId == null || fhirId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Slot ID cannot be null or empty");
+        }
+        
+        validateMandatoryFields(dto);
+        
         log.debug("Updating FHIR Slot: {}", fhirId);
 
-        Slot slot = toFhirSlot(dto);
-        slot.setId(fhirId);
-        fhirClientService.update(slot, getPracticeId());
+        try {
+            // Verify slot exists
+            fhirClientService.read(Slot.class, fhirId, getPracticeId());
+            
+            Slot slot = toFhirSlot(dto);
+            slot.setId(fhirId);
+            fhirClientService.update(slot, getPracticeId());
 
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        return dto;
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
+            
+            // Set audit information
+            SlotDto.Audit audit = new SlotDto.Audit();
+            audit.setCreatedDate(dto.getAudit() != null && dto.getAudit().getCreatedDate() != null 
+                ? dto.getAudit().getCreatedDate() 
+                : java.time.LocalDateTime.now().toString());
+            audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+            dto.setAudit(audit);
+            
+            return dto;
+        } catch (Exception e) {
+            log.error("Failed to update slot with ID {}: {}", fhirId, e.getMessage());
+            throw new RuntimeException("Failed to update slot: Slot not found for slotId=" + fhirId);
+        }
     }
 
     // DELETE
     public void delete(String fhirId) {
+        if (fhirId == null || fhirId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Slot ID cannot be null or empty");
+        }
+        
         log.debug("Deleting FHIR Slot: {}", fhirId);
-        fhirClientService.delete(Slot.class, fhirId, getPracticeId());
+        
+        try {
+            // Verify slot exists before deleting
+            fhirClientService.read(Slot.class, fhirId, getPracticeId());
+            fhirClientService.delete(Slot.class, fhirId, getPracticeId());
+            log.info("Successfully deleted slot with ID: {}", fhirId);
+        } catch (Exception e) {
+            log.error("Failed to delete slot with ID {}: {}", fhirId, e.getMessage());
+            throw new RuntimeException("Failed to delete slot: Slot not found for slotId=" + fhirId);
+        }
     }
 
     // -------- FHIR Mapping --------
@@ -199,8 +254,31 @@ public class SlotService {
     // -------- Helpers --------
 
     private void validateMandatoryFields(SlotDto dto) {
+        StringBuilder errors = new StringBuilder();
+        
+        if (dto == null) {
+            throw new IllegalArgumentException("Slot data cannot be null");
+        }
+        
         if (dto.getProviderId() == null) {
-            throw new IllegalArgumentException("Missing mandatory field: providerId");
+            errors.append("providerId, ");
+        }
+        
+        if (dto.getStart() == null || dto.getStart().trim().isEmpty()) {
+            errors.append("start, ");
+        }
+        
+        if (dto.getEnd() == null || dto.getEnd().trim().isEmpty()) {
+            errors.append("end, ");
+        }
+        
+        if (dto.getStatus() == null || dto.getStatus().trim().isEmpty()) {
+            errors.append("status, ");
+        }
+        
+        if (errors.length() > 0) {
+            errors.setLength(errors.length() - 2);
+            throw new IllegalArgumentException("Missing mandatory fields: " + errors);
         }
     }
 
