@@ -400,30 +400,7 @@ public class PatientClaimService {
         return fromFhirClaim(claim);
     }
 
-//    // Fetch insurance email for a claim
-//    public String getInsuranceEmailForClaim(Long claimId) {
-//        PatientClaim claim = claimRepo.findById(claimId).orElse(null);
-//        if (claim == null) return null;
-//        // Get most recent coverage for patient
-//        List<Coverage> coverages = coverageRepo.findByPatientIdOrderByEffectiveDateDesc(claim.getPatientId());
-//        if (!coverages.isEmpty()) {
-//            Coverage coverage = coverages.get(0);
-//            if (coverage.getInsuranceCompany() != null) {
-//                // If InsuranceCompany has email field, use it; otherwise, return null or placeholder
-//                // return coverage.getInsuranceCompany().getEmail();
-//                return "insurance@example.com"; // Placeholder, replace with actual email field
-//            }
-//        }
-//        return null;
-//    }
-//
-//    // Send claim details to insurance email (stub)
-//    public boolean sendClaimDetailsToInsuranceEmail(PatientClaimDto claim, String insuranceEmail) {
-//        // TODO: Implement actual email sending logic
-//        log.info("Sending claim {} to insurance email {}", claim.id(), insuranceEmail);
-//        // Simulate success
-//        return true;
-//    }
+
 
     // ===================== Attachments & EOB =====================
 
@@ -747,5 +724,53 @@ public class PatientClaimService {
             log.warn("Unknown claim status: {}, defaulting to DRAFT", status);
             return PatientClaimStatus.DRAFT;
         }
+    }
+
+    /**
+     * Fetch insurance email for a claim (FHIR-based)
+     */
+    public String getInsuranceEmailForClaim(Long claimId) {
+        Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
+        Long patientId = getPatientFromClaim(claim);
+        if (patientId == null) return null;
+
+        // Search for Coverage resources for this patient
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                .forResource(Coverage.class)
+                .where(new ca.uhn.fhir.rest.gclient.ReferenceClientParam("beneficiary").hasId("Patient/" + patientId))
+                .returnBundle(Bundle.class)
+                .execute();
+
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof Coverage) {
+                    Coverage coverage = (Coverage) entry.getResource();
+                    // Extract insurance company email from extension
+                    String email = optStringExt(coverage, "http://ciyex.com/fhir/StructureDefinition/insurance-email");
+                    if (email != null) return email;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Send claim details to insurance email
+     */
+    public boolean sendClaimDetailsToInsuranceEmail(PatientClaimDto claim, String insuranceEmail) {
+        log.info("Sending claim {} to insurance email {}", claim.id(), insuranceEmail);
+        // TODO: Implement actual email sending logic
+        return true;
+    }
+
+    /**
+     * Get optional string extension from Coverage
+     */
+    private String optStringExt(Coverage c, String url) {
+        Extension ext = c.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
     }
 }
