@@ -68,6 +68,12 @@ public class PatientRelationshipController {
             @PathVariable String id) {
         try {
             PatientRelationshipDto relationship = service.getById(id);
+            if (!relationship.getPatientId().equals(patientId)) {
+                return ResponseEntity.ok(ApiResponse.<PatientRelationshipDto>builder()
+                        .success(false)
+                        .message("Relationship with ID " + id + " does not belong to patient " + patientId)
+                        .build());
+            }
             return ResponseEntity.ok(ApiResponse.<PatientRelationshipDto>builder()
                     .success(true)
                     .message("Patient relationship retrieved successfully")
@@ -88,6 +94,13 @@ public class PatientRelationshipController {
             @PathVariable String id,
             @RequestBody PatientRelationshipDto dto) {
         try {
+            PatientRelationshipDto existing = service.getById(id);
+            if (!existing.getPatientId().equals(patientId)) {
+                return ResponseEntity.ok(ApiResponse.<PatientRelationshipDto>builder()
+                        .success(false)
+                        .message("Relationship with ID " + id + " does not belong to patient " + patientId)
+                        .build());
+            }
             dto.setPatientId(patientId);
             PatientRelationshipDto updated = service.update(id, dto);
             return ResponseEntity.ok(ApiResponse.<PatientRelationshipDto>builder()
@@ -109,6 +122,13 @@ public class PatientRelationshipController {
             @PathVariable Long patientId,
             @PathVariable String id) {
         try {
+            PatientRelationshipDto existing = service.getById(id);
+            if (!existing.getPatientId().equals(patientId)) {
+                return ResponseEntity.ok(ApiResponse.<Void>builder()
+                        .success(false)
+                        .message("Relationship with ID " + id + " does not belong to patient " + patientId)
+                        .build());
+            }
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)

@@ -6,13 +6,11 @@ import com.qiaben.ciyex.service.PatientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
-
+import org.springframework.data.domain.Pageable;
 import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.Map;
@@ -141,6 +139,33 @@ public class PatientController {
         }
     }
 
+
+    // ✅ Get all patients with optional search
+    @GetMapping
+    public ResponseEntity<ApiResponse<Page<PatientDto>>> getAllPatients(
+            @RequestParam(required = false, defaultValue = "0") int page,
+            @RequestParam(required = false, defaultValue = "20") int size,
+            @RequestParam(required = false, defaultValue = "id") String sort,
+            @RequestParam(required = false) String search
+    ) {
+        try {
+            Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size, 
+                org.springframework.data.domain.Sort.by(sort));
+            Page<PatientDto> patients = service.getAllPatients(pageable, search);
+            return ResponseEntity.ok(ApiResponse.<Page<PatientDto>>builder()
+                    .success(true)
+                    .message("Patients retrieved successfully")
+                    .data(patients)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve patients", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<Page<PatientDto>>builder()
+                    .success(false)
+                    .message("Failed to retrieve patients: " + e.getMessage())
+                    .build());
+        }
+    }
+
     // ✅ Count all patients
     @GetMapping("/count")
     public ResponseEntity<ApiResponse<Long>> getPatientCount() {
@@ -153,31 +178,9 @@ public class PatientController {
                     .build());
         } catch (Exception e) {
             log.error("Failed to count patients", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<Long>builder()
+            return ResponseEntity.ok(ApiResponse.<Long>builder()
                     .success(false)
                     .message("Failed to count patients: " + e.getMessage())
-                    .build());
-        }
-    }
-
-    // ✅ Get all patients with optional search
-    @GetMapping
-    public ResponseEntity<ApiResponse<Page<PatientDto>>> getAllPatients(
-            @PageableDefault(sort = "id") Pageable pageable,
-            @RequestParam(required = false) String search
-    ) {
-        try {
-            Page<PatientDto> patients = service.getAllPatients(pageable, search);
-            return ResponseEntity.ok(ApiResponse.<Page<PatientDto>>builder()
-                    .success(true)
-                    .message("Patients retrieved successfully")
-                    .data(patients)
-                    .build());
-        } catch (Exception e) {
-            log.error("Failed to retrieve patients", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<Page<PatientDto>>builder()
-                    .success(false)
-                    .message("Failed to retrieve patients: " + e.getMessage())
                     .build());
         }
     }

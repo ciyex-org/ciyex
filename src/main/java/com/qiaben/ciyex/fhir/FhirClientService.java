@@ -100,6 +100,10 @@ public class FhirClientService {
             log.debug("Resource {} with id {} not found in partition {}", 
                     resourceClass.getSimpleName(), id, orgAlias);
             return Optional.empty();
+        } catch (Exception e) {
+            log.warn("Error reading resource {} with id {} from partition {}: {}", 
+                    resourceClass.getSimpleName(), id, orgAlias, e.getMessage());
+            return Optional.empty();
         }
     }
 
@@ -133,6 +137,7 @@ public class FhirClientService {
     public <T extends IBaseResource> Bundle search(Class<T> resourceClass, String orgAlias) {
         return getClientForPartition(orgAlias).search()
                 .forResource(resourceClass)
+                .count(1000)
                 .returnBundle(Bundle.class)
                 .execute();
     }
@@ -157,6 +162,7 @@ public class FhirClientService {
                 .returnBundle(Bundle.class)
                 .execute();
     }
+
 
     /**
      * Extract resources from a Bundle.
@@ -183,6 +189,17 @@ public class FhirClientService {
         } else {
             return create(resource, orgAlias);
         }
+    }
+
+    /**
+     * Load next page of results from a Bundle link.
+     */
+    public Bundle loadPage(String url, String orgAlias) {
+        log.debug("Loading next page from URL: {}", url);
+        return getClientForPartition(orgAlias).loadPage()
+                .byUrl(url)
+                .andReturnBundle(Bundle.class)
+                .execute();
     }
 
     /**

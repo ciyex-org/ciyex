@@ -167,7 +167,7 @@ public class PlanService {
     }
 
     // ✅ Delete Plan
-    public void delete(Long patientId, Long encounterId, Long id) {
+    public String delete(Long patientId, Long encounterId, Long id) {
         validatePathVariable(patientId, "Patient ID");
         validatePathVariable(encounterId, "Encounter ID");
         validatePathVariable(id, "Plan ID");
@@ -189,6 +189,8 @@ public class PlanService {
 
         fhirClientService.delete(CarePlan.class, fhirId, getPracticeId());
         signMetadataCache.remove(fhirId);
+        
+        return "Plan deleted successfully";
     }
 
     // ✅ eSign Plan
@@ -236,32 +238,36 @@ public class PlanService {
             doc.addPage(page);
 
             try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
-                float x = 64, y = 740;
+                float x = 50, y = 750;
+                float labelWidth = 150;
 
-                // Title + meta
-                title(cs, x, y, "Encounter Plan"); y -= 26;
-                row(cs, x, y, "Patient ID:", String.valueOf(patientId)); y -= 16;
-                row(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 16;
-                row(cs, x, y, "Plan ID:", fhirId); y -= 20;
+                // Title
+                title(cs, x, y, "Encounter Plan"); y -= 30;
+                
+                // Metadata section
+                row(cs, x, y, labelWidth, "Patient ID:", String.valueOf(patientId)); y -= 18;
+                row(cs, x, y, labelWidth, "Encounter ID:", String.valueOf(encounterId)); y -= 18;
+                row(cs, x, y, labelWidth, "Plan ID:", fhirId); y -= 25;
 
-                // FREE-TEXT BLOCKS
-                y = block(cs, x, y, "Diagnostic Plan", dto.getDiagnosticPlan());
-                y = block(cs, x, y, "Plan", dto.getPlan());
-                y = block(cs, x, y, "Notes", dto.getNotes());
+                // FREE-TEXT BLOCKS with proper alignment
+                y = blockAligned(cs, x, y, labelWidth, "Diagnostic Plan:", dto.getDiagnosticPlan());
+                y = blockAligned(cs, x, y, labelWidth, "Plan:", dto.getPlan());
+                y = blockAligned(cs, x, y, labelWidth, "Notes:", dto.getNotes());
 
-                // Rows
+                // Additional fields
                 if (StringUtils.hasText(dto.getFollowUpVisit())) {
-                    row(cs, x, y, "Follow-Up Visit:", dto.getFollowUpVisit()); y -= 16;
+                    row(cs, x, y, labelWidth, "Follow-Up Visit:", dto.getFollowUpVisit()); y -= 18;
                 }
                 if (StringUtils.hasText(dto.getReturnWorkSchool())) {
-                    row(cs, x, y, "Return Work/School:", dto.getReturnWorkSchool()); y -= 16;
+                    row(cs, x, y, labelWidth, "Return Work/School:", dto.getReturnWorkSchool()); y -= 18;
                 }
 
-                y -= 10;
-                row(cs, x, y, "eSigned:", Boolean.TRUE.equals(meta.eSigned) ? "Yes" : "No"); y -= 16;
-                if (meta.signedAt != null) { row(cs, x, y, "Signed At:", meta.signedAt.format(ISO)); y -= 16; }
-                if (StringUtils.hasText(meta.signedBy)) { row(cs, x, y, "Signed By:", meta.signedBy); y -= 16; }
-                if (meta.printedAt != null) { row(cs, x, y, "Printed At:", meta.printedAt.format(ISO)); y -= 16; }
+                // Signature section
+                y -= 15;
+                row(cs, x, y, labelWidth, "eSigned:", Boolean.TRUE.equals(meta.eSigned) ? "Yes" : "No"); y -= 18;
+                if (meta.signedAt != null) { row(cs, x, y, labelWidth, "Signed At:", meta.signedAt.format(ISO)); y -= 18; }
+                if (StringUtils.hasText(meta.signedBy)) { row(cs, x, y, labelWidth, "Signed By:", meta.signedBy); y -= 18; }
+                if (meta.printedAt != null) { row(cs, x, y, labelWidth, "Printed At:", meta.printedAt.format(ISO)); y -= 18; }
             }
 
             doc.save(baos);
@@ -383,31 +389,51 @@ public class PlanService {
         cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 18); cs.newLineAtOffset(x, y); cs.showText(t); cs.endText();
     }
 
-    private static void row(PDPageContentStream cs, float x, float y, String k, String v) throws IOException {
-        cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(k); cs.endText();
-        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(v != null ? v : "-"); cs.endText();
+    private static void row(PDPageContentStream cs, float x, float y, float labelWidth, String k, String v) throws IOException {
+        cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 11); cs.newLineAtOffset(x, y); cs.showText(k); cs.endText();
+        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 11); cs.newLineAtOffset(x + labelWidth, y); cs.showText(v != null ? v : "-"); cs.endText();
     }
 
     private static void text(PDPageContentStream cs, float x, float y, String s) throws IOException {
-        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x, y); cs.showText(s); cs.endText();
+        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 11); cs.newLineAtOffset(x, y); cs.showText(s); cs.endText();
     }
 
     private static float block(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
         if (!StringUtils.hasText(value)) return y;
 
         cs.beginText();
-        cs.setFont(PDType1Font.HELVETICA_BOLD, 12);
+        cs.setFont(PDType1Font.HELVETICA_BOLD, 11);
         cs.newLineAtOffset(x, y);
         cs.showText(label + ":");
         cs.endText();
-        y -= 16;
+        y -= 18;
 
-        final float maxWidth = 612f - (64f * 2) - 16f;
-        for (String line : wrap(PDType1Font.HELVETICA, 12, value, maxWidth)) {
-            text(cs, x + 16, y, line);
-            y -= 14;
+        final float maxWidth = 612f - (50f * 2) - 20f;
+        for (String line : wrap(PDType1Font.HELVETICA, 11, value, maxWidth)) {
+            text(cs, x + 10, y, line);
+            y -= 15;
         }
-        return y - 6;
+        return y - 8;
+    }
+
+    private static float blockAligned(PDPageContentStream cs, float x, float y, float labelWidth, String label, String value) throws IOException {
+        if (!StringUtils.hasText(value)) return y;
+
+        cs.beginText();
+        cs.setFont(PDType1Font.HELVETICA_BOLD, 11);
+        cs.newLineAtOffset(x, y);
+        cs.showText(label);
+        cs.endText();
+
+        final float maxWidth = 612f - (50f * 2) - labelWidth - 10f;
+        List<String> lines = wrap(PDType1Font.HELVETICA, 11, value, maxWidth);
+        
+        for (int i = 0; i < lines.size(); i++) {
+            text(cs, x + labelWidth, y, lines.get(i));
+            if (i < lines.size() - 1) y -= 15;
+        }
+        
+        return y - 18;
     }
 
     private static List<String> wrap(PDType1Font font, int fontSize, String text, float maxWidth) throws IOException {

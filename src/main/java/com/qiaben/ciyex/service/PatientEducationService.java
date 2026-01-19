@@ -10,6 +10,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -46,6 +48,15 @@ public class PatientEducationService {
         String fhirId = outcome.getId().getIdPart();
 
         dto.setFhirId(fhirId);
+        dto.setId(Long.parseLong(fhirId));
+        
+        // Set audit information
+        PatientEducationDto.Audit audit = new PatientEducationDto.Audit();
+        String currentTime = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        dto.setAudit(audit);
+        
         log.info("Created FHIR DocumentReference (patient education) with id: {}", fhirId);
 
         return dto;
@@ -86,6 +97,19 @@ public class PatientEducationService {
         fhirClientService.update(dr, getPracticeId());
 
         dto.setFhirId(fhirId);
+        dto.setId(Long.parseLong(fhirId));
+        
+        // Set audit information
+        PatientEducationDto.Audit audit = new PatientEducationDto.Audit();
+        String currentTime = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        if (dto.getAudit() != null && dto.getAudit().getCreatedDate() != null) {
+            audit.setCreatedDate(dto.getAudit().getCreatedDate());
+        } else {
+            audit.setCreatedDate(currentTime);
+        }
+        audit.setLastModifiedDate(currentTime);
+        dto.setAudit(audit);
+        
         return dto;
     }
 
@@ -143,7 +167,16 @@ public class PatientEducationService {
 
     private PatientEducationDto fromFhirDocumentReference(DocumentReference dr) {
         PatientEducationDto dto = new PatientEducationDto();
-        dto.setFhirId(dr.getIdElement().getIdPart());
+        String fhirId = dr.getIdElement().getIdPart();
+        dto.setFhirId(fhirId);
+        dto.setId(Long.parseLong(fhirId));
+        
+        // Set audit information
+        PatientEducationDto.Audit audit = new PatientEducationDto.Audit();
+        String currentTime = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        dto.setAudit(audit);
 
         // Type -> category
         if (dr.hasType() && dr.getType().hasText()) {

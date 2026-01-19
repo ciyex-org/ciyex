@@ -52,16 +52,17 @@ public class SupplierController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<SupplierDto>> get(@PathVariable("id") String id) {
         try {
+            SupplierDto data = service.getById(id);
             return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
                     .success(true)
                     .message("Supplier retrieved successfully")
-                    .data(service.getById(id))
+                    .data(data)
                     .build());
         } catch (Exception e) {
             log.error("Failed to retrieve Supplier with id {}: {}", id, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
                     .success(false)
-                    .message("Failed to retrieve supplier: " + e.getMessage())
+                    .message("Supplier not found with ID: " + id)
                     .build());
         }
     }
@@ -78,16 +79,17 @@ public class SupplierController {
                         .build());
             }
 
+            SupplierDto data = service.update(id, dto);
             return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
                     .success(true)
                     .message("Supplier updated successfully")
-                    .data(service.update(id, dto))
+                    .data(data)
                     .build());
         } catch (Exception e) {
             log.error("Failed to update Supplier with id {}: {}", id, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<SupplierDto>builder()
                     .success(false)
-                    .message("Failed to update supplier: " + e.getMessage())
+                    .message("Supplier not found with ID: " + id)
                     .build());
         }
     }
@@ -105,18 +107,27 @@ public class SupplierController {
             log.error("Failed to delete Supplier with id {}: {}", id, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(false)
-                    .message("Failed to delete supplier: " + e.getMessage())
+                    .message("Supplier not found with ID: " + id)
                     .build());
         }
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<Page<SupplierDto>>> getAll(@PageableDefault Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.<Page<SupplierDto>>builder()
-                .success(true)
-                .message("Suppliers retrieved successfully")
-                .data(service.getAll(pageable))
-                .build());
+    public ResponseEntity<ApiResponse<Page<SupplierDto>>> getAll(
+            @PageableDefault(size = 10, page = 0) Pageable pageable) {
+        try {
+            return ResponseEntity.ok(ApiResponse.<Page<SupplierDto>>builder()
+                    .success(true)
+                    .message("Suppliers retrieved successfully")
+                    .data(service.getAll(pageable))
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve suppliers: {}", e.getMessage(), e);
+            return ResponseEntity.ok(ApiResponse.<Page<SupplierDto>>builder()
+                    .success(false)
+                    .message("Failed to retrieve suppliers: " + e.getMessage())
+                    .build());
+        }
     }
     @GetMapping("/count")
     public ResponseEntity<ApiResponse<Long>> getCount() {

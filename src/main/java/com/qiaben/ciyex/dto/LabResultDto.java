@@ -9,6 +9,7 @@ import lombok.Data;
 public class LabResultDto {
     private Long id;
     private String externalId; // FHIR Observation id
+    private String fhirId; // FHIR resource id
     private Long patientId;
     private String orderDate;
     private String procedureName;

@@ -2,6 +2,7 @@ package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.TemplateDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -9,7 +10,7 @@ import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -31,6 +32,10 @@ public class TemplateService {
     private static final String EXT_TEMPLATE_NAME = "http://ciyex.com/fhir/StructureDefinition/template-name";
     private static final String EXT_SUBJECT = "http://ciyex.com/fhir/StructureDefinition/template-subject";
     private static final String EXT_BODY = "http://ciyex.com/fhir/StructureDefinition/template-body";
+    private static final String EXT_CREATED_DATE = "http://ciyex.com/fhir/StructureDefinition/created-date";
+    private static final String EXT_CREATED_BY = "http://ciyex.com/fhir/StructureDefinition/created-by";
+    private static final String EXT_MODIFIED_DATE = "http://ciyex.com/fhir/StructureDefinition/last-modified-date";
+    private static final String EXT_MODIFIED_BY = "http://ciyex.com/fhir/StructureDefinition/last-modified-by";
 
     private String getPracticeId() {
         return practiceContextService.getPracticeId();
@@ -41,12 +46,14 @@ public class TemplateService {
         log.debug("Creating FHIR Basic (Template): {}", dto.getTemplateName());
 
         Basic basic = toFhirBasic(dto);
+        addAuditMetadata(basic, true);
+        
         var outcome = fhirClientService.create(basic, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
         dto.setId((long) Math.abs(fhirId.hashCode()));
         dto.setExternalId(fhirId);
-        dto.setAudit(createAudit());
+        dto.setAudit(extractAudit(basic));
 
         log.info("Created FHIR Basic (Template) with id: {}", fhirId);
         return dto;
@@ -63,12 +70,18 @@ public class TemplateService {
     public TemplateDto update(String fhirId, TemplateDto dto) {
         log.debug("Updating template: {}", fhirId);
 
+        Basic existing = fhirClientService.read(Basic.class, fhirId, getPracticeId());
         Basic basic = toFhirBasic(dto);
         basic.setId(fhirId);
+        
+        // Preserve created audit, update modified audit
+        preserveCreatedAudit(existing, basic);
+        addAuditMetadata(basic, false);
+        
         fhirClientService.update(basic, getPracticeId());
 
         dto.setExternalId(fhirId);
-        dto.setAudit(createAudit());
+        dto.setAudit(extractAudit(basic));
         return dto;
     }
 
@@ -148,7 +161,7 @@ public class TemplateService {
             dto.setBody(((StringType) bodyExt.getValue()).getValue());
         }
 
-        dto.setAudit(createAudit());
+        dto.setAudit(extractAudit(basic));
         return dto;
     }
 
@@ -158,10 +171,60 @@ public class TemplateService {
                 .anyMatch(c -> TEMPLATE_TYPE_SYSTEM.equals(c.getSystem()) && TEMPLATE_TYPE_CODE.equals(c.getCode()));
     }
 
-    private TemplateDto.Audit createAudit() {
+    // -------- Audit Methods --------
+
+    private void addAuditMetadata(Basic basic, boolean isCreate) {
+        String currentUser = getCurrentUser();
+        Date now = new Date();
+
+        if (isCreate) {
+            basic.addExtension(new Extension(EXT_CREATED_DATE, new DateTimeType(now)));
+            basic.addExtension(new Extension(EXT_CREATED_BY, new StringType(currentUser)));
+        }
+
+        basic.addExtension(new Extension(EXT_MODIFIED_DATE, new DateTimeType(now)));
+        basic.addExtension(new Extension(EXT_MODIFIED_BY, new StringType(currentUser)));
+    }
+
+    private void preserveCreatedAudit(Basic existing, Basic updated) {
+        Extension createdDate = existing.getExtensionByUrl(EXT_CREATED_DATE);
+        Extension createdBy = existing.getExtensionByUrl(EXT_CREATED_BY);
+        
+        if (createdDate != null) {
+            updated.addExtension(createdDate);
+        }
+        if (createdBy != null) {
+            updated.addExtension(createdBy);
+        }
+    }
+
+    private TemplateDto.Audit extractAudit(Basic basic) {
         TemplateDto.Audit audit = new TemplateDto.Audit();
-        audit.setCreatedAt(LocalDateTime.now());
-        audit.setUpdatedAt(LocalDateTime.now());
+
+        Extension createdDate = basic.getExtensionByUrl(EXT_CREATED_DATE);
+        if (createdDate != null && createdDate.getValue() instanceof DateTimeType) {
+            Date date = ((DateTimeType) createdDate.getValue()).getValue();
+            audit.setCreatedAt(new java.sql.Timestamp(date.getTime()).toLocalDateTime());
+        }
+
+        Extension modifiedDate = basic.getExtensionByUrl(EXT_MODIFIED_DATE);
+        if (modifiedDate != null && modifiedDate.getValue() instanceof DateTimeType) {
+            Date date = ((DateTimeType) modifiedDate.getValue()).getValue();
+            audit.setUpdatedAt(new java.sql.Timestamp(date.getTime()).toLocalDateTime());
+        }
+
         return audit;
+    }
+
+    private String getCurrentUser() {
+        try {
+            RequestContext context = RequestContext.get();
+            if (context != null && context.getAuthToken() != null) {
+                return "user-from-token";
+            }
+        } catch (Exception e) {
+            log.debug("Could not extract user from RequestContext: {}", e.getMessage());
+        }
+        return "system";
     }
 }

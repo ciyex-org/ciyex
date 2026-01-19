@@ -65,11 +65,13 @@ public class HealthcareServiceService {
     public HealthcareServiceDto update(String fhirId, HealthcareServiceDto dto) {
         log.debug("Updating FHIR HealthcareService: {}", fhirId);
 
+        // First read the existing resource to ensure it exists
+        fhirClientService.read(HealthcareService.class, fhirId, getPracticeId());
+        
         HealthcareService hs = toFhirHealthcareService(dto);
         hs.setId(fhirId);
         fhirClientService.update(hs, getPracticeId());
 
-        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         dto.setAudit(createAudit());
@@ -79,6 +81,8 @@ public class HealthcareServiceService {
     // DELETE
     public void delete(String fhirId) {
         log.debug("Deleting FHIR HealthcareService: {}", fhirId);
+        // First read to ensure it exists
+        fhirClientService.read(HealthcareService.class, fhirId, getPracticeId());
         fhirClientService.delete(HealthcareService.class, fhirId, getPracticeId());
     }
 

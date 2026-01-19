@@ -5,6 +5,7 @@ import ca.uhn.fhir.rest.gclient.StringClientParam;
 import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.FacilityDto;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.*;
@@ -14,9 +15,11 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Facility Service - FHIR Only.
@@ -49,11 +52,17 @@ public class FacilityService {
         Location fhirLocation = toFhirLocation(dto);
         fhirLocation.setManagingOrganization(new Reference("Organization/" + getPracticeId()));
         
+        // Add audit metadata
+        addAuditMetadata(fhirLocation, true);
+        
         MethodOutcome outcome = fhirClientService.create(fhirLocation, getPracticeId());
         
         String fhirId = outcome.getId().getIdPart();
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        
+        // Populate audit info in DTO
+        dto.setAudit(extractAuditFromLocation(fhirLocation));
         
         log.info("Created FHIR Location with ID: {}", fhirId);
         return dto;
@@ -85,10 +94,14 @@ public class FacilityService {
         Location fhirLocation = toFhirLocation(dto);
         fhirLocation.setId(fhirId);
         
+        // Add audit metadata for update
+        addAuditMetadata(fhirLocation, false);
+        
         fhirClientService.update(fhirLocation, getPracticeId());
         
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        dto.setAudit(extractAuditFromLocation(fhirLocation));
         
         log.info("Updated FHIR Location with ID: {}", fhirId);
         return dto;
@@ -293,7 +306,7 @@ public class FacilityService {
     private FacilityDto toFacilityDto(Location location) {
         FacilityDto dto = FacilityDto.builder().build();
 
-        // FHIR ID
+        // FHIR ID (auto-generated)
         if (location.hasId()) {
             dto.setFhirId(location.getIdElement().getIdPart());
             dto.setExternalId(location.getIdElement().getIdPart());
@@ -333,6 +346,9 @@ public class FacilityService {
             dto.setPhysicalCountry(address.getCountry());
         }
 
+        // Extract audit information
+        dto.setAudit(extractAuditFromLocation(location));
+
         return dto;
     }
 
@@ -346,5 +362,77 @@ public class FacilityService {
             }
         }
         return facilities;
+    }
+
+    // ========== Audit Helper Methods ==========
+
+    private void addAuditMetadata(Location location, boolean isCreate) {
+        String currentUser = getCurrentUser();
+        Date now = new Date();
+        DateTimeFormatter formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+        String timestamp = LocalDateTime.now().format(formatter);
+
+        if (isCreate) {
+            // Add created metadata as extensions
+            location.addExtension()
+                    .setUrl("http://ciyex.com/fhir/StructureDefinition/created-date")
+                    .setValue(new DateTimeType(now));
+            location.addExtension()
+                    .setUrl("http://ciyex.com/fhir/StructureDefinition/created-by")
+                    .setValue(new StringType(currentUser));
+        }
+
+        // Always update last modified metadata
+        location.addExtension()
+                .setUrl("http://ciyex.com/fhir/StructureDefinition/last-modified-date")
+                .setValue(new DateTimeType(now));
+        location.addExtension()
+                .setUrl("http://ciyex.com/fhir/StructureDefinition/last-modified-by")
+                .setValue(new StringType(currentUser));
+    }
+
+    private FacilityDto.Audit extractAuditFromLocation(Location location) {
+        FacilityDto.Audit audit = new FacilityDto.Audit();
+        DateTimeFormatter formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+
+        for (Extension ext : location.getExtension()) {
+            switch (ext.getUrl()) {
+                case "http://ciyex.com/fhir/StructureDefinition/created-date" -> {
+                    if (ext.getValue() instanceof DateTimeType) {
+                        audit.setCreatedDate(((DateTimeType) ext.getValue()).getValueAsString());
+                    }
+                }
+                case "http://ciyex.com/fhir/StructureDefinition/created-by" -> {
+                    if (ext.getValue() instanceof StringType) {
+                        audit.setCreatedBy(((StringType) ext.getValue()).getValue());
+                    }
+                }
+                case "http://ciyex.com/fhir/StructureDefinition/last-modified-date" -> {
+                    if (ext.getValue() instanceof DateTimeType) {
+                        audit.setLastModifiedDate(((DateTimeType) ext.getValue()).getValueAsString());
+                    }
+                }
+                case "http://ciyex.com/fhir/StructureDefinition/last-modified-by" -> {
+                    if (ext.getValue() instanceof StringType) {
+                        audit.setLastModifiedBy(((StringType) ext.getValue()).getValue());
+                    }
+                }
+            }
+        }
+
+        return audit;
+    }
+
+    private String getCurrentUser() {
+        try {
+            RequestContext context = RequestContext.get();
+            if (context != null && context.getAuthToken() != null) {
+                // Extract username from auth token if available
+                return "user-from-token"; // TODO: Parse JWT token to get actual username
+            }
+        } catch (Exception e) {
+            log.debug("Could not extract user from RequestContext: {}", e.getMessage());
+        }
+        return "system";
     }
 }

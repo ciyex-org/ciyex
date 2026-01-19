@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.ListOptionDto;
+import com.qiaben.ciyex.exception.ResourceNotFoundException;
 import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,7 +52,11 @@ public class ListOptionService {
         var outcome = fhirClientService.create(basic, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
-        dto.setId((long) Math.abs(fhirId.hashCode()));
+        try {
+            dto.setId(Long.parseLong(fhirId));
+        } catch (NumberFormatException e) {
+            dto.setId((long) Math.abs(fhirId.hashCode()));
+        }
         dto.setTimestamp(LocalDateTime.now());
         dto.setLastUpdated(LocalDateTime.now());
 
@@ -60,11 +65,16 @@ public class ListOptionService {
     }
 
     // UPDATE
-    public ListOptionDto update(String fhirId, ListOptionDto dto) {
-        log.debug("Updating ListOption: {}", fhirId);
+    public ListOptionDto update(String id, ListOptionDto dto) {
+        log.debug("Updating ListOption: {}", id);
+
+        var existingResource = fhirClientService.readOptional(Basic.class, id, getPracticeId());
+        if (existingResource.isEmpty()) {
+            throw new ResourceNotFoundException("ListOption not found with ID: " + id);
+        }
 
         Basic basic = toFhirBasic(dto);
-        basic.setId(fhirId);
+        basic.setId(id);
         fhirClientService.update(basic, getPracticeId());
 
         dto.setLastUpdated(LocalDateTime.now());
@@ -72,16 +82,21 @@ public class ListOptionService {
     }
 
     // DELETE
-    public void delete(String fhirId) {
-        log.debug("Deleting ListOption: {}", fhirId);
-        fhirClientService.delete(Basic.class, fhirId, getPracticeId());
+    public void delete(String id) {
+        log.debug("Deleting ListOption: {}", id);
+        fhirClientService.delete(Basic.class, id, getPracticeId());
     }
 
     // GET ONE
-    public ListOptionDto get(String fhirId) {
-        log.debug("Getting ListOption: {}", fhirId);
-        Basic basic = fhirClientService.read(Basic.class, fhirId, getPracticeId());
-        return fromFhirBasic(basic);
+    public ListOptionDto get(String id) {
+        log.debug("Getting ListOption: {}", id);
+        
+        var optionalBasic = fhirClientService.readOptional(Basic.class, id, getPracticeId());
+        if (optionalBasic.isEmpty()) {
+            throw new ResourceNotFoundException("ListOption not found with ID: " + id);
+        }
+        
+        return fromFhirBasic(optionalBasic.get());
     }
 
     // GET ALL
@@ -189,7 +204,11 @@ public class ListOptionService {
         ListOptionDto dto = new ListOptionDto();
 
         String fhirId = basic.getIdElement().getIdPart();
-        dto.setId((long) Math.abs(fhirId.hashCode()));
+        try {
+            dto.setId(Long.parseLong(fhirId));
+        } catch (NumberFormatException e) {
+            dto.setId((long) Math.abs(fhirId.hashCode()));
+        }
 
         // List ID
         dto.setListId(getStringExt(basic, EXT_LIST_ID));

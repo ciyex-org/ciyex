@@ -206,12 +206,27 @@ public class OrgConfigService {
     // ===== Helper Methods =====
 
     private Optional<Basic> findConfigByKey(String key) {
+        log.info("Searching for config key: '{}'", key);
         Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
 
-        return fhirClientService.extractResources(bundle, Basic.class).stream()
+        List<Basic> allConfigs = fhirClientService.extractResources(bundle, Basic.class).stream()
                 .filter(this::isOrgConfig)
-                .filter(basic -> key.equals(getConfigKey(basic)))
-                .findFirst();
+                .collect(Collectors.toList());
+        
+        log.info("Found {} total org-config resources", allConfigs.size());
+        
+        for (Basic basic : allConfigs) {
+            String configKey = getConfigKey(basic);
+            String fhirId = basic.getIdElement().getIdPart();
+            log.info("Checking resource ID={}, key='{}' against search key='{}'", fhirId, configKey, key);
+            if (key.equals(configKey)) {
+                log.info("MATCH FOUND for key='{}' with ID={}", key, fhirId);
+                return Optional.of(basic);
+            }
+        }
+        
+        log.warn("NO MATCH found for key='{}'", key);
+        return Optional.empty();
     }
 
     private boolean isOrgConfig(Basic basic) {
