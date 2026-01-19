@@ -365,7 +365,7 @@ public class PatientClaimService {
     public void changeClaimStatus(Long patientId, Long claimId, ClaimStatusUpdateDto dto) {
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
 
-        if (!patientId.equals(getPatientFromClaim(claim))) {
+        if (patientId != null && !patientId.equals(getPatientFromClaim(claim))) {
             throw new IllegalArgumentException(String.format(
                 "Claim not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Claim ID are correct and that the claim belongs to this patient.",
                 claimId, patientId));
@@ -399,6 +399,31 @@ public class PatientClaimService {
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
         return fromFhirClaim(claim);
     }
+
+//    // Fetch insurance email for a claim
+//    public String getInsuranceEmailForClaim(Long claimId) {
+//        PatientClaim claim = claimRepo.findById(claimId).orElse(null);
+//        if (claim == null) return null;
+//        // Get most recent coverage for patient
+//        List<Coverage> coverages = coverageRepo.findByPatientIdOrderByEffectiveDateDesc(claim.getPatientId());
+//        if (!coverages.isEmpty()) {
+//            Coverage coverage = coverages.get(0);
+//            if (coverage.getInsuranceCompany() != null) {
+//                // If InsuranceCompany has email field, use it; otherwise, return null or placeholder
+//                // return coverage.getInsuranceCompany().getEmail();
+//                return "insurance@example.com"; // Placeholder, replace with actual email field
+//            }
+//        }
+//        return null;
+//    }
+//
+//    // Send claim details to insurance email (stub)
+//    public boolean sendClaimDetailsToInsuranceEmail(PatientClaimDto claim, String insuranceEmail) {
+//        // TODO: Implement actual email sending logic
+//        log.info("Sending claim {} to insurance email {}", claim.id(), insuranceEmail);
+//        // Simulate success
+//        return true;
+//    }
 
     // ===================== Attachments & EOB =====================
 
@@ -640,7 +665,7 @@ public class PatientClaimService {
                 billingEntity,
                 type,
                 notes,
-                status != null ? PatientClaimStatus.valueOf(status) : PatientClaimStatus.DRAFT,
+                status != null ? normalizeStatus(status) : PatientClaimStatus.DRAFT,
                 attachments,
                 eob,
                 createdOn,
@@ -708,5 +733,19 @@ public class PatientClaimService {
             return ((BooleanType) ext.getValue()).booleanValue();
         }
         return false;
+    }
+
+    /**
+     * Normalize status string to match enum format
+     */
+    private PatientClaimStatus normalizeStatus(String status) {
+        if (status == null) return PatientClaimStatus.DRAFT;
+        String normalized = status.replace("-", "_").toUpperCase();
+        try {
+            return PatientClaimStatus.valueOf(normalized);
+        } catch (IllegalArgumentException e) {
+            log.warn("Unknown claim status: {}, defaulting to DRAFT", status);
+            return PatientClaimStatus.DRAFT;
+        }
     }
 }
