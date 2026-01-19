@@ -60,7 +60,7 @@ public class InventoryService {
         Device device = toFhirDevice(dto);
         var outcome = fhirClientService.create(device, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
-        dto.setId(Long.parseLong(fhirId));
+        dto.setId(parseFhirIdToLong(fhirId));
         dto.setFhirId(fhirId);
 
         // Set audit information
@@ -110,6 +110,7 @@ public class InventoryService {
         device.setId(fhirId);
         fhirClientService.update(device, getPracticeId());
 
+        dto.setId(parseFhirIdToLong(fhirId));
         dto.setFhirId(fhirId);
         return dto;
     }
@@ -204,8 +205,9 @@ public class InventoryService {
 
     private InventoryDto fromFhirDevice(Device d) {
         InventoryDto dto = new InventoryDto();
-        dto.setFhirId(d.getIdElement().getIdPart());
-        dto.setId(Long.parseLong(d.getIdElement().getIdPart()));
+        String fhirId = d.getIdElement().getIdPart();
+        dto.setId(parseFhirIdToLong(fhirId));
+        dto.setFhirId(fhirId);
 
         // Device name
         if (d.hasDeviceName()) {
@@ -296,6 +298,16 @@ public class InventoryService {
             String errorMessage = "Validation failed: " + String.join(", ", errors);
             log.error("Inventory validation failed: {}", errorMessage);
             throw new IllegalArgumentException(errorMessage);
+        }
+    }
+
+    private Long parseFhirIdToLong(String fhirId) {
+        if (fhirId == null) return null;
+        try {
+            return Long.parseLong(fhirId);
+        } catch (NumberFormatException e) {
+            log.warn("FHIR ID '{}' is not numeric, using hashCode", fhirId);
+            return (long) Math.abs(fhirId.hashCode());
         }
     }
 }
