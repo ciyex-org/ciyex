@@ -30,6 +30,8 @@ public class InsuranceCompanyDto {
 
     private String fhirId;
     private String externalId; // Alias for fhirId for external integrations
+    
+    @NotBlank(message = "Status is mandatory")
     private String status;  // ACTIVE or ARCHIVED
 
     @Data

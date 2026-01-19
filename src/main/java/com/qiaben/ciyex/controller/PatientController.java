@@ -45,14 +45,14 @@ public class PatientController {
 
         try {
             PatientDto createdPatient = service.create(dto);
-            return ResponseEntity.ok(ApiResponse.<PatientDto>builder()
+            return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.<PatientDto>builder()
                     .success(true)
                     .message("Patient created successfully")
                     .data(createdPatient)
                     .build());
         } catch (Exception e) {
             log.error("Failed to create patient", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<PatientDto>builder()
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.<PatientDto>builder()
                     .success(false)
                     .message("Failed to create patient: " + e.getMessage())
                     .build());
@@ -71,20 +71,18 @@ public class PatientController {
                     .build());
         } catch (RuntimeException e) {
             log.error("Patient not found with id {}", id);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.<PatientDto>builder()
-                            .success(false)
-                            .message("No patient found with id: " + id)
-                            .data(null)
-                            .build());
+            return ResponseEntity.ok(ApiResponse.<PatientDto>builder()
+                    .success(false)
+                    .message("No patient id matches")
+                    .data(null)
+                    .build());
         } catch (Exception e) {
             log.error("Failed to retrieve patient with id {}", id, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.<PatientDto>builder()
-                            .success(false)
-                            .message("Failed to retrieve patient: " + e.getMessage())
-                            .data(null)
-                            .build());
+            return ResponseEntity.ok(ApiResponse.<PatientDto>builder()
+                    .success(false)
+                    .message("No patient id matches")
+                    .data(null)
+                    .build());
         }
     }
 
@@ -108,7 +106,7 @@ public class PatientController {
             if (updatedPatient == null) {
                 return ResponseEntity.ok(ApiResponse.<PatientDto>builder()
                         .success(false)
-                        .message("Patient not found with id: " + id)
+                        .message("No patient id matches")
                         .build());
             }
             return ResponseEntity.ok(ApiResponse.<PatientDto>builder()
@@ -120,7 +118,7 @@ public class PatientController {
             log.error("Failed to update patient with id {}", id, e);
             return ResponseEntity.ok(ApiResponse.<PatientDto>builder()
                     .success(false)
-                    .message("Failed to update patient: " + e.getMessage())
+                    .message("No patient id matches")
                     .build());
         }
     }
@@ -138,7 +136,7 @@ public class PatientController {
             log.error("Failed to delete patient with id {}", id, e);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(false)
-                    .message("Failed to delete patient: " + e.getMessage())
+                    .message("No patient id matches")
                     .build());
         }
     }
@@ -155,7 +153,7 @@ public class PatientController {
                     .build());
         } catch (Exception e) {
             log.error("Failed to count patients", e);
-            return ResponseEntity.ok(ApiResponse.<Long>builder()
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<Long>builder()
                     .success(false)
                     .message("Failed to count patients: " + e.getMessage())
                     .build());
@@ -177,7 +175,7 @@ public class PatientController {
                     .build());
         } catch (Exception e) {
             log.error("Failed to retrieve patients", e);
-            return ResponseEntity.ok(ApiResponse.<Page<PatientDto>>builder()
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<Page<PatientDto>>builder()
                     .success(false)
                     .message("Failed to retrieve patients: " + e.getMessage())
                     .build());
@@ -200,18 +198,16 @@ public class PatientController {
                     .build());
         } catch (RuntimeException e) {
             log.error("Patient not found with id {}", id);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.<Object>builder()
-                            .success(false)
-                            .message("Patient not found")
-                            .build());
+            return ResponseEntity.ok(ApiResponse.<Object>builder()
+                    .success(false)
+                    .message("No patient id matches")
+                    .build());
         } catch (Exception e) {
             log.error("Failed to save patient history for id {}", id, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.<Object>builder()
-                            .success(false)
-                            .message("Failed to save patient history")
-                            .build());
+            return ResponseEntity.ok(ApiResponse.<Object>builder()
+                    .success(false)
+                    .message("No patient id matches")
+                    .build());
         }
     }
 
@@ -228,18 +224,16 @@ public class PatientController {
                     .build());
         } catch (RuntimeException e) {
             log.error("Patient not found with id {}", id);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.<Object>builder()
-                            .success(false)
-                            .message("Patient not found")
-                            .build());
+            return ResponseEntity.ok(ApiResponse.<Object>builder()
+                    .success(false)
+                    .message("No patient id matches")
+                    .build());
         } catch (Exception e) {
             log.error("Failed to retrieve patient history for id {}", id, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.<Object>builder()
-                            .success(false)
-                            .message("Failed to retrieve patient history")
-                            .build());
+            return ResponseEntity.ok(ApiResponse.<Object>builder()
+                    .success(false)
+                    .message("No patient id matches")
+                    .build());
         }
     }
 }

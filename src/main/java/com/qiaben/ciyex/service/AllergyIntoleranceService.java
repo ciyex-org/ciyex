@@ -42,6 +42,7 @@ public class AllergyIntoleranceService {
         log.info("Creating allergies in FHIR for patient: {}", dto.getPatientId());
 
         List<AllergyIntoleranceDto.AllergyItem> createdItems = new ArrayList<>();
+        String currentTime = java.time.Instant.now().toString();
 
         if (dto.getAllergiesList() != null) {
             for (var item : dto.getAllergiesList()) {
@@ -63,6 +64,12 @@ public class AllergyIntoleranceService {
                     item.setId((long) fhirId.hashCode());
                 }
                 
+                // Add audit to each item
+                AllergyIntoleranceDto.Audit audit = new AllergyIntoleranceDto.Audit();
+                audit.setCreatedDate(currentTime);
+                audit.setLastModifiedDate(currentTime);
+                item.setAudit(audit);
+                
                 createdItems.add(item);
 
                 log.info("Created FHIR AllergyIntolerance with ID: {}", fhirId);
@@ -71,13 +78,6 @@ public class AllergyIntoleranceService {
 
         AllergyIntoleranceDto result = new AllergyIntoleranceDto();
         result.setAllergiesList(createdItems);
-        
-        // Add audit information
-        AllergyIntoleranceDto.Audit audit = new AllergyIntoleranceDto.Audit();
-        String currentTime = java.time.Instant.now().toString();
-        audit.setCreatedDate(currentTime);
-        audit.setLastModifiedDate(currentTime);
-        result.setAudit(audit);
         
         return result;
     }
@@ -98,22 +98,7 @@ public class AllergyIntoleranceService {
         AllergyIntoleranceDto dto = new AllergyIntoleranceDto();
         dto.setAllergiesList(items);
         
-        // Add audit information
-        AllergyIntoleranceDto.Audit audit = new AllergyIntoleranceDto.Audit();
-        String currentTime = java.time.Instant.now().toString();
-        audit.setCreatedDate(currentTime);
-        audit.setLastModifiedDate(currentTime);
-        dto.setAudit(audit);
-        
         return dto;
-    }
-
-    // ✅ Update allergies for a patient (replace all)
-    public AllergyIntoleranceDto updateByPatientId(Long patientId, AllergyIntoleranceDto dto) {
-        log.info("Updating allergies in FHIR for patient: {}", patientId);
-        deleteByPatientId(patientId);
-        dto.setPatientId(patientId);
-        return create(dto);
     }
 
     // ✅ Delete all allergies for a patient
@@ -155,6 +140,13 @@ public class AllergyIntoleranceService {
         String fhirId = String.valueOf(intoleranceId);
         log.info("Updating FHIR AllergyIntolerance with ID: {}", fhirId);
 
+        // Check if resource exists first
+        try {
+            fhirClientService.read(AllergyIntolerance.class, fhirId, getPracticeId());
+        } catch (ResourceNotFoundException e) {
+            throw new RuntimeException("Allergy not found for patientId=" + patientId + " intoleranceId=" + intoleranceId);
+        }
+
         validateMandatoryFields(patch);
         validateDates(patch.getStartDate(), patch.getEndDate());
 
@@ -174,6 +166,13 @@ public class AllergyIntoleranceService {
             patch.setId((long) fhirId.hashCode());
         }
         
+        // Add audit
+        AllergyIntoleranceDto.Audit audit = new AllergyIntoleranceDto.Audit();
+        String currentTime = java.time.Instant.now().toString();
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        patch.setAudit(audit);
+        
         return patch;
     }
 
@@ -181,6 +180,14 @@ public class AllergyIntoleranceService {
     public void deleteItem(Long patientId, Long intoleranceId) {
         String fhirId = String.valueOf(intoleranceId);
         log.info("Deleting FHIR AllergyIntolerance with ID: {}", fhirId);
+        
+        // Check if resource exists first
+        try {
+            fhirClientService.read(AllergyIntolerance.class, fhirId, getPracticeId());
+        } catch (ResourceNotFoundException e) {
+            throw new RuntimeException("Allergy not found for patientId=" + patientId + " intoleranceId=" + intoleranceId);
+        }
+        
         fhirClientService.delete(AllergyIntolerance.class, fhirId, getPracticeId());
     }
 
@@ -349,6 +356,13 @@ public class AllergyIntoleranceService {
         if (fhirAllergy.hasNote()) {
             item.setComments(fhirAllergy.getNoteFirstRep().getText());
         }
+
+        // Add audit
+        AllergyIntoleranceDto.Audit audit = new AllergyIntoleranceDto.Audit();
+        String currentTime = java.time.Instant.now().toString();
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        item.setAudit(audit);
 
         return item;
     }

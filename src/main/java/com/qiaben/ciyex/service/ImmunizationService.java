@@ -47,6 +47,7 @@ public class ImmunizationService {
         log.info("Creating immunization in FHIR for patient: {}", dto.getPatientId());
 
         List<ImmunizationDto.ImmunizationItem> createdItems = new ArrayList<>();
+        String currentTime = java.time.Instant.now().toString();
 
         for (ImmunizationDto.ImmunizationItem item : dto.getImmunizations()) {
             validateMandatoryFields(item);
@@ -66,6 +67,12 @@ public class ImmunizationService {
                 item.setId((long) fhirId.hashCode());
             }
             
+            // Add audit to each item
+            ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
+            audit.setCreatedDate(currentTime);
+            audit.setLastModifiedDate(currentTime);
+            item.setAudit(audit);
+            
             createdItems.add(item);
 
             log.info("Created FHIR Immunization with ID: {}", fhirId);
@@ -74,13 +81,6 @@ public class ImmunizationService {
         ImmunizationDto result = new ImmunizationDto();
         result.setPatientId(dto.getPatientId());
         result.setImmunizations(createdItems);
-        
-        // Add audit information
-        ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
-        String currentTime = java.time.Instant.now().toString();
-        audit.setCreatedDate(currentTime);
-        audit.setLastModifiedDate(currentTime);
-        result.setAudit(audit);
         
         return result;
     }
@@ -102,41 +102,7 @@ public class ImmunizationService {
         dto.setPatientId(patientId);
         dto.setImmunizations(items);
         
-        // Add audit information
-        ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
-        String currentTime = java.time.Instant.now().toString();
-        audit.setCreatedDate(currentTime);
-        audit.setLastModifiedDate(currentTime);
-        dto.setAudit(audit);
-        
         return dto;
-    }
-
-    // ✅ Update immunization by patient
-    public ImmunizationDto updateByPatientId(Long patientId, ImmunizationDto dto) {
-        if (dto.getImmunizations() == null || dto.getImmunizations().isEmpty()) {
-            throw new IllegalArgumentException("No immunization data provided");
-        }
-
-        ImmunizationDto.ImmunizationItem patch = dto.getImmunizations().get(0);
-        String fhirId = patch.getFhirId() != null ? patch.getFhirId() : String.valueOf(patch.getId());
-
-        log.info("Updating FHIR Immunization with ID: {}", fhirId);
-
-        validateMandatoryFields(patch);
-
-        Immunization fhirImmunization = toFhirImmunization(patch, patientId);
-        fhirImmunization.setId(fhirId);
-
-        fhirClientService.update(fhirImmunization, getPracticeId());
-
-        patch.setFhirId(fhirId);
-        patch.setExternalId(fhirId);
-
-        ImmunizationDto result = new ImmunizationDto();
-        result.setPatientId(patientId);
-        result.setImmunizations(List.of(patch));
-        return result;
     }
 
     // ✅ Delete all immunizations for a patient
@@ -177,6 +143,13 @@ public class ImmunizationService {
         String fhirId = String.valueOf(immunizationId);
         log.info("Updating FHIR Immunization with ID: {}", fhirId);
 
+        // Check if resource exists first
+        try {
+            fhirClientService.read(Immunization.class, fhirId, getPracticeId());
+        } catch (ResourceNotFoundException e) {
+            throw new RuntimeException("Immunization not found with id: " + immunizationId + " for patientId: " + patientId);
+        }
+
         validateMandatoryFields(patch);
 
         Immunization fhirImmunization = toFhirImmunization(patch, patientId);
@@ -194,6 +167,13 @@ public class ImmunizationService {
             patch.setId((long) fhirId.hashCode());
         }
         
+        // Add audit
+        ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
+        String currentTime = java.time.Instant.now().toString();
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        patch.setAudit(audit);
+        
         return patch;
     }
 
@@ -201,6 +181,14 @@ public class ImmunizationService {
     public void deleteItem(Long patientId, Long immunizationId) {
         String fhirId = String.valueOf(immunizationId);
         log.info("Deleting FHIR Immunization with ID: {}", fhirId);
+        
+        // Check if resource exists first
+        try {
+            fhirClientService.read(Immunization.class, fhirId, getPracticeId());
+        } catch (ResourceNotFoundException e) {
+            throw new RuntimeException("Immunization not found with id: " + immunizationId + " for patientId: " + patientId);
+        }
+        
         fhirClientService.delete(Immunization.class, fhirId, getPracticeId());
     }
 
@@ -304,6 +292,45 @@ public class ImmunizationService {
             immunization.addReasonCode(new CodeableConcept().setText(item.getReasonCode()));
         }
 
+        // Information source (primarySource)
+        if (item.getInformationSource() != null) {
+            immunization.setPrimarySource(item.getInformationSource().equalsIgnoreCase("primary") || 
+                                         item.getInformationSource().equalsIgnoreCase("true"));
+        }
+
+        // Completion status - store as extension
+        if (item.getCompletionStatus() != null) {
+            Extension statusExt = new Extension("http://ciyex.com/fhir/StructureDefinition/immunization-completion-status");
+            statusExt.setValue(new StringType(item.getCompletionStatus()));
+            immunization.addExtension(statusExt);
+        }
+
+        // Substance refusal reason - store as statusReason
+        if (item.getSubstanceRefusalReason() != null) {
+            immunization.setStatusReason(new CodeableConcept().setText(item.getSubstanceRefusalReason()));
+        }
+
+        // Date VIS given - store as extension
+        if (item.getDateVisGiven() != null) {
+            Extension visGivenExt = new Extension("http://ciyex.com/fhir/StructureDefinition/immunization-vis-given-date");
+            visGivenExt.setValue(new DateType(item.getDateVisGiven()));
+            immunization.addExtension(visGivenExt);
+        }
+
+        // Date VIS statement - store as extension
+        if (item.getDateVisStatement() != null) {
+            Extension visStatementExt = new Extension("http://ciyex.com/fhir/StructureDefinition/immunization-vis-statement-date");
+            visStatementExt.setValue(new DateType(item.getDateVisStatement()));
+            immunization.addExtension(visStatementExt);
+        }
+
+        // Ordering provider - store as extension
+        if (item.getOrderingProvider() != null) {
+            Extension orderingProviderExt = new Extension("http://ciyex.com/fhir/StructureDefinition/immunization-ordering-provider");
+            orderingProviderExt.setValue(new StringType(item.getOrderingProvider()));
+            immunization.addExtension(orderingProviderExt);
+        }
+
         return immunization;
     }
 
@@ -396,6 +423,47 @@ public class ImmunizationService {
         if (fhirImmunization.hasReasonCode()) {
             item.setReasonCode(fhirImmunization.getReasonCodeFirstRep().getText());
         }
+
+        // Information source
+        if (fhirImmunization.hasPrimarySource()) {
+            item.setInformationSource(fhirImmunization.getPrimarySource() ? "primary" : "secondary");
+        }
+
+        // Completion status - retrieve from extension
+        Extension statusExt = fhirImmunization.getExtensionByUrl("http://ciyex.com/fhir/StructureDefinition/immunization-completion-status");
+        if (statusExt != null && statusExt.getValue() instanceof StringType) {
+            item.setCompletionStatus(((StringType) statusExt.getValue()).getValue());
+        }
+
+        // Substance refusal reason
+        if (fhirImmunization.hasStatusReason()) {
+            item.setSubstanceRefusalReason(fhirImmunization.getStatusReason().getText());
+        }
+
+        // Date VIS given - retrieve from extension
+        Extension visGivenExt = fhirImmunization.getExtensionByUrl("http://ciyex.com/fhir/StructureDefinition/immunization-vis-given-date");
+        if (visGivenExt != null && visGivenExt.getValue() instanceof DateType) {
+            item.setDateVisGiven(((DateType) visGivenExt.getValue()).getValueAsString());
+        }
+
+        // Date VIS statement - retrieve from extension
+        Extension visStatementExt = fhirImmunization.getExtensionByUrl("http://ciyex.com/fhir/StructureDefinition/immunization-vis-statement-date");
+        if (visStatementExt != null && visStatementExt.getValue() instanceof DateType) {
+            item.setDateVisStatement(((DateType) visStatementExt.getValue()).getValueAsString());
+        }
+
+        // Ordering provider - retrieve from extension
+        Extension orderingProviderExt = fhirImmunization.getExtensionByUrl("http://ciyex.com/fhir/StructureDefinition/immunization-ordering-provider");
+        if (orderingProviderExt != null && orderingProviderExt.getValue() instanceof StringType) {
+            item.setOrderingProvider(((StringType) orderingProviderExt.getValue()).getValue());
+        }
+
+        // Add audit
+        ImmunizationDto.Audit audit = new ImmunizationDto.Audit();
+        String currentTime = java.time.Instant.now().toString();
+        audit.setCreatedDate(currentTime);
+        audit.setLastModifiedDate(currentTime);
+        item.setAudit(audit);
 
         return item;
     }

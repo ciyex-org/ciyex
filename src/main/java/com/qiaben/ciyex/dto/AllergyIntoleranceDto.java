@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.util.List;
@@ -20,10 +21,19 @@ public class AllergyIntoleranceDto {
         private Long id;          // primary key row id
         private String fhirId;    // FHIR resource ID
         private String externalId; // Alias for fhirId
+        
+        @NotBlank(message = "Allergy name is required")
         private String allergyName;
+        
+        @NotBlank(message = "Reaction is required")
         private String reaction;
+        
+        @NotBlank(message = "Severity is required")
         private String severity;
+        
+        @NotBlank(message = "Status is required")
         private String status;
+        
         private Long patientId;
 
         // Effective window
@@ -32,6 +42,7 @@ public class AllergyIntoleranceDto {
 
         // NEW
         private String comments;
+        private Audit audit;
     }
 
     @Data
