@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -33,6 +34,7 @@ public class PatientEducationAssignmentService {
     private static final String EXT_NOTES = "http://ciyex.com/fhir/StructureDefinition/notes";
     private static final String EXT_DELIVERED = "http://ciyex.com/fhir/StructureDefinition/delivered";
     private static final String EXT_ASSIGNED_DATE = "http://ciyex.com/fhir/StructureDefinition/assigned-date";
+    private static final String EXT_ASSIGNED_BY = "http://ciyex.com/fhir/StructureDefinition/assigned-by";
     private static final String EXT_TOPIC_ID = "http://ciyex.com/fhir/StructureDefinition/topic-id";
     private static final String EXT_TOPIC_TITLE = "http://ciyex.com/fhir/StructureDefinition/topic-title";
     private static final String EXT_TOPIC_SUMMARY = "http://ciyex.com/fhir/StructureDefinition/topic-summary";
@@ -48,43 +50,81 @@ public class PatientEducationAssignmentService {
 
     // ASSIGN (CREATE)
     public PatientEducationAssignmentDto assign(String educationId, PatientEducationAssignmentDto dto) {
+        validateAssignmentDto(dto);
+        
         log.debug("Creating FHIR ServiceRequest (education assignment) for patient: {}", dto.getPatientId());
 
-        dto.setDelivered(true);
-        dto.setAssignedDate(LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
+        try {
+            dto.setDelivered(false);
+            dto.setAssignedDate(LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
 
-        ServiceRequest sr = toFhirServiceRequest(dto);
-        var outcome = fhirClientService.create(sr, getPracticeId());
-        String fhirId = outcome.getId().getIdPart();
-        dto.setId(Long.parseLong(fhirId));
-        dto.setFhirId(fhirId);
+            ServiceRequest sr = toFhirServiceRequest(dto);
+            var outcome = fhirClientService.create(sr, getPracticeId());
+            String fhirId = outcome.getId().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
 
-        // Set audit information
-        PatientEducationAssignmentDto.Audit audit = new PatientEducationAssignmentDto.Audit();
-        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
-        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
-        dto.setAudit(audit);
+            // Set audit information
+            PatientEducationAssignmentDto.Audit audit = new PatientEducationAssignmentDto.Audit();
+            audit.setCreatedDate(LocalDateTime.now().toString());
+            audit.setLastModifiedDate(LocalDateTime.now().toString());
+            dto.setAudit(audit);
 
-        log.info("Created FHIR ServiceRequest (education assignment) with id: {}", fhirId);
+            log.info("Created FHIR ServiceRequest (education assignment) with id: {}", fhirId);
 
-        return dto;
+            return dto;
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to create education assignment: {}", e.getMessage());
+            throw new RuntimeException("Failed to create education assignment: " + e.getMessage(), e);
+        }
     }
 
     // GET BY PATIENT
     public List<PatientEducationAssignmentDto> getByPatient(Long patientId) {
+        if (patientId == null) {
+            throw new IllegalArgumentException("Patient ID cannot be null");
+        }
+        
         log.debug("Getting FHIR ServiceRequests (education assignments) for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
-                .forResource(ServiceRequest.class)
-                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
-                .returnBundle(Bundle.class)
-                .execute();
+        try {
+            Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                    .forResource(ServiceRequest.class)
+                    .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                    .returnBundle(Bundle.class)
+                    .execute();
 
-        List<ServiceRequest> requests = fhirClientService.extractResources(bundle, ServiceRequest.class);
-        return requests.stream()
-                .filter(this::isEducationAssignment)
-                .map(this::fromFhirServiceRequest)
-                .collect(Collectors.toList());
+            List<ServiceRequest> requests = fhirClientService.extractResources(bundle, ServiceRequest.class);
+            return requests.stream()
+                    .filter(this::isEducationAssignment)
+                    .map(this::fromFhirServiceRequest)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Failed to retrieve assignments for patient {}: {}", patientId, e.getMessage());
+            throw new RuntimeException("Failed to retrieve assignments for patient: " + patientId, e);
+        }
+    }
+    
+    // GET BY ID
+    public PatientEducationAssignmentDto getById(String fhirId) {
+        if (fhirId == null || fhirId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Assignment ID cannot be null or empty");
+        }
+        
+        log.debug("Getting FHIR ServiceRequest (education assignment): {}", fhirId);
+        
+        try {
+            ServiceRequest sr = fhirClientService.read(ServiceRequest.class, fhirId, getPracticeId());
+            if (sr == null) {
+                throw new IllegalArgumentException("Assignment not found for assignmentId=" + fhirId);
+            }
+            return fromFhirServiceRequest(sr);
+        } catch (Exception e) {
+            log.error("Failed to retrieve assignment with ID {}: {}", fhirId, e.getMessage());
+            throw new RuntimeException("Failed to retrieve assignment: Assignment not found for assignmentId=" + fhirId);
+        }
     }
 
     // GET ALL
@@ -102,23 +142,55 @@ public class PatientEducationAssignmentService {
 
     // DELETE
     public void delete(String fhirId) {
+        if (fhirId == null || fhirId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Assignment ID cannot be null or empty");
+        }
+        
         log.debug("Deleting FHIR ServiceRequest (education assignment): {}", fhirId);
-        fhirClientService.delete(ServiceRequest.class, fhirId, getPracticeId());
+        
+        try {
+            // Verify assignment exists before deleting
+            fhirClientService.read(ServiceRequest.class, fhirId, getPracticeId());
+            fhirClientService.delete(ServiceRequest.class, fhirId, getPracticeId());
+            log.info("Successfully deleted assignment with ID: {}", fhirId);
+        } catch (Exception e) {
+            log.error("Failed to delete assignment with ID {}: {}", fhirId, e.getMessage());
+            throw new RuntimeException("Failed to delete assignment: Assignment not found for assignmentId=" + fhirId);
+        }
     }
 
     // MARK DELIVERED
     public PatientEducationAssignmentDto markDelivered(String fhirId) {
+        if (fhirId == null || fhirId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Assignment ID cannot be null or empty");
+        }
+        
         log.debug("Marking FHIR ServiceRequest (education assignment) as delivered: {}", fhirId);
 
-        ServiceRequest sr = fhirClientService.read(ServiceRequest.class, fhirId, getPracticeId());
+        try {
+            ServiceRequest sr = fhirClientService.read(ServiceRequest.class, fhirId, getPracticeId());
+            
+            if (sr == null) {
+                throw new IllegalArgumentException("Assignment not found for assignmentId=" + fhirId);
+            }
 
-        // Update delivered extension
-        sr.getExtension().removeIf(e -> EXT_DELIVERED.equals(e.getUrl()));
-        sr.addExtension(new Extension(EXT_DELIVERED, new BooleanType(true)));
-        sr.setStatus(ServiceRequest.ServiceRequestStatus.COMPLETED);
+            // Update delivered extension
+            sr.getExtension().removeIf(e -> EXT_DELIVERED.equals(e.getUrl()));
+            sr.addExtension(new Extension(EXT_DELIVERED, new BooleanType(true)));
+            sr.setStatus(ServiceRequest.ServiceRequestStatus.COMPLETED);
 
-        fhirClientService.update(sr, getPracticeId());
-        return fromFhirServiceRequest(sr);
+            fhirClientService.update(sr, getPracticeId());
+            
+            PatientEducationAssignmentDto result = fromFhirServiceRequest(sr);
+            log.info("Successfully marked assignment {} as delivered", fhirId);
+            
+            return result;
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to mark assignment as delivered for ID {}: {}", fhirId, e.getMessage());
+            throw new RuntimeException("Failed to mark assignment as delivered: Assignment not found for assignmentId=" + fhirId);
+        }
     }
 
     // COUNT
@@ -148,6 +220,7 @@ public class PatientEducationAssignmentService {
         addStringExtension(sr, EXT_PATIENT_NAME, dto.getPatientName());
         addStringExtension(sr, EXT_NOTES, dto.getNotes());
         addStringExtension(sr, EXT_ASSIGNED_DATE, dto.getAssignedDate());
+        addStringExtension(sr, EXT_ASSIGNED_BY, dto.getAssignedBy());
         sr.addExtension(new Extension(EXT_DELIVERED, new BooleanType(dto.isDelivered())));
 
         // Topic extensions
@@ -187,6 +260,7 @@ public class PatientEducationAssignmentService {
         dto.setPatientName(getExtensionString(sr, EXT_PATIENT_NAME));
         dto.setNotes(getExtensionString(sr, EXT_NOTES));
         dto.setAssignedDate(getExtensionString(sr, EXT_ASSIGNED_DATE));
+        dto.setAssignedBy(getExtensionString(sr, EXT_ASSIGNED_BY));
 
         Extension deliveredExt = sr.getExtensionByUrl(EXT_DELIVERED);
         if (deliveredExt != null && deliveredExt.getValue() instanceof BooleanType) {
@@ -240,5 +314,37 @@ public class PatientEducationAssignmentService {
             return ((StringType) ext.getValue()).getValue();
         }
         return null;
+    }
+    
+    // -------- Validation --------
+    
+    private void validateAssignmentDto(PatientEducationAssignmentDto dto) {
+        List<String> errors = new ArrayList<>();
+        
+        if (dto == null) {
+            throw new IllegalArgumentException("Assignment data cannot be null");
+        }
+        
+        if (dto.getPatientId() == null) {
+            errors.add("Patient ID is mandatory");
+        }
+        
+        if (dto.getTopic() == null) {
+            errors.add("Topic is mandatory");
+        } else {
+            if (dto.getTopic().getTitle() == null || dto.getTopic().getTitle().trim().isEmpty()) {
+                errors.add("Topic title is mandatory");
+            }
+        }
+        
+        if (dto.getAssignedBy() == null || dto.getAssignedBy().trim().isEmpty()) {
+            errors.add("Assigned by is mandatory");
+        }
+        
+        if (!errors.isEmpty()) {
+            String errorMessage = "Validation failed: " + String.join(", ", errors);
+            log.error("Assignment validation failed: {}", errorMessage);
+            throw new IllegalArgumentException(errorMessage);
+        }
     }
 }
