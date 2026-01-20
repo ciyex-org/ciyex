@@ -8,7 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
+import java.util.HashMap; 
 import java.util.List;
 import java.util.Map;
 
@@ -42,91 +42,52 @@ public class InsuranceCompanyController {
 
     @GetMapping("/{id}")
     public ResponseEntity<?> get(@PathVariable("id") String id) {
-        try {
-            InsuranceCompanyDto dto = service.getById(id);
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Insurance company retrieved successfully");
-            response.put("data", dto);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("success", false);
-            error.put("message", "Failed to retrieve insurance company: Insurance company not found for id=" + id);
-            error.put("data", null);
-            return ResponseEntity.ok(error);
-        }
+        InsuranceCompanyDto dto = service.getById(id);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("message", "Insurance company retrieved successfully");
+        response.put("data", dto);
+        return ResponseEntity.ok(response);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable("id") String id, @Valid @RequestBody InsuranceCompanyDto dto) {
-        try {
-            InsuranceCompanyDto updatedDto = service.update(id, dto);
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Insurance company updated successfully");
-            response.put("data", updatedDto);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("success", false);
-            error.put("message", "Failed to update insurance company: " + e.getMessage());
-            error.put("data", null);
-            return ResponseEntity.ok(error);
-        }
+        InsuranceCompanyDto updatedDto = service.update(id, dto);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("message", "Insurance company updated successfully");
+        response.put("data", updatedDto);
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable("id") String id) {
-        try {
-            service.delete(id);
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Insurance company deleted successfully");
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("success", false);
-            error.put("message", "Failed to delete insurance company: " + e.getMessage());
-            return ResponseEntity.ok(error);
-        }
+        service.delete(id);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("message", "Insurance company deleted successfully");
+        return ResponseEntity.ok(response);
     }
 
     // 🔹 New endpoints for status toggle
     @PostMapping("/{id}/archive")
     public ResponseEntity<?> archive(@PathVariable("id") String id) {
-        try {
-            InsuranceCompanyDto dto = service.updateStatus(id, "ARCHIVED");
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Insurance company archived successfully");
-            response.put("data", dto);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("success", false);
-            error.put("message", "Failed to archive insurance company: " + e.getMessage());
-            error.put("data", null);
-            return ResponseEntity.ok(error);
-        }
+        InsuranceCompanyDto dto = service.updateStatus(id, "ARCHIVED");
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("message", "Insurance company archived successfully");
+        response.put("data", dto);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/{id}/activate")
     public ResponseEntity<?> activate(@PathVariable("id") String id) {
-        try {
-            InsuranceCompanyDto dto = service.updateStatus(id, "ACTIVE");
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Insurance company activated successfully");
-            response.put("data", dto);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("success", false);
-            error.put("message", "Failed to activate insurance company: " + e.getMessage());
-            error.put("data", null);
-            return ResponseEntity.ok(error);
-        }
+        InsuranceCompanyDto dto = service.updateStatus(id, "ACTIVE");
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("message", "Insurance company activated successfully");
+        response.put("data", dto);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping
