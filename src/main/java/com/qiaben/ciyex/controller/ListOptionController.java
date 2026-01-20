@@ -116,7 +116,7 @@ public class ListOptionController {
         public ResponseEntity<?> getListOptionsByListId(@PathVariable String list_id) {
             try {
                 List<ListOptionDto> listOptions = service.getListOptionsByListId(list_id);
-                if (listOptions.isEmpty()) {
+                    if (listOptions.isEmpty()) {
                     return ResponseEntity.status(404).body(Map.of(
                             "error", "Not found",
                             "message", "No list options found for list ID: " + list_id
