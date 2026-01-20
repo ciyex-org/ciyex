@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.service;
 
 import com.qiaben.ciyex.dto.InsuranceCompanyDto;
+import com.qiaben.ciyex.exception.ResourceNotFoundException;
 import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -66,8 +67,12 @@ public class InsuranceCompanyService {
     // GET BY ID
     public InsuranceCompanyDto getById(String fhirId) {
         log.debug("Getting FHIR Organization (insurance): {}", fhirId);
-        Organization org = fhirClientService.read(Organization.class, fhirId, getPracticeId());
-        return fromFhirOrganization(org);
+        try {
+            Organization org = fhirClientService.read(Organization.class, fhirId, getPracticeId());
+            return fromFhirOrganization(org);
+        } catch (Exception e) {
+            throw new ResourceNotFoundException("Insurance company", "ID", fhirId);
+        }
     }
 
     // GET ALL
@@ -88,48 +93,61 @@ public class InsuranceCompanyService {
     public InsuranceCompanyDto update(String fhirId, InsuranceCompanyDto dto) {
         log.debug("Updating FHIR Organization (insurance): {}", fhirId);
 
-        Organization org = toFhirOrganization(dto);
-        org.setId(fhirId);
-        fhirClientService.update(org, getPracticeId());
-
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-        
-        // Set ID from FHIR ID
         try {
-            dto.setId(Long.valueOf(fhirId));
-        } catch (NumberFormatException e) {
-            dto.setId((long) fhirId.hashCode());
+            Organization org = toFhirOrganization(dto);
+            org.setId(fhirId);
+            fhirClientService.update(org, getPracticeId());
+
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
+            
+            // Set ID from FHIR ID
+            try {
+                dto.setId(Long.valueOf(fhirId));
+            } catch (NumberFormatException e) {
+                dto.setId((long) fhirId.hashCode());
+            }
+            
+            // Add audit information
+            InsuranceCompanyDto.Audit audit = new InsuranceCompanyDto.Audit();
+            String currentTime = java.time.Instant.now().toString();
+            audit.setCreatedDate(currentTime);
+            audit.setLastModifiedDate(currentTime);
+            dto.setAudit(audit);
+            
+            return dto;
+        } catch (Exception e) {
+            throw new ResourceNotFoundException("Insurance company", "ID", fhirId);
         }
-        
-        // Add audit information
-        InsuranceCompanyDto.Audit audit = new InsuranceCompanyDto.Audit();
-        String currentTime = java.time.Instant.now().toString();
-        audit.setCreatedDate(currentTime);
-        audit.setLastModifiedDate(currentTime);
-        dto.setAudit(audit);
-        
-        return dto;
     }
 
     // UPDATE STATUS
     public InsuranceCompanyDto updateStatus(String fhirId, String status) {
         log.debug("Updating status for FHIR Organization (insurance): {} to {}", fhirId, status);
 
-        Organization org = fhirClientService.read(Organization.class, fhirId, getPracticeId());
-        
-        // Remove existing status extension and add new one
-        org.getExtension().removeIf(e -> EXT_STATUS.equals(e.getUrl()));
-        org.addExtension(new Extension(EXT_STATUS, new StringType(status)));
-        
-        fhirClientService.update(org, getPracticeId());
-        return fromFhirOrganization(org);
+        try {
+            Organization org = fhirClientService.read(Organization.class, fhirId, getPracticeId());
+            
+            // Remove existing status extension and add new one
+            org.getExtension().removeIf(e -> EXT_STATUS.equals(e.getUrl()));
+            org.addExtension(new Extension(EXT_STATUS, new StringType(status)));
+            
+            fhirClientService.update(org, getPracticeId());
+            return fromFhirOrganization(org);
+        } catch (Exception e) {
+            throw new ResourceNotFoundException("Insurance company", "ID", fhirId);
+        }
     }
 
     // DELETE
     public void delete(String fhirId) {
         log.debug("Deleting FHIR Organization (insurance): {}", fhirId);
-        fhirClientService.delete(Organization.class, fhirId, getPracticeId());
+        try {
+            fhirClientService.read(Organization.class, fhirId, getPracticeId());
+            fhirClientService.delete(Organization.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new ResourceNotFoundException("Insurance company", "ID", fhirId);
+        }
     }
 
     // -------- FHIR Mapping --------
