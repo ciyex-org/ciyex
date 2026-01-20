@@ -6,12 +6,15 @@ import com.qiaben.ciyex.service.PatientBillingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@RestController
-@RequestMapping("/api/patient-billing/{patientId}")
+// Duplicate endpoints moved to PatientBillingController — disabled to avoid ambiguous mappings.
+// To re-enable, restore @RestController and @RequestMapping annotations.
+@Component
 @RequiredArgsConstructor
+@Deprecated
 public class PatientDepositController {
 
     private final PatientBillingService billingService;

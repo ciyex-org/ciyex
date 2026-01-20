@@ -6,6 +6,7 @@ import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.ProviderDto;
 import com.qiaben.ciyex.dto.ProviderStatus;
+import com.qiaben.ciyex.dto.integration.RequestContext;
 import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.*;
@@ -18,7 +19,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Provider Service - FHIR Only.
@@ -33,6 +33,10 @@ public class ProviderService {
 
     private static final String IDENTIFIER_SYSTEM_NPI = "http://hl7.org/fhir/sid/us-npi";
     private static final String IDENTIFIER_SYSTEM_LICENSE = "urn:ciyex:provider:license";
+    private static final String EXT_CREATED_DATE = "http://ciyex.com/fhir/StructureDefinition/created-date";
+    private static final String EXT_CREATED_BY = "http://ciyex.com/fhir/StructureDefinition/created-by";
+    private static final String EXT_MODIFIED_DATE = "http://ciyex.com/fhir/StructureDefinition/last-modified-date";
+    private static final String EXT_MODIFIED_BY = "http://ciyex.com/fhir/StructureDefinition/last-modified-by";
 
     @Autowired
     public ProviderService(FhirClientService fhirClientService, PracticeContextService practiceContextService) {
@@ -53,18 +57,14 @@ public class ProviderService {
                 dto.getIdentification() != null ? dto.getIdentification().getLastName() : "");
 
         Practitioner fhirPractitioner = toFhirPractitioner(dto);
+        addAuditMetadata(fhirPractitioner, true);
 
         MethodOutcome outcome = fhirClientService.create(fhirPractitioner, getPracticeId());
 
         String fhirId = outcome.getId().getIdPart();
-        dto.setId(Long.parseLong(fhirId));
+        dto.setId(parseFhirIdToLong(fhirId));
         dto.setFhirId(fhirId);
-
-        // Set audit information
-        ProviderDto.Audit audit = new ProviderDto.Audit();
-        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
-        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
-        dto.setAudit(audit);
+        dto.setAudit(extractAudit(fhirPractitioner));
 
         log.info("Created FHIR Practitioner with ID: {}", fhirId);
         return dto;
@@ -93,12 +93,18 @@ public class ProviderService {
     public ProviderDto updateByFhirId(String fhirId, ProviderDto dto) {
         log.info("Updating FHIR Practitioner with ID: {}", fhirId);
 
+        Practitioner existing = fhirClientService.read(Practitioner.class, fhirId, getPracticeId());
         Practitioner fhirPractitioner = toFhirPractitioner(dto);
         fhirPractitioner.setId(fhirId);
 
+        preserveCreatedAudit(existing, fhirPractitioner);
+        addAuditMetadata(fhirPractitioner, false);
+
         fhirClientService.update(fhirPractitioner, getPracticeId());
 
+        dto.setId(parseFhirIdToLong(fhirId));
         dto.setFhirId(fhirId);
+        dto.setAudit(extractAudit(fhirPractitioner));
 
         log.info("Updated FHIR Practitioner with ID: {}", fhirId);
         return dto;
@@ -272,7 +278,7 @@ public class ProviderService {
         // FHIR ID and ID
         if (practitioner.hasId()) {
             String fhirId = practitioner.getIdElement().getIdPart();
-            dto.setId(Long.parseLong(fhirId));
+            dto.setId(parseFhirIdToLong(fhirId));
             dto.setFhirId(fhirId);
         }
 
@@ -368,11 +374,8 @@ public class ProviderService {
         systemAccess.setStatus(practitioner.getActive() ? ProviderStatus.ACTIVE : ProviderStatus.ARCHIVED);
         dto.setSystemAccess(systemAccess);
 
-        // Set audit information
-        ProviderDto.Audit audit = new ProviderDto.Audit();
-        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
-        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
-        dto.setAudit(audit);
+        // Extract audit information
+        dto.setAudit(extractAudit(practitioner));
 
         return dto;
     }
@@ -467,6 +470,71 @@ public class ProviderService {
         if (errors.length() > 0) {
             String missingFields = errors.substring(0, errors.length() - 2);
             throw new IllegalArgumentException("Missing mandatory fields: " + missingFields);
+        }
+    }
+
+    // ========== Audit Helper Methods ==========
+
+    private void addAuditMetadata(Practitioner practitioner, boolean isCreate) {
+        String currentUser = getCurrentUser();
+        Date now = new Date();
+
+        if (isCreate) {
+            practitioner.addExtension(new Extension(EXT_CREATED_DATE, new DateTimeType(now)));
+            practitioner.addExtension(new Extension(EXT_CREATED_BY, new StringType(currentUser)));
+        }
+
+        practitioner.addExtension(new Extension(EXT_MODIFIED_DATE, new DateTimeType(now)));
+        practitioner.addExtension(new Extension(EXT_MODIFIED_BY, new StringType(currentUser)));
+    }
+
+    private void preserveCreatedAudit(Practitioner existing, Practitioner updated) {
+        Extension createdDate = existing.getExtensionByUrl(EXT_CREATED_DATE);
+        Extension createdBy = existing.getExtensionByUrl(EXT_CREATED_BY);
+
+        if (createdDate != null) {
+            updated.addExtension(createdDate);
+        }
+        if (createdBy != null) {
+            updated.addExtension(createdBy);
+        }
+    }
+
+    private ProviderDto.Audit extractAudit(Practitioner practitioner) {
+        ProviderDto.Audit audit = new ProviderDto.Audit();
+
+        Extension createdDate = practitioner.getExtensionByUrl(EXT_CREATED_DATE);
+        if (createdDate != null && createdDate.getValue() instanceof DateTimeType) {
+            audit.setCreatedDate(((DateTimeType) createdDate.getValue()).getValueAsString());
+        }
+
+        Extension modifiedDate = practitioner.getExtensionByUrl(EXT_MODIFIED_DATE);
+        if (modifiedDate != null && modifiedDate.getValue() instanceof DateTimeType) {
+            audit.setLastModifiedDate(((DateTimeType) modifiedDate.getValue()).getValueAsString());
+        }
+
+        return audit;
+    }
+
+    private String getCurrentUser() {
+        try {
+            RequestContext context = RequestContext.get();
+            if (context != null && context.getAuthToken() != null) {
+                return "user-from-token";
+            }
+        } catch (Exception e) {
+            log.debug("Could not extract user from RequestContext: {}", e.getMessage());
+        }
+        return "system";
+    }
+
+    private Long parseFhirIdToLong(String fhirId) {
+        if (fhirId == null) return null;
+        try {
+            return Long.parseLong(fhirId);
+        } catch (NumberFormatException e) {
+            log.warn("FHIR ID '{}' is not numeric, using hashCode", fhirId);
+            return (long) Math.abs(fhirId.hashCode());
         }
     }
 }

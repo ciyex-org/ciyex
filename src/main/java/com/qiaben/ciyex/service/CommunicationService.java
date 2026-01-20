@@ -59,6 +59,7 @@ public class CommunicationService {
         var outcome = fhirClientService.create(comm, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(parseFhirIdToLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         log.info("Created FHIR Communication with id: {}", fhirId);
@@ -125,6 +126,7 @@ public class CommunicationService {
         comm.setId(fhirId);
         fhirClientService.update(comm, getPracticeId());
 
+        dto.setId(parseFhirIdToLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
         return dto;
@@ -241,8 +243,10 @@ public class CommunicationService {
 
     private CommunicationDto fromFhirCommunication(Communication c) {
         CommunicationDto dto = new CommunicationDto();
-        dto.setFhirId(c.getIdElement().getIdPart());
-        dto.setExternalId(c.getIdElement().getIdPart());
+        String fhirId = c.getIdElement().getIdPart();
+        dto.setId(parseFhirIdToLong(fhirId));
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
 
         // Status
         dto.setStatus(mapFromFhirStatus(c.getStatus()));
@@ -406,5 +410,15 @@ public class CommunicationService {
             case ENTEREDINERROR -> CommunicationStatus.ENTERED_IN_ERROR;
             default -> CommunicationStatus.SENT;
         };
+    }
+
+    private Long parseFhirIdToLong(String fhirId) {
+        if (fhirId == null) return null;
+        try {
+            return Long.parseLong(fhirId);
+        } catch (NumberFormatException e) {
+            log.warn("FHIR ID '{}' is not numeric, using hashCode", fhirId);
+            return (long) Math.abs(fhirId.hashCode());
+        }
     }
 }

@@ -91,16 +91,18 @@ public class PatientService {
         }
 
         log.info("Creating patient in FHIR for practice {}", getPracticeId());
-        
+
         Patient fhirPatient = toFhirPatient(dto);
         fhirPatient.setManagingOrganization(new Reference("Organization/" + getPracticeId()));
-        
+
         MethodOutcome outcome = fhirClientService.create(fhirPatient, getPracticeId());
-        
+
         String fhirId = outcome.getId().getIdPart();
-        Patient created = fhirClientService.read(Patient.class, fhirId, getPracticeId());
-        
-        return toPatientDto(created);
+        dto.setFhirId(fhirId);
+        dto.setExternalId(fhirId);
+
+        log.info("Created FHIR patient with ID: {}", fhirId);
+        return dto;
     }
 
     // ✅ Retrieve patient by FHIR ID
@@ -112,7 +114,7 @@ public class PatientService {
     // ✅ Retrieve patient by FHIR ID (string)
     public PatientDto getByFhirId(String fhirId) {
         log.debug("Reading FHIR patient with ID: {}", fhirId);
-        
+
         try {
             Patient fhirPatient = fhirClientService.read(Patient.class, fhirId, getPracticeId());
             return toPatientDto(fhirPatient);
@@ -129,17 +131,17 @@ public class PatientService {
     // ✅ Update patient by FHIR ID
     public PatientDto updateByFhirId(String fhirId, PatientDto dto) {
         validatePatientFields(dto);
-        
+
         log.info("Updating FHIR patient with ID: {}", fhirId);
-        
+
         Patient fhirPatient = toFhirPatient(dto);
         fhirPatient.setId(fhirId);
-        
+
         fhirClientService.update(fhirPatient, getPracticeId());
-        
+
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
-        
+
         log.info("Updated FHIR patient with ID: {}", fhirId);
         return dto;
     }
@@ -159,7 +161,7 @@ public class PatientService {
     // ✅ Get all patients from FHIR
     public ApiResponse<List<PatientDto>> getAllPatients() {
         log.debug("Getting all FHIR patients for practice {}", getPracticeId());
-        
+
         Bundle bundle = fhirClientService.search(Patient.class, getPracticeId());
         List<PatientDto> dtos = extractPatients(bundle);
 
@@ -178,14 +180,14 @@ public class PatientService {
     // ✅ Get all patients with pagination and search
     public Page<PatientDto> getAllPatients(Pageable pageable, String search) {
         log.debug("Searching FHIR patients with query: {}", search);
-        
+
         List<PatientDto> allPatients;
-        
+
         if (search != null && !search.isBlank()) {
             Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                     .forResource(Patient.class)
                     .where(new StringClientParam("name").matches().value(search))
-                    
+
                     .returnBundle(Bundle.class)
                     .execute();
             allPatients = extractPatients(bundle);
@@ -193,29 +195,29 @@ public class PatientService {
             Bundle bundle = fhirClientService.search(Patient.class, getPracticeId());
             allPatients = extractPatients(bundle);
         }
-        
+
         // Manual pagination
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), allPatients.size());
-        
-        List<PatientDto> pageContent = start < allPatients.size() 
-                ? allPatients.subList(start, end) 
+
+        List<PatientDto> pageContent = start < allPatients.size()
+                ? allPatients.subList(start, end)
                 : new ArrayList<>();
-        
+
         return new PageImpl<>(pageContent, pageable, allPatients.size());
     }
 
     // ✅ Get patients with search and status filter
     public Page<PatientDto> getPatients(String search, String status, Pageable pageable) {
         Page<PatientDto> page = getAllPatients(pageable, search);
-        
+
         if (!"all".equalsIgnoreCase(status) && status != null) {
             List<PatientDto> filtered = page.getContent().stream()
                     .filter(dto -> status.equalsIgnoreCase(dto.getStatus()))
                     .collect(Collectors.toList());
             return new PageImpl<>(filtered, pageable, filtered.size());
         }
-        
+
         return page;
     }
 
@@ -243,7 +245,7 @@ public class PatientService {
         HumanName name = patient.addName()
                 .setUse(HumanName.NameUse.OFFICIAL)
                 .setFamily(dto.getLastName());
-        
+
         if (dto.getFirstName() != null) {
             name.addGiven(dto.getFirstName());
         }
@@ -294,14 +296,8 @@ public class PatientService {
 
         // FHIR ID
         if (fhirPatient.hasId()) {
-            String idPart = fhirPatient.getIdElement().getIdPart();
-            dto.setFhirId(idPart);
-            dto.setExternalId(idPart);
-            try {
-                dto.setId(Long.parseLong(idPart));
-            } catch (NumberFormatException e) {
-                // FHIR ID is not numeric
-            }
+            dto.setFhirId(fhirPatient.getIdElement().getIdPart());
+            dto.setExternalId(fhirPatient.getIdElement().getIdPart());
         }
 
         // Identifiers
@@ -315,7 +311,7 @@ public class PatientService {
         if (fhirPatient.hasName()) {
             HumanName name = fhirPatient.getNameFirstRep();
             dto.setLastName(name.getFamily());
-            
+
             List<StringType> given = name.getGiven();
             if (!given.isEmpty()) {
                 dto.setFirstName(given.get(0).getValue());
@@ -350,7 +346,7 @@ public class PatientService {
             if (address.hasText()) {
                 dto.setAddress(address.getText());
             } else if (address.hasLine()) {
-                dto.setAddress(String.join(", ", 
+                dto.setAddress(String.join(", ",
                         address.getLine().stream()
                                 .map(StringType::getValue)
                                 .toList()));
@@ -359,16 +355,6 @@ public class PatientService {
 
         // Status
         dto.setStatus(fhirPatient.getActive() ? "Active" : "Inactive");
-
-        // Audit fields from FHIR metadata
-        if (fhirPatient.hasMeta()) {
-            PatientDto.Audit audit = new PatientDto.Audit();
-            if (fhirPatient.getMeta().hasLastUpdated()) {
-                audit.setCreatedDate(formatDate(fhirPatient.getMeta().getLastUpdated()));
-                audit.setLastModifiedDate(formatDate(fhirPatient.getMeta().getLastUpdated()));
-            }
-            dto.setAudit(audit);
-        }
 
         return dto;
     }
@@ -387,7 +373,7 @@ public class PatientService {
 
     private Enumerations.AdministrativeGender mapGender(String gender) {
         if (gender == null) return Enumerations.AdministrativeGender.UNKNOWN;
-        
+
         return switch (gender.toLowerCase()) {
             case "male", "m" -> Enumerations.AdministrativeGender.MALE;
             case "female", "f" -> Enumerations.AdministrativeGender.FEMALE;

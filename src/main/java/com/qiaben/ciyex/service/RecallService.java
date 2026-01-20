@@ -51,32 +51,52 @@ public class RecallService {
 
     // CREATE
     public RecallDto create(RecallDto dto) {
+        validateMandatoryFields(dto);
+        
         log.debug("Creating FHIR Flag (recall) for patient: {}", dto.getPatientId());
 
-        Flag flag = toFhirFlag(dto);
-        var outcome = fhirClientService.create(flag, getPracticeId());
-        String fhirId = outcome.getId().getIdPart();
+        try {
+            Flag flag = toFhirFlag(dto);
+            var outcome = fhirClientService.create(flag, getPracticeId());
+            String fhirId = outcome.getId().getIdPart();
 
-        dto.setFhirId(fhirId);
-        dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setId(Long.parseLong(fhirId));
 
-        // Set audit information
-        RecallDto.Audit audit = new RecallDto.Audit();
-        String currentTime = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        audit.setCreatedDate(currentTime);
-        audit.setLastModifiedDate(currentTime);
-        dto.setAudit(audit);
+            // Set audit information
+            RecallDto.Audit audit = new RecallDto.Audit();
+            String currentTime = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            audit.setCreatedDate(currentTime);
+            audit.setLastModifiedDate(currentTime);
+            dto.setAudit(audit);
 
-        log.info("Created FHIR Flag (recall) with id: {}", fhirId);
+            log.info("Created FHIR Flag (recall) with id: {}", fhirId);
 
-        return dto;
+            return dto;
+        } catch (Exception e) {
+            log.error("Failed to create recall: {}", e.getMessage());
+            throw new RuntimeException("Failed to create recall: " + e.getMessage(), e);
+        }
     }
 
     // GET BY ID
     public RecallDto getById(String fhirId) {
+        if (fhirId == null || fhirId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Recall ID cannot be null or empty");
+        }
+        
         log.debug("Getting FHIR Flag (recall): {}", fhirId);
-        Flag flag = fhirClientService.read(Flag.class, fhirId, getPracticeId());
-        return fromFhirFlag(flag);
+        
+        try {
+            Flag flag = fhirClientService.read(Flag.class, fhirId, getPracticeId());
+            if (flag == null) {
+                throw new IllegalArgumentException("Recall not found for recallId=" + fhirId);
+            }
+            return fromFhirFlag(flag);
+        } catch (Exception e) {
+            log.error("Failed to retrieve recall with ID {}: {}", fhirId, e.getMessage());
+            throw new RuntimeException("Failed to retrieve recall: Recall not found for recallId=" + fhirId);
+        }
     }
 
     // GET ALL
@@ -103,33 +123,60 @@ public class RecallService {
 
     // UPDATE
     public RecallDto update(String fhirId, RecallDto dto) {
+        if (fhirId == null || fhirId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Recall ID cannot be null or empty");
+        }
+        
+        validateMandatoryFields(dto);
+        
         log.debug("Updating FHIR Flag (recall): {}", fhirId);
 
-        Flag flag = toFhirFlag(dto);
-        flag.setId(fhirId);
-        fhirClientService.update(flag, getPracticeId());
+        try {
+            // Verify recall exists
+            fhirClientService.read(Flag.class, fhirId, getPracticeId());
+            
+            Flag flag = toFhirFlag(dto);
+            flag.setId(fhirId);
+            fhirClientService.update(flag, getPracticeId());
 
-        dto.setFhirId(fhirId);
-        dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setId(Long.parseLong(fhirId));
 
-        // Set audit information
-        RecallDto.Audit audit = new RecallDto.Audit();
-        String currentTime = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        if (dto.getAudit() != null && dto.getAudit().getCreatedDate() != null) {
-            audit.setCreatedDate(dto.getAudit().getCreatedDate());
-        } else {
-            audit.setCreatedDate(currentTime);
+            // Set audit information
+            RecallDto.Audit audit = new RecallDto.Audit();
+            String currentTime = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            if (dto.getAudit() != null && dto.getAudit().getCreatedDate() != null) {
+                audit.setCreatedDate(dto.getAudit().getCreatedDate());
+            } else {
+                audit.setCreatedDate(currentTime);
+            }
+            audit.setLastModifiedDate(currentTime);
+            dto.setAudit(audit);
+
+            return dto;
+        } catch (Exception e) {
+            log.error("Failed to update recall with ID {}: {}", fhirId, e.getMessage());
+            throw new RuntimeException("Failed to update recall: Recall not found for recallId=" + fhirId);
         }
-        audit.setLastModifiedDate(currentTime);
-        dto.setAudit(audit);
-
-        return dto;
     }
 
     // DELETE
     public void delete(String fhirId) {
+        if (fhirId == null || fhirId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Recall ID cannot be null or empty");
+        }
+        
         log.debug("Deleting FHIR Flag (recall): {}", fhirId);
-        fhirClientService.delete(Flag.class, fhirId, getPracticeId());
+        
+        try {
+            // Verify recall exists before deleting
+            fhirClientService.read(Flag.class, fhirId, getPracticeId());
+            fhirClientService.delete(Flag.class, fhirId, getPracticeId());
+            log.info("Successfully deleted recall with ID: {}", fhirId);
+        } catch (Exception e) {
+            log.error("Failed to delete recall with ID {}: {}", fhirId, e.getMessage());
+            throw new RuntimeException("Failed to delete recall: Recall not found for recallId=" + fhirId);
+        }
     }
 
     // -------- FHIR Mapping --------
@@ -259,5 +306,30 @@ public class RecallService {
             return ((BooleanType) ext.getValue()).booleanValue();
         }
         return false;
+    }
+    
+    private void validateMandatoryFields(RecallDto dto) {
+        StringBuilder errors = new StringBuilder();
+        
+        if (dto == null) {
+            throw new IllegalArgumentException("Recall data cannot be null");
+        }
+        
+        if (dto.getPatientId() == null) {
+            errors.append("patientId, ");
+        }
+        
+        if (dto.getRecallReason() == null || dto.getRecallReason().trim().isEmpty()) {
+            errors.append("recallReason, ");
+        }
+        
+        if (dto.getRecallDate() == null || dto.getRecallDate().trim().isEmpty()) {
+            errors.append("recallDate, ");
+        }
+        
+        if (errors.length() > 0) {
+            errors.setLength(errors.length() - 2);
+            throw new IllegalArgumentException("Missing mandatory fields: " + errors);
+        }
     }
 }

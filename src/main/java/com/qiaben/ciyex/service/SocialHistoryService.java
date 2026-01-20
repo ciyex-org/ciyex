@@ -218,7 +218,7 @@ public class SocialHistoryService {
     }
 
     // ✅ Delete social history
-    public void delete(Long patientId, Long encounterId, Long id) {
+    public String delete(Long patientId, Long encounterId, Long id) {
         validatePathVariable(patientId, "Patient ID");
         validatePathVariable(encounterId, "Encounter ID");
         validatePathVariable(id, "ID");
@@ -242,6 +242,8 @@ public class SocialHistoryService {
 
         fhirClientService.delete(Observation.class, fhirId, getPracticeId());
         signMetadataCache.remove(fhirId);
+        
+        return "Social History deleted successfully";
     }
 
     // ✅ eSign social history

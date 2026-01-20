@@ -40,7 +40,7 @@ public class MedicationRequestController {
 
     // ✅ Get Medication Request by ID
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<MedicationRequestDto>> get(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<MedicationRequestDto>> get(@PathVariable("id") Long id) {
         try {
             MedicationRequestDto dto = service.getById(id);
             if (dto == null) {
@@ -65,7 +65,7 @@ public class MedicationRequestController {
 
     // ✅ Update Medication Request
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<MedicationRequestDto>> update(@PathVariable Long id, @RequestBody MedicationRequestDto dto) {
+    public ResponseEntity<ApiResponse<MedicationRequestDto>> update(@PathVariable("id") Long id, @RequestBody MedicationRequestDto dto) {
         try {
             MedicationRequestDto updated = service.update(id, dto);
             if (updated == null) {
@@ -90,7 +90,7 @@ public class MedicationRequestController {
 
     // ✅ Delete Medication Request
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -109,8 +109,8 @@ public class MedicationRequestController {
     // ✅ Get All Medication Requests (filter by patientId or encounterId)
     @GetMapping
     public ResponseEntity<ApiResponse<List<MedicationRequestDto>>> getAll(
-            @RequestParam(required = false) Long patientId,
-            @RequestParam(required = false) Long encounterId) {
+            @RequestParam(value = "patientId", required = false) Long patientId,
+            @RequestParam(value = "encounterId", required = false) Long encounterId) {
         try {
             List<MedicationRequestDto> list = service.getAllByPatientIdOrEncounterId(patientId, encounterId);
             return ResponseEntity.ok(ApiResponse.<List<MedicationRequestDto>>builder()

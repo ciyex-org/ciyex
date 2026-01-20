@@ -61,7 +61,7 @@ public class RequestContextInterceptor implements HandlerInterceptor {
                         log.debug("Extracted org alias '{}' from JWT token", tokenOrgAlias);
                     }
                 } else {
-                    log.warn("No organization alias found in JWT token");
+                    log.debug("No organization alias found in JWT token - proceeding without org context");
                 }
             }
         } catch (Exception e) {

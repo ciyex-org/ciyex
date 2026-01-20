@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 public class ListOptionDto {
 
     private Long id;
+    private String fhirId;
     private String listId;
     private String optionId;
     private String title;

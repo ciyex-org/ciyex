@@ -35,15 +35,17 @@ public class ImmunizationController {
                     .build());
         } catch (IllegalArgumentException e) {
             log.warn("Validation error creating Immunization: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(ApiResponse.<ImmunizationDto>builder()
+            return ResponseEntity.ok(ApiResponse.<ImmunizationDto>builder()
                     .success(false)
-                    .message(e.getMessage())
+                    .message("Failed to create immunization: " + e.getMessage())
+                    .data(null)
                     .build());
         } catch (Exception e) {
             log.error("Failed to create Immunization: {}", e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<ImmunizationDto>builder()
                     .success(false)
-                    .message("Failed to create Immunization: " + e.getMessage())
+                    .message("Failed to create immunization: " + e.getMessage())
+                    .data(null)
                     .build());
         }
     }
@@ -53,6 +55,13 @@ public class ImmunizationController {
             @PathVariable("patientId") Long patientId) {
         try {
             ImmunizationDto dto = service.getByPatientId(patientId);
+            if (dto.getImmunizations() == null || dto.getImmunizations().isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<ImmunizationDto>builder()
+                        .success(false)
+                        .message("Failed to retrieve immunization: Immunization not found for patientId=" + patientId)
+                        .data(null)
+                        .build());
+            }
             return ResponseEntity.ok(ApiResponse.<ImmunizationDto>builder()
                     .success(true)
                     .message("Immunizations retrieved successfully")
@@ -64,32 +73,6 @@ public class ImmunizationController {
                     .success(false)
                     .message("Failed to retrieve immunization: " + e.getMessage())
                     .data(null)
-                    .build());
-        }
-    }
-
-    @PutMapping("/{patientId}")
-    public ResponseEntity<ApiResponse<ImmunizationDto>> updateByPatient(
-            @PathVariable("patientId") Long patientId,
-            @RequestBody ImmunizationDto dto) {
-        try {
-            ImmunizationDto updated = service.updateByPatientId(patientId, dto);
-            return ResponseEntity.ok(ApiResponse.<ImmunizationDto>builder()
-                    .success(true)
-                    .message("Immunization updated successfully")
-                    .data(updated)
-                    .build());
-        } catch (IllegalArgumentException e) {
-            log.warn("Validation error updating Immunization for patientId {}: {}", patientId, e.getMessage());
-            return ResponseEntity.badRequest().body(ApiResponse.<ImmunizationDto>builder()
-                    .success(false)
-                    .message(e.getMessage())
-                    .build());
-        } catch (Exception e) {
-            log.error("Failed to update Immunization for patientId {}: {}", patientId, e.getMessage(), e);
-            return ResponseEntity.ok(ApiResponse.<ImmunizationDto>builder()
-                    .success(false)
-                    .message("Failed to update Immunization: " + e.getMessage())
                     .build());
         }
     }
@@ -107,7 +90,7 @@ public class ImmunizationController {
             log.error("Failed to delete Immunization for patientId {}: {}", patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(false)
-                    .message("Failed to delete Immunization: " + e.getMessage())
+                    .message("Failed to delete immunization: " + e.getMessage())
                     .build());
         }
     }
@@ -130,6 +113,7 @@ public class ImmunizationController {
             return ResponseEntity.ok(ApiResponse.<ImmunizationDto.ImmunizationItem>builder()
                     .success(false)
                     .message("Failed to retrieve immunization: " + e.getMessage())
+                    .data(null)
                     .build());
         }
     }
@@ -156,15 +140,17 @@ public class ImmunizationController {
                     .build());
         } catch (IllegalArgumentException e) {
             log.warn("Validation error updating item {} for patientId {}: {}", immunizationId, patientId, e.getMessage());
-            return ResponseEntity.badRequest().body(ApiResponse.<ImmunizationDto.ImmunizationItem>builder()
+            return ResponseEntity.ok(ApiResponse.<ImmunizationDto.ImmunizationItem>builder()
                     .success(false)
-                    .message(e.getMessage())
+                    .message("Failed to update immunization: " + e.getMessage())
+                    .data(null)
                     .build());
         } catch (Exception e) {
             log.error("Failed to update item {} for patientId {}: {}", immunizationId, patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<ImmunizationDto.ImmunizationItem>builder()
                     .success(false)
                     .message("Failed to update immunization: " + e.getMessage())
+                    .data(null)
                     .build());
         }
     }
@@ -198,7 +184,8 @@ public class ImmunizationController {
             log.error("Failed to search all Immunizations: {}", e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<List<ImmunizationDto>>builder()
                     .success(false)
-                    .message("Failed to retrieve Immunizations: " + e.getMessage())
+                    .message("Failed to retrieve immunizations: " + e.getMessage())
+                    .data(null)
                     .build());
         }
     }

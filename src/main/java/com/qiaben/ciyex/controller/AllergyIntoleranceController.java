@@ -4,6 +4,7 @@ import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.AllergyIntoleranceDto;
 // Removed orgId usage; RequestContext (tenantName) is set upstream if needed
 import com.qiaben.ciyex.service.AllergyIntoleranceService;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,7 +24,7 @@ public class AllergyIntoleranceController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<AllergyIntoleranceDto>> create(
-            @RequestBody AllergyIntoleranceDto dto) {
+            @Valid @RequestBody AllergyIntoleranceDto dto) {
         try {
             AllergyIntoleranceDto created = service.create(dto);
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto>builder()
@@ -35,7 +36,8 @@ public class AllergyIntoleranceController {
             log.error("Failed to create Allergy Intolerance: {}", e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto>builder()
                     .success(false)
-                    .message("Failed to create Allergy Intolerance: " + e.getMessage())
+                    .message("Failed to create allergy intolerance: " + e.getMessage())
+                    .data(null)
                     .build());
         }
     }
@@ -45,6 +47,13 @@ public class AllergyIntoleranceController {
             @PathVariable("patientId") Long patientId) {
         try {
             AllergyIntoleranceDto dto = service.getByPatientId(patientId);
+            if (dto.getAllergiesList() == null || dto.getAllergiesList().isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto>builder()
+                        .success(false)
+                        .message("Failed to retrieve allergy intolerance: Allergy intolerance not found for patientId=" + patientId)
+                        .data(null)
+                        .build());
+            }
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto>builder()
                     .success(true)
                     .message("Allergy Intolerance retrieved successfully")
@@ -53,29 +62,9 @@ public class AllergyIntoleranceController {
         } catch (Exception e) {
             log.error("Failed to retrieve Allergy Intolerance for patientId {}: {}", patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto>builder()
-                    .success(true)
-                    .message("No allergies found for patient ID: " + patientId)
-                    .data(new AllergyIntoleranceDto())
-                    .build());
-        }
-    }
-
-    @PutMapping("/{patientId}")
-    public ResponseEntity<ApiResponse<AllergyIntoleranceDto>> updateByPatient(
-            @PathVariable("patientId") Long patientId,
-            @RequestBody AllergyIntoleranceDto dto) {
-        try {
-            AllergyIntoleranceDto updated = service.updateByPatientId(patientId, dto);
-            return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto>builder()
-                    .success(true)
-                    .message("Allergy Intolerance updated successfully")
-                    .data(updated)
-                    .build());
-        } catch (Exception e) {
-            log.error("Failed to update Allergy Intolerance for patientId {}: {}", patientId, e.getMessage(), e);
-            return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto>builder()
                     .success(false)
-                    .message("Failed to update Allergy Intolerance: " + e.getMessage())
+                    .message("Failed to retrieve allergy intolerance: " + e.getMessage())
+                    .data(null)
                     .build());
         }
     }
@@ -93,7 +82,7 @@ public class AllergyIntoleranceController {
             log.error("Failed to delete Allergy Intolerance for patientId {}: {}", patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(false)
-                    .message("Failed to delete Allergy Intolerance: " + e.getMessage())
+                    .message("Failed to delete allergy intolerance: " + e.getMessage())
                     .build());
         }
     }
@@ -116,6 +105,7 @@ public class AllergyIntoleranceController {
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto.AllergyItem>builder()
                     .success(false)
                     .message("Failed to retrieve allergy: " + e.getMessage())
+                    .data(null)
                     .build());
         }
     }
@@ -124,17 +114,15 @@ public class AllergyIntoleranceController {
     public ResponseEntity<ApiResponse<AllergyIntoleranceDto.AllergyItem>> updateItem(
             @PathVariable("patientId") Long patientId,
             @PathVariable("intoleranceId") Long intoleranceId,
-            @RequestBody AllergyIntoleranceDto dto) {
+            @Valid @RequestBody AllergyIntoleranceDto dto) {
         try {
-            // Extract the first allergy item from the allergiesList
-            AllergyIntoleranceDto.AllergyItem patch = null;
+            AllergyIntoleranceDto.AllergyItem item = null;
             if (dto.getAllergiesList() != null && !dto.getAllergiesList().isEmpty()) {
-                patch = dto.getAllergiesList().get(0);
+                item = dto.getAllergiesList().get(0);
             } else {
                 throw new IllegalArgumentException("allergiesList is required and must contain at least one item");
             }
-            
-            var updated = service.updateItem(patientId, intoleranceId, patch);
+            var updated = service.updateItem(patientId, intoleranceId, item);
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto.AllergyItem>builder()
                     .success(true)
                     .message("Allergy updated successfully")
@@ -145,6 +133,7 @@ public class AllergyIntoleranceController {
             return ResponseEntity.ok(ApiResponse.<AllergyIntoleranceDto.AllergyItem>builder()
                     .success(false)
                     .message("Failed to update allergy: " + e.getMessage())
+                    .data(null)
                     .build());
         }
     }
@@ -177,7 +166,8 @@ public class AllergyIntoleranceController {
             log.error("Failed to search all Allergy Intolerances: {}", e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<List<AllergyIntoleranceDto>>builder()
                     .success(false)
-                    .message("Failed to retrieve Allergy Intolerances: " + e.getMessage())
+                    .message("Failed to retrieve allergy intolerances: " + e.getMessage())
+                    .data(null)
                     .build());
         }
     }

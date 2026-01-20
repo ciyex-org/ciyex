@@ -88,6 +88,7 @@ public class DocumentController {
     public ResponseEntity<InputStreamResource> download(
             @PathVariable String documentId) {
         try {
+            log.info("Download request for documentId: {}", documentId);
             DownloadResult result = service.download(documentId);
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(result.getContentType()))
@@ -95,12 +96,13 @@ public class DocumentController {
                             "attachment; filename=\"" + result.getFileName() + "\"")
                     .body(new InputStreamResource(result.getInputStream()));
         } catch (IllegalArgumentException e) {
+            log.error("Bad request for documentId {}: {}", documentId, e.getMessage());
             return ResponseEntity.badRequest().build();
         } catch (RuntimeException e) {
-            log.error("Download failed", e);
+            log.error("Download failed for documentId {}: {}", documentId, e.getMessage());
             return ResponseEntity.status(404).build();
         } catch (Exception e) {
-            log.error("Unexpected error", e);
+            log.error("Unexpected error for documentId {}: {}", documentId, e.getMessage());
             return ResponseEntity.internalServerError().build();
         }
     }

@@ -139,10 +139,12 @@ public class DocumentService {
         var outcome = fhirClientService.create(docRef, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
-        dto.setId(Long.parseLong(fhirId.replaceAll("[^0-9]", "").isEmpty() ? "0" : fhirId.hashCode() + ""));
+        // Store both the FHIR ID and a numeric ID for compatibility
+        dto.setId(Long.parseLong(fhirId.replaceAll("[^0-9]", "").isEmpty() ? "0" : Math.abs(fhirId.hashCode()) + ""));
+        dto.setFhirId(fhirId);  // Store actual FHIR ID
         dto.setContent(null);
         dto.setEncrypted(base64Key != null);
-        log.info("Created FHIR DocumentReference with id: {}", fhirId);
+        log.info("Created FHIR DocumentReference with id: {} (numeric: {})", fhirId, dto.getId());
 
         return dto;
     }
@@ -325,9 +327,10 @@ public class DocumentService {
     private DocumentDto fromFhirDocumentReference(DocumentReference dr) {
         DocumentDto dto = new DocumentDto();
         
-        // Use FHIR ID hash as numeric ID for compatibility
+        // Store both FHIR ID and numeric ID
         String fhirId = dr.getIdElement().getIdPart();
         dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setFhirId(fhirId);  // Store actual FHIR ID
 
         // Subject -> patientId
         if (dr.hasSubject() && dr.getSubject().hasReference()) {

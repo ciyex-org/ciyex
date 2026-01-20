@@ -122,9 +122,12 @@ public class HealthcareServiceController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Failed to update Healthcare Service with id {}: {}", id, e.getMessage(), e);
+            String errorMessage = e.getMessage().contains("not found") || e.getMessage().contains("Not Found") || e.getMessage().contains("is not known")
+                    ? "Healthcare service with ID " + id + " not found"
+                    : "Failed to update healthcare service: " + e.getMessage();
             ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
                     .success(false)
-                    .message("Failed to update healthcare service: " + e.getMessage())
+                    .message(errorMessage)
                     .build();
             return ResponseEntity.ok(response);
         }
@@ -141,9 +144,12 @@ public class HealthcareServiceController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Failed to delete Healthcare Service with id {}: {}", id, e.getMessage(), e);
+            String errorMessage = e.getMessage().contains("not found") || e.getMessage().contains("Not Found") || e.getMessage().contains("is not known")
+                    ? "Healthcare service with ID " + id + " not found"
+                    : "Failed to delete healthcare service: " + e.getMessage();
             ApiResponse<Void> response = new ApiResponse.Builder<Void>()
                     .success(false)
-                    .message("Failed to delete healthcare service: " + e.getMessage())
+                    .message(errorMessage)
                     .build();
             return ResponseEntity.ok(response);
         }
