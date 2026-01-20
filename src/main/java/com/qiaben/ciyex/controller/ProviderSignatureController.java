@@ -257,18 +257,19 @@ public class ProviderSignatureController {
         }
     }
 
-    // DELETE (Card expects plain 2xx; 204 is fine)
+    // DELETE
     @DeleteMapping("/{patientId}/{encounterId}/{id}")
-    public ResponseEntity<?> delete(
+    public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable Long patientId,
             @PathVariable Long encounterId,
             @PathVariable String id) {
         try {
             service.delete(patientId, encounterId, id);
-            return ResponseEntity.noContent().build();
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(true).message("Provider signature deleted successfully").build());
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.builder().success(false).message(ex.getMessage()).build());
+                    .body(ApiResponse.<Void>builder().success(false).message(ex.getMessage()).build());
         }
     }
 
