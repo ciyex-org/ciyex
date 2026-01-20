@@ -106,8 +106,6 @@ public class ListOptionService {
         dto.setTimestamp(LocalDateTime.now());
         dto.setLastUpdated(LocalDateTime.now());
         
-        fhirClientService.clearCache(practiceId);
-        
         return dto;
     }
 
@@ -122,7 +120,6 @@ public class ListOptionService {
         basic.setId(id);
         fhirClientService.update(basic, getPracticeId());
 
-        dto.setFhirId(id);
         dto.setLastUpdated(LocalDateTime.now());
         return dto;
     }
@@ -240,7 +237,6 @@ public class ListOptionService {
         ListOptionDto dto = new ListOptionDto();
 
         String fhirId = basic.getIdElement().getIdPart();
-        dto.setFhirId(fhirId);
         try {
             dto.setId(Long.parseLong(fhirId));
         } catch (NumberFormatException e) {
