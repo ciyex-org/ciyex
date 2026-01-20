@@ -4,7 +4,6 @@ import com.qiaben.ciyex.dto.ListOptionDto;
 import com.qiaben.ciyex.exception.ResourceNotFoundException;
 import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -21,7 +21,6 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class ListOptionService {
 
     private final FhirClientService fhirClientService;
@@ -44,14 +43,61 @@ public class ListOptionService {
         return practiceContextService.getPracticeId();
     }
 
+    // Expose practice ID for debugging
+    public String getCurrentPracticeId() {
+        return getPracticeId();
+    }
+
+    // GET ALL LIST IDS
+    public List<String> getAllListIds() {
+        String practiceId = getPracticeId();
+        Bundle bundle = fhirClientService.search(Basic.class, practiceId);
+        
+        return fhirClientService.extractResources(bundle, Basic.class).stream()
+                .filter(basic -> basic.getExtensionByUrl(EXT_LIST_ID) != null)
+                .map(this::fromFhirBasic)
+                .map(ListOptionDto::getListId)
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    // Debug method to see what's in FHIR
+    public Map<String, Object> debugFhirSearch() {
+        String practiceId = getPracticeId();
+        Bundle bundle = fhirClientService.search(Basic.class, practiceId);
+        
+        List<Basic> allBasics = fhirClientService.extractResources(bundle, Basic.class);
+        List<Map<String, Object>> basicDetails = allBasics.stream()
+                .map(basic -> {
+                    Map<String, Object> details = new java.util.HashMap<>();
+                    details.put("id", basic.getIdElement().getIdPart());
+                    details.put("hasCode", basic.hasCode());
+                    if (basic.hasCode()) {
+                        details.put("codings", basic.getCode().getCoding().stream()
+                                .map(c -> c.getSystem() + "|" + c.getCode())
+                                .collect(Collectors.toList()));
+                    }
+                    details.put("isListOption", isListOption(basic));
+                    return details;
+                })
+                .collect(Collectors.toList());
+        
+        return Map.of(
+                "practiceId", practiceId,
+                "totalEntries", bundle.hasEntry() ? bundle.getEntry().size() : 0,
+                "basicResources", allBasics.size(),
+                "basicDetails", basicDetails
+        );
+    }
+
     // CREATE
     public ListOptionDto create(ListOptionDto dto) {
-        log.debug("Creating FHIR Basic (ListOption): listId={}, title={}", dto.getListId(), dto.getTitle());
-
         Basic basic = toFhirBasic(dto);
-        var outcome = fhirClientService.create(basic, getPracticeId());
+        String practiceId = getPracticeId();
+        var outcome = fhirClientService.create(basic, practiceId);
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setFhirId(fhirId);
         try {
             dto.setId(Long.parseLong(fhirId));
         } catch (NumberFormatException e) {
@@ -59,15 +105,14 @@ public class ListOptionService {
         }
         dto.setTimestamp(LocalDateTime.now());
         dto.setLastUpdated(LocalDateTime.now());
-
-        log.info("Created FHIR Basic (ListOption) with id: {}", fhirId);
+        
+        fhirClientService.clearCache(practiceId);
+        
         return dto;
     }
 
     // UPDATE
     public ListOptionDto update(String id, ListOptionDto dto) {
-        log.debug("Updating ListOption: {}", id);
-
         var existingResource = fhirClientService.readOptional(Basic.class, id, getPracticeId());
         if (existingResource.isEmpty()) {
             throw new ResourceNotFoundException("ListOption not found with ID: " + id);
@@ -77,20 +122,18 @@ public class ListOptionService {
         basic.setId(id);
         fhirClientService.update(basic, getPracticeId());
 
+        dto.setFhirId(id);
         dto.setLastUpdated(LocalDateTime.now());
         return dto;
     }
 
     // DELETE
     public void delete(String id) {
-        log.debug("Deleting ListOption: {}", id);
         fhirClientService.delete(Basic.class, id, getPracticeId());
     }
 
     // GET ONE
     public ListOptionDto get(String id) {
-        log.debug("Getting ListOption: {}", id);
-        
         var optionalBasic = fhirClientService.readOptional(Basic.class, id, getPracticeId());
         if (optionalBasic.isEmpty()) {
             throw new ResourceNotFoundException("ListOption not found with ID: " + id);
@@ -101,22 +144,18 @@ public class ListOptionService {
 
     // GET ALL
     public List<ListOptionDto> getAll() {
-        log.debug("Getting all ListOptions");
         Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
-
         return fhirClientService.extractResources(bundle, Basic.class).stream()
-                .filter(this::isListOption)
+                .filter(basic -> basic.getExtensionByUrl(EXT_LIST_ID) != null)
                 .map(this::fromFhirBasic)
                 .collect(Collectors.toList());
     }
 
     // GET BY LIST ID
     public List<ListOptionDto> getListOptionsByListId(String listId) {
-        log.debug("Getting ListOptions for listId: {}", listId);
         Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
-
         return fhirClientService.extractResources(bundle, Basic.class).stream()
-                .filter(this::isListOption)
+                .filter(basic -> basic.getExtensionByUrl(EXT_LIST_ID) != null)
                 .map(this::fromFhirBasic)
                 .filter(dto -> listId.equals(dto.getListId()))
                 .collect(Collectors.toList());
@@ -124,17 +163,14 @@ public class ListOptionService {
 
     // DELETE BY LIST ID
     public void deleteByListId(String listId) {
-        log.debug("Deleting all ListOptions for listId: {}", listId);
-        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+        String practiceId = getPracticeId();
+        Bundle bundle = fhirClientService.search(Basic.class, practiceId);
 
         fhirClientService.extractResources(bundle, Basic.class).stream()
-                .filter(this::isListOption)
-                .filter(basic -> listId.equals(getListIdFromBasic(basic)))
-                .forEach(basic -> {
-                    String id = basic.getIdElement().getIdPart();
-                    fhirClientService.delete(Basic.class, id, getPracticeId());
-                    log.debug("Deleted ListOption: {}", id);
-                });
+                .filter(basic -> basic.getExtensionByUrl(EXT_LIST_ID) != null)
+                .map(this::fromFhirBasic)
+                .filter(dto -> listId.equals(dto.getListId()))
+                .forEach(dto -> fhirClientService.delete(Basic.class, String.valueOf(dto.getId()), practiceId));
     }
 
     // -------- FHIR Mapping --------
@@ -204,6 +240,7 @@ public class ListOptionService {
         ListOptionDto dto = new ListOptionDto();
 
         String fhirId = basic.getIdElement().getIdPart();
+        dto.setFhirId(fhirId);
         try {
             dto.setId(Long.parseLong(fhirId));
         } catch (NumberFormatException e) {
@@ -251,7 +288,10 @@ public class ListOptionService {
     }
 
     private boolean isListOption(Basic basic) {
-        if (!basic.hasCode()) return false;
+        if (!basic.hasCode()) {
+            return false;
+        }
+        
         return basic.getCode().getCoding().stream()
                 .anyMatch(c -> LIST_OPTION_TYPE_SYSTEM.equals(c.getSystem()) && LIST_OPTION_TYPE_CODE.equals(c.getCode()));
     }

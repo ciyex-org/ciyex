@@ -94,7 +94,13 @@ public class ListOptionController {
     public ResponseEntity<?> getAll() {
         try {
             List<ListOptionDto> list = service.getAll();
-            return ResponseEntity.ok(list);
+            String practiceId = service.getCurrentPracticeId(); // Add method to expose practice ID
+            return ResponseEntity.ok(Map.of(
+                    "message", "List options retrieved successfully",
+                    "data", list,
+                    "count", list.size(),
+                    "practiceId", practiceId
+            ));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
                     "error", "Internal server error",
@@ -107,16 +113,55 @@ public class ListOptionController {
 
         // Endpoint to get a list option by list_id
         @GetMapping("/list/{list_id}")
-        public ResponseEntity<List<ListOptionDto>> getListOptionsByListId(@PathVariable String list_id) {
-            // Call the service to get list options based on the list_id
-            List<ListOptionDto> listOptions = service.getListOptionsByListId(list_id);
-            return ResponseEntity.ok(listOptions);  // Response will be in JSON by default
+        public ResponseEntity<?> getListOptionsByListId(@PathVariable String list_id) {
+            try {
+                List<ListOptionDto> listOptions = service.getListOptionsByListId(list_id);
+                if (listOptions.isEmpty()) {
+                    return ResponseEntity.status(404).body(Map.of(
+                            "error", "Not found",
+                            "message", "No list options found for list ID: " + list_id
+                    ));
+                }
+                return ResponseEntity.ok(Map.of(
+                        "message", "List options retrieved successfully",
+                        "data", listOptions,
+                        "count", listOptions.size(),
+                        "listId", list_id
+                ));
+            } catch (Exception e) {
+                return ResponseEntity.status(500).body(Map.of(
+                        "error", "Internal server error",
+                        "message", e.getMessage()
+                ));
+            }
+        }
+
+        @GetMapping("/list-ids")
+        public ResponseEntity<?> getAllListIds() {
+            try {
+                List<String> listIds = service.getAllListIds();
+                return ResponseEntity.ok(Map.of(
+                        "message", "List IDs retrieved successfully",
+                        "data", listIds,
+                        "count", listIds.size()
+                ));
+            } catch (Exception e) {
+                return ResponseEntity.status(500).body(Map.of(
+                        "error", "Internal server error",
+                        "message", e.getMessage()
+                ));
+            }
         }
 
         @DeleteMapping("/list/{list_id}")
         public ResponseEntity<?> deleteByListId(@PathVariable String list_id) {
            service.deleteByListId(list_id);
            return ResponseEntity.ok(Map.of("message", "List options deleted successfully"));
+        }
+
+        @GetMapping("/debug/fhir")
+        public ResponseEntity<?> debugFhir() {
+            return ResponseEntity.ok(service.debugFhirSearch());
         }
 
 }

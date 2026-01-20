@@ -18,8 +18,7 @@ public class PracticeContextService {
     /**
      * Get the current practice/org alias from RequestContext or JWT token.
      * This returns the org alias (e.g., "sunrise-family-medicine") used for FHIR URL path partitioning.
-     * @return the org alias
-     * @throws IllegalStateException if no org alias can be determined
+     * @return the org alias, or null if none available
      */
     public String getPracticeId() {
         // First try RequestContext (set by interceptor)
@@ -38,6 +37,7 @@ public class PracticeContextService {
             }
         }
 
-        throw new IllegalStateException("No practice/org alias found in RequestContext or JWT token.");
+        // Return null instead of throwing exception - let services handle gracefully
+        return null;
     }
 }
