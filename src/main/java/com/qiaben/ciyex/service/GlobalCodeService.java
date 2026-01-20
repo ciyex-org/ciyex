@@ -45,9 +45,10 @@ public class GlobalCodeService {
     public GlobalCodeDto create(GlobalCodeDto dto) {
         validateMandatory(dto);
         log.debug("Creating FHIR Basic (GlobalCode): {}", dto.getCode());
+        String practiceId = getPracticeId();
 
         Basic basic = toFhirBasic(dto);
-        var outcome = fhirClientService.create(basic, getPracticeId());
+        var outcome = fhirClientService.create(basic, practiceId);
         String fhirId = outcome.getId().getIdPart();
 
         try {
@@ -71,10 +72,11 @@ public class GlobalCodeService {
     public GlobalCodeDto update(String fhirId, GlobalCodeDto dto) {
         validateMandatory(dto);
         log.debug("Updating GlobalCode: {}", fhirId);
+        String practiceId = getPracticeId();
 
         Basic basic = toFhirBasic(dto);
         basic.setId(fhirId);
-        fhirClientService.update(basic, getPracticeId());
+        fhirClientService.update(basic, practiceId);
 
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
@@ -84,20 +86,27 @@ public class GlobalCodeService {
     // DELETE
     public void delete(String fhirId) {
         log.debug("Deleting GlobalCode: {}", fhirId);
-        fhirClientService.delete(Basic.class, fhirId, getPracticeId());
+        String practiceId = getPracticeId();
+        fhirClientService.delete(Basic.class, fhirId, practiceId);
     }
 
     // GET ONE
     public GlobalCodeDto getOne(String fhirId) {
         log.debug("Getting GlobalCode: {}", fhirId);
-        Basic basic = fhirClientService.read(Basic.class, fhirId, getPracticeId());
-        return fromFhirBasic(basic);
+        String practiceId = getPracticeId();
+        try {
+            Basic basic = fhirClientService.read(Basic.class, fhirId, practiceId);
+            return fromFhirBasic(basic);
+        } catch (ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException e) {
+            throw new com.qiaben.ciyex.exception.ResourceNotFoundException("GlobalCode", "id", fhirId);
+        }
     }
 
     // GET ALL
     public List<GlobalCodeDto> getAll() {
         log.debug("Getting all GlobalCodes");
-        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+        String practiceId = getPracticeId();
+        Bundle bundle = fhirClientService.search(Basic.class, practiceId);
         return fhirClientService.extractResources(bundle, Basic.class).stream()
                 .filter(this::isGlobalCodeBasic)
                 .map(this::fromFhirBasic)
@@ -107,7 +116,8 @@ public class GlobalCodeService {
     // SEARCH
     public List<GlobalCodeDto> search(String codeType, Boolean active, String q) {
         log.debug("Searching GlobalCodes: codeType={} active={} q={}", codeType, active, q);
-        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+        String practiceId = getPracticeId();
+        Bundle bundle = fhirClientService.search(Basic.class, practiceId);
         return fhirClientService.extractResources(bundle, Basic.class).stream()
                 .filter(this::isGlobalCodeBasic)
                 .map(this::fromFhirBasic)
