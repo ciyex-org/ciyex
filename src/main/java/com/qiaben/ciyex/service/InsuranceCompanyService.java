@@ -186,7 +186,7 @@ public class InsuranceCompanyService {
 
         return org;
     }
-
+ 
     private InsuranceCompanyDto fromFhirOrganization(Organization org) {
         InsuranceCompanyDto dto = new InsuranceCompanyDto();
         String fhirId = org.getIdElement().getIdPart();
