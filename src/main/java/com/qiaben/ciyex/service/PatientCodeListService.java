@@ -1,5 +1,6 @@
 package com.qiaben.ciyex.service;
 
+import ca.uhn.fhir.rest.server.exceptions.BaseServerResponseException;
 import com.qiaben.ciyex.dto.PatientCodeListDto;
 import com.qiaben.ciyex.fhir.FhirClientService;
 import lombok.RequiredArgsConstructor;
@@ -51,10 +52,17 @@ public class PatientCodeListService {
     // GET BY ID
     public PatientCodeListDto getById(String fhirId) {
         log.debug("Getting FHIR List (patient code list): {}", fhirId);
-        ListResource list = fhirClientService.read(ListResource.class, fhirId, getPracticeId());
-        PatientCodeListDto dto = fromFhirList(list);
-        dto.id = Long.parseLong(fhirId);
-        return dto;
+        try {
+            ListResource list = fhirClientService.read(ListResource.class, fhirId, getPracticeId());
+            PatientCodeListDto dto = fromFhirList(list);
+            dto.id = Long.parseLong(fhirId);
+            return dto;
+        } catch (BaseServerResponseException e) {
+            log.error("Failed to retrieve patient code list {}: {} {}", fhirId, e.getStatusCode(), e.getMessage());
+            throw new com.qiaben.ciyex.exception.ResourceNotFoundException(
+                String.format("Patient code list not found with id: %s", fhirId)
+            );
+        }
     }
 
     // CREATE
@@ -86,20 +94,26 @@ public class PatientCodeListService {
     // UPDATE
     public PatientCodeListDto update(String fhirId, PatientCodeListDto dto) {
         log.debug("Updating FHIR List (patient code list): {}", fhirId);
+        try {
+            ListResource list = toFhirList(dto);
+            list.setId(fhirId);
+            fhirClientService.update(list, getPracticeId());
 
-        ListResource list = toFhirList(dto);
-        list.setId(fhirId);
-        fhirClientService.update(list, getPracticeId());
+            dto.fhirId = fhirId;
+            dto.externalId = fhirId;
 
-        dto.fhirId = fhirId;
-        dto.externalId = fhirId;
+            // If this is default, clear other defaults
+            if (dto.isDefault) {
+                clearOtherDefaults(fhirId);
+            }
 
-        // If this is default, clear other defaults
-        if (dto.isDefault) {
-            clearOtherDefaults(fhirId);
+            return getById(fhirId);
+        } catch (BaseServerResponseException e) {
+            log.error("Failed to update patient code list {}: {} {}", fhirId, e.getStatusCode(), e.getMessage());
+            throw new com.qiaben.ciyex.exception.ResourceNotFoundException(
+                String.format("Patient code list not found with id: %s", fhirId)
+            );
         }
-
-        return getById(fhirId);
     }
 
     // DELETE
@@ -108,9 +122,11 @@ public class PatientCodeListService {
         try {
             fhirClientService.delete(ListResource.class, fhirId, getPracticeId());
             return true;
-        } catch (Exception e) {
-            log.error("Failed to delete patient code list: {}", e.getMessage());
-            return false;
+        } catch (BaseServerResponseException e) {
+            log.error("Failed to delete patient code list {}: {} {}", fhirId, e.getStatusCode(), e.getMessage());
+            throw new com.qiaben.ciyex.exception.ResourceNotFoundException(
+                String.format("Patient code list not found with id: %s", fhirId)
+            );
         }
     }
 
@@ -138,14 +154,21 @@ public class PatientCodeListService {
 
     // SET DEFAULT
     public PatientCodeListDto setDefault(String fhirId) {
-        PatientCodeListDto dto = getById(fhirId);
-        if (dto == null) return null;
-        
-        dto.isDefault = true;
-        update(fhirId, dto);
-        clearOtherDefaults(fhirId);
-        
-        return dto;
+        try {
+            PatientCodeListDto dto = getById(fhirId);
+            if (dto == null) return null;
+            
+            dto.isDefault = true;
+            update(fhirId, dto);
+            clearOtherDefaults(fhirId);
+            
+            return dto;
+        } catch (BaseServerResponseException e) {
+            log.error("Failed to set default for patient code list {}: {} {}", fhirId, e.getStatusCode(), e.getMessage());
+            throw new com.qiaben.ciyex.exception.ResourceNotFoundException(
+                String.format("Patient code list not found with id: %s", fhirId)
+            );
+        }
     }
 
     // -------- FHIR Mapping --------

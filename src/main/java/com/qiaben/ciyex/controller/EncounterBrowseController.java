@@ -8,7 +8,9 @@ import com.qiaben.ciyex.dto.EncounterStatus;
 import com.qiaben.ciyex.service.EncounterBrowserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,15 +33,17 @@ public class EncounterBrowseController {
             @RequestParam(name = "status", required = false, defaultValue = "ALL") String status,
             @RequestParam(name = "recentOnly", required = false, defaultValue = "false") boolean recentOnly,
             @RequestParam(name = "recentCount", required = false, defaultValue = "10") int recentCount,
-            Pageable pageable
+            @RequestParam(name = "page", required = false, defaultValue = "0") int page,
+            @RequestParam(name = "size", required = false, defaultValue = "10") int size
     ) {
+        Pageable pageable = PageRequest.of(page, size);
         Optional<String> statusOpt = Optional.empty();
         String normalized = status == null ? "ALL" : status.trim().toUpperCase(Locale.ROOT);
         if (!"ALL".equals(normalized)) {
             statusOpt = Optional.of(normalized);
         }
 
-        Page<EncounterDto> page = EncounterBrowserService.listAll(
+        Page<EncounterDto> result = EncounterBrowserService.listAll(
                 statusOpt, recentOnly, recentCount, pageable
         );
 
@@ -47,7 +51,7 @@ public class EncounterBrowseController {
                 ApiResponse.<Page<EncounterDto>>builder()
                         .success(true)
                         .message("Encounters fetched")
-                        .data(page)
+                        .data(result)
                         .build()
         );
     }
