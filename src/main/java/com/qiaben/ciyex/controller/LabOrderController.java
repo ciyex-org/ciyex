@@ -22,6 +22,35 @@ public class LabOrderController {
 
     private final LabOrderService service;
 
+    // ---------- GET ALL lab orders ----------
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<LabOrderDto>>> getAll() {
+        try {
+            RequestContext ctx = new RequestContext();
+            RequestContext.set(ctx);
+            var all = service.getAll();
+            if (all == null || all.isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<List<LabOrderDto>>builder()
+                        .success(false)
+                        .message("No lab orders found")
+                        .build());
+            }
+            return ResponseEntity.ok(ApiResponse.<List<LabOrderDto>>builder()
+                    .success(true)
+                    .message("Lab orders retrieved successfully")
+                    .data(all)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to retrieve lab orders: {}", e.getMessage(), e);
+            return ResponseEntity.ok(ApiResponse.<List<LabOrderDto>>builder()
+                    .success(false)
+                    .message("Failed to retrieve lab orders: " + e.getMessage())
+                    .build());
+        } finally {
+            RequestContext.clear();
+        }
+    }
+
         // ---------- SEARCH across org (orderNumber / test codes & display / physician, ordering provider,
         // status, priority, diagnosis/procedure codes, order/lab names, result text, patientId exact) ----------
         @GetMapping("/search")
@@ -93,6 +122,12 @@ public class LabOrderController {
                         var filtered = (all == null ? List.<LabOrderDto>of() : all).stream()
                                         .filter(d -> d.getPatientId() != null && Objects.equals(d.getPatientId(), patientId))
                                         .collect(Collectors.toList());
+                        if (filtered.isEmpty()) {
+                                return ResponseEntity.ok(ApiResponse.<List<LabOrderDto>>builder()
+                                                .success(false)
+                                                .message("Patient ID not found")
+                                                .build());
+                        }
                         return ResponseEntity.ok(ApiResponse.<List<LabOrderDto>>builder()
                                         .success(true)
                                         .message("Lab orders retrieved successfully")

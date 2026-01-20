@@ -72,10 +72,9 @@ public class PatientService {
         try {
             Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                     .forResource(Patient.class)
-                    
                     .returnBundle(Bundle.class)
                     .execute();
-            return bundle.getTotal();
+            return bundle.hasEntry() ? bundle.getEntry().size() : 0;
         } catch (Exception e) {
             log.error("Failed to count patients from FHIR: {}", e.getMessage());
             return 0;
