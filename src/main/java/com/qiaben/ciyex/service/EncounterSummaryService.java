@@ -89,6 +89,7 @@ public class EncounterSummaryService {
                         
                         return EncounterSummaryDto.AssignedProvider.builder()
                                 .id(d.getProviderId())
+                                .fhirId(d.getFhirId())
                                 .providerName(providerName)
                                 .name(providerName)
                                 .role(d.getRole())
@@ -108,6 +109,7 @@ public class EncounterSummaryService {
             return chiefComplaintService.list(patientId, encounterId).stream()
                     .map(d -> EncounterSummaryDto.ChiefComplaint.builder()
                             .id(d.getId())
+                            .fhirId(d.getFhirId())
                             .complaint(d.getComplaint())
                             .notes(d.getDetails())
                             .build())
@@ -123,6 +125,7 @@ public class EncounterSummaryService {
             return vitalsService.getByEncounter(patientId, encounterId).stream()
                     .map(d -> EncounterSummaryDto.Vitals.builder()
                             .id(d.getId())
+                            .fhirId(d.getFhirId())
                             .weightKg(d.getWeightKg())
                             .weightLbs(d.getWeightLbs())
                             .heightCm(d.getHeightCm())
@@ -150,6 +153,7 @@ public class EncounterSummaryService {
             return hpiService.list(patientId, encounterId).stream()
                     .map(d -> EncounterSummaryDto.HPIEntry.builder()
                             .id(d.getId())
+                            .fhirId(d.getFhirId())
                             .description(d.getDescription())
                             .build())
                     .collect(Collectors.toList());
@@ -164,6 +168,7 @@ public class EncounterSummaryService {
             return pmhService.list(patientId, encounterId).stream()
                     .map(d -> EncounterSummaryDto.PMHEntry.builder()
                             .id(d.getId())
+                            .fhirId(d.getFhirId())
                             .description(d.getDescription())
                             .build())
                     .collect(Collectors.toList());
@@ -178,6 +183,7 @@ public class EncounterSummaryService {
             return patientMHService.list(patientId, encounterId).stream()
                     .map(d -> EncounterSummaryDto.PatientMHEntry.builder()
                             .id(d.getId())
+                            .fhirId(d.getFhirId())
                             .description(d.getConditionName() != null ? d.getConditionName() : d.getMedicalCondition())
                             .text(d.getDescription())
                             .build())
@@ -194,6 +200,7 @@ public class EncounterSummaryService {
                     .flatMap(fh -> fh.getEntries().stream()
                             .map(e -> EncounterSummaryDto.FamilyHistory.builder()
                                     .id(fh.getId())
+                                    .fhirId(fh.getFhirId())
                                     .relation(e.getRelation())
                                     .condition(e.getDiagnosisText())
                                     .details(e.getNotes())
@@ -295,6 +302,7 @@ public class EncounterSummaryService {
             } else {
                 systemMap.put(systemName, EncounterSummaryDto.ROSEntry.builder()
                         .id(rosId)
+                        .fhirId(String.valueOf(rosId))
                         .systemName(systemName)
                         .isNegative(positiveSymptoms.isEmpty())
                         .findings(positiveSymptoms)
@@ -311,6 +319,7 @@ public class EncounterSummaryService {
             return physicalExamService.list(patientId, encounterId).stream()
                     .map(pe -> EncounterSummaryDto.PhysicalExam.builder()
                             .id(pe.getId())
+                            .fhirId(pe.getFhirId())
                             .summary(pe.getSummary())
                             .sections(pe.getSections().stream()
                                     .map(s -> EncounterSummaryDto.PhysicalExamSection.builder()
@@ -336,6 +345,7 @@ public class EncounterSummaryService {
             for (var d : procedures) {
                 var builder = EncounterSummaryDto.Procedure.builder()
                         .id(d.getId())
+                        .fhirId(d.getFhirId())
                         .cpt4(d.getCpt4())
                         .description(d.getDescription())
                         .procedureName(d.getNote())
@@ -375,6 +385,7 @@ public class EncounterSummaryService {
                     .map(d -> {
                         var builder = EncounterSummaryDto.Assessment.builder()
                                 .id(d.getId())
+                                .fhirId(d.getFhirId())
                                 .assessment(d.getAssessmentText());
                         
                         // Add text field if it exists in DTO
@@ -396,6 +407,7 @@ public class EncounterSummaryService {
             return planService.list(patientId, encounterId).stream()
                     .map(d -> EncounterSummaryDto.Plan.builder()
                             .id(d.getId())
+                            .fhirId(d.getFhirId())
                             .plan(d.getPlan())
                             .diagnosticPlan(d.getDiagnosticPlan())
                             .notes(d.getNotes())
@@ -416,6 +428,7 @@ public class EncounterSummaryService {
             return providerNoteService.list(patientId, encounterId).stream()
                     .map(d -> EncounterSummaryDto.ProviderNote.builder()
                             .id(d.getId())
+                            .fhirId(d.getFhirId())
                             .subjective(d.getSubjective())
                             .objective(d.getObjective())
                             .assessment(d.getAssessment())

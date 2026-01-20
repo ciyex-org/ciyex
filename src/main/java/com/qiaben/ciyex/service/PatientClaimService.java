@@ -627,7 +627,7 @@ public class PatientClaimService {
         int attachments = getIntExtension(c, EXT_ATTACHMENTS);
         boolean eob = getBooleanExtension(c, EXT_EOB_ATTACHED);
         LocalDate createdOn = getCreatedDateFromClaim(c);
-        String patientName = optStringExt(c, EXT_PATIENT_NAME);
+        String patientName = getPatientNameById(patientId);
         String planName = optStringExt(c, EXT_PLAN_NAME);
         String provider = optStringExt(c, EXT_PROVIDER);
         String policyNumber = optStringExt(c, EXT_POLICY_NUMBER);
@@ -770,6 +770,31 @@ public class PatientClaimService {
         Extension ext = c.getExtensionByUrl(url);
         if (ext != null && ext.getValue() instanceof StringType) {
             return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
+    }
+
+    /**
+     * Get patient name by ID
+     */
+    private String getPatientNameById(Long patientId) {
+        if (patientId == null) return null;
+        try {
+            Patient patient = fhirClientService.read(Patient.class, patientId.toString(), getPracticeId());
+            if (patient.hasName()) {
+                HumanName name = patient.getNameFirstRep();
+                StringBuilder fullName = new StringBuilder();
+                if (!name.getGiven().isEmpty()) {
+                    fullName.append(name.getGiven().get(0).getValue());
+                }
+                if (name.hasFamily()) {
+                    if (fullName.length() > 0) fullName.append(" ");
+                    fullName.append(name.getFamily());
+                }
+                return fullName.toString();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch patient name for ID: {}", patientId, e);
         }
         return null;
     }

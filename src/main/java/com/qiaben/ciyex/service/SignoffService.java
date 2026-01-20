@@ -116,6 +116,7 @@ public class SignoffService {
     // GET ALL BY PATIENT
     public List<SignoffDto> getAllByPatient(Long patientId) {
         validatePathVariable(patientId, "Patient ID");
+        validatePatientExists(patientId);
         log.debug("Getting all FHIR Tasks (signoffs) for patient: {}", patientId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -211,9 +212,16 @@ public class SignoffService {
         validatePathVariable(patientId, "Patient ID");
         validatePathVariable(encounterId, "Encounter ID");
         validateFhirId(fhirId, "Signoff ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("E-signing FHIR Task (signoff): {}", fhirId);
 
-        Task task = fhirClientService.read(Task.class, fhirId, getPracticeId());
+        Task task;
+        try {
+            task = fhirClientService.read(Task.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Signoff ID is invalid. Signoff not found: " + fhirId);
+        }
         SignoffDto dto = fromFhirTask(task);
 
         if (isLocked(dto.getStatus())) {
@@ -241,7 +249,15 @@ public class SignoffService {
         validatePathVariable(patientId, "Patient ID");
         validatePathVariable(encounterId, "Encounter ID");
         validateFhirId(fhirId, "Signoff ID");
-        Task task = fhirClientService.read(Task.class, fhirId, getPracticeId());
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
+        
+        Task task;
+        try {
+            task = fhirClientService.read(Task.class, fhirId, getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Signoff ID is invalid. Signoff not found: " + fhirId);
+        }
         SignoffDto dto = fromFhirTask(task);
 
         // Update printed timestamp
@@ -270,31 +286,36 @@ public class SignoffService {
                 draw(cs, x, y, "Encounter ID:", String.valueOf(encounterId)); y -= 16;
                 draw(cs, x, y, "Sign-off ID:", fhirId); y -= 22;
 
-                if (StringUtils.hasText(dto.getStatus())) { draw(cs, x, y, "Status:", dto.getStatus()); y -= 16; }
-                if (StringUtils.hasText(dto.getSignedBy())) { draw(cs, x, y, "Signed By:", dto.getSignedBy()); y -= 16; }
-                if (StringUtils.hasText(dto.getSignerRole())) { draw(cs, x, y, "Role:", dto.getSignerRole()); y -= 16; }
-                if (StringUtils.hasText(dto.getSignedAt())) { draw(cs, x, y, "Signed At:", dto.getSignedAt()); y -= 16; }
-                if (StringUtils.hasText(dto.getSignatureType())) { draw(cs, x, y, "Signature Type:", dto.getSignatureType()); y -= 16; }
-                if (StringUtils.hasText(dto.getContentHash())) { draw(cs, x, y, "Content Hash:", dto.getContentHash()); y -= 16; }
-                if (StringUtils.hasText(dto.getTargetType())) { draw(cs, x, y, "Target:", dto.getTargetType() + (dto.getTargetId() != null ? " #" + dto.getTargetId() : "")); y -= 16; }
+                draw(cs, x, y, "Status:", nullTo(dto.getStatus())); y -= 16;
+                draw(cs, x, y, "Signed By:", nullTo(dto.getSignedBy())); y -= 16;
+                draw(cs, x, y, "Signer Role:", nullTo(dto.getSignerRole())); y -= 16;
+                draw(cs, x, y, "Signed At:", nullTo(dto.getSignedAt())); y -= 22;
+                
+                draw(cs, x, y, "Signature Type:", nullTo(dto.getSignatureType())); y -= 16;
+                draw(cs, x, y, "Content Hash:", nullTo(dto.getContentHash())); y -= 16;
+                draw(cs, x, y, "Target:", dto.getTargetType() != null ? dto.getTargetType() + (dto.getTargetId() != null ? " #" + dto.getTargetId() : "") : "-"); y -= 22;
 
                 if (StringUtils.hasText(dto.getAttestationText())) {
-                    y -= 10; draw(cs, x, y, "Attestation:", ""); y -= 14;
-                    for (String ln : dto.getAttestationText().split("\\R")) {
-                        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 16, y); cs.showText(ln); cs.endText();
+                    String[] lines = dto.getAttestationText().split("\\R");
+                    draw(cs, x, y, "Attestation:", lines[0]); y -= 16;
+                    for (int i = 1; i < lines.length; i++) {
+                        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 150, y); cs.showText(lines[i]); cs.endText();
                         y -= 14;
                     }
+                    y -= 6;
                 }
+                
                 if (StringUtils.hasText(dto.getComments())) {
-                    y -= 10; draw(cs, x, y, "Comments:", ""); y -= 14;
-                    for (String ln : dto.getComments().split("\\R")) {
-                        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 16, y); cs.showText(ln); cs.endText();
+                    String[] lines = dto.getComments().split("\\R");
+                    draw(cs, x, y, "Comments:", lines[0]); y -= 16;
+                    for (int i = 1; i < lines.length; i++) {
+                        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 150, y); cs.showText(lines[i]); cs.endText();
                         y -= 14;
                     }
+                    y -= 6;
                 }
 
-                y -= 10;
-                if (StringUtils.hasText(dto.getPrintedAt())) { draw(cs, x, y, "Printed:", dto.getPrintedAt()); }
+                draw(cs, x, y, "Printed:", nullTo(dto.getPrintedAt()));
             }
 
             doc.save(baos);
@@ -463,8 +484,21 @@ public class SignoffService {
     }
 
     private static void draw(PDPageContentStream cs, float x, float y, String label, String value) throws IOException {
-        cs.beginText(); cs.setFont(PDType1Font.HELVETICA_BOLD, 12); cs.newLineAtOffset(x, y); cs.showText(label); cs.endText();
-        cs.beginText(); cs.setFont(PDType1Font.HELVETICA, 12); cs.newLineAtOffset(x + 140, y); cs.showText(value != null ? value : "-"); cs.endText();
+        cs.beginText();
+        cs.setFont(PDType1Font.HELVETICA_BOLD, 12);
+        cs.newLineAtOffset(x, y);
+        cs.showText(label);
+        cs.endText();
+        
+        cs.beginText();
+        cs.setFont(PDType1Font.HELVETICA, 12);
+        cs.newLineAtOffset(x + 150, y);
+        cs.showText(value != null ? value : "-");
+        cs.endText();
+    }
+    
+    private static String nullTo(String value) {
+        return (value == null || value.isBlank()) ? "-" : value;
     }
     
     private void populateAudit(SignoffDto dto, Meta meta) {
