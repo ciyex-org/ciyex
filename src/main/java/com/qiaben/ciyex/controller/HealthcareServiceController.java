@@ -3,12 +3,16 @@ package com.qiaben.ciyex.controller;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.HealthcareServiceDto;
 import com.qiaben.ciyex.service.HealthcareServiceService;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/healthcare-services")
@@ -23,16 +27,20 @@ public class HealthcareServiceController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<HealthcareServiceDto>> create(@RequestBody HealthcareServiceDto dto) {
+    public ResponseEntity<ApiResponse<HealthcareServiceDto>> create(@Valid @RequestBody HealthcareServiceDto dto, BindingResult result) {
         try {
-            // Validate mandatory fields
-            String validationError = validateMandatoryFields(dto);
-            if (validationError != null) {
-                ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
+            if (result.hasErrors()) {
+                StringBuilder errorMsg = new StringBuilder();
+                result.getFieldErrors().forEach(error -> 
+                    errorMsg.append(error.getDefaultMessage()).append(", ")
+                );
+                if (errorMsg.length() > 0) {
+                    errorMsg.setLength(errorMsg.length() - 2);
+                }
+                return ResponseEntity.ok(new ApiResponse.Builder<HealthcareServiceDto>()
                         .success(false)
-                        .message(validationError)
-                        .build();
-                return ResponseEntity.ok(response);
+                        .message(errorMsg.toString())
+                        .build());
             }
 
             HealthcareServiceDto createdService = service.create(dto);
@@ -100,17 +108,22 @@ public class HealthcareServiceController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<HealthcareServiceDto>> update(
             @PathVariable("id") String id,
-            @RequestBody HealthcareServiceDto dto
+            @Valid @RequestBody HealthcareServiceDto dto,
+            BindingResult result
     ) {
         try {
-            // Validate mandatory fields
-            String validationError = validateMandatoryFields(dto);
-            if (validationError != null) {
-                ApiResponse<HealthcareServiceDto> response = new ApiResponse.Builder<HealthcareServiceDto>()
+            if (result.hasErrors()) {
+                StringBuilder errorMsg = new StringBuilder();
+                result.getFieldErrors().forEach(error -> 
+                    errorMsg.append(error.getDefaultMessage()).append(", ")
+                );
+                if (errorMsg.length() > 0) {
+                    errorMsg.setLength(errorMsg.length() - 2);
+                }
+                return ResponseEntity.ok(new ApiResponse.Builder<HealthcareServiceDto>()
                         .success(false)
-                        .message(validationError)
-                        .build();
-                return ResponseEntity.ok(response);
+                        .message(errorMsg.toString())
+                        .build());
             }
 
             HealthcareServiceDto updatedService = service.update(id, dto);
@@ -148,38 +161,4 @@ public class HealthcareServiceController {
             return ResponseEntity.ok(response);
         }
     }
-
-    /**
-     * Validates mandatory fields for HealthcareService creation and update
-     * @param dto HealthcareServiceDto to validate
-     * @return error message if validation fails, null if validation passes
-     */
-    private String validateMandatoryFields(HealthcareServiceDto dto) {
-        StringBuilder missingFields = new StringBuilder();
-
-        if (dto.getName() == null || dto.getName().trim().isEmpty()) {
-            missingFields.append("name, ");
-        }
-
-        if (dto.getLocation() == null || dto.getLocation().trim().isEmpty()) {
-            missingFields.append("location, ");
-        }
-
-        if (dto.getType() == null || dto.getType().trim().isEmpty()) {
-            missingFields.append("type, ");
-        }
-
-        if (dto.getHoursOfOperation() == null || dto.getHoursOfOperation().trim().isEmpty()) {
-            missingFields.append("hoursOfOperation, ");
-        }
-
-        if (!missingFields.isEmpty()) {
-            // Remove the trailing comma and space
-            missingFields.setLength(missingFields.length() - 2);
-            return "Missing mandatory fields: " + missingFields;
-        }
-
-        return null;
-    }
-
 }
