@@ -57,17 +57,7 @@ public class OrgConfigService {
         Optional<Basic> existing = findConfigByKey(key);
 
         if (existing.isPresent()) {
-            // Update existing
-            Basic basic = existing.get();
-            String fhirId = basic.getIdElement().getIdPart();
-
-            basic.getExtension().removeIf(e -> EXT_CONFIG_VALUE.equals(e.getUrl()));
-            basic.addExtension(new Extension(EXT_CONFIG_VALUE, new StringType(value)));
-
-            fhirClientService.update(basic, getPracticeId());
-            log.info("Updated config key: {}", key);
-
-            return new OrgConfigResult(fhirId, key, value);
+            throw new IllegalArgumentException("The key '" + key + "' is already available");
         } else {
             // Create new
             Basic basic = new Basic();
@@ -200,7 +190,43 @@ public class OrgConfigService {
      * Update configuration value
      */
     public OrgConfigResult updateConfig(String key, String value) {
-        return setConfig(key, value);
+        log.info("updateConfig(key='{}') called", key);
+
+        // Validation
+        if (key == null || key.trim().isEmpty()) {
+            throw new IllegalArgumentException("Configuration key cannot be null or empty");
+        }
+
+        // Check if config exists
+        Optional<Basic> existing = findConfigByKey(key);
+
+        if (existing.isEmpty()) {
+            throw new IllegalArgumentException("Config key not found: " + key);
+        }
+
+        // Update existing
+        Basic basic = existing.get();
+        
+        // Update the value extension
+        Extension valueExt = basic.getExtensionByUrl(EXT_CONFIG_VALUE);
+        if (valueExt != null) {
+            valueExt.setValue(new StringType(value));
+        } else {
+            basic.addExtension(new Extension(EXT_CONFIG_VALUE, new StringType(value)));
+        }
+
+        var outcome = fhirClientService.update(basic, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
+
+        log.info("Updated config key='{}' with FHIR ID: {}", key, fhirId);
+        return new OrgConfigResult(fhirId, key, value);
+    }
+
+    /**
+     * Public method to flatten map for controller use
+     */
+    public Map<String, String> flattenMapPublic(Map<String, Object> configs) {
+        return flattenMap(configs, "");
     }
 
     // ===== Helper Methods =====

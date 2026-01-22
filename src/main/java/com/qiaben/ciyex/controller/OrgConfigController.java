@@ -61,13 +61,29 @@ public class OrgConfigController {
         }
 
         try {
-            int saved = 0;
+            int created = 0, updated = 0;
             for (Map.Entry<String, String> entry : configs.entrySet()) {
-                orgConfigService.setConfig(entry.getKey(), entry.getValue());
-                saved++;
+                String key = entry.getKey();
+                String value = entry.getValue();
+                
+                if (orgConfigService.existsByKey(key)) {
+                    // Update existing
+                    orgConfigService.updateConfig(key, value);
+                    updated++;
+                    log.info("[POST] /api/orgConfig - updated key: {}", key);
+                } else {
+                    // Create new
+                    orgConfigService.setConfig(key, value);
+                    created++;
+                    log.info("[POST] /api/orgConfig - created key: {}", key);
+                }
             }
-            log.info("[POST] /api/orgConfig - saved {} keys", saved);
-            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("message", "Saved " + saved + " configurations"));
+            log.info("[POST] /api/orgConfig - created: {}, updated: {}", created, updated);
+            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "message", "Created " + created + ", updated " + updated + " configurations",
+                "created", String.valueOf(created),
+                "updated", String.valueOf(updated)
+            ));
         } catch (Exception e) {
             log.error("[POST] /api/orgConfig - failed: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -82,9 +98,28 @@ public class OrgConfigController {
             return ResponseEntity.badRequest().body(Map.of("error", "Empty body"));
         }
         try {
-            orgConfigService.setConfigBulk(jsonConfig);
-            log.info("[POST] /api/orgConfig/json - saved OK");
-            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("message", "Configurations saved successfully"));
+            Map<String, String> flatMap = orgConfigService.flattenMapPublic(jsonConfig);
+            int created = 0, updated = 0;
+            
+            for (Map.Entry<String, String> entry : flatMap.entrySet()) {
+                String key = entry.getKey();
+                String value = entry.getValue();
+                
+                if (orgConfigService.existsByKey(key)) {
+                    orgConfigService.updateConfig(key, value);
+                    updated++;
+                } else {
+                    orgConfigService.setConfig(key, value);
+                    created++;
+                }
+            }
+            
+            log.info("[POST] /api/orgConfig/json - created: {}, updated: {}", created, updated);
+            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "message", "Created " + created + ", updated " + updated + " configurations",
+                "created", String.valueOf(created),
+                "updated", String.valueOf(updated)
+            ));
         } catch (Exception e) {
             log.error("[POST] /api/orgConfig/json - failed: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
