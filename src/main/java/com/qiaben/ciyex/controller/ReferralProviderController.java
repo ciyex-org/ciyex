@@ -29,9 +29,15 @@ public class ReferralProviderController {
                     .message("Referral provider created successfully")
                     .data(createdDto)
                     .build());
+        } catch (IllegalArgumentException e) {
+            log.error("Validation error: {}", e.getMessage());
+            return ResponseEntity.status(400).body(ApiResponse.<ReferralProviderDto>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
         } catch (Exception e) {
             log.error("Failed to create referral provider", e);
-            return ResponseEntity.ok(ApiResponse.<ReferralProviderDto>builder()
+            return ResponseEntity.status(500).body(ApiResponse.<ReferralProviderDto>builder()
                     .success(false)
                     .message("Failed to create referral provider: " + e.getMessage())
                     .build());
@@ -47,9 +53,15 @@ public class ReferralProviderController {
                     .message("Referral provider retrieved successfully")
                     .data(dto)
                     .build());
+        } catch (IllegalArgumentException e) {
+            log.error("Referral provider not found: {}", id);
+            return ResponseEntity.status(404).body(ApiResponse.<ReferralProviderDto>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
         } catch (Exception e) {
             log.error("Failed to retrieve referral provider with id {}", id, e);
-            return ResponseEntity.ok(ApiResponse.<ReferralProviderDto>builder()
+            return ResponseEntity.status(500).body(ApiResponse.<ReferralProviderDto>builder()
                     .success(false)
                     .message("Failed to retrieve referral provider: " + e.getMessage())
                     .build());
@@ -104,9 +116,15 @@ public class ReferralProviderController {
                     .message("Referral provider updated successfully")
                     .data(updatedDto)
                     .build());
+        } catch (IllegalArgumentException e) {
+            log.error("Referral provider not found: {}", id);
+            return ResponseEntity.status(404).body(ApiResponse.<ReferralProviderDto>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
         } catch (Exception e) {
             log.error("Failed to update referral provider with id {}", id, e);
-            return ResponseEntity.ok(ApiResponse.<ReferralProviderDto>builder()
+            return ResponseEntity.status(500).body(ApiResponse.<ReferralProviderDto>builder()
                     .success(false)
                     .message("Failed to update referral provider: " + e.getMessage())
                     .build());

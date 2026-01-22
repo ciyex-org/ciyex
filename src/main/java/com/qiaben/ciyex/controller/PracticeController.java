@@ -71,11 +71,19 @@ public class PracticeController {
                             .data(practice)
                             .build()
             );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<PracticeDto>builder()
+                            .success(false)
+                            .message(e.getMessage())
+                            .data(null)
+                            .build());
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.<PracticeDto>builder()
                             .success(false)
-                            .message("Failed to retrieve practice")
+                            .message("Failed to retrieve practice: " + e.getMessage())
                             .data(null)
                             .build());
         }

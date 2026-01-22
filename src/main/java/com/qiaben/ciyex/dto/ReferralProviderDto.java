@@ -5,6 +5,8 @@ import lombok.Data;
 @Data
 public class ReferralProviderDto {
     private Long id;
+    private String firstName;
+    private String lastName;
     private String name;
     private String specialty;
     private String address;
