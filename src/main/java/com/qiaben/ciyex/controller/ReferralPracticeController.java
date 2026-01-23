@@ -39,7 +39,7 @@ public class ReferralPracticeController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<ReferralPracticeDto>> get(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<ReferralPracticeDto>> get(@PathVariable("id") String id) {
         try {
             ReferralPracticeDto dto = service.getById(id);
             return ResponseEntity.ok(ApiResponse.<ReferralPracticeDto>builder()
@@ -63,7 +63,7 @@ public class ReferralPracticeController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<ReferralPracticeDto>> update(@PathVariable String id, @RequestBody ReferralPracticeDto dto) {
+    public ResponseEntity<ApiResponse<ReferralPracticeDto>> update(@PathVariable("id") String id, @RequestBody ReferralPracticeDto dto) {
         try {
             ReferralPracticeDto updatedDto = service.update(id, dto);
             return ResponseEntity.ok(ApiResponse.<ReferralPracticeDto>builder()
@@ -81,7 +81,7 @@ public class ReferralPracticeController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") String id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()

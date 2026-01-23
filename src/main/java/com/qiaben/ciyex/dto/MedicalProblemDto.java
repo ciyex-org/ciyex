@@ -18,7 +18,11 @@ public class MedicalProblemDto {
     private String fhirId;
     private String tenantName;
     private Long patientId;
+    
+    @jakarta.validation.constraints.NotEmpty(message = "At least one medical problem is required")
+    @jakarta.validation.Valid
     private List<MedicalProblemItem> problemsList;
+    
     private Audit audit;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -29,10 +33,18 @@ public class MedicalProblemDto {
         private String externalId;
         private String fhirId;
 
+        @jakarta.validation.constraints.NotBlank(message = "Title is required")
         private String title;
+        
+        @jakarta.validation.constraints.NotBlank(message = "Outcome is required")
         private String outcome;
+        
+        @jakarta.validation.constraints.NotBlank(message = "Verification status is required")
         private String verificationStatus;
+        
+        @jakarta.validation.constraints.NotBlank(message = "Occurrence is required")
         private String occurrence;
+        
         private String note;
 
         private Long patientId;

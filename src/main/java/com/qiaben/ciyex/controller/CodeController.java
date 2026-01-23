@@ -130,7 +130,7 @@ public class CodeController {
 
    
     @GetMapping("/{patientId}")
-    public ResponseEntity<ApiResponse<List<CodeDto>>> getAllByPatient(@PathVariable Long patientId) {
+    public ResponseEntity<ApiResponse<List<CodeDto>>> getAllByPatient(@PathVariable("patientId") Long patientId) {
         var list = service.getAllByPatient(patientId);
         return ResponseEntity.ok(ApiResponse.<List<CodeDto>>builder()
                 .success(true).message("Codes fetched").data(list).build());
@@ -140,8 +140,8 @@ public class CodeController {
     // LIST
     @GetMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<List<CodeDto>>> list(
-            @PathVariable Long patientId,
-            @PathVariable Long encounterId) {
+            @PathVariable("patientId") Long patientId,
+            @PathVariable("encounterId") Long encounterId) {
         var items = service.list(patientId, encounterId);
         return ResponseEntity.ok(ApiResponse.<List<CodeDto>>builder()
                 .success(true).message("Codes fetched").data(items).build());
@@ -150,9 +150,9 @@ public class CodeController {
     // GET ONE
     @GetMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<ApiResponse<CodeDto>> getOne(
-            @PathVariable Long patientId,
-            @PathVariable Long encounterId,
-            @PathVariable String id) {
+            @PathVariable("patientId") Long patientId,
+            @PathVariable("encounterId") Long encounterId,
+            @PathVariable("id") String id) {
         try {
             var dto = service.getOne(patientId, encounterId, id);
             return ResponseEntity.ok(ApiResponse.<CodeDto>builder()
@@ -166,8 +166,8 @@ public class CodeController {
     // CREATE
     @PostMapping("/{patientId}/{encounterId}")
     public ResponseEntity<ApiResponse<CodeDto>> create(
-            @PathVariable Long patientId,
-            @PathVariable Long encounterId,
+            @PathVariable("patientId") Long patientId,
+            @PathVariable("encounterId") Long encounterId,
             @RequestBody CodeDto dto) {
         // Validate mandatory fields
         String validationError = validateMandatoryFields(dto);
@@ -201,9 +201,9 @@ public class CodeController {
     // UPDATE (423 if signed)
     @PutMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<ApiResponse<CodeDto>> update(
-            @PathVariable Long patientId,
-            @PathVariable Long encounterId,
-            @PathVariable String id,
+            @PathVariable("patientId") Long patientId,
+            @PathVariable("encounterId") Long encounterId,
+            @PathVariable("id") String id,
             @RequestBody CodeDto dto) {
         // Validate mandatory fields
         String validationError = validateMandatoryFields(dto);
@@ -237,9 +237,9 @@ public class CodeController {
     // DELETE (423 if signed)
     @DeleteMapping("/{patientId}/{encounterId}/{id}")
     public ResponseEntity<?> delete(
-            @PathVariable Long patientId,
-            @PathVariable Long encounterId,
-            @PathVariable String id) {
+            @PathVariable("patientId") Long patientId,
+            @PathVariable("encounterId") Long encounterId,
+            @PathVariable("id") String id) {
         try {
             service.delete(patientId, encounterId, id);
             // Your UI tolerates empty 204 via safeJson() fallback. :contentReference[oaicite:1]{index=1}
@@ -256,9 +256,9 @@ public class CodeController {
     // ESIGN (no JSON body)
     @PostMapping("/{patientId}/{encounterId}/{id}/esign")
     public ResponseEntity<ApiResponse<CodeDto>> eSign(
-            @PathVariable Long patientId,
-            @PathVariable Long encounterId,
-            @PathVariable String id,
+            @PathVariable("patientId") Long patientId,
+            @PathVariable("encounterId") Long encounterId,
+            @PathVariable("id") String id,
             Principal principal) {
         try {
             String user = (principal != null) ? principal.getName() : "system";
@@ -278,9 +278,9 @@ public class CodeController {
     // PRINT (PDF)
     @GetMapping("/{patientId}/{encounterId}/{id}/print")
     public ResponseEntity<byte[]> print(
-            @PathVariable Long patientId,
-            @PathVariable Long encounterId,
-            @PathVariable String id) {
+            @PathVariable("patientId") Long patientId,
+            @PathVariable("encounterId") Long encounterId,
+            @PathVariable("id") String id) {
         byte[] pdf = service.renderPdf(patientId, encounterId, id);
         String filename = "code-" + id + ".pdf";
         return ResponseEntity.ok()

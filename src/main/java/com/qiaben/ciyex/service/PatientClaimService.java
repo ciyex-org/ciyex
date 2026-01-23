@@ -365,7 +365,7 @@ public class PatientClaimService {
     public void changeClaimStatus(Long patientId, Long claimId, ClaimStatusUpdateDto dto) {
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
 
-        if (!patientId.equals(getPatientFromClaim(claim))) {
+        if (patientId != null && !patientId.equals(getPatientFromClaim(claim))) {
             throw new IllegalArgumentException(String.format(
                 "Claim not found with ID: %d for Patient ID: %d. Please verify both Patient ID and Claim ID are correct and that the claim belongs to this patient.",
                 claimId, patientId));
@@ -399,6 +399,8 @@ public class PatientClaimService {
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
         return fromFhirClaim(claim);
     }
+
+
 
     // ===================== Attachments & EOB =====================
 
@@ -625,7 +627,7 @@ public class PatientClaimService {
         int attachments = getIntExtension(c, EXT_ATTACHMENTS);
         boolean eob = getBooleanExtension(c, EXT_EOB_ATTACHED);
         LocalDate createdOn = getCreatedDateFromClaim(c);
-        String patientName = optStringExt(c, EXT_PATIENT_NAME);
+        String patientName = getPatientNameById(patientId);
         String planName = optStringExt(c, EXT_PLAN_NAME);
         String provider = optStringExt(c, EXT_PROVIDER);
         String policyNumber = optStringExt(c, EXT_POLICY_NUMBER);
@@ -640,7 +642,7 @@ public class PatientClaimService {
                 billingEntity,
                 type,
                 notes,
-                status != null ? PatientClaimStatus.valueOf(status) : PatientClaimStatus.DRAFT,
+                status != null ? normalizeStatus(status) : PatientClaimStatus.DRAFT,
                 attachments,
                 eob,
                 createdOn,
@@ -708,5 +710,92 @@ public class PatientClaimService {
             return ((BooleanType) ext.getValue()).booleanValue();
         }
         return false;
+    }
+
+    /**
+     * Normalize status string to match enum format
+     */
+    private PatientClaimStatus normalizeStatus(String status) {
+        if (status == null) return PatientClaimStatus.DRAFT;
+        String normalized = status.replace("-", "_").toUpperCase();
+        try {
+            return PatientClaimStatus.valueOf(normalized);
+        } catch (IllegalArgumentException e) {
+            log.warn("Unknown claim status: {}, defaulting to DRAFT", status);
+            return PatientClaimStatus.DRAFT;
+        }
+    }
+
+    /**
+     * Fetch insurance email for a claim (FHIR-based)
+     */
+    public String getInsuranceEmailForClaim(Long claimId) {
+        Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
+        Long patientId = getPatientFromClaim(claim);
+        if (patientId == null) return null;
+
+        // Search for Coverage resources for this patient
+        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                .forResource(Coverage.class)
+                .where(new ca.uhn.fhir.rest.gclient.ReferenceClientParam("beneficiary").hasId("Patient/" + patientId))
+                .returnBundle(Bundle.class)
+                .execute();
+
+        if (bundle.hasEntry()) {
+            for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+                if (entry.hasResource() && entry.getResource() instanceof Coverage) {
+                    Coverage coverage = (Coverage) entry.getResource();
+                    // Extract insurance company email from extension
+                    String email = optStringExt(coverage, "http://ciyex.com/fhir/StructureDefinition/insurance-email");
+                    if (email != null) return email;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Send claim details to insurance email
+     */
+    public boolean sendClaimDetailsToInsuranceEmail(PatientClaimDto claim, String insuranceEmail) {
+        log.info("Sending claim {} to insurance email {}", claim.id(), insuranceEmail);
+        // TODO: Implement actual email sending logic
+        return true;
+    }
+
+    /**
+     * Get optional string extension from Coverage
+     */
+    private String optStringExt(Coverage c, String url) {
+        Extension ext = c.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
+    }
+
+    /**
+     * Get patient name by ID
+     */
+    private String getPatientNameById(Long patientId) {
+        if (patientId == null) return null;
+        try {
+            Patient patient = fhirClientService.read(Patient.class, patientId.toString(), getPracticeId());
+            if (patient.hasName()) {
+                HumanName name = patient.getNameFirstRep();
+                StringBuilder fullName = new StringBuilder();
+                if (!name.getGiven().isEmpty()) {
+                    fullName.append(name.getGiven().get(0).getValue());
+                }
+                if (name.hasFamily()) {
+                    if (fullName.length() > 0) fullName.append(" ");
+                    fullName.append(name.getFamily());
+                }
+                return fullName.toString();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch patient name for ID: {}", patientId, e);
+        }
+        return null;
     }
 }

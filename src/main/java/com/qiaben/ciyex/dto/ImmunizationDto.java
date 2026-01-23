@@ -6,7 +6,6 @@ import java.util.List;
 @Data
 public class ImmunizationDto {
     private Long patientId;
-    private Audit audit;
     private List<ImmunizationItem> immunizations;
 
     @Data
@@ -33,6 +32,7 @@ public class ImmunizationDto {
         private String substanceRefusalReason;
         private String reasonCode;
         private String orderingProvider;
+        private Audit audit;
     }
 
     @Data

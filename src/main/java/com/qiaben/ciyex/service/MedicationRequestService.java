@@ -43,8 +43,15 @@ public class MedicationRequestService {
         MethodOutcome outcome = fhirClientService.create(medRequest, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+
+        // Set audit information
+        MedicationRequestDto.Audit audit = new MedicationRequestDto.Audit();
+        audit.setCreatedDate(java.time.LocalDateTime.now().toString());
+        audit.setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        dto.setAudit(audit);
 
         log.info("Created FHIR MedicationRequest with ID: {}", fhirId);
         return dto;
@@ -55,6 +62,10 @@ public class MedicationRequestService {
         if (dto.getPatientId() == null) errors.append("patientId, ");
         if (dto.getEncounterId() == null) errors.append("encounterId, ");
         if (dto.getMedicationName() == null || dto.getMedicationName().trim().isEmpty()) errors.append("medicationName, ");
+        if (dto.getDosage() == null || dto.getDosage().trim().isEmpty()) errors.append("dosage, ");
+        if (dto.getPrescribingDoctor() == null || dto.getPrescribingDoctor().trim().isEmpty()) errors.append("prescribingDoctor, ");
+        if (dto.getDateIssued() == null || dto.getDateIssued().trim().isEmpty()) errors.append("dateIssued, ");
+        if (dto.getStatus() == null || dto.getStatus().trim().isEmpty()) errors.append("status, ");
 
         if (errors.length() > 0) {
             throw new IllegalArgumentException("Missing mandatory fields: " + errors.substring(0, errors.length() - 2));
@@ -84,8 +95,19 @@ public class MedicationRequestService {
         medRequest.setId(fhirId);
         fhirClientService.update(medRequest, getPracticeId());
 
+        dto.setId(id);
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
+        
+        // Preserve or set audit information
+        if (dto.getAudit() == null) {
+            dto.setAudit(new MedicationRequestDto.Audit());
+        }
+        if (dto.getAudit().getCreatedDate() == null) {
+            dto.getAudit().setCreatedDate(java.time.LocalDateTime.now().toString());
+        }
+        dto.getAudit().setLastModifiedDate(java.time.LocalDateTime.now().toString());
+        
         return dto;
     }
 
@@ -181,8 +203,10 @@ public class MedicationRequestService {
         MedicationRequestDto dto = new MedicationRequestDto();
 
         if (medRequest.hasId()) {
-            dto.setFhirId(medRequest.getIdElement().getIdPart());
-            dto.setExternalId(medRequest.getIdElement().getIdPart());
+            String fhirId = medRequest.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         // Patient ID from subject reference
@@ -236,8 +260,24 @@ public class MedicationRequestService {
             dto.setDateIssued(medRequest.getAuthoredOn().toString());
         }
 
-        // Audit
-        dto.setAudit(new MedicationRequestDto.Audit());
+        // Audit information
+        MedicationRequestDto.Audit audit = new MedicationRequestDto.Audit();
+        if (medRequest.hasMeta()) {
+            if (medRequest.getMeta().hasLastUpdated()) {
+                audit.setLastModifiedDate(medRequest.getMeta().getLastUpdated().toString());
+            }
+            // FHIR doesn't have a separate created date, so use lastUpdated for both if available
+            if (medRequest.getMeta().hasLastUpdated()) {
+                audit.setCreatedDate(medRequest.getMeta().getLastUpdated().toString());
+            }
+        }
+        // If no meta information, set current timestamp
+        if (audit.getCreatedDate() == null) {
+            String now = java.time.LocalDateTime.now().toString();
+            audit.setCreatedDate(now);
+            audit.setLastModifiedDate(now);
+        }
+        dto.setAudit(audit);
 
         return dto;
     }

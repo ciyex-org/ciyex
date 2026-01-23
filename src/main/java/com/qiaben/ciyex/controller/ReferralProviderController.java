@@ -45,7 +45,7 @@ public class ReferralProviderController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<ReferralProviderDto>> get(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<ReferralProviderDto>> get(@PathVariable("id") String id) {
         try {
             ReferralProviderDto dto = service.getById(id);
             return ResponseEntity.ok(ApiResponse.<ReferralProviderDto>builder()
@@ -69,7 +69,7 @@ public class ReferralProviderController {
     }
 
     @GetMapping("/{id}/with-practice")
-    public ResponseEntity<ApiResponse<ReferralProviderDto>> getWithPractice(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<ReferralProviderDto>> getWithPractice(@PathVariable("id") String id) {
         try {
             ReferralProviderDto dto = service.getByIdWithPractice(id);
             return ResponseEntity.ok(ApiResponse.<ReferralProviderDto>builder()
@@ -88,7 +88,7 @@ public class ReferralProviderController {
 
     // NEW: list providers by practiceId (each item includes practice {id, name})
     @GetMapping("/by-practice/{practiceId}")
-    public ResponseEntity<ApiResponse<List<ReferralProviderDto>>> getByPractice(@PathVariable Long practiceId) {
+    public ResponseEntity<ApiResponse<List<ReferralProviderDto>>> getByPractice(@PathVariable("practiceId") Long practiceId) {
         try {
             List<ReferralProviderDto> dtoList = service.getByPracticeId(practiceId);
             return ResponseEntity.ok(ApiResponse.<List<ReferralProviderDto>>builder()
@@ -108,7 +108,7 @@ public class ReferralProviderController {
     // Practice name/address endpoints moved to ReferralPracticeController
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<ReferralProviderDto>> update(@PathVariable String id, @RequestBody ReferralProviderDto dto) {
+    public ResponseEntity<ApiResponse<ReferralProviderDto>> update(@PathVariable("id") String id, @RequestBody ReferralProviderDto dto) {
         try {
             ReferralProviderDto updatedDto = service.update(id, dto);
             return ResponseEntity.ok(ApiResponse.<ReferralProviderDto>builder()
@@ -132,7 +132,7 @@ public class ReferralProviderController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") String id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()

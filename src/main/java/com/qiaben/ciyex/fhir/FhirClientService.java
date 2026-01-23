@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.r4.model.Bundle;
 import org.hl7.fhir.r4.model.Resource;
+import org.hl7.fhir.r4.model.IdType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -52,16 +53,18 @@ public class FhirClientService {
      * Example: https://fhir.apps-dev.in.hinisoft.com/fhir/sunrise-family-medicine
      */
     private IGenericClient getClientForPartition(String orgAlias) {
-        return clientCache.computeIfAbsent(orgAlias, alias -> {
-            String partitionUrl = baseServerUrl + "/" + alias;
-            log.debug("Creating FHIR client for partition: {}", partitionUrl);
-            
-            fhirContext.getRestfulClientFactory().setSocketTimeout(socketTimeout);
-            fhirContext.getRestfulClientFactory().setConnectTimeout(connectTimeout);
-            fhirContext.getRestfulClientFactory().setServerValidationMode(ServerValidationModeEnum.NEVER);
-            
-            return fhirContext.newRestfulGenericClient(partitionUrl);
-        });
+        if (orgAlias == null) {
+            orgAlias = "";
+        }
+        
+        String partitionUrl = orgAlias.isEmpty() ? baseServerUrl : baseServerUrl + "/" + orgAlias;
+        log.debug("Creating FHIR client for partition: {}", partitionUrl);
+        
+        fhirContext.getRestfulClientFactory().setSocketTimeout(socketTimeout);
+        fhirContext.getRestfulClientFactory().setConnectTimeout(connectTimeout);
+        fhirContext.getRestfulClientFactory().setServerValidationMode(ServerValidationModeEnum.NEVER);
+        
+        return fhirContext.newRestfulGenericClient(partitionUrl);
     }
 
     /**
@@ -132,18 +135,71 @@ public class FhirClientService {
     }
 
     /**
-     * Search for FHIR resources in the specified partition.
+     * Search for FHIR resources in the specified partition with pagination support.
      */
     public <T extends IBaseResource> Bundle search(Class<T> resourceClass, String orgAlias) {
-        return getClientForPartition(orgAlias).search()
+        Bundle bundle = getClientForPartition(orgAlias).search()
                 .forResource(resourceClass)
                 .count(1000)
+                .withAdditionalHeader("Cache-Control", "no-cache")
+                .withAdditionalHeader("X-Request-Time", String.valueOf(System.currentTimeMillis()))
                 .returnBundle(Bundle.class)
                 .execute();
+        
+        // Load all pages
+        Bundle firstBundle = bundle;
+        while (bundle.getLink(Bundle.LINK_NEXT) != null) {
+            Bundle nextPage = getClientForPartition(orgAlias).loadPage()
+                    .next(bundle)
+                    .execute();
+            if (nextPage.hasEntry()) {
+                firstBundle.getEntry().addAll(nextPage.getEntry());
+            }
+            bundle = nextPage;
+        }
+        
+        return firstBundle;
     }
 
     /**
-     * Search for FHIR resources by identifier in the specified partition.
+     * Search for FHIR resources by code in the specified partition with pagination.
+     */
+    public <T extends IBaseResource> Bundle searchByCode(
+            Class<T> resourceClass,
+            String system,
+            String code,
+            String orgAlias) {
+        
+        log.debug("Searching FHIR resource {} by code {}|{} in partition {}",
+                resourceClass.getSimpleName(), system, code, orgAlias);
+        
+        Bundle bundle = getClientForPartition(orgAlias).search()
+                .forResource(resourceClass)
+                .where(new ca.uhn.fhir.rest.gclient.TokenClientParam("code")
+                        .exactly()
+                        .systemAndCode(system, code))
+                .count(1000)
+                .cacheControl(new ca.uhn.fhir.rest.api.CacheControlDirective().setNoCache(true).setNoStore(true))
+                .returnBundle(Bundle.class)
+                .execute();
+        
+        // Load all pages
+        Bundle firstBundle = bundle;
+        while (bundle.getLink(Bundle.LINK_NEXT) != null) {
+            Bundle nextPage = getClientForPartition(orgAlias).loadPage()
+                    .next(bundle)
+                    .execute();
+            if (nextPage.hasEntry()) {
+                firstBundle.getEntry().addAll(nextPage.getEntry());
+            }
+            bundle = nextPage;
+        }
+        
+        return firstBundle;
+    }
+
+    /**
+     * Search for FHIR resources by identifier in the specified partition with pagination.
      */
     public <T extends IBaseResource> Bundle searchByIdentifier(
             Class<T> resourceClass, 
@@ -154,13 +210,29 @@ public class FhirClientService {
         log.debug("Searching FHIR resource {} by identifier {}|{} in partition {}", 
                 resourceClass.getSimpleName(), system, value, orgAlias);
         
-        return getClientForPartition(orgAlias).search()
+        Bundle bundle = getClientForPartition(orgAlias).search()
                 .forResource(resourceClass)
                 .where(new ca.uhn.fhir.rest.gclient.TokenClientParam("identifier")
                         .exactly()
                         .systemAndCode(system, value))
+                .count(1000)
+                .cacheControl(new ca.uhn.fhir.rest.api.CacheControlDirective().setNoCache(true).setNoStore(true))
                 .returnBundle(Bundle.class)
                 .execute();
+        
+        // Load all pages
+        Bundle firstBundle = bundle;
+        while (bundle.getLink(Bundle.LINK_NEXT) != null) {
+            Bundle nextPage = getClientForPartition(orgAlias).loadPage()
+                    .next(bundle)
+                    .execute();
+            if (nextPage.hasEntry()) {
+                firstBundle.getEntry().addAll(nextPage.getEntry());
+            }
+            bundle = nextPage;
+        }
+        
+        return firstBundle;
     }
 
 
@@ -208,5 +280,16 @@ public class FhirClientService {
      */
     public IGenericClient getClient(String orgAlias) {
         return getClientForPartition(orgAlias);
+    }
+
+    /**
+     * Clear the client cache for a specific partition.
+     * Use this after creating/updating resources to ensure fresh search results.
+     */
+    public void clearCache(String orgAlias) {
+        if (orgAlias != null) {
+            clientCache.remove(orgAlias);
+            log.debug("Cleared FHIR client cache for partition: {}", orgAlias);
+        }
     }
 }

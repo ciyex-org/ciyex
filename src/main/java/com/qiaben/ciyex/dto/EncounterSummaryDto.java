@@ -42,6 +42,7 @@ public class EncounterSummaryDto {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class AssignedProvider {
         private Long id;
+        private String fhirId;
         private String providerName; // or name
         private String name;
         private String role;
@@ -52,6 +53,7 @@ public class EncounterSummaryDto {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class Vitals {
         private Long id;
+        private String fhirId;
         private Double weightKg;
         private Double weightLbs;
         private Double heightCm;
@@ -71,6 +73,7 @@ public class EncounterSummaryDto {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class ChiefComplaint {
         private Long id;
+        private String fhirId;
         private String title;
         private String complaint;
         private String notes;
@@ -79,6 +82,7 @@ public class EncounterSummaryDto {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class HPIEntry {
         private Long id;
+        private String fhirId;
         private String description;
         private String text;
         private String notes;
@@ -87,6 +91,7 @@ public class EncounterSummaryDto {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class PMHEntry {
         private Long id;
+        private String fhirId;
         private String description;
         private String text;
     }
@@ -94,6 +99,7 @@ public class EncounterSummaryDto {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class PatientMHEntry {
         private Long id;
+        private String fhirId;
         private String description;
         private String text;
     }
@@ -111,6 +117,7 @@ public class EncounterSummaryDto {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class FamilyHistory {
         private Long id;
+        private String fhirId;
         private List<FamilyHistoryEntry> entries;
         private String relation;
         private String condition;
@@ -133,6 +140,7 @@ public class EncounterSummaryDto {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class ROSEntry {
         private Long id;
+        private String fhirId;
         private String system;
         private String systemName;
         private String status;
@@ -153,6 +161,7 @@ public class EncounterSummaryDto {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class PhysicalExam {
         private Long id;
+        private String fhirId;
         private String summary;
         private List<PhysicalExamSection> sections;
     }
@@ -160,6 +169,7 @@ public class EncounterSummaryDto {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class Procedure {
         private Long id;
+        private String fhirId;
         private String cpt4;
         private String description;
         private String procedureName;
@@ -190,6 +200,7 @@ public class EncounterSummaryDto {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class Assessment {
         private Long id;
+        private String fhirId;
         private String text;       // or "assessment"
         private String assessment;
     }
@@ -197,6 +208,7 @@ public class EncounterSummaryDto {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class Plan {
         private Long id;
+        private String fhirId;
         private String diagnosticPlan;
         private String plan;
         private String notes;
@@ -210,6 +222,7 @@ public class EncounterSummaryDto {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class ProviderNote {
         private Long id;
+        private String fhirId;
         private String subjective;
         private String objective;
         private String assessment;

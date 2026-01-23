@@ -5,13 +5,17 @@ import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.dto.ProviderDto;
 import com.qiaben.ciyex.dto.ProviderStatus;
 import com.qiaben.ciyex.service.ProviderService;
+import jakarta.validation.Valid;
 import lombok.Data;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 // NEW import
 import com.qiaben.ciyex.dto.ProviderPasswordResetRequest;
@@ -29,8 +33,18 @@ public class ProviderController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<ProviderDto>> create(@RequestBody ProviderDto dto) {
+    public ResponseEntity<ApiResponse<ProviderDto>> create(@Valid @RequestBody ProviderDto dto, BindingResult result) {
         try {
+            if (result.hasErrors()) {
+                Map<String, String> errors = new HashMap<>();
+                result.getFieldErrors().forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
+                return ResponseEntity.badRequest().body(
+                        ApiResponse.<ProviderDto>builder()
+                                .success(false)
+                                .message("Validation failed")
+                                .data(null)
+                                .build());
+            }
             ProviderDto createdProvider = service.create(dto);
             return ResponseEntity.ok(
                     ApiResponse.<ProviderDto>builder()
@@ -89,8 +103,18 @@ public class ProviderController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<ProviderDto>> update(@PathVariable("id") Long id, @RequestBody ProviderDto dto) {
+    public ResponseEntity<ApiResponse<ProviderDto>> update(@PathVariable("id") Long id, @Valid @RequestBody ProviderDto dto, BindingResult result) {
         try {
+            if (result.hasErrors()) {
+                Map<String, String> errors = new HashMap<>();
+                result.getFieldErrors().forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
+                return ResponseEntity.badRequest().body(
+                        ApiResponse.<ProviderDto>builder()
+                                .success(false)
+                                .message("Validation failed")
+                                .data(null)
+                                .build());
+            }
             ProviderDto updatedProvider = service.update(id, dto);
             return ResponseEntity.ok(
                     ApiResponse.<ProviderDto>builder()
