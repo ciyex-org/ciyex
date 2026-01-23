@@ -80,6 +80,7 @@ public class PatientClaimService {
      * Fetch all claims for a specific patient
      */
     public List<PatientClaimDto> listAllClaimsForPatient(Long patientId) {
+        validatePatientExists(patientId);
         Bundle bundle = fhirClientService.search(Claim.class, getPracticeId());
         return fhirClientService.extractResources(bundle, Claim.class).stream()
                 .filter(c -> patientId.equals(getPatientFromClaim(c)))
@@ -92,6 +93,8 @@ public class PatientClaimService {
      * Get the active claim for a specific invoice
      */
     public PatientClaimDto getActiveClaimForInvoice(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         return fromFhirClaim(getClaimOrThrow(patientId, invoiceId));
     }
 
@@ -99,6 +102,8 @@ public class PatientClaimService {
      * List all claims (historical and active) for a specific invoice
      */
     public List<PatientClaimDto> listClaimsForInvoice(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         Bundle bundle = fhirClientService.search(Claim.class, getPracticeId());
         return fhirClientService.extractResources(bundle, Claim.class).stream()
                 .filter(c -> invoiceId.equals(getInvoiceFromClaim(c)) && patientId.equals(getPatientFromClaim(c)))
@@ -113,6 +118,8 @@ public class PatientClaimService {
      * Auto-creates claim if it doesn't exist
      */
     public PatientClaimDto promoteClaim(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         Claim claim;
         try {
             claim = getClaimOrThrow(patientId, invoiceId);
@@ -153,6 +160,8 @@ public class PatientClaimService {
      * Send claim to batch - change status to READY_FOR_SUBMISSION
      */
     public PatientClaimDto sendClaimToBatch(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         Claim claim = getClaimOrThrow(patientId, invoiceId);
         claim.getExtension().removeIf(e -> EXT_STATUS.equals(e.getUrl()));
         claim.addExtension(new Extension(EXT_STATUS, new StringType("READY_FOR_SUBMISSION")));
@@ -164,6 +173,8 @@ public class PatientClaimService {
      * Submit claim - change status to SUBMITTED
      */
     public PatientClaimDto submitClaim(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         Claim claim = getClaimOrThrow(patientId, invoiceId);
         claim.getExtension().removeIf(e -> EXT_STATUS.equals(e.getUrl()));
         claim.addExtension(new Extension(EXT_STATUS, new StringType("SUBMITTED")));
@@ -175,6 +186,8 @@ public class PatientClaimService {
      * Close claim - change status to CLOSED
      */
     public PatientClaimDto closeClaim(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         Claim claim = getClaimOrThrow(patientId, invoiceId);
         claim.getExtension().removeIf(e -> EXT_STATUS.equals(e.getUrl()));
         claim.addExtension(new Extension(EXT_STATUS, new StringType("CLOSED")));
@@ -186,6 +199,8 @@ public class PatientClaimService {
      * Void and recreate claim - mark existing as VOID and create new DRAFT claim
      */
     public PatientClaimDto voidAndRecreateClaim(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         Claim existing = getClaimOrThrow(patientId, invoiceId);
         
         // Mark existing claim as VOID
@@ -212,6 +227,7 @@ public class PatientClaimService {
      * A new claim is created with DRAFT status for the same invoice
      */
     public PatientClaimDto voidAndRecreateClaimById(Long claimId) {
+        validateClaimExists(claimId);
         Claim existing = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
 
         // Store patient and invoice IDs before deleting
@@ -238,6 +254,8 @@ public class PatientClaimService {
      * Update claim fields
      */
     public PatientClaimDto updateClaim(Long patientId, Long invoiceId, PatientClaimCoreUpdate p) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         if (p == null) {
             throw new IllegalArgumentException("Claim update request is required");
         }
@@ -300,6 +318,7 @@ public class PatientClaimService {
      * Convert claim type (manual/electronic)
      */
     public PatientClaimDto convertClaimType(Long claimId, String targetType) {
+        validateClaimExists(claimId);
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
         
         claim.getExtension().removeIf(e -> EXT_CLAIM_TYPE.equals(e.getUrl()));
@@ -314,6 +333,7 @@ public class PatientClaimService {
      * Fetches invoice lines associated with the claim
      */
     public List<ClaimLineDetailDto> getClaimLineDetails(Long claimId) {
+        validateClaimExists(claimId);
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
         Long invoiceId = getInvoiceFromClaim(claim);
         
@@ -346,6 +366,8 @@ public class PatientClaimService {
      * Lock claim (after lock, claim cannot be edited)
      */
     public void lockClaim(Long patientId, Long claimId) {
+        validatePatientExists(patientId);
+        validateClaimExists(claimId);
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
 
         if (!patientId.equals(getPatientFromClaim(claim))) {
@@ -363,6 +385,8 @@ public class PatientClaimService {
      * Change claim status and related fields
      */
     public void changeClaimStatus(Long patientId, Long claimId, ClaimStatusUpdateDto dto) {
+        if (patientId != null) validatePatientExists(patientId);
+        validateClaimExists(claimId);
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
 
         if (patientId != null && !patientId.equals(getPatientFromClaim(claim))) {
@@ -396,6 +420,7 @@ public class PatientClaimService {
      * Get claim by ID and convert to DTO
      */
     public PatientClaimDto getClaimDtoById(Long claimId) {
+        validateClaimExists(claimId);
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
         return fromFhirClaim(claim);
     }
@@ -408,6 +433,8 @@ public class PatientClaimService {
      * Submit claim attachment
      */
     public void submitClaimAttachment(Long patientId, Long claimId, MultipartFile file) throws Exception {
+        validatePatientExists(patientId);
+        validateClaimExists(claimId);
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
 
         if (!patientId.equals(getPatientFromClaim(claim))) {
@@ -442,6 +469,8 @@ public class PatientClaimService {
      * Get claim attachment
      */
     public byte[] getClaimAttachment(Long patientId, Long claimId) {
+        validatePatientExists(patientId);
+        validateClaimExists(claimId);
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
         
         if (!patientId.equals(getPatientFromClaim(claim))) {
@@ -464,6 +493,8 @@ public class PatientClaimService {
      * Upload claim EOB
      */
     public void uploadClaimEob(Long patientId, Long claimId, MultipartFile file) throws Exception {
+        validatePatientExists(patientId);
+        validateClaimExists(claimId);
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
         
         if (!patientId.equals(getPatientFromClaim(claim))) {
@@ -497,6 +528,8 @@ public class PatientClaimService {
      * Get claim EOB
      */
     public byte[] getClaimEob(Long patientId, Long claimId) {
+        validatePatientExists(patientId);
+        validateClaimExists(claimId);
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
         
         if (!patientId.equals(getPatientFromClaim(claim))) {
@@ -519,6 +552,8 @@ public class PatientClaimService {
      * Get EHR claim form data
      */
     public EhrClaimFormDataDto getEhrClaimFormData(Long patientId, Long claimId) {
+        validatePatientExists(patientId);
+        validateClaimExists(claimId);
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
         
         if (!patientId.equals(getPatientFromClaim(claim))) {
@@ -730,6 +765,7 @@ public class PatientClaimService {
      * Fetch insurance email for a claim (FHIR-based)
      */
     public String getInsuranceEmailForClaim(Long claimId) {
+        validateClaimExists(claimId);
         Claim claim = fhirClientService.read(Claim.class, claimId.toString(), getPracticeId());
         Long patientId = getPatientFromClaim(claim);
         if (patientId == null) return null;
@@ -797,5 +833,32 @@ public class PatientClaimService {
             log.warn("Failed to fetch patient name for ID: {}", patientId, e);
         }
         return null;
+    }
+
+    private void validatePatientExists(Long patientId) {
+        if (patientId == null) throw new IllegalArgumentException("Patient ID cannot be null");
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId));
+        }
+    }
+
+    private void validateInvoiceExists(Long invoiceId) {
+        if (invoiceId == null) throw new IllegalArgumentException("Invoice ID cannot be null");
+        try {
+            fhirClientService.read(Observation.class, String.valueOf(invoiceId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Invoice not found with ID: %d. Please provide a valid Invoice ID.", invoiceId));
+        }
+    }
+
+    private void validateClaimExists(Long claimId) {
+        if (claimId == null) throw new IllegalArgumentException("Claim ID cannot be null");
+        try {
+            fhirClientService.read(Claim.class, String.valueOf(claimId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Claim not found with ID: %d. Please provide a valid Claim ID.", claimId));
+        }
     }
 }

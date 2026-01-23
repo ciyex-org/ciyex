@@ -136,6 +136,18 @@ public class FhirClientService {
     }
 
     /**
+     * Delete a FHIR resource by resource name and ID from the specified partition.
+     */
+    public void deleteByResourceName(String resourceName, String id, String orgAlias) {
+        log.debug("Deleting FHIR resource {} with id {} from partition {}", 
+                resourceName, id, orgAlias);
+        
+        getClientForPartition(orgAlias).delete()
+                .resourceById(resourceName, id)
+                .execute();
+    }
+
+    /**
      * Search for FHIR resources in the specified partition with pagination support.
      */
     public <T extends IBaseResource> Bundle search(Class<T> resourceClass, String orgAlias) {

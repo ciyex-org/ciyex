@@ -158,6 +158,13 @@ public class PastMedicalHistoryController {
                     .message("PMH list fetched successfully")
                     .data(items)
                     .build());
+        } catch (IllegalArgumentException ex) {
+            log.error("Validation error: " + ex.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.<List<PastMedicalHistoryDto>>builder()
+                            .success(false)
+                            .message(ex.getMessage())
+                            .build());
         } catch (Exception ex) {
             log.error("Error fetching PMH for Patient ID: " + patientId + ", Encounter ID: " + encounterId, ex);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

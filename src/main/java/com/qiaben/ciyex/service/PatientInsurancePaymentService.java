@@ -98,6 +98,9 @@ public class PatientInsurancePaymentService {
      * List insurance payments with optional filters.
      */
     public List<PatientInsuranceRemitLineDto> listInsurancePayments(Long patientId, Long invoiceId, Long claimId, Long insuranceId) {
+        if (patientId != null) validatePatientExists(patientId);
+        if (invoiceId != null) validateInvoiceExists(invoiceId);
+        if (claimId != null) validateClaimExists(claimId);
         log.debug("Listing insurance payments for patient {} invoice {}", patientId, invoiceId);
         
         List<Observation> allObs = new ArrayList<>();
@@ -134,6 +137,9 @@ public class PatientInsurancePaymentService {
      * List insurance payments with line details included.
      */
     public List<PatientInsuranceRemitWithLinesDto> listInsurancePaymentsWithLines(Long patientId, Long invoiceId, Long claimId, Long insuranceId) {
+        if (patientId != null) validatePatientExists(patientId);
+        if (invoiceId != null) validateInvoiceExists(invoiceId);
+        if (claimId != null) validateClaimExists(claimId);
         log.debug("Listing insurance payments with lines for patient {} invoice {}", patientId, invoiceId);
         
         List<Observation> allObs = new ArrayList<>();
@@ -174,6 +180,8 @@ public class PatientInsurancePaymentService {
      */
     public InsurancePaymentResponseDto applyInsurancePayment(Long patientId, Long invoiceId, 
                                                     PatientInsurancePaymentRequestDto req) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         if (req == null || req.lines() == null || req.lines().isEmpty()) {
             throw new IllegalArgumentException("Payment request with lines is required");
         }
@@ -451,6 +459,9 @@ public class PatientInsurancePaymentService {
      * VOID = hard delete the remit record.
      */
     public PatientInvoiceDto voidInsurancePayment(Long patientId, Long invoiceId, Long remitId, VoidReason reason) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
+        validateRemitExists(remitId);
         // Read invoice first to get current version
         Observation invoice = fhirClientService.read(Observation.class, String.valueOf(invoiceId), getPracticeId());
         if (!String.valueOf(patientId).equals(optStringExt(invoice, EXT_PATIENT))) {
@@ -492,6 +503,9 @@ public class PatientInsurancePaymentService {
      * REFUND insurance → increase insurance portion (reduce insurance paid).
      */
     public PatientInvoiceDto refundInsurancePayment(Long patientId, Long invoiceId, Long remitId, RefundRequest req) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
+        validateRemitExists(remitId);
         // Verify invoice exists
         Observation invoice = fhirClientService.read(Observation.class, String.valueOf(invoiceId), getPracticeId());
         if (!String.valueOf(patientId).equals(optStringExt(invoice, EXT_PATIENT))) {
@@ -717,6 +731,8 @@ public class PatientInsurancePaymentService {
      * Upload claim attachment as FHIR Binary resource.
      */
     public void uploadClaimAttachment(Long patientId, Long claimId, MultipartFile file) throws Exception {
+        validatePatientExists(patientId);
+        validateClaimExists(claimId);
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("File is required");
         }
@@ -755,6 +771,8 @@ public class PatientInsurancePaymentService {
      * Download claim attachment.
      */
     public byte[] getClaimAttachment(Long patientId, Long claimId) {
+        validatePatientExists(patientId);
+        validateClaimExists(claimId);
         // Verify claim exists and belongs to patient
         Claim claim = fhirClientService.read(Claim.class, String.valueOf(claimId), getPracticeId());
         if (!String.valueOf(patientId).equals(optStringExt(claim, EXT_PATIENT))) {
@@ -1251,5 +1269,41 @@ public class PatientInsurancePaymentService {
         }
 
         return new PatientInvoiceDto(invoiceId, patientId, invoiceDate, status, insWO, appliedWO, ptBalance, insBalance, totalCharge, lines);
+    }
+
+    private void validatePatientExists(Long patientId) {
+        if (patientId == null) throw new IllegalArgumentException("Patient ID cannot be null");
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId));
+        }
+    }
+
+    private void validateInvoiceExists(Long invoiceId) {
+        if (invoiceId == null) throw new IllegalArgumentException("Invoice ID cannot be null");
+        try {
+            fhirClientService.read(Observation.class, String.valueOf(invoiceId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Invoice not found with ID: %d. Please provide a valid Invoice ID.", invoiceId));
+        }
+    }
+
+    private void validateRemitExists(Long remitId) {
+        if (remitId == null) throw new IllegalArgumentException("Remit ID cannot be null");
+        try {
+            fhirClientService.read(Observation.class, String.valueOf(remitId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Insurance remit not found with ID: %d. Please provide a valid remit ID.", remitId));
+        }
+    }
+
+    private void validateClaimExists(Long claimId) {
+        if (claimId == null) throw new IllegalArgumentException("Claim ID cannot be null");
+        try {
+            fhirClientService.read(Claim.class, String.valueOf(claimId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Claim not found with ID: %d. Please provide a valid Claim ID.", claimId));
+        }
     }
 }
