@@ -67,6 +67,13 @@ public class LabResultService {
     public List<LabResultDto> getForPatient(Long patientId) {
         log.debug("Getting FHIR DiagnosticReports for patient: {}", patientId);
 
+        // Validate patient exists
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (ResourceNotFoundException e) {
+            throw new IllegalArgumentException("Patient ID not found: " + patientId);
+        }
+
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
                 .forResource(DiagnosticReport.class)
                 .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
@@ -82,6 +89,15 @@ public class LabResultService {
     // ✅ Create lab result
     public LabResultDto create(LabResultDto dto) {
         log.info("Creating lab result in FHIR for patient: {}", dto.getPatientId());
+
+        // Validate patient exists
+        if (dto.getPatientId() != null) {
+            try {
+                fhirClientService.read(Patient.class, String.valueOf(dto.getPatientId()), getPracticeId());
+            } catch (ResourceNotFoundException e) {
+                throw new IllegalArgumentException("Patient ID not found: " + dto.getPatientId());
+            }
+        }
 
         DiagnosticReport report = toFhirDiagnosticReport(dto);
         MethodOutcome outcome = fhirClientService.create(report, getPracticeId());
