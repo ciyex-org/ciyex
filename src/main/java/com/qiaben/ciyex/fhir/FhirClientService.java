@@ -56,15 +56,16 @@ public class FhirClientService {
         if (orgAlias == null) {
             orgAlias = "";
         }
-        
-        String partitionUrl = orgAlias.isEmpty() ? baseServerUrl : baseServerUrl + "/" + orgAlias;
-        log.debug("Creating FHIR client for partition: {}", partitionUrl);
-        
-        fhirContext.getRestfulClientFactory().setSocketTimeout(socketTimeout);
-        fhirContext.getRestfulClientFactory().setConnectTimeout(connectTimeout);
-        fhirContext.getRestfulClientFactory().setServerValidationMode(ServerValidationModeEnum.NEVER);
-        
-        return fhirContext.newRestfulGenericClient(partitionUrl);
+        return clientCache.computeIfAbsent(orgAlias, alias -> {
+            String partitionUrl = alias.isEmpty() ? baseServerUrl : baseServerUrl + "/" + alias;
+            log.debug("Creating FHIR client for partition: {}", partitionUrl);
+            
+            fhirContext.getRestfulClientFactory().setSocketTimeout(socketTimeout);
+            fhirContext.getRestfulClientFactory().setConnectTimeout(connectTimeout);
+            fhirContext.getRestfulClientFactory().setServerValidationMode(ServerValidationModeEnum.NEVER);
+            
+            return fhirContext.newRestfulGenericClient(partitionUrl);
+        });
     }
 
     /**
@@ -141,8 +142,7 @@ public class FhirClientService {
         Bundle bundle = getClientForPartition(orgAlias).search()
                 .forResource(resourceClass)
                 .count(1000)
-                .withAdditionalHeader("Cache-Control", "no-cache")
-                .withAdditionalHeader("X-Request-Time", String.valueOf(System.currentTimeMillis()))
+                .cacheControl(new ca.uhn.fhir.rest.api.CacheControlDirective().setNoCache(true).setNoStore(true))
                 .returnBundle(Bundle.class)
                 .execute();
         
@@ -280,16 +280,5 @@ public class FhirClientService {
      */
     public IGenericClient getClient(String orgAlias) {
         return getClientForPartition(orgAlias);
-    }
-
-    /**
-     * Clear the client cache for a specific partition.
-     * Use this after creating/updating resources to ensure fresh search results.
-     */
-    public void clearCache(String orgAlias) {
-        if (orgAlias != null) {
-            clientCache.remove(orgAlias);
-            log.debug("Cleared FHIR client cache for partition: {}", orgAlias);
-        }
     }
 }
