@@ -56,6 +56,12 @@ public class LabResultController {
                     .message("Lab results retrieved successfully")
                     .data(filtered)
                     .build());
+        } catch (IllegalArgumentException e) {
+            log.error("Patient not found with id {}", patientId);
+            return ResponseEntity.ok(ApiResponse.<List<LabResultDto>>builder()
+                    .success(false)
+                    .message("Patient ID not found")
+                    .build());
         } catch (Exception e) {
             log.error("Failed to list lab results for patientId {}: {}", patientId, e.getMessage(), e);
             return ResponseEntity.ok(ApiResponse.<List<LabResultDto>>builder()
