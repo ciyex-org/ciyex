@@ -1,5 +1,5 @@
 package com.qiaben.ciyex.exception;
-
+ 
 import com.qiaben.ciyex.dto.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -8,19 +8,18 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
+ 
 import java.util.stream.Collectors;
-
+ 
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
-
+ 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Object>> handleValidationExceptions(MethodArgumentNotValidException ex) {
         String errorMessage = ex.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(", "));
-        
         log.error("Validation failed: {}", errorMessage);
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
@@ -30,7 +29,7 @@ public class GlobalExceptionHandler {
                         .data(null)
                         .build());
     }
-
+ 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Object>> handleResourceNotFoundException(ResourceNotFoundException ex) {
         log.error("Resource not found: {}", ex.getMessage());
@@ -42,7 +41,7 @@ public class GlobalExceptionHandler {
                         .data(null)
                         .build());
     }
-
+ 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
         log.error("Invalid argument: {}", ex.getMessage());
@@ -54,7 +53,7 @@ public class GlobalExceptionHandler {
                         .data(null)
                         .build());
     }
-
+ 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<Object>> handleRuntimeException(RuntimeException ex) {
         log.error("Runtime error: {}", ex.getMessage(), ex);
@@ -66,7 +65,7 @@ public class GlobalExceptionHandler {
                         .data(null)
                         .build());
     }
-
+ 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex) {
         log.error("Unexpected error occurred", ex);
@@ -78,5 +77,5 @@ public class GlobalExceptionHandler {
                         .data(null)
                         .build());
     }
-
+ 
 }

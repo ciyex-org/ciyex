@@ -37,8 +37,10 @@ public class ReferralProviderService {
 
     // CREATE
     public ReferralProviderDto create(ReferralProviderDto dto) {
+        validateMandatoryFields(dto);
+        
         if (dto.getPracticeId() == null && (dto.getPractice() == null || dto.getPractice().getId() == null)) {
-            throw new RuntimeException("Practice id is required");
+            throw new IllegalArgumentException("Practice id is required");
         }
 
         log.debug("Creating FHIR Practitioner (referral): {}", dto.getName());
@@ -63,8 +65,15 @@ public class ReferralProviderService {
     // GET BY ID
     public ReferralProviderDto getById(String fhirId) {
         log.debug("Getting FHIR Practitioner (referral): {}", fhirId);
-        Practitioner pract = fhirClientService.read(Practitioner.class, fhirId, getPracticeId());
-        return fromFhirPractitioner(pract);
+        try {
+            Practitioner pract = fhirClientService.read(Practitioner.class, fhirId, getPracticeId());
+            return fromFhirPractitioner(pract);
+        } catch (ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException e) {
+            throw new IllegalArgumentException("Referral provider with FHIR ID " + fhirId + " not found");
+        } catch (Exception e) {
+            log.error("Error retrieving referral provider {}: {}", fhirId, e.getMessage());
+            throw new RuntimeException("Failed to retrieve referral provider: " + e.getMessage(), e);
+        }
     }
 
     // GET BY ID WITH PRACTICE (alias for getById)
@@ -123,10 +132,15 @@ public class ReferralProviderService {
         Practitioner p = new Practitioner();
         p.setActive(true);
 
-        // Name
-        if (dto.getName() != null) {
-            HumanName name = p.addName();
-            name.setText(dto.getName());
+        // Name - support both firstName/lastName and name field
+        HumanName humanName = p.addName();
+        if (dto.getFirstName() != null || dto.getLastName() != null) {
+            if (dto.getFirstName() != null) humanName.addGiven(dto.getFirstName());
+            if (dto.getLastName() != null) humanName.setFamily(dto.getLastName());
+            humanName.setText((dto.getFirstName() != null ? dto.getFirstName() : "") + 
+                             (dto.getLastName() != null ? " " + dto.getLastName() : "").trim());
+        } else if (dto.getName() != null) {
+            humanName.setText(dto.getName());
         }
 
         // Address
@@ -176,7 +190,10 @@ public class ReferralProviderService {
 
         // Name
         if (p.hasName()) {
-            dto.setName(p.getNameFirstRep().getText());
+            HumanName humanName = p.getNameFirstRep();
+            if (humanName.hasGiven()) dto.setFirstName(humanName.getGivenAsSingleString());
+            if (humanName.hasFamily()) dto.setLastName(humanName.getFamily());
+            if (humanName.hasText()) dto.setName(humanName.getText());
         }
 
         // Address
@@ -239,5 +256,14 @@ public class ReferralProviderService {
     private boolean hasPracticeId(Practitioner p, Long practiceId) {
         String practiceIdStr = getExtensionString(p, EXT_PRACTICE_ID);
         return practiceIdStr != null && practiceIdStr.equals(practiceId.toString());
+    }
+
+    private void validateMandatoryFields(ReferralProviderDto dto) {
+        if (dto.getFirstName() == null || dto.getFirstName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Missing mandatory field: firstName");
+        }
+        if (dto.getNpiId() == null || dto.getNpiId().trim().isEmpty()) {
+            throw new IllegalArgumentException("Missing mandatory field: npiId");
+        }
     }
 }

@@ -57,8 +57,15 @@ public class ReferralPracticeService {
     // GET BY ID
     public ReferralPracticeDto getById(String fhirId) {
         log.debug("Getting FHIR Organization (referral practice): {}", fhirId);
-        Organization org = fhirClientService.read(Organization.class, fhirId, getPracticeId());
-        return fromFhirOrganization(org);
+        try {
+            Organization org = fhirClientService.read(Organization.class, fhirId, getPracticeId());
+            return fromFhirOrganization(org);
+        } catch (ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException e) {
+            throw new IllegalArgumentException("Referral practice with FHIR ID " + fhirId + " not found");
+        } catch (Exception e) {
+            log.error("Error retrieving referral practice {}: {}", fhirId, e.getMessage());
+            throw new RuntimeException("Failed to retrieve referral practice: " + e.getMessage(), e);
+        }
     }
 
     // GET ALL

@@ -47,9 +47,15 @@ public class ReferralPracticeController {
                     .message("Referral practice retrieved successfully")
                     .data(dto)
                     .build());
+        } catch (IllegalArgumentException e) {
+            log.error("Referral practice not found: {}", id);
+            return ResponseEntity.status(404).body(ApiResponse.<ReferralPracticeDto>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
         } catch (Exception e) {
             log.error("Failed to retrieve referral practice with id {}", id, e);
-            return ResponseEntity.ok(ApiResponse.<ReferralPracticeDto>builder()
+            return ResponseEntity.status(500).body(ApiResponse.<ReferralPracticeDto>builder()
                     .success(false)
                     .message("Failed to retrieve referral practice: " + e.getMessage())
                     .build());

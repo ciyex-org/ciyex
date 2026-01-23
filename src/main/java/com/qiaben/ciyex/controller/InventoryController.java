@@ -29,14 +29,24 @@ public class InventoryController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<InventoryDto>> create(@Valid @RequestBody InventoryDto dto) {
-        InventoryDto created = service.create(dto);
-        return ResponseEntity.ok(
-                ApiResponse.<InventoryDto>builder()
-                        .success(true)
-                        .message("Inventory item created successfully")
-                        .data(created)
-                        .build()
-        );
+        try {
+            InventoryDto created = service.create(dto);
+            return ResponseEntity.ok(
+                    ApiResponse.<InventoryDto>builder()
+                            .success(true)
+                            .message("Inventory item created successfully")
+                            .data(created)
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("Failed to create inventory item", e);
+            return ResponseEntity.status(500).body(
+                    ApiResponse.<InventoryDto>builder()
+                            .success(false)
+                            .message("Failed to create inventory item: " + e.getMessage())
+                            .build()
+            );
+        }
     }
 
     @GetMapping("/{id}")
