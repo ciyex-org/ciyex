@@ -164,24 +164,27 @@ public class EncounterController {
 
     // DELETE (scoped)
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteEncounter(
+    public ResponseEntity<ApiResponse<Void>> deleteEncounter(
             @PathVariable Long patientId,
             @PathVariable Long id) {
         try {
             encounterService.deleteEncounter(id, patientId);
-            return ResponseEntity.noContent().build();
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(true)
+                    .message("Encounter deleted successfully")
+                    .build());
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(404).body(ApiResponse.builder()
+            return ResponseEntity.status(404).body(ApiResponse.<Void>builder()
                     .success(false)
                     .message(ex.getMessage())
                     .build());
         } catch (IllegalStateException ex) {
-            return ResponseEntity.status(423).body(ApiResponse.builder()
+            return ResponseEntity.status(423).body(ApiResponse.<Void>builder()
                     .success(false)
                     .message(ex.getMessage())
                     .build());
         } catch (Exception ex) {
-            return ResponseEntity.status(500).body(ApiResponse.builder()
+            return ResponseEntity.status(500).body(ApiResponse.<Void>builder()
                     .success(false)
                     .message("Error deleting encounter: " + ex.getMessage())
                     .build());

@@ -242,16 +242,19 @@ public class PlanController {
         }
     }
 
-    // DELETE (PlanList tolerates 204 or JSON)  :contentReference[oaicite:2]{index=2}
+    // DELETE (PlanList tolerates 204 or JSON)
     @DeleteMapping("/{patientId}/{encounterId}/{id}")
-    public ResponseEntity<?> delete(@PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long patientId, @PathVariable Long encounterId, @PathVariable Long id) {
         try {
             service.delete(patientId, encounterId, id);
-            return ResponseEntity.noContent().build();
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(true)
+                    .message("Plan deleted successfully")
+                    .build());
         } catch (IllegalStateException ex) {
-            return ResponseEntity.status(423).body(ApiResponse.builder().success(false).message(ex.getMessage()).build());
+            return ResponseEntity.status(423).body(ApiResponse.<Void>builder().success(false).message(ex.getMessage()).build());
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.builder().success(false).message(ex.getMessage()).build());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.<Void>builder().success(false).message(ex.getMessage()).build());
         }
     }
 

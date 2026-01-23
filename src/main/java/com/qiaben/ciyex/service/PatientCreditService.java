@@ -68,6 +68,7 @@ public class PatientCreditService {
      * Get or create patient account credit balance.
      */
     public PatientAccountCreditDto getAccountCredit(Long patientId) {
+        validatePatientExists(patientId);
         try {
             Patient patient = fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
             Extension ext = patient.getExtensionByUrl(EXT_ACCOUNT_CREDIT_BALANCE);
@@ -86,6 +87,7 @@ public class PatientCreditService {
      * Add (or subtract) amount to patient account credit. Positive to add, negative to subtract.
      */
     public void addAccountCredit(Long patientId, BigDecimal amount) {
+        validatePatientExists(patientId);
         if (amount == null) return;
         PatientAccountCreditDto current = getAccountCredit(patientId);
         BigDecimal newBalance = nz(current.balance()).add(amount);
@@ -97,6 +99,7 @@ public class PatientCreditService {
      * Requires patient to have existing credit with sufficient balance.
      */
     public PatientAccountCreditDto applyAccountCredit(Long patientId, ApplyCreditRequest req) {
+        validatePatientExists(patientId);
         BigDecimal amount = (req == null) ? BigDecimal.ZERO : nz(req.amount());
 
         // Get current credit balance
@@ -129,6 +132,8 @@ public class PatientCreditService {
      * Includes totals, remit line details, and line-by-line breakdown.
      */
     public CreditAdjustmentDetailDto getCreditAdjustment(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         // Verify invoice exists and belongs to patient
         Observation invoice = fhirClientService.read(Observation.class, String.valueOf(invoiceId), getPracticeId());
         if (!String.valueOf(patientId).equals(optStringExt(invoice, EXT_PATIENT))) {
@@ -203,6 +208,8 @@ public class PatientCreditService {
      * Shows invoice totals and line-by-line breakdown for credit allocation.
      */
     public TransferOfCreditDetailDto getTransferOfCredit(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         // Verify invoice exists and belongs to patient
         Observation invoice = fhirClientService.read(Observation.class, String.valueOf(invoiceId), getPracticeId());
         if (!String.valueOf(patientId).equals(optStringExt(invoice, EXT_PATIENT))) {
@@ -334,5 +341,23 @@ public class PatientCreditService {
             return null;
         }
         return obs.getCode().getCodingFirstRep().getCode();
+    }
+
+    private void validatePatientExists(Long patientId) {
+        if (patientId == null) throw new IllegalArgumentException("Patient ID cannot be null");
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId));
+        }
+    }
+
+    private void validateInvoiceExists(Long invoiceId) {
+        if (invoiceId == null) throw new IllegalArgumentException("Invoice ID cannot be null");
+        try {
+            fhirClientService.read(Observation.class, String.valueOf(invoiceId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Invoice not found with ID: %d. Please provide a valid Invoice ID.", invoiceId));
+        }
     }
 }

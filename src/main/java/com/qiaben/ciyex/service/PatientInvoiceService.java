@@ -67,6 +67,8 @@ public class PatientInvoiceService {
      * Backdate invoice date
      */
     public PatientInvoiceDto backdateInvoice(Long patientId, Long invoiceId, BackdateRequest req) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         Observation obs = getInvoiceOrThrow(patientId, invoiceId);
         if (req != null && req.date() != null) {
             obs.getExtension().removeIf(e -> EXT_BACKDATE.equals(e.getUrl()));
@@ -80,6 +82,7 @@ public class PatientInvoiceService {
      * Account adjustment - applies credit adjustments based on type
      */
     public PatientAccountCreditDto accountAdjustment(Long patientId, AccountAdjustmentRequest req) {
+        validatePatientExists(patientId);
         if (req == null || req.adjustmentType() == null) {
             throw new IllegalArgumentException("Adjustment type is required");
         }
@@ -121,6 +124,8 @@ public class PatientInvoiceService {
      * Adjust invoice with percentage discount or flat adjustment
      */
     public PatientInvoiceDto adjustInvoice(Long patientId, Long invoiceId, InvoiceAdjustmentRequest req) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         Observation obs = getInvoiceOrThrow(patientId, invoiceId);
 
         if (req == null || req.adjustmentType() == null) {
@@ -180,6 +185,7 @@ public class PatientInvoiceService {
      * List all invoices for a patient
      */
     public List<PatientInvoiceDto> listInvoices(Long patientId) {
+        validatePatientExists(patientId);
         try {
             List<Observation> allObs = new ArrayList<>();
             Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
@@ -258,6 +264,8 @@ public class PatientInvoiceService {
      * Get invoice lines for a specific invoice
      */
     public List<PatientInvoiceLineDto> getInvoiceLines(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         Observation obs = getInvoiceOrThrow(patientId, invoiceId);
         return extractInvoiceLines(obs);
     }
@@ -266,6 +274,7 @@ public class PatientInvoiceService {
      * Create invoice from procedure request
      */
     public PatientInvoiceDto createInvoiceFromProcedure(Long patientId, CreateInvoiceRequest b) {
+        validatePatientExists(patientId);
         if (b == null) {
             throw new IllegalArgumentException("Request body is required");
         }
@@ -362,6 +371,8 @@ public class PatientInvoiceService {
      * Delete an invoice
      */
     public void deleteInvoice(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         Observation obs = getInvoiceOrThrow(patientId, invoiceId);
 
         try {
@@ -380,6 +391,8 @@ public class PatientInvoiceService {
      * Update invoice from procedure request
      */
     public PatientInvoiceDto updateInvoiceFromProcedure(Long patientId, Long invoiceId, UpdateInvoiceRequest b) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         if (b == null) {
             throw new IllegalArgumentException("Request body is required");
         }
@@ -425,6 +438,8 @@ public class PatientInvoiceService {
      * Update invoice line amount
      */
     public PatientInvoiceDto updateInvoiceLineAmount(Long patientId, Long invoiceId, Long lineId, UpdateLineAmountRequest b) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         if (b == null || b.newCharge() == null) {
             throw new IllegalArgumentException("New charge amount is required");
         }
@@ -462,6 +477,8 @@ public class PatientInvoiceService {
      * Apply percentage adjustment to invoice
      */
     public PatientInvoiceDto applyInvoicePercentageAdjustment(Long patientId, Long invoiceId, PercentageAdjustmentRequest b) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         if (b == null) {
             throw new IllegalArgumentException("Percentage adjustment request is required");
         }
@@ -506,6 +523,8 @@ public class PatientInvoiceService {
      * Transfer INS balance to PT balance
      */
     public PatientInvoiceDto transferOutstandingToPatient(Long patientId, Long invoiceId, Double amount) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         Observation obs = getInvoiceOrThrow(patientId, invoiceId);
         if (amount == null || amount <= 0) {
             return fromFhirObservation(obs);
@@ -528,6 +547,8 @@ public class PatientInvoiceService {
      * Transfer PT balance to INS balance
      */
     public PatientInvoiceDto transferOutstandingToInsurance(Long patientId, Long invoiceId, Double amount) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         Observation obs = getInvoiceOrThrow(patientId, invoiceId);
         if (amount == null || amount <= 0) {
             return fromFhirObservation(obs);
@@ -773,6 +794,8 @@ public class PatientInvoiceService {
      * Public accessor used by other services to retrieve an invoice DTO
      */
     public PatientInvoiceDto getPatientInvoice(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         Observation obs = getInvoiceOrThrow(patientId, invoiceId);
         return fromFhirObservation(obs);
     }
@@ -809,5 +832,23 @@ public class PatientInvoiceService {
         if (claim == null) return null;
         Extension ext = claim.getExtensionByUrl(url);
         return (ext != null && ext.getValue() instanceof StringType) ? ((StringType) ext.getValue()).getValue() : null;
+    }
+
+    private void validatePatientExists(Long patientId) {
+        if (patientId == null) throw new IllegalArgumentException("Patient ID cannot be null");
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId));
+        }
+    }
+
+    private void validateInvoiceExists(Long invoiceId) {
+        if (invoiceId == null) throw new IllegalArgumentException("Invoice ID cannot be null");
+        try {
+            fhirClientService.read(Observation.class, String.valueOf(invoiceId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Invoice not found with ID: %d. Please provide a valid Invoice ID.", invoiceId));
+        }
     }
 }

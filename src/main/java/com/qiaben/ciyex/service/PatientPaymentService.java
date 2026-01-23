@@ -65,6 +65,7 @@ public class PatientPaymentService {
      * Get all patient payment allocations for a patient.
      */
     public List<PatientPatientPaymentAllocationDto> getAllPatientPayments(Long patientId) {
+        validatePatientExists(patientId);
         log.debug("Getting all patient payments for patient {}", patientId);
         
         List<Observation> allObs = new ArrayList<>();
@@ -100,6 +101,8 @@ public class PatientPaymentService {
      * Get patient payment allocations by invoice.
      */
     public List<PatientPatientPaymentAllocationDto> getPatientPaymentsByInvoice(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         log.debug("Getting patient payments for patient {} invoice {}", patientId, invoiceId);
         
         List<Observation> allObs = new ArrayList<>();
@@ -137,26 +140,11 @@ public class PatientPaymentService {
      * Get detailed patient payment information including line allocations.
      */
     public PatientPaymentDetailDto getPatientPaymentDetails(Long patientId, Long invoiceId, Long paymentId) {
-        // Verify patient exists
-        try {
-            fhirClientService.search(Patient.class, getPracticeId());
-        } catch (Exception e) {
-            throw new IllegalArgumentException(
-                String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId)
-            );
-        }
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
+        validatePaymentExists(paymentId);
 
-        // Read payment record
-        Observation payment;
-        try {
-            payment = fhirClientService.read(Observation.class, String.valueOf(paymentId), getPracticeId());
-        } catch (Exception e) {
-            throw new RuntimeException(
-                String.format("Patient payment not found with ID: %d. Please provide a valid payment ID.", paymentId)
-            );
-        }
-
-        // Read invoice
+        Observation payment = fhirClientService.read(Observation.class, String.valueOf(paymentId), getPracticeId());
         Observation invoice = fhirClientService.read(Observation.class, String.valueOf(invoiceId), getPracticeId());
         if (!String.valueOf(patientId).equals(optStringExt(invoice, EXT_PATIENT))) {
             throw new IllegalArgumentException(
@@ -252,6 +240,8 @@ public class PatientPaymentService {
      * Returns payment ID and updated invoice.
      */
     public PatientPaymentResponseDto applyPatientPayment(Long patientId, Long invoiceId, PatientPatientPaymentRequestDto req) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         if (req == null) {
             throw new IllegalArgumentException("Payment request is required");
         }
@@ -349,6 +339,9 @@ public class PatientPaymentService {
      * Edit patient payment amount and/or method.
      */
     public PatientInvoiceDto editPatientPayment(Long patientId, Long invoiceId, Long paymentId, PatientPaymentDto dto) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
+        validatePaymentExists(paymentId);
         if (dto == null) {
             throw new IllegalArgumentException("Request body is required");
         }
@@ -387,7 +380,10 @@ public class PatientPaymentService {
      * VOID = delete allocations then delete payment.
      */
     public PatientInvoiceDto voidPatientPayment(Long patientId, Long invoiceId, Long paymentId, VoidReason reason) {
-        // Verify invoice exists
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
+        validatePaymentExists(paymentId);
+
         Observation invoice = fhirClientService.read(Observation.class, String.valueOf(invoiceId), getPracticeId());
         if (!String.valueOf(patientId).equals(optStringExt(invoice, EXT_PATIENT))) {
             throw new IllegalArgumentException(
@@ -395,15 +391,7 @@ public class PatientPaymentService {
             );
         }
 
-        // Read payment to restore allocations
-        Observation payment;
-        try {
-            payment = fhirClientService.read(Observation.class, String.valueOf(paymentId), getPracticeId());
-        } catch (Exception e) {
-            throw new IllegalArgumentException(
-                String.format("Patient payment not found with ID: %d. Please provide a valid payment ID.", paymentId)
-            );
-        }
+        Observation payment = fhirClientService.read(Observation.class, String.valueOf(paymentId), getPracticeId());
 
         // Restore patient portions from payment allocations
         for (Extension ext : payment.getExtension()) {
@@ -452,7 +440,10 @@ public class PatientPaymentService {
      * REFUND patient �+' add to patient account credit.
      */
     public PatientInvoiceDto refundPatientPayment(Long patientId, Long invoiceId, Long paymentId, RefundRequest req) {
-        // Verify invoice exists
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
+        validatePaymentExists(paymentId);
+
         Observation invoice = fhirClientService.read(Observation.class, String.valueOf(invoiceId), getPracticeId());
         if (!String.valueOf(patientId).equals(optStringExt(invoice, EXT_PATIENT))) {
             throw new IllegalArgumentException(
@@ -534,6 +525,8 @@ public class PatientPaymentService {
      * Transfer patient account credit from one patient to another.
      */
     public PatientAccountCreditDto[] transferPatientCreditToPatient(Long fromPatientId, Long toPatientId, BigDecimal amount) {
+        validatePatientExists(fromPatientId);
+        validatePatientExists(toPatientId);
         if (fromPatientId.equals(toPatientId)) {
             throw new IllegalArgumentException("Source and destination patients must differ");
         }
@@ -941,5 +934,32 @@ public class PatientPaymentService {
         }
 
         return new PatientInvoiceDto(invoiceId, patientId, invoiceDate, status, insWO, appliedWO, ptBalance, insBalance, totalCharge, lines);
+    }
+
+    private void validatePatientExists(Long patientId) {
+        if (patientId == null) throw new IllegalArgumentException("Patient ID cannot be null");
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId));
+        }
+    }
+
+    private void validateInvoiceExists(Long invoiceId) {
+        if (invoiceId == null) throw new IllegalArgumentException("Invoice ID cannot be null");
+        try {
+            fhirClientService.read(Observation.class, String.valueOf(invoiceId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Invoice not found with ID: %d. Please provide a valid Invoice ID.", invoiceId));
+        }
+    }
+
+    private void validatePaymentExists(Long paymentId) {
+        if (paymentId == null) throw new IllegalArgumentException("Payment ID cannot be null");
+        try {
+            fhirClientService.read(Observation.class, String.valueOf(paymentId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Patient payment not found with ID: %d. Please provide a valid payment ID.", paymentId));
+        }
     }
 }

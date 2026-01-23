@@ -120,7 +120,7 @@ public class PatientCodeListService {
     public boolean delete(String fhirId) {
         log.debug("Deleting FHIR List (patient code list): {}", fhirId);
         try {
-            fhirClientService.delete(ListResource.class, fhirId, getPracticeId());
+            fhirClientService.deleteByResourceName("List", fhirId, getPracticeId());
             return true;
         } catch (BaseServerResponseException e) {
             log.error("Failed to delete patient code list {}: {} {}", fhirId, e.getStatusCode(), e.getMessage());

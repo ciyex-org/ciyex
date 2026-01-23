@@ -69,8 +69,8 @@ public class PatientDepositService {
      * Creates deposit record and updates account credit
      */
     public PatientDepositDto addPatientDeposit(Long patientId, PatientDepositRequest request) {
+        validatePatientExists(patientId);
         log.debug("Adding patient deposit for patient {} via FHIR", patientId);
-        getPatientOrThrow(patientId);
 
         if (request == null) {
             throw new IllegalArgumentException("Deposit request is required");
@@ -116,8 +116,8 @@ public class PatientDepositService {
      * Get all deposits for a patient
      */
     public List<PatientDepositDto> getPatientDeposits(Long patientId) {
+        validatePatientExists(patientId);
         log.debug("Getting all deposits for patient {}", patientId);
-        getPatientOrThrow(patientId);
 
         List<Observation> allObs = new java.util.ArrayList<>();
         Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
@@ -150,8 +150,9 @@ public class PatientDepositService {
      * Get a single deposit by id
      */
     public PatientDepositDto getPatientDeposit(Long patientId, Long depositId) {
+        validatePatientExists(patientId);
+        validateDepositExists(depositId);
         log.debug("Getting deposit {} for patient {}", depositId, patientId);
-        getPatientOrThrow(patientId);
 
         String fhirId = String.valueOf(depositId);
         Observation obs = fhirClientService.read(Observation.class, fhirId, getPracticeId());
@@ -170,8 +171,9 @@ public class PatientDepositService {
      * Adjusts credit balance by the difference (new amount - old amount)
      */
     public PatientDepositDto updatePatientDeposit(Long patientId, Long depositId, PatientDepositRequest request) {
+        validatePatientExists(patientId);
+        validateDepositExists(depositId);
         log.debug("Updating deposit {} for patient {}", depositId, patientId);
-        getPatientOrThrow(patientId);
 
         if (request == null) {
             throw new IllegalArgumentException("Deposit request is required");
@@ -222,8 +224,9 @@ public class PatientDepositService {
      * Subtracts deposit amount from account credit
      */
     public void deletePatientDeposit(Long patientId, Long depositId) {
+        validatePatientExists(patientId);
+        validateDepositExists(depositId);
         log.debug("Deleting deposit {} for patient {}", depositId, patientId);
-        getPatientOrThrow(patientId);
 
         String fhirId = String.valueOf(depositId);
         Observation obs = fhirClientService.read(Observation.class, fhirId, getPracticeId());
@@ -250,8 +253,8 @@ public class PatientDepositService {
      * Creates insurance deposit and updates copay amount via coverage service
      */
     public InsuranceDepositDto addInsuranceDeposit(Long patientId, InsuranceDepositDto request) {
+        validatePatientExists(patientId);
         log.debug("Adding insurance deposit for patient {} via FHIR", patientId);
-        getPatientOrThrow(patientId);
 
         if (request == null) {
             throw new IllegalArgumentException("Insurance deposit request is required");
@@ -296,8 +299,9 @@ public class PatientDepositService {
      * Get insurance deposit by id
      */
     public InsuranceDepositDto getInsuranceDeposit(Long patientId, Long depositId) {
+        validatePatientExists(patientId);
+        validateDepositExists(depositId);
         log.debug("Getting insurance deposit {} for patient {}", depositId, patientId);
-        getPatientOrThrow(patientId);
 
         String fhirId = String.valueOf(depositId);
         Observation obs = fhirClientService.read(Observation.class, fhirId, getPracticeId());
@@ -315,8 +319,8 @@ public class PatientDepositService {
      * Get all insurance deposits for a patient
      */
     public List<InsuranceDepositDto> getInsuranceDeposits(Long patientId) {
+        validatePatientExists(patientId);
         log.debug("Getting all insurance deposits for patient {}", patientId);
-        getPatientOrThrow(patientId);
 
         List<Observation> allObs = new java.util.ArrayList<>();
         Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
@@ -350,8 +354,9 @@ public class PatientDepositService {
      * Adjusts copay by the difference (new amount - old amount)
      */
     public InsuranceDepositDto updateInsuranceDeposit(Long patientId, Long depositId, InsuranceDepositDto request) {
+        validatePatientExists(patientId);
+        validateDepositExists(depositId);
         log.debug("Updating insurance deposit {} for patient {}", depositId, patientId);
-        getPatientOrThrow(patientId);
 
         String fhirId = String.valueOf(depositId);
         Observation obs = fhirClientService.read(Observation.class, fhirId, getPracticeId());
@@ -395,8 +400,9 @@ public class PatientDepositService {
      * Subtracts deposit amount from copay
      */
     public void deleteInsuranceDeposit(Long patientId, Long depositId) {
+        validatePatientExists(patientId);
+        validateDepositExists(depositId);
         log.debug("Deleting insurance deposit {} for patient {}", depositId, patientId);
-        getPatientOrThrow(patientId);
 
         String fhirId = String.valueOf(depositId);
         Observation obs = fhirClientService.read(Observation.class, fhirId, getPracticeId());
@@ -444,8 +450,9 @@ public class PatientDepositService {
      * Updates invoice status based on resulting balances
      */
     public InvoiceCourtesyCreditDto applyCourtesyCreditToInvoice(Long patientId, Long invoiceId, CourtesyCreditRequest request) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         log.debug("Applying courtesy credit to invoice {} for patient {}", invoiceId, patientId);
-        getPatientOrThrow(patientId);
 
         BigDecimal creditAmount = request.amount() != null ? request.amount() : BigDecimal.ZERO;
         if (creditAmount.compareTo(BigDecimal.ZERO) <= 0) {
@@ -487,8 +494,9 @@ public class PatientDepositService {
      * Get courtesy credits for an invoice
      */
     public List<InvoiceCourtesyCreditDto> getInvoiceWithCourtesyCredit(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         log.debug("Getting courtesy credits for invoice {} and patient {}", invoiceId, patientId);
-        getPatientOrThrow(patientId);
 
         List<Observation> allObs = new java.util.ArrayList<>();
         Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
@@ -525,8 +533,9 @@ public class PatientDepositService {
      * Adjusts the credit amount
      */
     public InvoiceCourtesyCreditDto updateInvoiceCourtesyCredit(Long patientId, Long invoiceId, CourtesyCreditRequest request) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         log.debug("Updating courtesy credit on invoice {} for patient {}", invoiceId, patientId);
-        getPatientOrThrow(patientId);
 
         // Find any courtesy credit for this invoice
         Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
@@ -562,8 +571,9 @@ public class PatientDepositService {
      * Marks as inactive
      */
     public InvoiceCourtesyCreditDto removeInvoiceCourtesyCredit(Long patientId, Long invoiceId) {
+        validatePatientExists(patientId);
+        validateInvoiceExists(invoiceId);
         log.debug("Removing courtesy credit from invoice {} for patient {}", invoiceId, patientId);
-        getPatientOrThrow(patientId);
 
         // Find any courtesy credit for this invoice
         Bundle bundle = fhirClientService.search(Observation.class, getPracticeId());
@@ -777,5 +787,32 @@ public class PatientDepositService {
 
     private BigDecimal nz(BigDecimal v) {
         return v == null ? BigDecimal.ZERO : v;
+    }
+
+    private void validatePatientExists(Long patientId) {
+        if (patientId == null) throw new IllegalArgumentException("Patient ID cannot be null");
+        try {
+            fhirClientService.read(Patient.class, String.valueOf(patientId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Patient not found with ID: %d. Please provide a valid Patient ID.", patientId));
+        }
+    }
+
+    private void validateInvoiceExists(Long invoiceId) {
+        if (invoiceId == null) throw new IllegalArgumentException("Invoice ID cannot be null");
+        try {
+            fhirClientService.read(Observation.class, String.valueOf(invoiceId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Invoice not found with ID: %d. Please provide a valid Invoice ID.", invoiceId));
+        }
+    }
+
+    private void validateDepositExists(Long depositId) {
+        if (depositId == null) throw new IllegalArgumentException("Deposit ID cannot be null");
+        try {
+            fhirClientService.read(Observation.class, String.valueOf(depositId), getPracticeId());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(String.format("Deposit not found with ID: %d. Please provide a valid Deposit ID.", depositId));
+        }
     }
 }

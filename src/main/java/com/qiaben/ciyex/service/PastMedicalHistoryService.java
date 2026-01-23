@@ -124,6 +124,8 @@ public class PastMedicalHistoryService {
     public List<PastMedicalHistoryDto> list(Long patientId, Long encounterId) {
         validatePathVariable(patientId, "Patient ID");
         validatePathVariable(encounterId, "Encounter ID");
+        validatePatientExists(patientId);
+        validateEncounterExists(encounterId);
         log.debug("Listing FHIR Conditions (PMH) for patient: {}, encounter: {}", patientId, encounterId);
 
         Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
@@ -154,9 +156,10 @@ public class PastMedicalHistoryService {
             throw new IllegalArgumentException("Past Medical History ID is invalid. Past Medical History not found: " + id);
         }
 
+        // Check if record is e-signed
         SignMetadata meta = signMetadataCache.get(fhirId);
         if (meta != null && Boolean.TRUE.equals(meta.eSigned)) {
-            throw new IllegalStateException("Signed PMH entries are read-only.");
+            throw new IllegalStateException("Cannot update e-signed Past Medical History record. Record ID: " + id);
         }
 
         Condition condition = toFhirCondition(dto, patientId, encounterId);
@@ -321,7 +324,20 @@ public class PastMedicalHistoryService {
         }
 
         dto.setPatientId(patientId);
-        dto.setEncounterId(encounterId);
+        
+        // Extract encounterId from FHIR resource if not provided
+        if (encounterId != null) {
+            dto.setEncounterId(encounterId);
+        } else if (condition.hasEncounter()) {
+            String encounterRef = condition.getEncounter().getReference();
+            if (encounterRef != null && encounterRef.startsWith("Encounter/")) {
+                try {
+                    dto.setEncounterId(Long.parseLong(encounterRef.substring(10)));
+                } catch (NumberFormatException e) {
+                    log.warn("Failed to parse encounter ID from reference: {}", encounterRef);
+                }
+            }
+        }
 
         // Description from code text or note
         if (condition.hasCode() && condition.getCode().hasText()) {
