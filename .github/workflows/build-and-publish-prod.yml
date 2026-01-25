@@ -102,6 +102,20 @@ jobs:
           docker push $REGISTRY/$IMAGE_NAME:alpha
           echo "✅ Image pushed: $REGISTRY/$IMAGE_NAME:${VERSION}"
 
+      - name: Update k8s manifest with new image version
+        run: |
+          VERSION="${{ needs.extract-version.outputs.full_version }}"
+          sed -i "s|image: $REGISTRY/$IMAGE_NAME:.*|image: $REGISTRY/$IMAGE_NAME:${VERSION}|" k8s/overlays/dev/deployment-patch.yaml
+          cat k8s/overlays/dev/deployment-patch.yaml | grep "image:"
+
+      - name: Commit and push manifest update
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add k8s/overlays/dev/deployment-patch.yaml
+          git diff --staged --quiet || git commit -m "Update dev image to ${{ needs.extract-version.outputs.full_version }} [skip ci]"
+          git push
+
       - name: Output image details
         run: |
           echo "## 📦 Image Details" >> $GITHUB_STEP_SUMMARY
