@@ -1,0 +1,276 @@
+name: Build & Push Ciyex App to Prod Registry
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'build'
+        type: choice
+        options:
+          - build
+          - promote-to-beta
+          - promote-to-release
+      version:
+        description: 'Version to promote (e.g., 0.0.1.42) - required for promotions'
+        required: false
+        type: string
+
+env:
+  IMAGE_NAME: ciyex-app
+  REGISTRY: registry.apps.in.hinisoft.com
+
+jobs:
+  extract-version:
+    name: Extract Version from Gradle
+    runs-on: [self-hosted, linux, x64]
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      full_version: ${{ steps.version.outputs.full_version }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Extract version from build.gradle
+        id: version
+        run: |
+          # Extract version from build.gradle (e.g., '0.0.1-SNAPSHOT' -> '0.0.1')
+          GRADLE_VERSION=$(grep "^version = " build.gradle | sed "s/version = '\(.*\)'/\1/" | sed 's/-SNAPSHOT//')
+          # Append GitHub run number as the last digit
+          FULL_VERSION="${GRADLE_VERSION}.${{ github.run_number }}"
+          echo "version=${GRADLE_VERSION}" >> $GITHUB_OUTPUT
+          echo "full_version=${FULL_VERSION}" >> $GITHUB_OUTPUT
+          echo "📦 Gradle version: ${GRADLE_VERSION}"
+          echo "📦 Full version: ${FULL_VERSION}"
+
+  pr-build:
+    name: PR Build - Validate Docker Image
+    if: github.event_name == 'pull_request'
+    needs: [extract-version]
+    runs-on: [self-hosted, linux, x64]
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
+
+      - name: Build Docker image (no push)
+        run: |
+          VERSION="${{ needs.extract-version.outputs.full_version }}-nonprod"
+          docker build --build-arg ENVIRONMENT=prod -t $REGISTRY/$IMAGE_NAME:$VERSION .
+          echo "✅ PR image build successful: $REGISTRY/$IMAGE_NAME:${VERSION}"
+
+  build-and-push:
+    name: Build and Push to Prod Registry
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [extract-version]
+    runs-on: [self-hosted, linux, x64]
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
+
+      - name: Login to Private Registry
+        run: |
+          echo "${{ secrets.PROD_REGISTRY_PASSWORD }}" | docker login $REGISTRY -u ${{ secrets.PROD_REGISTRY_USERNAME }} --password-stdin
+
+      - name: Build and Push Docker Image with alpha tag
+        run: |
+          VERSION="${{ needs.extract-version.outputs.full_version }}"
+          # Tag as alpha - initial build for internal testing
+          docker build --build-arg ENVIRONMENT=prod \
+            -t $REGISTRY/$IMAGE_NAME:${VERSION}-alpha \
+            -t $REGISTRY/$IMAGE_NAME:alpha \
+            .
+          docker push $REGISTRY/$IMAGE_NAME:${VERSION}-alpha
+          docker push $REGISTRY/$IMAGE_NAME:alpha
+          echo "✅ Image pushed: $REGISTRY/$IMAGE_NAME:${VERSION}-alpha"
+
+      - name: Output image details
+        run: |
+          echo "## 📦 Image Details" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Registry | $REGISTRY |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | $IMAGE_NAME |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ needs.extract-version.outputs.full_version }}-alpha |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | � Alpha (Internal Testing) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Promotion Path" >> $GITHUB_STEP_SUMMARY
+          echo "1. **Alpha** (current) → Internal testing" >> $GITHUB_STEP_SUMMARY
+          echo "2. **Beta** → QA/UAT testing" >> $GITHUB_STEP_SUMMARY
+          echo "3. **Release** → Production ready" >> $GITHUB_STEP_SUMMARY
+
+  promote-to-beta:
+    name: Promote Alpha to Beta
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'promote-to-beta'
+    runs-on: [self-hosted, linux, x64]
+
+    steps:
+      - name: Validate version input
+        run: |
+          if [ -z "${{ github.event.inputs.version }}" ]; then
+            echo "❌ Error: Version is required for promotion"
+            echo "Please provide the version to promote (e.g., 0.0.1.42)"
+            exit 1
+          fi
+
+      - name: Login to Private Registry
+        run: |
+          echo "${{ secrets.PROD_REGISTRY_PASSWORD }}" | docker login $REGISTRY -u ${{ secrets.PROD_REGISTRY_USERNAME }} --password-stdin
+
+      - name: Promote alpha to beta
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          # Pull the alpha image and retag as beta
+          docker pull $REGISTRY/$IMAGE_NAME:${VERSION}-alpha
+          docker tag $REGISTRY/$IMAGE_NAME:${VERSION}-alpha $REGISTRY/$IMAGE_NAME:${VERSION}-beta
+          docker tag $REGISTRY/$IMAGE_NAME:${VERSION}-alpha $REGISTRY/$IMAGE_NAME:beta
+          docker push $REGISTRY/$IMAGE_NAME:${VERSION}-beta
+          docker push $REGISTRY/$IMAGE_NAME:beta
+          echo "✅ Image promoted to beta: $REGISTRY/$IMAGE_NAME:${VERSION}-beta"
+
+      - name: Output promotion details
+        run: |
+          echo "## 🧪 Beta Promotion Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Registry | $REGISTRY |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | $IMAGE_NAME |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ github.event.inputs.version }}-beta |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | 🧪 Beta (QA/UAT Testing) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Step" >> $GITHUB_STEP_SUMMARY
+          echo "After QA testing passes, promote to **Release** for production deployment." >> $GITHUB_STEP_SUMMARY
+
+  promote-to-release:
+    name: Promote Beta to Release
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'promote-to-release'
+    runs-on: [self-hosted, linux, x64]
+
+    steps:
+      - name: Validate version input
+        run: |
+          if [ -z "${{ github.event.inputs.version }}" ]; then
+            echo "❌ Error: Version is required for promotion"
+            echo "Please provide the version to promote (e.g., 0.0.1.42)"
+            exit 1
+          fi
+
+      - name: Login to Private Registry
+        run: |
+          echo "${{ secrets.PROD_REGISTRY_PASSWORD }}" | docker login $REGISTRY -u ${{ secrets.PROD_REGISTRY_USERNAME }} --password-stdin
+
+      - name: Promote beta to release
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          # Pull the beta image and retag as release (production)
+          docker pull $REGISTRY/$IMAGE_NAME:${VERSION}-beta
+          docker tag $REGISTRY/$IMAGE_NAME:${VERSION}-beta $REGISTRY/$IMAGE_NAME:${VERSION}
+          docker tag $REGISTRY/$IMAGE_NAME:${VERSION}-beta $REGISTRY/$IMAGE_NAME:latest
+          docker push $REGISTRY/$IMAGE_NAME:${VERSION}
+          docker push $REGISTRY/$IMAGE_NAME:latest
+          echo "✅ Image promoted to release: $REGISTRY/$IMAGE_NAME:${VERSION}"
+
+      - name: Output promotion details
+        run: |
+          echo "## 🚀 Release Promotion Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Registry | $REGISTRY |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | $IMAGE_NAME |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ github.event.inputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ✅ Release (Production Ready) |" >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    name: Notify Team
+    if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: [self-hosted, linux, x64]
+    needs: [extract-version, build-and-push]
+
+    steps:
+      - name: Determine build status
+        id: status
+        run: |
+          if [ "${{ needs.build-and-push.result }}" == "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "emoji=✅" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "emoji=❌" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Microsoft Teams notification
+        run: |
+          TEAMS_WEBHOOK="${{ secrets.TEAMS_WEBHOOK_URL }}"
+          if [ -z "$TEAMS_WEBHOOK" ]; then
+            echo "⚠️ TEAMS_WEBHOOK_URL secret not configured, skipping notification"
+            exit 0
+          fi
+          
+          STATUS_COLOR="good"
+          if [ "${{ steps.status.outputs.status }}" == "failure" ]; then
+            STATUS_COLOR="attention"
+          fi
+          
+          curl -H "Content-Type: application/json" -d '{
+            "type": "message",
+            "attachments": [{
+              "contentType": "application/vnd.microsoft.card.adaptive",
+              "content": {
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                  {
+                    "type": "TextBlock",
+                    "size": "Large",
+                    "weight": "Bolder",
+                    "text": "${{ steps.status.outputs.emoji }} Ciyex Backend Prod Registry Push",
+                    "style": "heading"
+                  },
+                  {
+                    "type": "TextBlock",
+                    "text": "Status: ${{ steps.status.outputs.status }}",
+                    "color": "'"$STATUS_COLOR"'"
+                  },
+                  {
+                    "type": "FactSet",
+                    "facts": [
+                      {"title": "Environment", "value": "Production Registry"},
+                      {"title": "Version", "value": "${{ needs.extract-version.outputs.full_version }}-alpha"},
+                      {"title": "Image", "value": "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.extract-version.outputs.full_version }}-alpha"},
+                      {"title": "Status", "value": "🔬 Alpha (Internal Testing)"},
+                      {"title": "Pushed by", "value": "${{ github.actor }}"}
+                    ]
+                  }
+                ],
+                "actions": [
+                  {
+                    "type": "Action.OpenUrl",
+                    "title": "View Workflow",
+                    "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                ]
+              }
+            }]
+          }' "$TEAMS_WEBHOOK"
