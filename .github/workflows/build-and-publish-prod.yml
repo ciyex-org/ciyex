@@ -16,10 +16,10 @@ on:
         type: choice
         options:
           - build
-          - promote-to-beta
+          - promote-to-rc
           - promote-to-release
       version:
-        description: 'Version to promote (e.g., 0.0.1.42) - required for promotions'
+        description: 'Version to promote (e.g., 0.0.1-alpha.42) - required for promotions'
         required: false
         type: string
 
@@ -41,10 +41,10 @@ jobs:
       - name: Extract version from build.gradle
         id: version
         run: |
-          # Extract version from build.gradle (e.g., '0.1' -> '0.1')
+          # Extract version from build.gradle (e.g., '0.0.1' -> '0.0.1')
           GRADLE_VERSION=$(grep "^version = " build.gradle | sed "s/version = '\(.*\)'/\1/" | sed 's/-SNAPSHOT//')
-          # Append GitHub run number as the last digit
-          FULL_VERSION="${GRADLE_VERSION}.${{ github.run_number }}"
+          # Create alpha version with run number: 0.0.1-alpha.13
+          FULL_VERSION="${GRADLE_VERSION}-alpha.${{ github.run_number }}"
           echo "version=${GRADLE_VERSION}" >> $GITHUB_OUTPUT
           echo "full_version=${FULL_VERSION}" >> $GITHUB_OUTPUT
           echo "📦 Gradle version: ${GRADLE_VERSION}"
@@ -95,12 +95,12 @@ jobs:
           VERSION="${{ needs.extract-version.outputs.full_version }}"
           # Tag as alpha - initial build for internal testing
           docker build --build-arg ENVIRONMENT=prod \
-            -t $REGISTRY/$IMAGE_NAME:${VERSION}-alpha \
+            -t $REGISTRY/$IMAGE_NAME:${VERSION} \
             -t $REGISTRY/$IMAGE_NAME:alpha \
             .
-          docker push $REGISTRY/$IMAGE_NAME:${VERSION}-alpha
+          docker push $REGISTRY/$IMAGE_NAME:${VERSION}
           docker push $REGISTRY/$IMAGE_NAME:alpha
-          echo "✅ Image pushed: $REGISTRY/$IMAGE_NAME:${VERSION}-alpha"
+          echo "✅ Image pushed: $REGISTRY/$IMAGE_NAME:${VERSION}"
 
       - name: Output image details
         run: |
@@ -110,17 +110,17 @@ jobs:
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Registry | $REGISTRY |" >> $GITHUB_STEP_SUMMARY
           echo "| Image | $IMAGE_NAME |" >> $GITHUB_STEP_SUMMARY
-          echo "| Version | ${{ needs.extract-version.outputs.full_version }}-alpha |" >> $GITHUB_STEP_SUMMARY
-          echo "| Status | � Alpha (Internal Testing) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ needs.extract-version.outputs.full_version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | 🔬 Alpha (Internal Testing) |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Promotion Path" >> $GITHUB_STEP_SUMMARY
           echo "1. **Alpha** (current) → Internal testing" >> $GITHUB_STEP_SUMMARY
-          echo "2. **Beta** → QA/UAT testing" >> $GITHUB_STEP_SUMMARY
-          echo "3. **Release** → Production ready" >> $GITHUB_STEP_SUMMARY
+          echo "2. **RC** → Release Candidate (QA/UAT)" >> $GITHUB_STEP_SUMMARY
+          echo "3. **Release** → Production (0.0.1)" >> $GITHUB_STEP_SUMMARY
 
-  promote-to-beta:
-    name: Promote Alpha to Beta
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'promote-to-beta'
+  promote-to-rc:
+    name: Promote Alpha to RC
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'promote-to-rc'
     runs-on: [self-hosted, linux, x64]
 
     steps:
@@ -128,7 +128,7 @@ jobs:
         run: |
           if [ -z "${{ github.event.inputs.version }}" ]; then
             echo "❌ Error: Version is required for promotion"
-            echo "Please provide the version to promote (e.g., 0.0.1.42)"
+            echo "Please provide the version to promote (e.g., 0.0.1-alpha.42)"
             exit 1
           fi
 
@@ -136,33 +136,41 @@ jobs:
         run: |
           echo "${{ secrets.PROD_REGISTRY_PASSWORD }}" | docker login $REGISTRY -u ${{ secrets.PROD_REGISTRY_USERNAME }} --password-stdin
 
-      - name: Promote alpha to beta
+      - name: Promote alpha to rc
         run: |
           VERSION="${{ github.event.inputs.version }}"
-          # Pull the alpha image and retag as beta
-          docker pull $REGISTRY/$IMAGE_NAME:${VERSION}-alpha
-          docker tag $REGISTRY/$IMAGE_NAME:${VERSION}-alpha $REGISTRY/$IMAGE_NAME:${VERSION}-beta
-          docker tag $REGISTRY/$IMAGE_NAME:${VERSION}-alpha $REGISTRY/$IMAGE_NAME:beta
-          docker push $REGISTRY/$IMAGE_NAME:${VERSION}-beta
-          docker push $REGISTRY/$IMAGE_NAME:beta
-          echo "✅ Image promoted to beta: $REGISTRY/$IMAGE_NAME:${VERSION}-beta"
+          # Extract base version (0.0.1 from 0.0.1-alpha.42)
+          BASE_VERSION=$(echo $VERSION | sed 's/-alpha\.[0-9]*//')
+          BUILD_NUM=$(echo $VERSION | sed 's/.*-alpha\.//')
+          RC_VERSION="${BASE_VERSION}-rc.${BUILD_NUM}"
+          # Pull the alpha image and retag as rc
+          docker pull $REGISTRY/$IMAGE_NAME:${VERSION}
+          docker tag $REGISTRY/$IMAGE_NAME:${VERSION} $REGISTRY/$IMAGE_NAME:${RC_VERSION}
+          docker tag $REGISTRY/$IMAGE_NAME:${VERSION} $REGISTRY/$IMAGE_NAME:rc
+          docker push $REGISTRY/$IMAGE_NAME:${RC_VERSION}
+          docker push $REGISTRY/$IMAGE_NAME:rc
+          echo "✅ Image promoted to RC: $REGISTRY/$IMAGE_NAME:${RC_VERSION}"
 
       - name: Output promotion details
         run: |
-          echo "## 🧪 Beta Promotion Complete" >> $GITHUB_STEP_SUMMARY
+          VERSION="${{ github.event.inputs.version }}"
+          BASE_VERSION=$(echo $VERSION | sed 's/-dev\.[0-9]*//')
+          BUILD_NUM=$(echo $VERSION | sed 's/.*-dev\.//')
+          RC_VERSION="${BASE_VERSION}-rc.${BUILD_NUM}"
+          echo "## 🧪 RC Promotion Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Registry | $REGISTRY |" >> $GITHUB_STEP_SUMMARY
           echo "| Image | $IMAGE_NAME |" >> $GITHUB_STEP_SUMMARY
-          echo "| Version | ${{ github.event.inputs.version }}-beta |" >> $GITHUB_STEP_SUMMARY
-          echo "| Status | 🧪 Beta (QA/UAT Testing) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${RC_VERSION} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | 🧪 RC (Release Candidate) |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Next Step" >> $GITHUB_STEP_SUMMARY
-          echo "After QA testing passes, promote to **Release** for production deployment." >> $GITHUB_STEP_SUMMARY
+          echo "After QA testing passes, promote to **Release** (${BASE_VERSION}) for production." >> $GITHUB_STEP_SUMMARY
 
   promote-to-release:
-    name: Promote Beta to Release
+    name: Promote RC to Release
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'promote-to-release'
     runs-on: [self-hosted, linux, x64]
 
@@ -171,7 +179,7 @@ jobs:
         run: |
           if [ -z "${{ github.event.inputs.version }}" ]; then
             echo "❌ Error: Version is required for promotion"
-            echo "Please provide the version to promote (e.g., 0.0.1.42)"
+            echo "Please provide the RC version to promote (e.g., 0.0.1-rc.42)"
             exit 1
           fi
 
@@ -179,26 +187,30 @@ jobs:
         run: |
           echo "${{ secrets.PROD_REGISTRY_PASSWORD }}" | docker login $REGISTRY -u ${{ secrets.PROD_REGISTRY_USERNAME }} --password-stdin
 
-      - name: Promote beta to release
+      - name: Promote rc to release
         run: |
           VERSION="${{ github.event.inputs.version }}"
-          # Pull the beta image and retag as release (production)
-          docker pull $REGISTRY/$IMAGE_NAME:${VERSION}-beta
-          docker tag $REGISTRY/$IMAGE_NAME:${VERSION}-beta $REGISTRY/$IMAGE_NAME:${VERSION}
-          docker tag $REGISTRY/$IMAGE_NAME:${VERSION}-beta $REGISTRY/$IMAGE_NAME:latest
-          docker push $REGISTRY/$IMAGE_NAME:${VERSION}
+          # Extract base version (0.0.1 from 0.0.1-rc.42)
+          BASE_VERSION=$(echo $VERSION | sed 's/-rc\.[0-9]*//')
+          # Pull the rc image and retag as release (production)
+          docker pull $REGISTRY/$IMAGE_NAME:${VERSION}
+          docker tag $REGISTRY/$IMAGE_NAME:${VERSION} $REGISTRY/$IMAGE_NAME:${BASE_VERSION}
+          docker tag $REGISTRY/$IMAGE_NAME:${VERSION} $REGISTRY/$IMAGE_NAME:latest
+          docker push $REGISTRY/$IMAGE_NAME:${BASE_VERSION}
           docker push $REGISTRY/$IMAGE_NAME:latest
-          echo "✅ Image promoted to release: $REGISTRY/$IMAGE_NAME:${VERSION}"
+          echo "✅ Image promoted to release: $REGISTRY/$IMAGE_NAME:${BASE_VERSION}"
 
       - name: Output promotion details
         run: |
+          VERSION="${{ github.event.inputs.version }}"
+          BASE_VERSION=$(echo $VERSION | sed 's/-rc\.[0-9]*//')
           echo "## 🚀 Release Promotion Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Registry | $REGISTRY |" >> $GITHUB_STEP_SUMMARY
           echo "| Image | $IMAGE_NAME |" >> $GITHUB_STEP_SUMMARY
-          echo "| Version | ${{ github.event.inputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${BASE_VERSION} |" >> $GITHUB_STEP_SUMMARY
           echo "| Status | ✅ Release (Production Ready) |" >> $GITHUB_STEP_SUMMARY
 
   notify:
@@ -258,8 +270,8 @@ jobs:
                   {
                     "type": "FactSet",
                     "facts": [
-                      {"title": "Version", "value": "${{ needs.extract-version.outputs.full_version }}-alpha"},
-                      {"title": "Image", "value": "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.extract-version.outputs.full_version }}-alpha"},
+                      {"title": "Version", "value": "${{ needs.extract-version.outputs.full_version }}"},
+                      {"title": "Image", "value": "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.extract-version.outputs.full_version }}"},
                       {"title": "Stage", "value": "🔬 Alpha (Internal Testing)"},
                       {"title": "Pushed by", "value": "${{ github.actor }}"}
                     ]
