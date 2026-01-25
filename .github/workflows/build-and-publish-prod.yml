@@ -214,9 +214,11 @@ jobs:
           if [ "${{ needs.build-and-push.result }}" == "success" ]; then
             echo "status=success" >> $GITHUB_OUTPUT
             echo "emoji=✅" >> $GITHUB_OUTPUT
+            echo "title=Published" >> $GITHUB_OUTPUT
           else
             echo "status=failure" >> $GITHUB_OUTPUT
             echo "emoji=❌" >> $GITHUB_OUTPUT
+            echo "title=Build Failed" >> $GITHUB_OUTPUT
           fi
 
       - name: Send Microsoft Teams notification
@@ -245,7 +247,7 @@ jobs:
                     "type": "TextBlock",
                     "size": "Large",
                     "weight": "Bolder",
-                    "text": "${{ steps.status.outputs.emoji }} Ciyex Backend Prod Registry Push",
+                    "text": "${{ steps.status.outputs.emoji }} Ciyex Backend - v${{ needs.extract-version.outputs.full_version }} ${{ steps.status.outputs.title }}",
                     "style": "heading"
                   },
                   {
@@ -256,10 +258,9 @@ jobs:
                   {
                     "type": "FactSet",
                     "facts": [
-                      {"title": "Environment", "value": "Production Registry"},
                       {"title": "Version", "value": "${{ needs.extract-version.outputs.full_version }}-alpha"},
                       {"title": "Image", "value": "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.extract-version.outputs.full_version }}-alpha"},
-                      {"title": "Status", "value": "🔬 Alpha (Internal Testing)"},
+                      {"title": "Stage", "value": "🔬 Alpha (Internal Testing)"},
                       {"title": "Pushed by", "value": "${{ github.actor }}"}
                     ]
                   }
