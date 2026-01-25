@@ -3,10 +3,10 @@ name: Build & Deploy Ciyex App Dev
 on:
   push:
     branches:
-      - main
+      - main1
   pull_request:
     branches:
-      - main
+      - main1
 
 env:
   IMAGE_NAME: ciyex-app
