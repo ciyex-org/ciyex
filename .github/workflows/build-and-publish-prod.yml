@@ -41,7 +41,7 @@ jobs:
       - name: Extract version from build.gradle
         id: version
         run: |
-          # Extract version from build.gradle (e.g., '0.0.1-SNAPSHOT' -> '0.0.1')
+          # Extract version from build.gradle (e.g., '0.1' -> '0.1')
           GRADLE_VERSION=$(grep "^version = " build.gradle | sed "s/version = '\(.*\)'/\1/" | sed 's/-SNAPSHOT//')
           # Append GitHub run number as the last digit
           FULL_VERSION="${GRADLE_VERSION}.${{ github.run_number }}"
