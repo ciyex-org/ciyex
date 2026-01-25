@@ -25,7 +25,7 @@ on:
 
 env:
   IMAGE_NAME: ciyex-app
-  REGISTRY: registry.apps.in.hinisoft.com
+  REGISTRY: registry.registry.svc.cluster.local:5000
 
 jobs:
   extract-version:
