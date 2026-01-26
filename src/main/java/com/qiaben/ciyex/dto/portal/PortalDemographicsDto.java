@@ -2,11 +2,16 @@ package com.qiaben.ciyex.dto.portal;
 
 import lombok.Data;
 import java.time.LocalDate;
+import java.time.Instant;
 
 @Data
 public class PortalDemographicsDto {
     private Long id;
-//
+    private String fhirId;
+
+    // Audit
+    private Audit audit;
+
     // Identity
     private String firstName;
     private String middleName;
@@ -33,4 +38,10 @@ public class PortalDemographicsDto {
     private boolean allowEmail;
     private boolean allowVoiceMessage;
     private boolean allowMailMessage;
+
+    @Data
+    public static class Audit {
+        private Instant createdDate;
+        private Instant lastModifiedDate;
+    }
 }
