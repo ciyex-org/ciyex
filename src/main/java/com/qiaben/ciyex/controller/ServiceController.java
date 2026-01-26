@@ -22,6 +22,18 @@ public class ServiceController {
     @PostMapping
     public ResponseEntity<ApiResponse<ServicebillDto>> create(@RequestBody ServicebillDto dto) {
         try {
+            if (dto.getName() == null || dto.getName().trim().isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<ServicebillDto>builder()
+                        .success(false)
+                        .message("Name is mandatory")
+                        .build());
+            }
+            if (dto.getDefaultPrice() == null || dto.getDefaultPrice().trim().isEmpty()) {
+                return ResponseEntity.ok(ApiResponse.<ServicebillDto>builder()
+                        .success(false)
+                        .message("Default price is mandatory")
+                        .build());
+            }
             ServicebillDto created = serviceService.create(dto);
             return ResponseEntity.ok(ApiResponse.<ServicebillDto>builder()
                     .success(true)
