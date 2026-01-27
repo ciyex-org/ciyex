@@ -98,6 +98,7 @@ public class PatientService {
         MethodOutcome outcome = fhirClientService.create(fhirPatient, getPracticeId());
 
         String fhirId = outcome.getId().getIdPart();
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
 
@@ -139,6 +140,7 @@ public class PatientService {
 
         fhirClientService.update(fhirPatient, getPracticeId());
 
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
 
@@ -296,8 +298,10 @@ public class PatientService {
 
         // FHIR ID
         if (fhirPatient.hasId()) {
-            dto.setFhirId(fhirPatient.getIdElement().getIdPart());
-            dto.setExternalId(fhirPatient.getIdElement().getIdPart());
+            String fhirId = fhirPatient.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
         }
 
         // Identifiers
