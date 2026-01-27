@@ -127,11 +127,12 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build -x test
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build Docker image (no push)
-        env:
-          DOCKER_BUILDKIT: 1
         run: |
-          docker build -t $REGISTRY/$IMAGE_NAME:pr-${{ github.event.number }} .
+          docker buildx build --load -t $REGISTRY/$IMAGE_NAME:pr-${{ github.event.number }} .
           echo "✅ PR build successful"
 
   # Build and deploy
@@ -157,18 +158,19 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build -x test
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to Registry
         run: |
           echo "${{ secrets.PROD_REGISTRY_PASSWORD }}" | docker login $REGISTRY -u ${{ secrets.PROD_REGISTRY_USERNAME }} --password-stdin
 
       - name: Build and Push Docker Image
-        env:
-          DOCKER_BUILDKIT: 1
         run: |
           VERSION="${{ needs.version.outputs.version }}"
-          docker build -t $REGISTRY/$IMAGE_NAME:$VERSION -t $REGISTRY/$IMAGE_NAME:${{ needs.version.outputs.environment }} .
-          docker push $REGISTRY/$IMAGE_NAME:$VERSION
-          docker push $REGISTRY/$IMAGE_NAME:${{ needs.version.outputs.environment }}
+          docker buildx build --push \
+            -t $REGISTRY/$IMAGE_NAME:$VERSION \
+            -t $REGISTRY/$IMAGE_NAME:${{ needs.version.outputs.environment }} .
           echo "✅ Pushed: $REGISTRY/$IMAGE_NAME:$VERSION"
 
       - name: Create Git tag for alpha/rc
