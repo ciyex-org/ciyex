@@ -157,7 +157,7 @@ jobs:
 
       - name: Login to Registry
         run: |
-          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login $REGISTRY -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+          echo "${{ secrets.PROD_REGISTRY_PASSWORD }}" | docker login $REGISTRY -u ${{ secrets.PROD_REGISTRY_USERNAME }} --password-stdin
 
       - name: Build and Push Docker Image
         run: |
@@ -199,8 +199,8 @@ jobs:
           kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
           kubectl create secret docker-registry regcred \
             --docker-server=$REGISTRY \
-            --docker-username=${{ secrets.REGISTRY_USERNAME }} \
-            --docker-password=${{ secrets.REGISTRY_PASSWORD }} \
+            --docker-username=${{ secrets.PROD_REGISTRY_USERNAME }} \
+            --docker-password=${{ secrets.PROD_REGISTRY_PASSWORD }} \
             -n $NAMESPACE \
             --dry-run=client -o yaml | kubectl apply -f -
           
