@@ -59,24 +59,30 @@ jobs:
             # release/0.1 → 0.1.x-rc.N
             RELEASE_MINOR="${GITHUB_REF#refs/heads/release/}"
             
-            # Find last rc tag for this minor version
-            LAST_RC=$(git tag -l "${RELEASE_MINOR}.*-rc.*" --sort=-v:refname | head -n1)
+            # Find last released version (v0.1.x tag without -rc)
+            LAST_RELEASE=$(git tag -l "v${RELEASE_MINOR}.*" --sort=-v:refname | grep -v "\-rc" | head -n1)
+            if [ -n "$LAST_RELEASE" ]; then
+              # Extract patch from last release: v0.1.2 → 2
+              LAST_RELEASED_PATCH=$(echo "$LAST_RELEASE" | sed -E "s/v${RELEASE_MINOR}\.([0-9]+)/\1/")
+              # Next patch version
+              PATCH=$((LAST_RELEASED_PATCH + 1))
+            else
+              # No release yet, start at patch 0
+              PATCH=0
+            fi
+            
+            # Find last RC for this patch version
+            LAST_RC=$(git tag -l "${RELEASE_MINOR}.${PATCH}-rc.*" --sort=-v:refname | head -n1)
             if [ -n "$LAST_RC" ]; then
-              # Extract patch and rc: 0.1.2-rc.3 → patch=2, rc=3
-              LAST_PATCH=$(echo "$LAST_RC" | sed -E "s/${RELEASE_MINOR}\.([0-9]+)-rc\..*/\1/")
               LAST_RC_NUM=$(echo "$LAST_RC" | sed -E "s/.*-rc\.([0-9]+)/\1/")
-              
-              # Check if this is a new commit (increment rc) or same (keep)
+              # Check if new commits since last RC
               COMMITS_SINCE=$(git rev-list --count HEAD ^$(git rev-list -n1 "$LAST_RC") 2>/dev/null || echo "1")
               if [ "$COMMITS_SINCE" -gt 0 ]; then
                 RC_NUM=$((LAST_RC_NUM + 1))
               else
                 RC_NUM=$LAST_RC_NUM
               fi
-              PATCH=$LAST_PATCH
             else
-              # First RC for this minor - start at patch 0
-              PATCH=0
               RC_NUM=1
             fi
             
