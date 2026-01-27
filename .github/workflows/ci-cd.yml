@@ -1,0 +1,211 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/**'
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - 'release/**'
+
+env:
+  IMAGE_NAME: ciyex-app
+  REGISTRY: registry.apps-prod.us-east.in.hinisoft.com
+
+jobs:
+  # Determine version based on branch/tag
+  version:
+    name: Determine Version
+    runs-on: [self-hosted, linux, x64]
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      environment: ${{ steps.version.outputs.environment }}
+      overlay: ${{ steps.version.outputs.overlay }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get base version from build.gradle
+        id: base
+        run: |
+          BASE_VERSION=$(grep "^version = " build.gradle | sed "s/version = '\(.*\)'/\1/")
+          echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Base version: $BASE_VERSION"
+
+      - name: Calculate version
+        id: version
+        run: |
+          BASE="${{ steps.base.outputs.base_version }}"
+          
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            # Production release from tag
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            ENV="prod"
+            OVERLAY="prod"
+          elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
+            # Release candidate from release branch
+            # Count commits on this branch to get RC number
+            RC_NUM=$(git rev-list --count HEAD ^$(git merge-base HEAD origin/main) 2>/dev/null || echo "1")
+            RC_NUM=$((RC_NUM + 1))
+            VERSION="${BASE}-rc.${RC_NUM}"
+            ENV="stage"
+            OVERLAY="stage"
+          else
+            # Alpha from main branch
+            # Get last alpha number and increment
+            LAST_TAG=$(git tag -l "${BASE}-alpha.*" --sort=-v:refname | head -n1)
+            if [ -n "$LAST_TAG" ]; then
+              LAST_NUM=$(echo "$LAST_TAG" | sed "s/${BASE}-alpha.//")
+              ALPHA_NUM=$((LAST_NUM + 1))
+            else
+              ALPHA_NUM=${{ github.run_number }}
+            fi
+            VERSION="${BASE}-alpha.${ALPHA_NUM}"
+            ENV="dev"
+            OVERLAY="dev"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "overlay=$OVERLAY" >> $GITHUB_OUTPUT
+          echo "🏷️ Version: $VERSION | Environment: $ENV"
+
+  # PR validation - no deploy
+  pr-build:
+    name: PR Build
+    if: github.event_name == 'pull_request'
+    runs-on: [self-hosted, linux, x64]
+    needs: [version]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Build with Gradle
+        run: ./gradlew build -x test
+
+      - name: Build Docker image (no push)
+        run: |
+          docker build -t $REGISTRY/$IMAGE_NAME:pr-${{ github.event.number }} .
+          echo "✅ PR build successful"
+
+  # Build and deploy
+  build-deploy:
+    name: Build & Deploy (${{ needs.version.outputs.environment }})
+    if: github.event_name == 'push'
+    runs-on: [self-hosted, linux, x64]
+    needs: [version]
+    environment:
+      name: ${{ needs.version.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Build with Gradle
+        run: ./gradlew build -x test
+
+      - name: Login to Registry
+        run: |
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login $REGISTRY -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+
+      - name: Build and Push Docker Image
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          docker build -t $REGISTRY/$IMAGE_NAME:$VERSION -t $REGISTRY/$IMAGE_NAME:${{ needs.version.outputs.environment }} .
+          docker push $REGISTRY/$IMAGE_NAME:$VERSION
+          docker push $REGISTRY/$IMAGE_NAME:${{ needs.version.outputs.environment }}
+          echo "✅ Pushed: $REGISTRY/$IMAGE_NAME:$VERSION"
+
+      - name: Create Git tag for alpha/rc
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION" || echo "Tag already exists"
+
+      - name: Update deployment manifest
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          OVERLAY="${{ needs.version.outputs.overlay }}"
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git pull --rebase origin ${{ github.ref_name }} || true
+          
+          sed -i "s|image: $REGISTRY/$IMAGE_NAME:.*|image: $REGISTRY/$IMAGE_NAME:$VERSION|" k8s/overlays/$OVERLAY/deployment-patch.yaml
+          
+          git add k8s/overlays/$OVERLAY/deployment-patch.yaml
+          git commit -m "chore($OVERLAY): update image to $VERSION [skip ci]" || echo "No changes"
+          git push || echo "Push skipped"
+
+      - name: Deploy to Kubernetes
+        run: |
+          OVERLAY="${{ needs.version.outputs.overlay }}"
+          NAMESPACE="ciyex-${{ needs.version.outputs.environment }}"
+          
+          kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret docker-registry regcred \
+            --docker-server=$REGISTRY \
+            --docker-username=${{ secrets.REGISTRY_USERNAME }} \
+            --docker-password=${{ secrets.REGISTRY_PASSWORD }} \
+            -n $NAMESPACE \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          kubectl apply -k k8s/overlays/$OVERLAY
+          kubectl rollout status deployment/$OVERLAY-ciyex-app -n $NAMESPACE --timeout=5m
+
+  # Notify team
+  notify:
+    name: Notify
+    if: always() && github.event_name == 'push'
+    runs-on: [self-hosted, linux, x64]
+    needs: [version, build-deploy]
+    steps:
+      - name: Send Teams notification
+        run: |
+          WEBHOOK="${{ secrets.TEAMS_WEBHOOK_URL }}"
+          [ -z "$WEBHOOK" ] && exit 0
+          
+          STATUS="${{ needs.build-deploy.result }}"
+          EMOJI="✅"; [ "$STATUS" != "success" ] && EMOJI="❌"
+          
+          curl -H "Content-Type: application/json" -d '{
+            "type": "message",
+            "attachments": [{
+              "contentType": "application/vnd.microsoft.card.adaptive",
+              "content": {
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                  {"type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "'"$EMOJI"' Ciyex Backend - ${{ needs.version.outputs.environment }}"},
+                  {"type": "FactSet", "facts": [
+                    {"title": "Version", "value": "${{ needs.version.outputs.version }}"},
+                    {"title": "Status", "value": "'"$STATUS"'"},
+                    {"title": "Actor", "value": "${{ github.actor }}"}
+                  ]}
+                ],
+                "actions": [{"type": "Action.OpenUrl", "title": "View", "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}]
+              }
+            }]
+          }' "$WEBHOOK"
