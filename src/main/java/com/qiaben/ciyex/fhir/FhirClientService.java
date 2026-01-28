@@ -32,7 +32,7 @@ public class FhirClientService {
     private final String baseServerUrl;
     private final int socketTimeout;
     private final int connectTimeout;
-    
+
     // Cache clients per partition to avoid recreating them
     private final ConcurrentHashMap<String, IGenericClient> clientCache = new ConcurrentHashMap<>();
 
@@ -59,11 +59,11 @@ public class FhirClientService {
         return clientCache.computeIfAbsent(orgAlias, alias -> {
             String partitionUrl = alias.isEmpty() ? baseServerUrl : baseServerUrl + "/" + alias;
             log.debug("Creating FHIR client for partition: {}", partitionUrl);
-            
+
             fhirContext.getRestfulClientFactory().setSocketTimeout(socketTimeout);
             fhirContext.getRestfulClientFactory().setConnectTimeout(connectTimeout);
             fhirContext.getRestfulClientFactory().setServerValidationMode(ServerValidationModeEnum.NEVER);
-            
+
             return fhirContext.newRestfulGenericClient(partitionUrl);
         });
     }
@@ -74,7 +74,7 @@ public class FhirClientService {
      */
     public <T extends Resource> MethodOutcome create(T resource, String orgAlias) {
         log.debug("Creating FHIR resource {} in partition {}", resource.getResourceType(), orgAlias);
-        
+
         return getClientForPartition(orgAlias).create()
                 .resource(resource)
                 .execute();
@@ -84,9 +84,9 @@ public class FhirClientService {
      * Read a FHIR resource by ID from the specified partition.
      */
     public <T extends IBaseResource> T read(Class<T> resourceClass, String id, String orgAlias) {
-        log.debug("Reading FHIR resource {} with id {} from partition {}", 
+        log.debug("Reading FHIR resource {} with id {} from partition {}",
                 resourceClass.getSimpleName(), id, orgAlias);
-        
+
         return getClientForPartition(orgAlias).read()
                 .resource(resourceClass)
                 .withId(id)
@@ -101,11 +101,11 @@ public class FhirClientService {
             T resource = read(resourceClass, id, orgAlias);
             return Optional.of(resource);
         } catch (ResourceNotFoundException e) {
-            log.debug("Resource {} with id {} not found in partition {}", 
+            log.debug("Resource {} with id {} not found in partition {}",
                     resourceClass.getSimpleName(), id, orgAlias);
             return Optional.empty();
         } catch (Exception e) {
-            log.warn("Error reading resource {} with id {} from partition {}: {}", 
+            log.warn("Error reading resource {} with id {} from partition {}: {}",
                     resourceClass.getSimpleName(), id, orgAlias, e.getMessage());
             return Optional.empty();
         }
@@ -115,9 +115,9 @@ public class FhirClientService {
      * Update an existing FHIR resource in the specified partition.
      */
     public <T extends Resource> MethodOutcome update(T resource, String orgAlias) {
-        log.debug("Updating FHIR resource {} with id {} in partition {}", 
+        log.debug("Updating FHIR resource {} with id {} in partition {}",
                 resource.getResourceType(), resource.getId(), orgAlias);
-        
+
         return getClientForPartition(orgAlias).update()
                 .resource(resource)
                 .execute();
@@ -127,9 +127,9 @@ public class FhirClientService {
      * Delete a FHIR resource by ID from the specified partition.
      */
     public void delete(Class<? extends IBaseResource> resourceClass, String id, String orgAlias) {
-        log.debug("Deleting FHIR resource {} with id {} from partition {}", 
+        log.debug("Deleting FHIR resource {} with id {} from partition {}",
                 resourceClass.getSimpleName(), id, orgAlias);
-        
+
         getClientForPartition(orgAlias).delete()
                 .resourceById(resourceClass.getSimpleName(), id)
                 .execute();
@@ -139,9 +139,9 @@ public class FhirClientService {
      * Delete a FHIR resource by resource name and ID from the specified partition.
      */
     public void deleteByResourceName(String resourceName, String id, String orgAlias) {
-        log.debug("Deleting FHIR resource {} with id {} from partition {}", 
+        log.debug("Deleting FHIR resource {} with id {} from partition {}",
                 resourceName, id, orgAlias);
-        
+
         getClientForPartition(orgAlias).delete()
                 .resourceById(resourceName, id)
                 .execute();
@@ -154,10 +154,10 @@ public class FhirClientService {
         Bundle bundle = getClientForPartition(orgAlias).search()
                 .forResource(resourceClass)
                 .count(1000)
-                .cacheControl(new ca.uhn.fhir.rest.api.CacheControlDirective().setNoCache(true).setNoStore(true))
+                .cacheControl(new ca.uhn.fhir.rest.api.CacheControlDirective().setNoCache(true))
                 .returnBundle(Bundle.class)
                 .execute();
-        
+
         // Load all pages
         Bundle firstBundle = bundle;
         while (bundle.getLink(Bundle.LINK_NEXT) != null) {
@@ -169,7 +169,7 @@ public class FhirClientService {
             }
             bundle = nextPage;
         }
-        
+
         return firstBundle;
     }
 
@@ -181,20 +181,19 @@ public class FhirClientService {
             String system,
             String code,
             String orgAlias) {
-        
+
         log.debug("Searching FHIR resource {} by code {}|{} in partition {}",
                 resourceClass.getSimpleName(), system, code, orgAlias);
-        
+
         Bundle bundle = getClientForPartition(orgAlias).search()
                 .forResource(resourceClass)
                 .where(new ca.uhn.fhir.rest.gclient.TokenClientParam("code")
                         .exactly()
                         .systemAndCode(system, code))
                 .count(1000)
-                .cacheControl(new ca.uhn.fhir.rest.api.CacheControlDirective().setNoCache(true).setNoStore(true))
                 .returnBundle(Bundle.class)
                 .execute();
-        
+
         // Load all pages
         Bundle firstBundle = bundle;
         while (bundle.getLink(Bundle.LINK_NEXT) != null) {
@@ -206,7 +205,7 @@ public class FhirClientService {
             }
             bundle = nextPage;
         }
-        
+
         return firstBundle;
     }
 
@@ -214,24 +213,23 @@ public class FhirClientService {
      * Search for FHIR resources by identifier in the specified partition with pagination.
      */
     public <T extends IBaseResource> Bundle searchByIdentifier(
-            Class<T> resourceClass, 
-            String system, 
-            String value, 
+            Class<T> resourceClass,
+            String system,
+            String value,
             String orgAlias) {
-        
-        log.debug("Searching FHIR resource {} by identifier {}|{} in partition {}", 
+
+        log.debug("Searching FHIR resource {} by identifier {}|{} in partition {}",
                 resourceClass.getSimpleName(), system, value, orgAlias);
-        
+
         Bundle bundle = getClientForPartition(orgAlias).search()
                 .forResource(resourceClass)
                 .where(new ca.uhn.fhir.rest.gclient.TokenClientParam("identifier")
                         .exactly()
                         .systemAndCode(system, value))
                 .count(1000)
-                .cacheControl(new ca.uhn.fhir.rest.api.CacheControlDirective().setNoCache(true).setNoStore(true))
                 .returnBundle(Bundle.class)
                 .execute();
-        
+
         // Load all pages
         Bundle firstBundle = bundle;
         while (bundle.getLink(Bundle.LINK_NEXT) != null) {
@@ -243,10 +241,21 @@ public class FhirClientService {
             }
             bundle = nextPage;
         }
-        
+
         return firstBundle;
     }
 
+
+    /**
+     * Load a page by URL (for pagination).
+     */
+    public Bundle loadPage(String url, String orgAlias) {
+        log.debug("Loading page from URL: {} in partition {}", url, orgAlias);
+        return getClientForPartition(orgAlias).loadPage()
+                .byUrl(url)
+                .andReturnBundle(Bundle.class)
+                .execute();
+    }
 
     /**
      * Extract resources from a Bundle.
@@ -273,17 +282,6 @@ public class FhirClientService {
         } else {
             return create(resource, orgAlias);
         }
-    }
-
-    /**
-     * Load next page of results from a Bundle link.
-     */
-    public Bundle loadPage(String url, String orgAlias) {
-        log.debug("Loading next page from URL: {}", url);
-        return getClientForPartition(orgAlias).loadPage()
-                .byUrl(url)
-                .andReturnBundle(Bundle.class)
-                .execute();
     }
 
     /**

@@ -10,6 +10,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class DocumentSettingsDto {
+    private String fhirId;
     private int maxUploadSizeMB;
     private boolean enableAudio;
     private List<String> allowedFileTypes;

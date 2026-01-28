@@ -140,8 +140,9 @@ public class DocumentService {
         String fhirId = outcome.getId().getIdPart();
 
         // Store both the FHIR ID and a numeric ID for compatibility
-        dto.setId(Long.parseLong(fhirId.replaceAll("[^0-9]", "").isEmpty() ? "0" : Math.abs(fhirId.hashCode()) + ""));
-        dto.setFhirId(fhirId);  // Store actual FHIR ID
+        dto.setFhirId(fhirId);
+        // Generate a proper numeric ID instead of using "0"
+        dto.setId(Math.abs((long)fhirId.hashCode()));
         dto.setContent(null);
         dto.setEncrypted(base64Key != null);
         log.info("Created FHIR DocumentReference with id: {} (numeric: {})", fhirId, dto.getId());
@@ -240,20 +241,29 @@ public class DocumentService {
     public ApiResponse<List<DocumentDto>> getAllForPatient(String tenantName, Long patientId) {
         log.debug("Getting FHIR DocumentReferences for patient: {}", patientId);
 
-        Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
-                .forResource(DocumentReference.class)
-                .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
-                .returnBundle(Bundle.class)
-                .execute();
+        try {
+            Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                    .forResource(DocumentReference.class)
+                    .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                    .returnBundle(Bundle.class)
+                    .execute();
 
-        List<DocumentReference> docs = fhirClientService.extractResources(bundle, DocumentReference.class);
-        List<DocumentDto> dtos = docs.stream().map(this::fromFhirDocumentReference).collect(Collectors.toList());
+            List<DocumentReference> docs = fhirClientService.extractResources(bundle, DocumentReference.class);
+            List<DocumentDto> dtos = docs.stream().map(this::fromFhirDocumentReference).collect(Collectors.toList());
 
-        return ApiResponse.<List<DocumentDto>>builder()
-                .success(true)
-                .message("Documents retrieved successfully")
-                .data(dtos)
-                .build();
+            return ApiResponse.<List<DocumentDto>>builder()
+                    .success(true)
+                    .message("Documents retrieved successfully")
+                    .data(dtos)
+                    .build();
+        } catch (Exception e) {
+            log.error("Error retrieving documents for patient {}: {}", patientId, e.getMessage());
+            return ApiResponse.<List<DocumentDto>>builder()
+                    .success(false)
+                    .message("Error retrieving documents: " + e.getMessage())
+                    .data(new ArrayList<>())
+                    .build();
+        }
     }
 
     // GET ALL BY TENANT
