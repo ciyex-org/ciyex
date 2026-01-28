@@ -185,6 +185,11 @@ jobs:
           git tag -a "$VERSION" -m "Release $VERSION"
           git push origin "$VERSION" || echo "Tag already exists"
 
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
       - name: Update deployment manifest
         run: |
           VERSION="${{ needs.version.outputs.version }}"
