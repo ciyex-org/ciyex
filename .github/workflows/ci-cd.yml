@@ -19,7 +19,7 @@ on:
 
 env:
   IMAGE_NAME: ciyex-app
-  REGISTRY: registry.apps-prod.us-east.in.hinisoft.com
+  REGISTRY: hinikubestageacr.azurecr.io
 
 jobs:
   # Determine version based on branch/tag
