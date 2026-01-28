@@ -243,7 +243,6 @@ public class VitalsController {
     @GetMapping("/by-patient/{patientId}")
     @PreAuthorize("hasAuthority('ROLE_PRACTITIONER') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<List<VitalsDto>>> getVitalsForEhr(
-            @RequestHeader("orgId") Long orgId,
             @PathVariable Long patientId) {
         List<VitalsDto> vitals = service.getVitalsByPatient(patientId);
         return ResponseEntity.ok(ApiResponse.<List<VitalsDto>>builder()
@@ -309,7 +308,6 @@ public class VitalsController {
     @PostMapping("/by-patient/{patientId}")
     @PreAuthorize("hasAuthority('ROLE_PRACTITIONER') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<VitalsDto>> addVitalsForEhr(
-            @RequestHeader("orgId") Long orgId,
             @PathVariable Long patientId,
             @RequestParam Long encounterId,
             @RequestBody VitalsDto dto) {

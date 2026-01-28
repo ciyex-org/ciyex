@@ -14,7 +14,6 @@ import java.util.List;
 public class PortalMessageAttachmentDto {
     private Long id;
     private Long messageId;
-    private Long orgId;
     private String category;
     private String type;
     private String fileName;
