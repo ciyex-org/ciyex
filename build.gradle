@@ -26,7 +26,7 @@ tasks.withType(JavaCompile) {
 
 repositories {
 	mavenCentral()
-	maven { url 'https://repo.spring.io/milestone' }
+	maven { url = uri('https://repo.spring.io/milestone') }
 }
 
 dependencies {
