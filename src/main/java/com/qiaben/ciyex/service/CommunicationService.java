@@ -29,6 +29,7 @@ public class CommunicationService {
 
     private final FhirClientService fhirClientService;
     private final PracticeContextService practiceContextService;
+    private final PatientService patientService;
 
     // Extension URLs for custom fields
     private static final String EXT_MESSAGE_TYPE = "http://ciyex.com/fhir/StructureDefinition/message-type";
@@ -357,6 +358,25 @@ public class CommunicationService {
         // Infer messageType if not set
         if (dto.getMessageType() == null && dto.getFromType() != null) {
             dto.setMessageType("provider".equals(dto.getFromType()) ? "provider_to_patient" : "patient_to_provider");
+        }
+
+        // Populate toNames from toIds
+        if (dto.getToIds() != null && !dto.getToIds().isEmpty()) {
+            List<String> toNames = new ArrayList<>();
+            for (Long toId : dto.getToIds()) {
+                try {
+                    var patient = fhirClientService.read(Patient.class, String.valueOf(toId), getPracticeId());
+                    if (patient.hasName() && !patient.getName().isEmpty()) {
+                        HumanName name = patient.getNameFirstRep();
+                        String fullName = (name.hasGiven() ? name.getGiven().get(0).getValue() + " " : "") + 
+                                         (name.hasFamily() ? name.getFamily() : "");
+                        toNames.add(fullName.trim());
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to fetch patient name for ID: {}", toId);
+                }
+            }
+            dto.setToNames(toNames);
         }
 
         return dto;

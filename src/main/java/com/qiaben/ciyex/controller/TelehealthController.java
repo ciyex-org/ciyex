@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
+import com.qiaben.ciyex.service.telehealth.CloudflareTelehealthService;
 import com.qiaben.ciyex.service.telehealth.JitsiTelehealthService;
 import com.qiaben.ciyex.service.telehealth.TelehealthGateway;
 import com.qiaben.ciyex.service.telehealth.TelehealthResolver;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/telehealth")
@@ -172,6 +174,38 @@ public class TelehealthController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(
                     ApiResponse.error("Failed to join telehealth session: " + e.getMessage()));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // ✅ 4️⃣ Cloudflare Join (Generate Session ID)
+    // -------------------------------------------------------------------------
+    @PostMapping("/cloudflare/join")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> cloudflareJoin(@RequestBody JoinTokenRequest req, HttpServletRequest request) {
+        List<String> missingFields = new ArrayList<>();
+
+        if (req.roomName() == null || req.roomName().trim().isEmpty()) missingFields.add("Room Name");
+        if (req.identity() == null || req.identity().trim().isEmpty()) missingFields.add("Identity");
+
+        if (!missingFields.isEmpty()) {
+            String message = String.join(", ", missingFields)
+                    + (missingFields.size() > 1 ? " are required." : " is required.");
+            return ResponseEntity.badRequest().body(ApiResponse.error(message));
+        }
+
+        try {
+            int ttl = (req.ttlSeconds() != null && req.ttlSeconds() > 0) ? req.ttlSeconds() : 3600;
+            CloudflareTelehealthService cloudflareService = applicationContext.getBean(CloudflareTelehealthService.class);
+            CloudflareTelehealthService.CloudflareJoinResponse result =
+                    cloudflareService.createJoinTokenWithUrl(req.roomName(), req.identity(), ttl);
+
+            return ResponseEntity.ok(ApiResponse.ok("Cloudflare session created successfully",
+                    Map.of("sessionId", result.sessionId(), "roomName", result.roomName(), "identity", result.identity())));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.error("Failed to create Cloudflare session: " + e.getMessage()));
         }
     }
 
