@@ -55,7 +55,7 @@ jobs:
 
       - name: Promote to RC
         run: |
-          CURRENT=$(grep "^version = " interceptor/build.gradle | sed "s/version = '\(.*\)'/\1/")
+          CURRENT=$(grep "^version = " build.gradle | sed "s/version = '\(.*\)'/\1/")
           MAJOR=$(echo $CURRENT | cut -d. -f1)
           MINOR=$(echo $CURRENT | cut -d. -f2)
           PATCH=$(echo $CURRENT | cut -d. -f3 | cut -d- -f1)
@@ -98,8 +98,8 @@ jobs:
           git pull origin main
           NEXT_PATCH=$((PATCH + 1))
           NEXT_VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}"
-          sed -i "s/version = '.*'/version = '${NEXT_VERSION}'/" interceptor/build.gradle
-          git add interceptor/build.gradle
+          sed -i "s/version = '.*'/version = '${NEXT_VERSION}'/" build.gradle
+          git add build.gradle
           git commit -m "chore: bump version to ${NEXT_VERSION} [skip ci]" || true
           git push origin main || true
           
@@ -544,7 +544,6 @@ jobs:
 
       - name: Get base version from build.gradle
         id: base
-        working-directory: interceptor
         run: |
           BASE_VERSION=$(grep "^version = " build.gradle | sed "s/version = '\(.*\)'/\1/")
           echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
@@ -635,11 +634,9 @@ jobs:
           java-version: '17'
 
       - name: Build with Gradle
-        working-directory: interceptor
         run: ./gradlew build -x test
 
       - name: Build Docker image (no push)
-        working-directory: interceptor
         run: |
           docker build -t $REGISTRY/$IMAGE_NAME:pr-${{ github.event.number }} .
           echo "✅ PR build successful"
@@ -665,7 +662,6 @@ jobs:
           java-version: '17'
 
       - name: Build with Gradle
-        working-directory: interceptor
         run: ./gradlew shadowJar
 
       - name: Login to Private Registry
@@ -673,7 +669,6 @@ jobs:
           echo "${{ secrets.PROD_REGISTRY_PASSWORD }}" | docker login $REGISTRY -u ${{ secrets.PROD_REGISTRY_USERNAME }} --password-stdin
 
       - name: Build and Push Docker Image
-        working-directory: interceptor
         run: |
           VERSION="${{ needs.version.outputs.version }}"
           docker build -t $REGISTRY/$IMAGE_NAME:$VERSION -t $REGISTRY/$IMAGE_NAME:${{ needs.version.outputs.environment }} .
