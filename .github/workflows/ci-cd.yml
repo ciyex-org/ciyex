@@ -662,7 +662,7 @@ jobs:
           java-version: '17'
 
       - name: Build with Gradle
-        run: ./gradlew shadowJar
+        run: ./gradlew build -x test
 
       - name: Login to Private Registry
         run: |
