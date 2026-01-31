@@ -198,7 +198,7 @@ jobs:
                 "type": "AdaptiveCard",
                 "version": "1.4",
                 "body": [
-                  {"type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "'"$EMOJI"' Ciyex HAPI FHIR - Promote to RC"},
+                  {"type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "'"$EMOJI"' Ciyex - Promote to RC"},
                   {"type": "FactSet", "facts": [
                     {"title": "Version", "value": "${{ env.RC_VERSION }}-rc.1"},
                     {"title": "Status", "value": "'"$STATUS"'"},
@@ -394,7 +394,7 @@ jobs:
                 "type": "AdaptiveCard",
                 "version": "1.4",
                 "body": [
-                  {"type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "'"$EMOJI"' Ciyex HAPI FHIR - Promote to GA"},
+                  {"type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "'"$EMOJI"' Ciyex - Promote to GA"},
                   {"type": "FactSet", "facts": [
                     {"title": "Version", "value": "'"$GA_VERSION"'"},
                     {"title": "Status", "value": "'"$STATUS"'"},
@@ -514,7 +514,7 @@ jobs:
                 "type": "AdaptiveCard",
                 "version": "1.4",
                 "body": [
-                  {"type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "'"$EMOJI"' Ciyex HAPI FHIR - Skip RC"},
+                  {"type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "'"$EMOJI"' Ciyex - Skip RC"},
                   {"type": "FactSet", "facts": [
                     {"title": "Skipped RC", "value": "'"${{ env.SKIPPED_RC }}"'"},
                     {"title": "Status", "value": "'"$STATUS"'"},
@@ -728,7 +728,7 @@ jobs:
                 "type": "AdaptiveCard",
                 "version": "1.4",
                 "body": [
-                  {"type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "'"$EMOJI"' Ciyex HAPI FHIR - ${{ needs.version.outputs.environment }}"},
+                  {"type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "'"$EMOJI"' Ciyex - ${{ needs.version.outputs.environment }}"},
                   {"type": "FactSet", "facts": [
                     {"title": "Version", "value": "${{ needs.version.outputs.version }}"},
                     {"title": "Status", "value": "'"$STATUS"'"},
