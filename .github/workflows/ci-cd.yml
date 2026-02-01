@@ -637,6 +637,8 @@ jobs:
         run: ./gradlew build -x test
 
       - name: Build Docker image (no push)
+        env:
+          DOCKER_BUILDKIT: 1
         run: |
           docker build -t $REGISTRY/$IMAGE_NAME:pr-${{ github.event.number }} .
           echo "✅ PR build successful"
@@ -669,6 +671,8 @@ jobs:
           echo "${{ secrets.PROD_REGISTRY_PASSWORD }}" | docker login $REGISTRY -u ${{ secrets.PROD_REGISTRY_USERNAME }} --password-stdin
 
       - name: Build and Push Docker Image
+        env:
+          DOCKER_BUILDKIT: 1
         run: |
           VERSION="${{ needs.version.outputs.version }}"
           docker build -t $REGISTRY/$IMAGE_NAME:$VERSION -t $REGISTRY/$IMAGE_NAME:${{ needs.version.outputs.environment }} .
