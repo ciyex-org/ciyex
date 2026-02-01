@@ -636,6 +636,9 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build -x test
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build Docker image (no push)
         env:
           DOCKER_BUILDKIT: 1
@@ -665,6 +668,9 @@ jobs:
 
       - name: Build with Gradle
         run: ./gradlew build -x test
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to Private Registry
         run: |
