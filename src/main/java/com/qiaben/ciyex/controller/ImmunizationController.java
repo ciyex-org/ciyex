@@ -41,10 +41,11 @@ public class ImmunizationController {
                     .data(null)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to create Immunization: {}", e.getMessage(), e);
+            log.error("Failed to create Immunization", e);
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             return ResponseEntity.ok(ApiResponse.<ImmunizationDto>builder()
                     .success(false)
-                    .message("Failed to create immunization: " + e.getMessage())
+                    .message("Failed to create immunization: " + errorMsg)
                     .data(null)
                     .build());
         }
@@ -55,13 +56,6 @@ public class ImmunizationController {
             @PathVariable("patientId") Long patientId) {
         try {
             ImmunizationDto dto = service.getByPatientId(patientId);
-            if (dto.getImmunizations() == null || dto.getImmunizations().isEmpty()) {
-                return ResponseEntity.ok(ApiResponse.<ImmunizationDto>builder()
-                        .success(false)
-                        .message("Failed to retrieve immunization: Immunization not found for patientId=" + patientId)
-                        .data(null)
-                        .build());
-            }
             return ResponseEntity.ok(ApiResponse.<ImmunizationDto>builder()
                     .success(true)
                     .message("Immunizations retrieved successfully")
@@ -122,17 +116,9 @@ public class ImmunizationController {
     public ResponseEntity<ApiResponse<ImmunizationDto.ImmunizationItem>> updateItem(
             @PathVariable("patientId") Long patientId,
             @PathVariable("immunizationId") Long immunizationId,
-            @RequestBody ImmunizationDto dto) {
+            @RequestBody ImmunizationDto.ImmunizationItem item) {
         try {
-            // Extract the first immunization item from the immunizations list
-            ImmunizationDto.ImmunizationItem patch = null;
-            if (dto.getImmunizations() != null && !dto.getImmunizations().isEmpty()) {
-                patch = dto.getImmunizations().get(0);
-            } else {
-                throw new IllegalArgumentException("immunizations list is required and must contain at least one item");
-            }
-            
-            var updated = service.updateItem(patientId, immunizationId, patch);
+            var updated = service.updateItem(patientId, immunizationId, item);
             return ResponseEntity.ok(ApiResponse.<ImmunizationDto.ImmunizationItem>builder()
                     .success(true)
                     .message("Immunization item updated successfully")
@@ -147,9 +133,10 @@ public class ImmunizationController {
                     .build());
         } catch (Exception e) {
             log.error("Failed to update item {} for patientId {}: {}", immunizationId, patientId, e.getMessage(), e);
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             return ResponseEntity.ok(ApiResponse.<ImmunizationDto.ImmunizationItem>builder()
                     .success(false)
-                    .message("Failed to update immunization: " + e.getMessage())
+                    .message("Failed to update immunization: " + errorMsg)
                     .data(null)
                     .build());
         }
