@@ -43,6 +43,10 @@ public class ImmunizationService {
         if (dto == null || dto.getImmunizations() == null || dto.getImmunizations().isEmpty()) {
             throw new IllegalArgumentException("No immunization data provided");
         }
+        
+        if (dto.getPatientId() == null) {
+            throw new IllegalArgumentException("patientId is required");
+        }
 
         log.info("Creating immunization in FHIR for patient: {}", dto.getPatientId());
 
@@ -239,8 +243,12 @@ public class ImmunizationService {
         }
 
         // Occurrence date
-        if (item.getDateTimeAdministered() != null) {
-            immunization.setOccurrence(new DateTimeType(item.getDateTimeAdministered()));
+        if (item.getDateTimeAdministered() != null && !item.getDateTimeAdministered().trim().isEmpty()) {
+            try {
+                immunization.setOccurrence(new DateTimeType(item.getDateTimeAdministered()));
+            } catch (Exception e) {
+                log.warn("Invalid dateTimeAdministered format: {}", item.getDateTimeAdministered());
+            }
         }
 
         // Manufacturer
@@ -254,8 +262,12 @@ public class ImmunizationService {
         }
 
         // Expiration date
-        if (item.getExpirationDate() != null) {
-            immunization.setExpirationDate(java.sql.Date.valueOf(item.getExpirationDate()));
+        if (item.getExpirationDate() != null && !item.getExpirationDate().trim().isEmpty()) {
+            try {
+                immunization.setExpirationDate(java.sql.Date.valueOf(item.getExpirationDate()));
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid expiration date format: {}", item.getExpirationDate());
+            }
         }
 
         // Route
@@ -269,8 +281,12 @@ public class ImmunizationService {
         }
 
         // Dose quantity
-        if (item.getAmountAdministered() != null) {
-            immunization.setDoseQuantity(new Quantity().setValue(Double.parseDouble(item.getAmountAdministered())));
+        if (item.getAmountAdministered() != null && !item.getAmountAdministered().trim().isEmpty()) {
+            try {
+                immunization.setDoseQuantity(new Quantity().setValue(Double.parseDouble(item.getAmountAdministered())));
+            } catch (NumberFormatException e) {
+                log.warn("Invalid amountAdministered format: {}", item.getAmountAdministered());
+            }
         }
 
         // Performer (administrator)

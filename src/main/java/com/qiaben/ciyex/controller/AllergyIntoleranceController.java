@@ -114,12 +114,13 @@ public class AllergyIntoleranceController {
     public ResponseEntity<ApiResponse<AllergyIntoleranceDto.AllergyItem>> updateItem(
             @PathVariable("patientId") Long patientId,
             @PathVariable("intoleranceId") Long intoleranceId,
-            @Valid @RequestBody AllergyIntoleranceDto dto) {
+            @RequestBody AllergyIntoleranceDto dto) {
         try {
             AllergyIntoleranceDto.AllergyItem item = null;
             if (dto.getAllergiesList() != null && !dto.getAllergiesList().isEmpty()) {
                 item = dto.getAllergiesList().get(0);
-            } else {
+            }
+            if (item == null) {
                 throw new IllegalArgumentException("allergiesList is required and must contain at least one item");
             }
             var updated = service.updateItem(patientId, intoleranceId, item);
