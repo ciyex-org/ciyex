@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
@@ -47,6 +48,8 @@ public class PortalDemographicsService {
     private static final String EXT_ALLOW_EMAIL = "http://ciyex.com/fhir/StructureDefinition/allow-email";
     private static final String EXT_ALLOW_VOICE = "http://ciyex.com/fhir/StructureDefinition/allow-voice-message";
     private static final String EXT_ALLOW_MAIL = "http://ciyex.com/fhir/StructureDefinition/allow-mail-message";
+    private static final String EXT_CREATED_DATE = "http://ciyex.com/fhir/StructureDefinition/created-date";
+    private static final String EXT_MODIFIED_DATE = "http://ciyex.com/fhir/StructureDefinition/last-modified-date";
 
     private String getPracticeId() {
         return practiceContextService.getPracticeId();
@@ -79,20 +82,37 @@ public class PortalDemographicsService {
                 .filter(b -> userId.toString().equals(getStringExt(b, EXT_USER_ID)))
                 .toList();
 
-        Basic basic = toFhirBasic(dto, userId);
+        Instant now = Instant.now();
+        PortalDemographicsDto.Audit audit = dto.getAudit() != null ? dto.getAudit() : new PortalDemographicsDto.Audit();
 
         if (demos.isEmpty()) {
             // Create new
+            audit.setCreatedDate(now);
+            audit.setLastModifiedDate(now);
+            dto.setAudit(audit);
+
+            Basic basic = toFhirBasic(dto, userId);
             var outcome = fhirClientService.create(basic, getPracticeId());
             String fhirId = outcome.getId().getIdPart();
             dto.setId((long) Math.abs(fhirId.hashCode()));
+            dto.setFhirId(fhirId);
             log.info("Created portal demographics with FHIR ID: {}", fhirId);
         } else {
-            // Update existing
-            String fhirId = demos.get(0).getIdElement().getIdPart();
+            // Update existing - preserve createdDate
+            Basic existing = demos.get(0);
+            Extension createdExt = existing.getExtensionByUrl(EXT_CREATED_DATE);
+            if (createdExt != null && createdExt.getValue() instanceof InstantType) {
+                audit.setCreatedDate(((InstantType) createdExt.getValue()).getValueAsCalendar().toInstant());
+            }
+            audit.setLastModifiedDate(now);
+            dto.setAudit(audit);
+
+            String fhirId = existing.getIdElement().getIdPart();
+            Basic basic = toFhirBasic(dto, userId);
             basic.setId(fhirId);
             fhirClientService.update(basic, getPracticeId());
             dto.setId((long) Math.abs(fhirId.hashCode()));
+            dto.setFhirId(fhirId);
             log.info("Updated portal demographics with FHIR ID: {}", fhirId);
         }
 
@@ -130,6 +150,15 @@ public class PortalDemographicsService {
         basic.addExtension(new Extension(EXT_ALLOW_VOICE, new BooleanType(dto.isAllowVoiceMessage())));
         basic.addExtension(new Extension(EXT_ALLOW_MAIL, new BooleanType(dto.isAllowMailMessage())));
 
+        if (dto.getAudit() != null) {
+            if (dto.getAudit().getCreatedDate() != null) {
+                basic.addExtension(new Extension(EXT_CREATED_DATE, new InstantType(Date.from(dto.getAudit().getCreatedDate()))));
+            }
+            if (dto.getAudit().getLastModifiedDate() != null) {
+                basic.addExtension(new Extension(EXT_MODIFIED_DATE, new InstantType(Date.from(dto.getAudit().getLastModifiedDate()))));
+            }
+        }
+
         return basic;
     }
 
@@ -138,6 +167,7 @@ public class PortalDemographicsService {
 
         String fhirId = basic.getIdElement().getIdPart();
         dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setFhirId(fhirId);
 
         dto.setFirstName(getStringExt(basic, EXT_FIRST_NAME));
         dto.setMiddleName(getStringExt(basic, EXT_MIDDLE_NAME));
@@ -165,6 +195,17 @@ public class PortalDemographicsService {
                 dto.setDob(date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate());
             }
         }
+
+        PortalDemographicsDto.Audit audit = new PortalDemographicsDto.Audit();
+        Extension createdExt = basic.getExtensionByUrl(EXT_CREATED_DATE);
+        if (createdExt != null && createdExt.getValue() instanceof InstantType) {
+            audit.setCreatedDate(((InstantType) createdExt.getValue()).getValueAsCalendar().toInstant());
+        }
+        Extension modifiedExt = basic.getExtensionByUrl(EXT_MODIFIED_DATE);
+        if (modifiedExt != null && modifiedExt.getValue() instanceof InstantType) {
+            audit.setLastModifiedDate(((InstantType) modifiedExt.getValue()).getValueAsCalendar().toInstant());
+        }
+        dto.setAudit(audit);
 
         return dto;
     }

@@ -27,6 +27,9 @@ public class DocumentSettingsService {
     private final FhirClientService fhirClientService;
     private final PracticeContextService practiceContextService;
     private final ObjectMapper objectMapper;
+    
+    // Simple cache invalidation flag
+    private volatile boolean cacheInvalidated = false;
 
     private static final String SETTINGS_TYPE_SYSTEM = "http://ciyex.com/fhir/resource-type";
     private static final String SETTINGS_TYPE_CODE = "document-settings";
@@ -37,7 +40,9 @@ public class DocumentSettingsService {
     private static final String EXT_CATEGORIES = "http://ciyex.com/fhir/StructureDefinition/categories";
 
     private String getPracticeId() {
-        return practiceContextService.getPracticeId();
+        String practiceId = practiceContextService.getPracticeId();
+        log.debug("Current practice ID: {}", practiceId);
+        return practiceId;
     }
 
     // GET (creates default if not exists)
@@ -45,12 +50,22 @@ public class DocumentSettingsService {
         log.debug("Getting document settings");
 
         Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
-        List<Basic> settings = fhirClientService.extractResources(bundle, Basic.class).stream()
+        List<Basic> allBasics = fhirClientService.extractResources(bundle, Basic.class);
+        log.debug("Found {} Basic resources total", allBasics.size());
+        
+        List<Basic> settings = allBasics.stream()
                 .filter(this::isDocumentSettings)
                 .toList();
+        log.debug("Found {} document settings resources", settings.size());
 
         if (!settings.isEmpty()) {
-            return fromFhirBasic(settings.get(0));
+            log.debug("Returning existing document settings");
+            // If multiple settings exist, delete extras and keep the latest
+            if (settings.size() > 1) {
+                log.warn("Found {} document settings, cleaning up old ones", settings.size());
+                cleanupDuplicateSettings(settings);
+            }
+            return fromFhirBasic(settings.get(settings.size() - 1));
         }
 
         // Create default settings
@@ -63,16 +78,32 @@ public class DocumentSettingsService {
         log.debug("Saving document settings");
 
         Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
-        List<Basic> settings = fhirClientService.extractResources(bundle, Basic.class).stream()
+        List<Basic> allBasics = fhirClientService.extractResources(bundle, Basic.class);
+        log.debug("Found {} Basic resources total for save", allBasics.size());
+        
+        List<Basic> settings = allBasics.stream()
                 .filter(this::isDocumentSettings)
                 .toList();
+        log.debug("Found {} document settings resources for save", settings.size());
 
-        // Ensure JPG and JPEG are always together
+        // Handle file types based on audio setting
         List<String> fileTypes = new ArrayList<>(dto.getAllowedFileTypes());
+        
+        // Add MP3 if audio is enabled and not already present
+        if (dto.isEnableAudio() && fileTypes.stream().noneMatch(ft -> ft.equalsIgnoreCase("MP3"))) {
+            fileTypes.add("MP3");
+        }
+        // Remove MP3 if audio is disabled
+        else if (!dto.isEnableAudio()) {
+            fileTypes.removeIf(ft -> ft.equalsIgnoreCase("MP3"));
+        }
+        
+        // Ensure JPG and JPEG are always together
         boolean hasJpg = fileTypes.stream().anyMatch(ft -> ft.equalsIgnoreCase("JPG"));
         boolean hasJpeg = fileTypes.stream().anyMatch(ft -> ft.equalsIgnoreCase("JPEG"));
         if (hasJpg && !hasJpeg) fileTypes.add("JPEG");
         else if (hasJpeg && !hasJpg) fileTypes.add("JPG");
+        
         dto.setAllowedFileTypes(fileTypes);
 
         Basic basic = toFhirBasic(dto);
@@ -81,14 +112,19 @@ public class DocumentSettingsService {
             // Create new
             var outcome = fhirClientService.create(basic, getPracticeId());
             String fhirId = outcome.getId().getIdPart();
+            dto.setFhirId(fhirId);
             log.info("Created document settings with FHIR ID: {}", fhirId);
         } else {
             // Update existing
             String fhirId = settings.get(0).getIdElement().getIdPart();
             basic.setId(fhirId);
+            dto.setFhirId(fhirId);
             fhirClientService.update(basic, getPracticeId());
             log.info("Updated document settings with FHIR ID: {}", fhirId);
         }
+        
+        // Invalidate cache after save
+        cacheInvalidated = true;
 
         return dto;
     }
@@ -179,6 +215,15 @@ public class DocumentSettingsService {
 
     private DocumentSettingsDto fromFhirBasic(Basic basic) {
         DocumentSettingsDto dto = new DocumentSettingsDto();
+        
+        // Set FHIR ID
+        if (basic.hasId()) {
+            String fhirId = basic.getIdElement().getIdPart();
+            log.debug("Setting FHIR ID: {}", fhirId);
+            dto.setFhirId(fhirId);
+        } else {
+            log.debug("Basic resource has no ID");
+        }
 
         Extension maxUploadExt = basic.getExtensionByUrl(EXT_MAX_UPLOAD);
         if (maxUploadExt != null && maxUploadExt.getValue() instanceof IntegerType) {
@@ -226,9 +271,31 @@ public class DocumentSettingsService {
     }
 
     private boolean isDocumentSettings(Basic basic) {
-        if (!basic.hasCode()) return false;
-        return basic.getCode().getCoding().stream()
-                .anyMatch(c -> SETTINGS_TYPE_SYSTEM.equals(c.getSystem()) && SETTINGS_TYPE_CODE.equals(c.getCode()));
+        if (!basic.hasCode()) {
+            log.debug("Basic resource has no code");
+            return false;
+        }
+        boolean isDocSettings = basic.getCode().getCoding().stream()
+                .anyMatch(c -> {
+                    boolean matches = SETTINGS_TYPE_SYSTEM.equals(c.getSystem()) && SETTINGS_TYPE_CODE.equals(c.getCode());
+                    log.debug("Checking coding: system={}, code={}, matches={}", c.getSystem(), c.getCode(), matches);
+                    return matches;
+                });
+        log.debug("Basic resource isDocumentSettings: {}", isDocSettings);
+        return isDocSettings;
+    }
+
+    private void cleanupDuplicateSettings(List<Basic> settings) {
+        // Keep the latest one (last in list), delete the old ones
+        for (int i = 0; i < settings.size() - 1; i++) {
+            try {
+                String fhirId = settings.get(i).getIdElement().getIdPart();
+                fhirClientService.delete(Basic.class, fhirId, getPracticeId());
+                log.info("Deleted old document settings with FHIR ID: {}", fhirId);
+            } catch (Exception e) {
+                log.warn("Failed to delete old settings: {}", e.getMessage());
+            }
+        }
     }
 
     private DocumentSettingsDto createDefaultDto() {

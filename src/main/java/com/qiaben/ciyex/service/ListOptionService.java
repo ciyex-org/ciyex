@@ -52,9 +52,7 @@ public class ListOptionService {
 
     // GET ALL LIST IDS
     public List<String> getAllListIds() {
-        String practiceId = getPracticeId();
-        Bundle bundle = fhirClientService.search(Basic.class, practiceId);
-        
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
         return fhirClientService.extractResources(bundle, Basic.class).stream()
                 .filter(basic -> basic.getExtensionByUrl(EXT_LIST_ID) != null)
                 .map(this::fromFhirBasic)
@@ -65,9 +63,7 @@ public class ListOptionService {
 
     // Debug method to see what's in FHIR
     public Map<String, Object> debugFhirSearch() {
-        String practiceId = getPracticeId();
-        Bundle bundle = fhirClientService.search(Basic.class, practiceId);
-        
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
         List<Basic> allBasics = fhirClientService.extractResources(bundle, Basic.class);
         List<Map<String, Object>> basicDetails = allBasics.stream()
                 .map(basic -> {
@@ -85,8 +81,8 @@ public class ListOptionService {
                 .collect(Collectors.toList());
         
         return Map.of(
-                "practiceId", practiceId,
-                "totalEntries", bundle.hasEntry() ? bundle.getEntry().size() : 0,
+                "practiceId", getPracticeId(),
+                "totalEntries", allBasics.size(),
                 "basicResources", allBasics.size(),
                 "basicDetails", basicDetails
         );
@@ -94,16 +90,7 @@ public class ListOptionService {
 
     // CREATE
     public ListOptionDto create(ListOptionDto dto) {
-        log.info("Creating FHIR Basic (ListOption): listId={}, title={}", dto.getListId(), dto.getTitle());
-
         Basic basic = toFhirBasic(dto);
-        
-        // Log the code being set
-        if (basic.hasCode()) {
-            basic.getCode().getCoding().forEach(c -> 
-                log.info("Setting code on new resource: system='{}' code='{}'", c.getSystem(), c.getCode()));
-        }
-        
         var outcome = fhirClientService.create(basic, getPracticeId());
         String fhirId = outcome.getId().getIdPart();
 
@@ -114,30 +101,12 @@ public class ListOptionService {
         }
         dto.setTimestamp(LocalDateTime.now());
         dto.setLastUpdated(LocalDateTime.now());
-
-        log.info("Created FHIR Basic (ListOption) with id: {}", fhirId);
-        
-        // Verify the resource was created with correct code by reading it back
-        try {
-            Basic created = fhirClientService.read(Basic.class, fhirId, getPracticeId());
-            if (created.hasCode()) {
-                created.getCode().getCoding().forEach(c -> 
-                    log.info("Verified created resource {} has code: system='{}' code='{}'", 
-                        fhirId, c.getSystem(), c.getCode()));
-            } else {
-                log.warn("Created resource {} has NO CODE!", fhirId);
-            }
-        } catch (Exception e) {
-            log.error("Failed to verify created resource: {}", e.getMessage());
-        }
         
         return dto;
     }
 
     // UPDATE
     public ListOptionDto update(String id, ListOptionDto dto) {
-        log.debug("Updating ListOption: {}", id);
-
         var existingResource = fhirClientService.readOptional(Basic.class, id, getPracticeId());
         if (existingResource.isEmpty()) {
             throw new ResourceNotFoundException("ListOption not found with ID: " + id);
@@ -153,14 +122,11 @@ public class ListOptionService {
 
     // DELETE
     public void delete(String id) {
-        log.debug("Deleting ListOption: {}", id);
         fhirClientService.delete(Basic.class, id, getPracticeId());
     }
 
     // GET ONE
     public ListOptionDto get(String id) {
-        log.debug("Getting ListOption: {}", id);
-        
         var optionalBasic = fhirClientService.readOptional(Basic.class, id, getPracticeId());
         if (optionalBasic.isEmpty()) {
             throw new ResourceNotFoundException("ListOption not found with ID: " + id);
@@ -171,68 +137,33 @@ public class ListOptionService {
 
     // GET ALL
     public List<ListOptionDto> getAll() {
-        String practiceId = getPracticeId();
-        log.info("Getting all ListOptions for practiceId: '{}'", practiceId);
-        
-        // Search ALL Basic resources without code filter
-        Bundle bundle = fhirClientService.search(Basic.class, practiceId);
-        log.info("FHIR search returned bundle with {} entries", 
-                bundle.hasEntry() ? bundle.getEntry().size() : 0);
-
-        // Filter by checking if it has the list-id extension (more reliable than code)
-        List<ListOptionDto> result = fhirClientService.extractResources(bundle, Basic.class).stream()
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+        return fhirClientService.extractResources(bundle, Basic.class).stream()
                 .filter(basic -> basic.getExtensionByUrl(EXT_LIST_ID) != null)
                 .map(this::fromFhirBasic)
                 .collect(Collectors.toList());
-        
-        log.info("Converted {} ListOptions to DTOs", result.size());
-        return result;
     }
 
     // GET BY LIST ID
     public List<ListOptionDto> getListOptionsByListId(String listId) {
-        String practiceId = getPracticeId();
-        log.info("Getting ListOptions for listId: {} and practiceId: {}", listId, practiceId);
-        
-        Bundle bundle = fhirClientService.search(Basic.class, practiceId);
-        log.info("FHIR search returned bundle with {} total entries", 
-                bundle.hasEntry() ? bundle.getEntry().size() : 0);
-
-        List<Basic> allBasics = fhirClientService.extractResources(bundle, Basic.class);
-        log.info("Extracted {} Basic resources", allBasics.size());
-        
-        // Count how many have the extension
-        long withExtension = allBasics.stream()
-                .filter(basic -> basic.getExtensionByUrl(EXT_LIST_ID) != null)
-                .count();
-        log.info("{} resources have EXT_LIST_ID extension", withExtension);
-        
-        List<ListOptionDto> result = allBasics.stream()
+        Bundle bundle = fhirClientService.search(Basic.class, getPracticeId());
+        return fhirClientService.extractResources(bundle, Basic.class).stream()
                 .filter(basic -> basic.getExtensionByUrl(EXT_LIST_ID) != null)
                 .map(this::fromFhirBasic)
-                .peek(dto -> log.info("Found ListOption: id={}, listId={}, title={}", dto.getId(), dto.getListId(), dto.getTitle()))
                 .filter(dto -> listId.equals(dto.getListId()))
                 .collect(Collectors.toList());
-        
-        log.info("Found {} ListOptions for listId: {}", result.size(), listId);
-        return result;
     }
 
     // DELETE BY LIST ID
     public void deleteByListId(String listId) {
-        log.debug("Deleting all ListOptions for listId: {}", listId);
         String practiceId = getPracticeId();
-        
         Bundle bundle = fhirClientService.search(Basic.class, practiceId);
 
         fhirClientService.extractResources(bundle, Basic.class).stream()
                 .filter(basic -> basic.getExtensionByUrl(EXT_LIST_ID) != null)
                 .map(this::fromFhirBasic)
                 .filter(dto -> listId.equals(dto.getListId()))
-                .forEach(dto -> {
-                    fhirClientService.delete(Basic.class, String.valueOf(dto.getId()), practiceId);
-                    log.debug("Deleted ListOption: {}", dto.getId());
-                });
+                .forEach(dto -> fhirClientService.delete(Basic.class, String.valueOf(dto.getId()), practiceId));
     }
 
     // -------- FHIR Mapping --------
@@ -349,24 +280,12 @@ public class ListOptionService {
     }
 
     private boolean isListOption(Basic basic) {
-        String basicId = basic.getIdElement().getIdPart();
-        
         if (!basic.hasCode()) {
-            log.info("Basic resource {} has no code - NOT a ListOption", basicId);
             return false;
         }
         
-        // Log all codings in this resource
-        basic.getCode().getCoding().forEach(c -> 
-            log.info("Basic resource {} has coding: system='{}' code='{}'", 
-                basicId, c.getSystem(), c.getCode()));
-        
-        boolean isListOption = basic.getCode().getCoding().stream()
+        return basic.getCode().getCoding().stream()
                 .anyMatch(c -> LIST_OPTION_TYPE_SYSTEM.equals(c.getSystem()) && LIST_OPTION_TYPE_CODE.equals(c.getCode()));
-        
-        log.info("Basic resource {} isListOption={}", basicId, isListOption);
-        
-        return isListOption;
     }
 
     private String getListIdFromBasic(Basic basic) {

@@ -35,6 +35,13 @@ public class PracticeController {
                             .data(createdPractice)
                             .build()
             );
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.<PracticeDto>builder()
+                            .success(false)
+                            .message(e.getMessage())
+                            .data(null)
+                            .build());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<PracticeDto>builder()
@@ -92,8 +99,8 @@ public class PracticeController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<PracticeDto>> update(@PathVariable Long id, @RequestBody PracticeDto dto) {
         try {
-            PracticeDto updatedPractice = service.update(id, dto);
-            if (updatedPractice == null) {
+            PracticeDto practice = service.getById(id);
+            if (practice == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(ApiResponse.<PracticeDto>builder()
                                 .success(false)
@@ -101,6 +108,65 @@ public class PracticeController {
                                 .data(null)
                                 .build());
             }
+            
+            // Update name if provided
+            if (dto.getName() != null) {
+                practice.setName(dto.getName());
+            }
+            
+            // Update practice settings if provided
+            if (dto.getPracticeSettings() != null) {
+                if (practice.getPracticeSettings() == null) {
+                    practice.setPracticeSettings(new PracticeDto.PracticeSettings());
+                }
+                PracticeDto.PracticeSettings settings = dto.getPracticeSettings();
+                if (settings.getEnablePatientPractice() != null) {
+                    practice.getPracticeSettings().setEnablePatientPractice(settings.getEnablePatientPractice());
+                }
+                if (settings.getSessionTimeoutMinutes() != null) {
+                    practice.getPracticeSettings().setSessionTimeoutMinutes(settings.getSessionTimeoutMinutes());
+                }
+                if (settings.getTokenExpiryMinutes() != null) {
+                    practice.getPracticeSettings().setTokenExpiryMinutes(settings.getTokenExpiryMinutes());
+                    keycloakAdminService.updateClientTokenLifespan(settings.getTokenExpiryMinutes());
+                }
+            }
+            
+            // Update regional settings if provided
+            if (dto.getRegionalSettings() != null) {
+                if (practice.getRegionalSettings() == null) {
+                    practice.setRegionalSettings(new PracticeDto.RegionalSettings());
+                }
+                PracticeDto.RegionalSettings regional = dto.getRegionalSettings();
+                if (regional.getUnitsForVisitForms() != null) {
+                    practice.getRegionalSettings().setUnitsForVisitForms(regional.getUnitsForVisitForms());
+                }
+                if (regional.getDisplayFormatUSWeights() != null) {
+                    practice.getRegionalSettings().setDisplayFormatUSWeights(regional.getDisplayFormatUSWeights());
+                }
+                if (regional.getTelephoneCountryCode() != null) {
+                    practice.getRegionalSettings().setTelephoneCountryCode(regional.getTelephoneCountryCode());
+                }
+                if (regional.getDateDisplayFormat() != null) {
+                    practice.getRegionalSettings().setDateDisplayFormat(regional.getDateDisplayFormat());
+                }
+                if (regional.getTimeDisplayFormat() != null) {
+                    practice.getRegionalSettings().setTimeDisplayFormat(regional.getTimeDisplayFormat());
+                }
+                if (regional.getTimeZone() != null) {
+                    practice.getRegionalSettings().setTimeZone(regional.getTimeZone());
+                }
+                if (regional.getCurrencyDesignator() != null) {
+                    practice.getRegionalSettings().setCurrencyDesignator(regional.getCurrencyDesignator());
+                }
+            }
+            
+            // Update contact if provided
+            if (dto.getContact() != null) {
+                practice.setContact(dto.getContact());
+            }
+            
+            PracticeDto updatedPractice = service.updateByFhirId(practice.getFhirId(), practice);
             return ResponseEntity.ok(
                     ApiResponse.<PracticeDto>builder()
                             .success(true)
@@ -261,24 +327,22 @@ public class PracticeController {
                                 .build());
             }
 
-            // Update practice settings
+            // Update only the provided fields
             if (practice.getPracticeSettings() == null) {
                 practice.setPracticeSettings(new PracticeDto.PracticeSettings());
             }
-            practice.getPracticeSettings().setEnablePatientPractice(request.getEnablePatientPractice());
+            if (request.getEnablePatientPractice() != null) {
+                practice.getPracticeSettings().setEnablePatientPractice(request.getEnablePatientPractice());
+            }
             if (request.getSessionTimeoutMinutes() != null) {
                 practice.getPracticeSettings().setSessionTimeoutMinutes(request.getSessionTimeoutMinutes());
             }
             if (request.getTokenExpiryMinutes() != null) {
                 practice.getPracticeSettings().setTokenExpiryMinutes(request.getTokenExpiryMinutes());
-            }
-
-            PracticeDto updatedPractice = service.update(id, practice);
-            
-            // Update Keycloak token lifespan dynamically
-            if (request.getTokenExpiryMinutes() != null) {
                 keycloakAdminService.updateClientTokenLifespan(request.getTokenExpiryMinutes());
             }
+
+            PracticeDto updatedPractice = service.updateByFhirId(practice.getFhirId(), practice);
             
             return ResponseEntity.ok(
                     ApiResponse.<PracticeDto>builder()
@@ -287,13 +351,6 @@ public class PracticeController {
                             .data(updatedPractice)
                             .build()
             );
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.<PracticeDto>builder()
-                            .success(false)
-                            .message("Practice not found")
-                            .data(null)
-                            .build());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.<PracticeDto>builder()
@@ -396,7 +453,7 @@ public class PracticeController {
                 regional.setCurrencyDesignator(request.getCurrencyDesignator());
             }
 
-            PracticeDto updatedPractice = service.update(id, practice);
+            PracticeDto updatedPractice = service.updateByFhirId(practice.getFhirId(), practice);
             return ResponseEntity.ok(
                     ApiResponse.<PracticeDto>builder()
                             .success(true)
@@ -404,13 +461,6 @@ public class PracticeController {
                             .data(updatedPractice)
                             .build()
             );
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.<PracticeDto>builder()
-                            .success(false)
-                            .message("Practice not found")
-                            .data(null)
-                            .build());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.<PracticeDto>builder()

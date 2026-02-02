@@ -4,12 +4,12 @@ import java.time.LocalDate;
 import java.util.List;
 
 import lombok.Data;
-//
+
 @Data
 public class PortalLoginResponse {
     private String token;
     private Long userId;
-    private String uuid;
+    private String fhirId;
     private String email;
     private String firstName;
     private String lastName;
@@ -23,6 +23,7 @@ public class PortalLoginResponse {
     private LocalDate dateOfBirth;
     private String profileImage;
     private List<OrgInfo> orgs;
+    private AuditDto audit;
 
     @Data
     public static class OrgInfo {

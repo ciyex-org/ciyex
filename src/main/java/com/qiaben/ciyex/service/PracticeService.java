@@ -40,8 +40,31 @@ public class PracticeService {
         return practiceContextService.getPracticeId();
     }
 
-    // ✅ Create practice in FHIR
+    // ✅ Get or create the single practice instance
+    public PracticeDto getOrCreatePractice() {
+        Bundle bundle = fhirClientService.search(Organization.class, getPracticeId());
+        List<PracticeDto> practices = extractOrganizations(bundle);
+        
+        if (practices.isEmpty()) {
+            // Create default practice if none exists
+            PracticeDto defaultPractice = new PracticeDto();
+            defaultPractice.setName("Default Practice");
+            return create(defaultPractice);
+        }
+        
+        // Return the first (and should be only) practice
+        return practices.get(0);
+    }
+
+    // ✅ Create practice in FHIR (only if none exists)
     public PracticeDto create(PracticeDto dto) {
+        // Check if practice already exists
+        Bundle bundle = fhirClientService.search(Organization.class, getPracticeId());
+        List<PracticeDto> existing = extractOrganizations(bundle);
+        if (!existing.isEmpty()) {
+            throw new IllegalStateException("Practice already exists. Use update instead.");
+        }
+
         if (dto.getName() == null || dto.getName().trim().isEmpty()) {
             throw new IllegalArgumentException("Practice name is required");
         }
@@ -51,8 +74,8 @@ public class PracticeService {
         String now = java.time.Instant.now().toString();
         audit.setCreatedDate(now);
         audit.setLastModifiedDate(now);
-        audit.setCreatedBy("system"); // Replace with user if available
-        audit.setLastModifiedBy("system"); // Replace with user if available
+        audit.setCreatedBy("system");
+        audit.setLastModifiedBy("system");
         dto.setAudit(audit);
 
         log.info("Creating practice in FHIR: {}", dto.getName());
@@ -69,9 +92,11 @@ public class PracticeService {
         return dto;
     }
 
-    // ✅ Get practice by FHIR ID
+    // ✅ Get practice by ID (returns existing practice only, no creation)
     public PracticeDto getById(Long id) {
-        return getByFhirId(String.valueOf(id));
+        Bundle bundle = fhirClientService.search(Organization.class, getPracticeId());
+        List<PracticeDto> practices = extractOrganizations(bundle);
+        return practices.isEmpty() ? null : practices.get(0);
     }
 
     public PracticeDto getByFhirId(String fhirId) {
@@ -220,6 +245,46 @@ public class PracticeService {
             }
         }
 
+        // Practice Settings as Extensions
+        if (dto.getPracticeSettings() != null) {
+            PracticeDto.PracticeSettings settings = dto.getPracticeSettings();
+            if (settings.getEnablePatientPractice() != null) {
+                org.addExtension("urn:ciyex:practice:enablePatientPractice", new BooleanType(settings.getEnablePatientPractice()));
+            }
+            if (settings.getSessionTimeoutMinutes() != null) {
+                org.addExtension("urn:ciyex:practice:sessionTimeoutMinutes", new IntegerType(settings.getSessionTimeoutMinutes()));
+            }
+            if (settings.getTokenExpiryMinutes() != null) {
+                org.addExtension("urn:ciyex:practice:tokenExpiryMinutes", new IntegerType(settings.getTokenExpiryMinutes()));
+            }
+        }
+
+        // Regional Settings as Extensions
+        if (dto.getRegionalSettings() != null) {
+            PracticeDto.RegionalSettings regional = dto.getRegionalSettings();
+            if (regional.getUnitsForVisitForms() != null) {
+                org.addExtension("urn:ciyex:practice:unitsForVisitForms", new StringType(regional.getUnitsForVisitForms()));
+            }
+            if (regional.getDisplayFormatUSWeights() != null) {
+                org.addExtension("urn:ciyex:practice:displayFormatUSWeights", new StringType(regional.getDisplayFormatUSWeights()));
+            }
+            if (regional.getTelephoneCountryCode() != null) {
+                org.addExtension("urn:ciyex:practice:telephoneCountryCode", new StringType(regional.getTelephoneCountryCode()));
+            }
+            if (regional.getDateDisplayFormat() != null) {
+                org.addExtension("urn:ciyex:practice:dateDisplayFormat", new StringType(regional.getDateDisplayFormat()));
+            }
+            if (regional.getTimeDisplayFormat() != null) {
+                org.addExtension("urn:ciyex:practice:timeDisplayFormat", new StringType(regional.getTimeDisplayFormat()));
+            }
+            if (regional.getTimeZone() != null) {
+                org.addExtension("urn:ciyex:practice:timeZone", new StringType(regional.getTimeZone()));
+            }
+            if (regional.getCurrencyDesignator() != null) {
+                org.addExtension("urn:ciyex:practice:currencyDesignator", new StringType(regional.getCurrencyDesignator()));
+            }
+        }
+
         return org;
     }
 
@@ -268,6 +333,88 @@ public class PracticeService {
 
         if (hasContact) {
             dto.setContact(contact);
+        }
+
+        // Extract Practice Settings from Extensions
+        PracticeDto.PracticeSettings settings = new PracticeDto.PracticeSettings();
+        boolean hasSettings = false;
+        for (Extension ext : org.getExtension()) {
+            switch (ext.getUrl()) {
+                case "urn:ciyex:practice:enablePatientPractice" -> {
+                    if (ext.getValue() instanceof BooleanType) {
+                        settings.setEnablePatientPractice(((BooleanType) ext.getValue()).booleanValue());
+                        hasSettings = true;
+                    }
+                }
+                case "urn:ciyex:practice:sessionTimeoutMinutes" -> {
+                    if (ext.getValue() instanceof IntegerType) {
+                        settings.setSessionTimeoutMinutes(((IntegerType) ext.getValue()).getValue());
+                        hasSettings = true;
+                    }
+                }
+                case "urn:ciyex:practice:tokenExpiryMinutes" -> {
+                    if (ext.getValue() instanceof IntegerType) {
+                        settings.setTokenExpiryMinutes(((IntegerType) ext.getValue()).getValue());
+                        hasSettings = true;
+                    }
+                }
+            }
+        }
+        if (hasSettings) {
+            dto.setPracticeSettings(settings);
+        }
+
+        // Extract Regional Settings from Extensions
+        PracticeDto.RegionalSettings regional = new PracticeDto.RegionalSettings();
+        boolean hasRegional = false;
+        for (Extension ext : org.getExtension()) {
+            switch (ext.getUrl()) {
+                case "urn:ciyex:practice:unitsForVisitForms" -> {
+                    if (ext.getValue() instanceof StringType) {
+                        regional.setUnitsForVisitForms(((StringType) ext.getValue()).getValue());
+                        hasRegional = true;
+                    }
+                }
+                case "urn:ciyex:practice:displayFormatUSWeights" -> {
+                    if (ext.getValue() instanceof StringType) {
+                        regional.setDisplayFormatUSWeights(((StringType) ext.getValue()).getValue());
+                        hasRegional = true;
+                    }
+                }
+                case "urn:ciyex:practice:telephoneCountryCode" -> {
+                    if (ext.getValue() instanceof StringType) {
+                        regional.setTelephoneCountryCode(((StringType) ext.getValue()).getValue());
+                        hasRegional = true;
+                    }
+                }
+                case "urn:ciyex:practice:dateDisplayFormat" -> {
+                    if (ext.getValue() instanceof StringType) {
+                        regional.setDateDisplayFormat(((StringType) ext.getValue()).getValue());
+                        hasRegional = true;
+                    }
+                }
+                case "urn:ciyex:practice:timeDisplayFormat" -> {
+                    if (ext.getValue() instanceof StringType) {
+                        regional.setTimeDisplayFormat(((StringType) ext.getValue()).getValue());
+                        hasRegional = true;
+                    }
+                }
+                case "urn:ciyex:practice:timeZone" -> {
+                    if (ext.getValue() instanceof StringType) {
+                        regional.setTimeZone(((StringType) ext.getValue()).getValue());
+                        hasRegional = true;
+                    }
+                }
+                case "urn:ciyex:practice:currencyDesignator" -> {
+                    if (ext.getValue() instanceof StringType) {
+                        regional.setCurrencyDesignator(((StringType) ext.getValue()).getValue());
+                        hasRegional = true;
+                    }
+                }
+            }
+        }
+        if (hasRegional) {
+            dto.setRegionalSettings(regional);
         }
 
         return dto;

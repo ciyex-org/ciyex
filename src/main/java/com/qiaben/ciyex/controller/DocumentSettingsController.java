@@ -26,8 +26,9 @@ public class DocumentSettingsController {
     public ResponseEntity<ApiResponse<DocumentSettingsDto>> get() {
         try {
             var data = service.get();
+            String message = "Settings retrieved successfully";
             return ResponseEntity.ok(ApiResponse.<DocumentSettingsDto>builder()
-                    .success(true).data(data).build());
+                    .success(true).message(message).data(data).build());
         } catch (Exception e) {
             return ResponseEntity.ok(ApiResponse.<DocumentSettingsDto>builder()
                     .success(false).message(e.getMessage()).build());

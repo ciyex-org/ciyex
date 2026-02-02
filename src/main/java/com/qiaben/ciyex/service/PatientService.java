@@ -99,6 +99,7 @@ public class PatientService {
         MethodOutcome outcome = fhirClientService.create(fhirPatient, getPracticeId());
        
         String fhirId = outcome.getId().getIdPart();
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
        
@@ -153,7 +154,8 @@ public class PatientService {
         fhirPatient.setId(fhirId);
        
         fhirClientService.update(fhirPatient, getPracticeId());
-       
+
+        dto.setId(Long.parseLong(fhirId));
         dto.setFhirId(fhirId);
         dto.setExternalId(fhirId);
        
@@ -322,6 +324,7 @@ public class PatientService {
                 // If FHIR ID is not numeric, use hash code as fallback
                 dto.setId((long) fhirId.hashCode());
             }
+
         }
  
         // Identifiers

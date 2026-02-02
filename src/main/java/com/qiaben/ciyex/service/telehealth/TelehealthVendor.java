@@ -1,5 +1,6 @@
 package com.qiaben.ciyex.service.telehealth;
 
+import org.springframework.core.annotation.AliasFor;
 import org.springframework.stereotype.Component;
 
 import java.lang.annotation.ElementType;
@@ -11,5 +12,6 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Component
 public @interface TelehealthVendor {
+    @AliasFor(annotation = Component.class)
     String value(); // e.g., "twilio", "telnyx"
 }
