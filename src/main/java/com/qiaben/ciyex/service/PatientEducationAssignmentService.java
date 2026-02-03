@@ -26,6 +26,7 @@ public class PatientEducationAssignmentService {
 
     private final FhirClientService fhirClientService;
     private final PracticeContextService practiceContextService;
+    private final PatientEducationService patientEducationService;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -50,11 +51,34 @@ public class PatientEducationAssignmentService {
 
     // ASSIGN (CREATE)
     public PatientEducationAssignmentDto assign(String educationId, PatientEducationAssignmentDto dto) {
-        validateAssignmentDto(dto);
-        
         log.debug("Creating FHIR ServiceRequest (education assignment) for patient: {}", dto.getPatientId());
 
         try {
+            // Fetch education topic from MySQL if not provided
+            if (dto.getTopic() == null && educationId != null) {
+                var education = patientEducationService.getById(educationId);
+                PatientEducationAssignmentDto.TopicDto topic = new PatientEducationAssignmentDto.TopicDto();
+                topic.setId(education.getId());
+                topic.setTitle(education.getTitle());
+                topic.setSummary(education.getSummary());
+                topic.setCategory(education.getCategory());
+                topic.setLanguage(education.getLanguage());
+                topic.setReadingLevel(education.getReadingLevel());
+                topic.setContent(education.getContent());
+                topic.setFhirId(education.getFhirId());
+                dto.setTopic(topic);
+            }
+            
+            // Set assignedBy from authenticated user if not provided
+            if (dto.getAssignedBy() == null || dto.getAssignedBy().trim().isEmpty()) {
+                org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+                if (auth != null && auth.isAuthenticated()) {
+                    dto.setAssignedBy(auth.getName());
+                }
+            }
+            
+            validateAssignmentDto(dto);
+            
             dto.setDelivered(false);
             dto.setAssignedDate(LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
 
@@ -335,10 +359,6 @@ public class PatientEducationAssignmentService {
             if (dto.getTopic().getTitle() == null || dto.getTopic().getTitle().trim().isEmpty()) {
                 errors.add("Topic title is mandatory");
             }
-        }
-        
-        if (dto.getAssignedBy() == null || dto.getAssignedBy().trim().isEmpty()) {
-            errors.add("Assigned by is mandatory");
         }
         
         if (!errors.isEmpty()) {
