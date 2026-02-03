@@ -1,7 +1,9 @@
 package com.qiaben.ciyex.controller;
 
 import com.qiaben.ciyex.dto.ApiResponse;
+import com.qiaben.ciyex.dto.ListOptionDto;
 import com.qiaben.ciyex.dto.PatientRelationshipDto;
+import com.qiaben.ciyex.service.ListOptionService;
 import com.qiaben.ciyex.service.PatientRelationshipService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,10 +19,12 @@ import java.util.List;
 public class PatientRelationshipController {
 
     private final PatientRelationshipService service;
+    private final ListOptionService listOptionService;
 
     @Autowired
-    public PatientRelationshipController(PatientRelationshipService service) {
+    public PatientRelationshipController(PatientRelationshipService service, ListOptionService listOptionService) {
         this.service = service;
+        this.listOptionService = listOptionService;
     }
 
     @PostMapping
@@ -139,6 +143,24 @@ public class PatientRelationshipController {
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(false)
                     .message("Failed to delete patient relationship: " + e.getMessage())
+                    .build());
+        }
+    }
+
+    @GetMapping("/types")
+    public ResponseEntity<ApiResponse<List<ListOptionDto>>> getRelationshipTypes(@PathVariable Long patientId) {
+        try {
+            List<ListOptionDto> types = listOptionService.getListOptionsByListId("patient_relationship");
+            return ResponseEntity.ok(ApiResponse.<List<ListOptionDto>>builder()
+                    .success(true)
+                    .message("Relationship types retrieved successfully")
+                    .data(types)
+                    .build());
+        } catch (Exception e) {
+            log.error("Error retrieving relationship types", e);
+            return ResponseEntity.ok(ApiResponse.<List<ListOptionDto>>builder()
+                    .success(false)
+                    .message("Failed to retrieve relationship types: " + e.getMessage())
                     .build());
         }
     }
