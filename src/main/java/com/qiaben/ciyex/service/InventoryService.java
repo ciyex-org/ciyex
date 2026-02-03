@@ -77,8 +77,11 @@ public class InventoryService {
     // GET BY ID
     public InventoryDto getById(String fhirId) {
         log.debug("Getting FHIR Device (inventory): {}", fhirId);
-        Device device = fhirClientService.read(Device.class, fhirId, getPracticeId());
-        return fromFhirDevice(device);
+        Optional<Device> deviceOpt = fhirClientService.readOptional(Device.class, fhirId, getPracticeId());
+        if (deviceOpt.isEmpty()) {
+            throw new RuntimeException("Inventory item not found with id: " + fhirId);
+        }
+        return fromFhirDevice(deviceOpt.get());
     }
 
     // GET ALL
@@ -106,6 +109,11 @@ public class InventoryService {
     public InventoryDto update(String fhirId, InventoryDto dto) {
         log.debug("Updating FHIR Device (inventory): {}", fhirId);
 
+        Optional<Device> existingOpt = fhirClientService.readOptional(Device.class, fhirId, getPracticeId());
+        if (existingOpt.isEmpty()) {
+            throw new RuntimeException("Inventory item not found with id: " + fhirId);
+        }
+
         Device device = toFhirDevice(dto);
         device.setId(fhirId);
         fhirClientService.update(device, getPracticeId());
@@ -118,6 +126,10 @@ public class InventoryService {
     // DELETE
     public void delete(String fhirId) {
         log.debug("Deleting FHIR Device (inventory): {}", fhirId);
+        Optional<Device> deviceOpt = fhirClientService.readOptional(Device.class, fhirId, getPracticeId());
+        if (deviceOpt.isEmpty()) {
+            throw new RuntimeException("Inventory item not found with id: " + fhirId);
+        }
         fhirClientService.delete(Device.class, fhirId, getPracticeId());
     }
 
