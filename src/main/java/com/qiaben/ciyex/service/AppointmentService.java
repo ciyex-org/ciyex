@@ -57,11 +57,10 @@ public class AppointmentService {
         MethodOutcome outcome = fhirClientService.create(fhirAppointment, getPracticeId());
 
         String fhirId = outcome.getId().getIdPart();
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-
         log.info("Created FHIR Appointment with ID: {}", fhirId);
-        return dto;
+        
+        // Re-read to get full metadata including audit info
+        return getByFhirId(fhirId);
     }
 
     // ✅ Get appointment by FHIR ID
@@ -144,11 +143,10 @@ public class AppointmentService {
 
         fhirClientService.update(fhirAppointment, getPracticeId());
 
-        dto.setFhirId(fhirId);
-        dto.setExternalId(fhirId);
-
         log.info("Updated FHIR Appointment with ID: {}", fhirId);
-        return dto;
+        
+        // Re-read to get updated metadata
+        return getByFhirId(fhirId);
     }
 
     // ✅ Delete appointment from FHIR
@@ -160,6 +158,17 @@ public class AppointmentService {
         log.info("Deleting FHIR Appointment with ID: {}", fhirId);
         fhirClientService.delete(Appointment.class, fhirId, getPracticeId());
         log.info("Deleted FHIR Appointment with ID: {}", fhirId);
+    }
+
+    public void deleteByPatientId(Long patientId) {
+        log.info("Deleting all appointments for patient: {}", patientId);
+        List<AppointmentDTO> appointments = getByPatientId(patientId);
+        for (AppointmentDTO appointment : appointments) {
+            if (appointment.getFhirId() != null) {
+                deleteByFhirId(appointment.getFhirId());
+            }
+        }
+        log.info("Deleted {} appointments for patient {}", appointments.size(), patientId);
     }
 
     // ✅ Update status only
@@ -327,6 +336,12 @@ public class AppointmentService {
                     .setText(dto.getReason());
         }
 
+        // Meeting URL (stored as supportingInformation)
+        if (dto.getMeetingUrl() != null) {
+            appointment.addSupportingInformation()
+                    .setDisplay(dto.getMeetingUrl());
+        }
+
         return appointment;
     }
 
@@ -335,8 +350,22 @@ public class AppointmentService {
 
         // FHIR ID
         if (appointment.hasId()) {
-            dto.setFhirId(appointment.getIdElement().getIdPart());
-            dto.setExternalId(appointment.getIdElement().getIdPart());
+            String fhirId = appointment.getIdElement().getIdPart();
+            dto.setId(Long.parseLong(fhirId));
+            dto.setFhirId(fhirId);
+            dto.setExternalId(fhirId);
+        }
+
+        // Audit metadata from FHIR meta
+        if (appointment.hasMeta()) {
+            AppointmentDTO.Audit audit = new AppointmentDTO.Audit();
+            if (appointment.getMeta().hasLastUpdated()) {
+                String timestamp = appointment.getMeta().getLastUpdated().toInstant()
+                        .atZone(ZoneId.systemDefault()).toLocalDateTime().toString();
+                audit.setCreatedDate(timestamp);
+                audit.setLastModifiedDate(timestamp);
+            }
+            dto.setAudit(audit);
         }
 
         // Status
@@ -385,6 +414,11 @@ public class AppointmentService {
         // Reason
         if (appointment.hasReasonCode()) {
             dto.setReason(appointment.getReasonCodeFirstRep().getText());
+        }
+
+        // Meeting URL (from supportingInformation)
+        if (appointment.hasSupportingInformation() && !appointment.getSupportingInformation().isEmpty()) {
+            dto.setMeetingUrl(appointment.getSupportingInformationFirstRep().getDisplay());
         }
 
         // Formatted date/time

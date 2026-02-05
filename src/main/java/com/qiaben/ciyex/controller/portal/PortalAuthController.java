@@ -144,6 +144,7 @@ public class PortalAuthController {
                             "firstName", firstName,
                             "lastName", lastName,
                             "userId", fhirId,
+                            "fhirId", fhirId,
                             "userType", "PORTAL_USER"
                     )
             );

@@ -1,6 +1,7 @@
 package com.qiaben.ciyex.service.portal;
 
 import com.qiaben.ciyex.dto.portal.ApiResponse;
+import com.qiaben.ciyex.dto.portal.AuditDto;
 import com.qiaben.ciyex.dto.portal.PortalLoginRequest;
 import com.qiaben.ciyex.dto.portal.PortalLoginResponse;
 import com.qiaben.ciyex.dto.portal.PortalRegisterRequest;
@@ -287,7 +288,7 @@ public class PortalAuthService {
     private PortalLoginResponse buildLoginResponse(Person person, String fhirId) {
         PortalLoginResponse response = new PortalLoginResponse();
         response.setId((long) Math.abs(fhirId.hashCode()));
-        response.setUuid(fhirId);
+        response.setFhirId(fhirId);
 
         if (person.hasName()) {
             HumanName name = person.getNameFirstRep();
@@ -311,6 +312,12 @@ public class PortalAuthService {
                 response.setDateOfBirth(date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate());
             }
         }
+        
+        // Set audit fields
+        AuditDto audit = new AuditDto();
+        audit.setCreatedDate(person.getMeta().getLastUpdated().toInstant());
+        audit.setLastModifiedDate(person.getMeta().getLastUpdated().toInstant());
+        response.setAudit(audit);
 
         return response;
     }

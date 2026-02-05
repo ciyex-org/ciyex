@@ -14,7 +14,6 @@ import java.time.LocalDateTime;
 public class PatientRelationshipDto {
     
     private Long id;
-    private Long orgId;
     private Long patientId;
     private Long relatedPatientId;
     private String relatedPatientName;

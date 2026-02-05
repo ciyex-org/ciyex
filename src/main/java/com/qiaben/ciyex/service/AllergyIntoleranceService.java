@@ -447,6 +447,8 @@ public class AllergyIntoleranceService {
         if (it == null) throw new IllegalArgumentException("allergy item is required");
         if (isBlank(it.getAllergyName())) throw new IllegalArgumentException("allergyName is required");
         if (isBlank(it.getReaction())) throw new IllegalArgumentException("reaction is required");
+        if (isBlank(it.getSeverity())) throw new IllegalArgumentException("severity is required");
+        if (isBlank(it.getStatus())) throw new IllegalArgumentException("status is required");
     }
 
     private boolean isBlank(String s) {

@@ -59,7 +59,7 @@ public class PatientController {
 
     // ✅ Retrieve a patient by ID
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<PatientDto>> get(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<PatientDto>> get(@PathVariable("id") Long id) {
         try {
             PatientDto patient = service.getById(id);
             return ResponseEntity.ok(ApiResponse.<PatientDto>builder()
@@ -86,7 +86,7 @@ public class PatientController {
 
     // ✅ Update an existing patient (with validation)
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<?>> update(@PathVariable Long id, @Valid @RequestBody PatientDto dto, BindingResult result) {
+    public ResponseEntity<ApiResponse<?>> update(@PathVariable("id") Long id, @Valid @RequestBody PatientDto dto, BindingResult result) {
         if (result.hasErrors()) {
             Map<String, String> errors = new HashMap<>();
             result.getFieldErrors().forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
@@ -123,7 +123,7 @@ public class PatientController {
 
     // ✅ Delete a patient by ID
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -143,10 +143,10 @@ public class PatientController {
     // ✅ Get all patients with optional search
     @GetMapping
     public ResponseEntity<ApiResponse<Page<PatientDto>>> getAllPatients(
-            @RequestParam(required = false, defaultValue = "0") int page,
-            @RequestParam(required = false, defaultValue = "20") int size,
-            @RequestParam(required = false, defaultValue = "id") String sort,
-            @RequestParam(required = false) String search
+            @RequestParam(name = "page", required = false, defaultValue = "0") Integer page,
+            @RequestParam(name = "size", required = false, defaultValue = "20") Integer size,
+            @RequestParam(name = "sort", required = false, defaultValue = "id") String sort,
+            @RequestParam(name = "search", required = false) String search
     ) {
         try {
             Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size, 
@@ -188,7 +188,7 @@ public class PatientController {
     // ✅ Patient history endpoint
     @PostMapping("/{id}/history")
     public ResponseEntity<ApiResponse<Object>> createPatientHistory(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestBody(required = false) Object historyData) {
         try {
             service.getById(id); // Validate patient exists
@@ -216,7 +216,7 @@ public class PatientController {
 
     // ✅ Get patient history endpoint
     @GetMapping("/{id}/history")
-    public ResponseEntity<ApiResponse<Object>> getPatientHistory(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Object>> getPatientHistory(@PathVariable("id") Long id) {
         try {
             service.getById(id); // Validate patient exists
             Object historyData = historyService.getHistory(id);

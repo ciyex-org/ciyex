@@ -191,6 +191,7 @@ public class OrgIntegrationConfigProvider {
         if (!hasDot && !hasUnderscore) return null;
         TelehealthConfig cfg = new TelehealthConfig();
         cfg.setVendor(hasDot ? all.get("telehealth.vendor") : all.get("telehealth_vendor"));
+        
         if ("twilio".equalsIgnoreCase(cfg.getVendor())) {
             TelehealthConfig.Twilio twilio = new TelehealthConfig.Twilio();
             twilio.setAccountSid(hasDot ? all.get("telehealth.twilio.accountSid") : all.get("telehealth_twilio_account_sid"));
@@ -200,6 +201,27 @@ public class OrgIntegrationConfigProvider {
             twilio.setMessagingServiceSid(hasDot ? all.get("telehealth.twilio.messagingServiceSid") : all.get("telehealth_twilio_messaging_service_sid"));
             cfg.setTwilio(twilio);
         }
+        
+        if ("jitsi".equalsIgnoreCase(cfg.getVendor())) {
+            TelehealthConfig.Jitsi jitsi = new TelehealthConfig.Jitsi();
+            jitsi.setServerUrl(hasDot ? all.get("telehealth.jitsi.serverUrl") : all.get("telehealth_jitsi_server_url"));
+            jitsi.setAppId(hasDot ? all.get("telehealth.jitsi.appId") : all.get("telehealth_jitsi_app_id"));
+            jitsi.setAppSecret(hasDot ? all.get("telehealth.jitsi.appSecret") : all.get("telehealth_jitsi_app_secret"));
+            String ttl = hasDot ? all.get("telehealth.jitsi.defaultTokenTtl") : all.get("telehealth_jitsi_default_token_ttl");
+            if (ttl != null) try { jitsi.setDefaultTokenTtl(Integer.parseInt(ttl)); } catch (NumberFormatException ignored) {}
+            cfg.setJitsi(jitsi);
+        }
+        
+        if ("cloudflare".equalsIgnoreCase(cfg.getVendor())) {
+            TelehealthConfig.Cloudflare cloudflare = new TelehealthConfig.Cloudflare();
+            cloudflare.setAppId(hasDot ? all.get("telehealth.cloudflare.appId") : all.get("telehealth_cloudflare_app_id"));
+            cloudflare.setAppSecret(hasDot ? all.get("telehealth.cloudflare.appSecret") : all.get("telehealth_cloudflare_app_secret"));
+            cloudflare.setApiToken(hasDot ? all.get("telehealth.cloudflare.apiToken") : all.get("telehealth_cloudflare_api_token"));
+            String ttl = hasDot ? all.get("telehealth.cloudflare.defaultTokenTtl") : all.get("telehealth_cloudflare_default_token_ttl");
+            if (ttl != null) try { cloudflare.setDefaultTokenTtl(Integer.parseInt(ttl)); } catch (NumberFormatException ignored) {}
+            cfg.setCloudflare(cloudflare);
+        }
+        
         return cfg;
     }
 

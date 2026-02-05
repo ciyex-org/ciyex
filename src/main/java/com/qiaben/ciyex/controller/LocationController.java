@@ -38,10 +38,10 @@ public class LocationController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<LocationDto>> getById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<LocationDto>> getById(@PathVariable("id") String id) {
         try {
             log.info("Fetching location with id: {}", id);
-            LocationDto dto = locationService.getById(id);
+            LocationDto dto = locationService.getByFhirId(id);
             return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
                     .success(true)
                     .message("Location retrieved successfully")
@@ -57,10 +57,10 @@ public class LocationController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<LocationDto>> update(@PathVariable Long id, @RequestBody LocationDto dto) {
+    public ResponseEntity<ApiResponse<LocationDto>> update(@PathVariable("id") String id, @RequestBody LocationDto dto) {
         try {
             log.info("Updating location with id: {}", id);
-            LocationDto updated = locationService.update(id, dto);
+            LocationDto updated = locationService.updateByFhirId(id, dto);
             return ResponseEntity.ok(ApiResponse.<LocationDto>builder()
                     .success(true)
                     .message("Location updated successfully")
@@ -76,10 +76,10 @@ public class LocationController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") String id) {
         try {
             log.info("Deleting location with id: {}", id);
-            locationService.delete(id);
+            locationService.deleteByFhirId(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
                     .success(true)
                     .message("Location deleted successfully")
@@ -94,14 +94,17 @@ public class LocationController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<Page<LocationDto>>> getAll(Pageable pageable) {
+    public ResponseEntity<ApiResponse<Page<LocationDto>>> getAll(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
+        Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
         try {
             log.info("Fetching all locations with pagination: {}", pageable);
-            Page<LocationDto> page = locationService.getAll(pageable);
+            Page<LocationDto> pageResult = locationService.getAll(pageable);
             return ResponseEntity.ok(ApiResponse.<Page<LocationDto>>builder()
                     .success(true)
                     .message("Locations retrieved successfully")
-                    .data(page)
+                    .data(pageResult)
                     .build());
         } catch (Exception e) {
             log.error("Error fetching all locations: {}", e.getMessage(), e);
@@ -113,7 +116,11 @@ public class LocationController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<ApiResponse<Page<LocationDto>>> search(@RequestParam String keyword, Pageable pageable) {
+    public ResponseEntity<ApiResponse<Page<LocationDto>>> search(
+            @RequestParam(name = "keyword", required = false, defaultValue = "") String keyword,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
+        Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
         try {
             log.info("Searching locations with keyword: {}", keyword);
             Page<LocationDto> results = locationService.search(keyword, pageable);
