@@ -88,10 +88,12 @@ public class LocationService {
 
         fhirClientService.update(fhirLocation, getPracticeId());
 
-        dto.setExternalId(fhirId);
+        // Read back the updated location to get complete data
+        Location updated = fhirClientService.read(Location.class, fhirId, getPracticeId());
+        LocationDto result = toLocationDto(updated);
 
         log.info("Updated FHIR Location with ID: {}", fhirId);
-        return dto;
+        return result;
     }
 
     // ✅ Delete location from FHIR

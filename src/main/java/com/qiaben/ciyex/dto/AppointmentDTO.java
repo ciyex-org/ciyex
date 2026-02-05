@@ -41,7 +41,7 @@ public class AppointmentDTO {
     private String meetingUrl;
 
     // ✅ Track audit metadata
-    private Audit audit = new Audit();
+    private Audit audit;
 
     @Data
     public static class Audit {
