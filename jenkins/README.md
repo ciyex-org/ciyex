@@ -30,6 +30,9 @@ Credential IDs to create (exact names expected by the `Jenkinsfile`):
 	- `AZURE_SUBSCRIPTION_ID_PROD` (Secret text) - Azure subscription id for production
 	- `ACR_CREDENTIALS_PROD` (Username with password) - ACR username/password for production
 
+- Teams Notifications:
+	- `TEAMS_WEBHOOK_URL` (Secret text) - Microsoft Teams incoming webhook URL for deployment notifications
+
 If you prefer different names, update the `Select Credentials` stage in the `Jenkinsfile` to match your Jenkins credential IDs.
 
 Recommended Jenkins agents

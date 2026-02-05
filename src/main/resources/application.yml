@@ -5,8 +5,8 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: https://aran.apps-dev.in.hinisoft.com/realms/master
-          jwk-set-uri: https://aran.apps-dev.in.hinisoft.com/realms/master/protocol/openid-connect/certs
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:}
   servlet:
     multipart:
       max-file-size: 1GB
