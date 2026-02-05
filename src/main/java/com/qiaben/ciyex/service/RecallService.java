@@ -315,12 +315,12 @@ public class RecallService {
             throw new IllegalArgumentException("Recall data cannot be null");
         }
         
-        if (dto.getPatientId() == null) {
-            errors.append("patientId, ");
+        if (dto.getPatientName() == null || dto.getPatientName().trim().isEmpty()) {
+            errors.append("patientName, ");
         }
         
-        if (dto.getRecallReason() == null || dto.getRecallReason().trim().isEmpty()) {
-            errors.append("recallReason, ");
+        if (dto.getLastVisit() == null || dto.getLastVisit().trim().isEmpty()) {
+            errors.append("lastVisit, ");
         }
         
         if (dto.getRecallDate() == null || dto.getRecallDate().trim().isEmpty()) {

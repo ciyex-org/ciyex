@@ -149,7 +149,7 @@ public class MaintenanceController {
     // ✅ Get all maintenance records (with pagination)
     @GetMapping
     public ResponseEntity<ApiResponse<Page<MaintenanceDto>>> getAll(
-            @PageableDefault(sort = "id") Pageable pageable
+            @PageableDefault(size = 20, sort = "id") Pageable pageable
     ) {
         try {
             Page<MaintenanceDto> list = service.getAll(pageable);
