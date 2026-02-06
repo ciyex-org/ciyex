@@ -7,14 +7,11 @@ import com.qiaben.ciyex.service.AppointmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+
 import java.util.Map;
 
 @RestController
@@ -53,7 +50,7 @@ public class AppointmentController {
 
     // -------- Retrieve --------
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<AppointmentDTO>> get(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<AppointmentDTO>> get(@PathVariable("id") Long id) {
         try {
             AppointmentDTO appointment = service.getById(id);
             return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
@@ -77,7 +74,7 @@ public class AppointmentController {
 
     // -------- Update --------
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<AppointmentDTO>> update(@PathVariable Long id, @RequestBody AppointmentDTO dto) {
+    public ResponseEntity<ApiResponse<AppointmentDTO>> update(@PathVariable("id") Long id, @RequestBody AppointmentDTO dto) {
         try {
             AppointmentDTO updated = service.update(id, dto);
             return ResponseEntity.ok(ApiResponse.<AppointmentDTO>builder()
@@ -102,7 +99,7 @@ public class AppointmentController {
 
     // -------- Delete --------
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
         try {
             service.delete(id);
             return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -118,11 +115,31 @@ public class AppointmentController {
         }
     }
 
+    // -------- Delete by patient --------
+    @DeleteMapping("/patient/{patientId}")
+    public ResponseEntity<ApiResponse<Void>> deleteByPatient(@PathVariable("patientId") Long patientId) {
+        try {
+            service.deleteByPatientId(patientId);
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                    .success(true)
+                    .message("All appointments deleted successfully for patient " + patientId)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to delete appointments for patient {}", patientId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.<Void>builder()
+                    .success(false)
+                    .message("Failed to delete appointments: " + e.getMessage())
+                    .build());
+        }
+    }
+
     // -------- List all (paginated) --------
     @GetMapping
-    public ResponseEntity<ApiResponse<Page<AppointmentDTO>>> getAll(@PageableDefault Pageable pageable) {
+    public ResponseEntity<ApiResponse<Page<AppointmentDTO>>> getAll(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
         try {
-            Page<AppointmentDTO> appointments = service.getAll(pageable);
+            Page<AppointmentDTO> appointments = service.getAll(org.springframework.data.domain.PageRequest.of(page, size));
             return ResponseEntity.ok(ApiResponse.<Page<AppointmentDTO>>builder()
                     .success(true)
                     .message("Appointments retrieved successfully")
@@ -140,10 +157,11 @@ public class AppointmentController {
     // -------- List by patient (paginated) --------
     @GetMapping("/patient/{patientId}")
     public ResponseEntity<ApiResponse<Page<AppointmentDTO>>> getByPatient(
-            @PathVariable Long patientId,
-            @PageableDefault Pageable pageable) {
+            @PathVariable("patientId") Long patientId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
         try {
-            Page<AppointmentDTO> appointments = service.getByPatientId(patientId, pageable);
+            Page<AppointmentDTO> appointments = service.getByPatientId(patientId, org.springframework.data.domain.PageRequest.of(page, size));
             return ResponseEntity.ok(ApiResponse.<Page<AppointmentDTO>>builder()
                     .success(true)
                     .message("Appointments retrieved successfully for patient " + patientId)
@@ -160,7 +178,7 @@ public class AppointmentController {
 
     // -------- Get latest appointment for patient --------
     @GetMapping("/patient/{patientId}/latest")
-    public ResponseEntity<ApiResponse<AppointmentDTO>> getLatestByPatient(@PathVariable Long patientId) {
+    public ResponseEntity<ApiResponse<AppointmentDTO>> getLatestByPatient(@PathVariable("patientId") Long patientId) {
         try {
             AppointmentDTO latest = service.getLatestByPatientId(patientId);
             if (latest == null) {
@@ -205,7 +223,7 @@ public class AppointmentController {
     // PUT /api/appointments/{id}/status   body: { "status": "Checked" | "Unchecked" }
     @PutMapping("/{id}/status")
     public ResponseEntity<ApiResponse<AppointmentDTO>> updateStatus(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestBody Map<String, String> body
     ) {
         try {

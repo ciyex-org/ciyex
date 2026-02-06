@@ -51,38 +51,68 @@ public class InventoryController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<InventoryDto>> get(@PathVariable String id) {
-        InventoryDto item = service.getById(id);
-        return ResponseEntity.ok(
-                ApiResponse.<InventoryDto>builder()
-                        .success(true)
-                        .message("Inventory item retrieved successfully")
-                        .data(item)
-                        .build()
-        );
+        try {
+            InventoryDto item = service.getById(id);
+            return ResponseEntity.ok(
+                    ApiResponse.<InventoryDto>builder()
+                            .success(true)
+                            .message("Inventory item retrieved successfully")
+                            .data(item)
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("Failed to get inventory item with id: {}", id, e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    ApiResponse.<InventoryDto>builder()
+                            .success(false)
+                            .message("Inventory item not found with id: " + id)
+                            .build()
+            );
+        }
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<InventoryDto>> update(@PathVariable String id, @Valid @RequestBody InventoryDto dto) {
-        InventoryDto updated = service.update(id, dto);
-        return ResponseEntity.ok(
-                ApiResponse.<InventoryDto>builder()
-                        .success(true)
-                        .message("Inventory item updated successfully")
-                        .data(updated)
-                        .build()
-        );
+        try {
+            InventoryDto updated = service.update(id, dto);
+            return ResponseEntity.ok(
+                    ApiResponse.<InventoryDto>builder()
+                            .success(true)
+                            .message("Inventory item updated successfully")
+                            .data(updated)
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("Failed to update inventory item with id: {}", id, e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    ApiResponse.<InventoryDto>builder()
+                            .success(false)
+                            .message("Inventory item not found with id: " + id)
+                            .build()
+            );
+        }
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
-        service.delete(id);
-        return ResponseEntity.ok(
-                ApiResponse.<Void>builder()
-                        .success(true)
-                        .message("Inventory item deleted successfully")
-                        .data(null)
-                        .build()
-        );
+        try {
+            service.delete(id);
+            return ResponseEntity.ok(
+                    ApiResponse.<Void>builder()
+                            .success(true)
+                            .message("Inventory item deleted successfully")
+                            .data(null)
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("Failed to delete inventory item with id: {}", id, e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    ApiResponse.<Void>builder()
+                            .success(false)
+                            .message("Inventory item not found with id: " + id)
+                            .build()
+            );
+        }
     }
 
     // Paginated list
@@ -132,18 +162,23 @@ public class InventoryController {
                             .data(null)
                             .build()
             );
+        } catch (Exception e) {
+            log.error("Reorder failed for inventory id {}: {}", id, e.getMessage(), e);
+            String msg = e.getMessage() != null && e.getMessage().contains("not found") 
+                ? "Inventory item not found with id: " + id
+                : "Failed to create reorder: " + e.getMessage();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    ApiResponse.<OrderDto>builder()
+                            .success(false)
+                            .message(msg)
+                            .data(null)
+                            .build()
+            );
         } catch (Throwable t) {
-            // Log full stacktrace for investigation
             log.error("Reorder failed for inventory id {}: {}", id, t.getMessage(), t);
-
-            String msg;
-            if (t instanceof StackOverflowError) {
-                // Don't expose internal error details to clients, provide actionable guidance
-                msg = "Internal server error: recursion detected while processing reorder (StackOverflowError). Please check server logs and contact support.";
-            } else {
-                msg = "An unexpected error occurred while processing reorder. Please check server logs and contact support.";
-            }
-
+            String msg = t instanceof StackOverflowError
+                ? "Internal server error: recursion detected while processing reorder (StackOverflowError). Please check server logs and contact support."
+                : "An unexpected error occurred while processing reorder. Please check server logs and contact support.";
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ApiResponse.<OrderDto>builder()
                             .success(false)

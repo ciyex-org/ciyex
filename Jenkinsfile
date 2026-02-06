@@ -257,10 +257,54 @@ kubectl apply -f manifests/stage/
 
   post {
     success {
+      script {
+        if (env.IS_PR != 'true') {
+          sendTeamsNotification('success')
+        }
+      }
       echo "Pipeline succeeded: ${ACR_NAME}/${IMAGE_NAME}:${VERSION}"
     }
     failure {
+      script {
+        if (env.IS_PR != 'true') {
+          sendTeamsNotification('failure')
+        }
+      }
       echo "Pipeline failed"
     }
   }
+}
+
+def sendTeamsNotification(String status) {
+  def color = status == 'success' ? '00FF00' : 'FF0000'
+  def emoji = status == 'success' ? '✅' : '❌'
+  def statusText = status == 'success' ? 'Deployment Successful' : 'Deployment Failed'
+  
+  def payload = """
+  {
+    "type": "message",
+    "attachments": [{
+      "contentType": "application/vnd.microsoft.card.adaptive",
+      "content": {
+        "type": "AdaptiveCard",
+        "version": "1.4",
+        "body": [
+          {"type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "${emoji} Ciyex - ${env.TARGET_ENV}"},
+          {"type": "FactSet", "facts": [
+            {"title": "Version", "value": "${env.VERSION}"},
+            {"title": "Status", "value": "${statusText}"},
+            {"title": "Branch", "value": "${env.TARGET_BRANCH}"},
+            {"title": "Build", "value": "#${env.BUILD_NUMBER}"}
+          ]},
+          {"type": "TextBlock", "text": "[View Build](${env.BUILD_URL})", "wrap": true}
+        ]
+      }
+    }]
+  }
+  """
+  
+  withCredentials([string(credentialsId: 'TEAMS_WEBHOOK_URL', variable: 'WEBHOOK_URL')]) {
+    sh """curl -H 'Content-Type: application/json' -d '${payload}' \"\${WEBHOOK_URL}\""""
+  }
+}
 }

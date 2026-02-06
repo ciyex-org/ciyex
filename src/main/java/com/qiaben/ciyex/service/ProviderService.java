@@ -473,7 +473,7 @@ public class ProviderService {
         }
     }
 
-    // ========== Audit Helper Methods ==========
+    // ========== Audit Helper Methods ========== //
 
     private void addAuditMetadata(Practitioner practitioner, boolean isCreate) {
         String currentUser = getCurrentUser();
