@@ -90,6 +90,11 @@ dependencies {
 	implementation 'com.twilio.sdk:twilio:10.9.2'
 	implementation 'com.sun.mail:jakarta.mail:2.0.1'
 	implementation 'com.stripe:stripe-java:24.18.0'
+	
+	// EDI/X12 Processing
+	implementation 'org.smooks:smooks-core:2.0.5'
+	implementation 'org.smooks.cartridges:smooks-edi-cartridge:2.0.5'
+	implementation 'org.smooks.cartridges:smooks-json-cartridge:2.0.5'
 
 	// Testing
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'

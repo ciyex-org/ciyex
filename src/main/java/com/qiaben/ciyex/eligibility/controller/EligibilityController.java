@@ -20,12 +20,13 @@ public class EligibilityController {
         this.eligibilityService = eligibilityService;
     }
     
-    @PostMapping("/check")
+    @PostMapping("/check/{patientId}")
     public ResponseEntity<ApiResponse<EligibilityResponseDto>> checkEligibility(
-            @Valid @RequestBody EligibilityRequestDto request) {
+            @PathVariable Long patientId,
+            @RequestParam(required = false) String serviceTypeCode) {
         try {
-            log.info("Eligibility check request for member: {}", request.getMemberId());
-            EligibilityResponseDto response = eligibilityService.checkEligibility(request);
+            log.info("Eligibility check for patient: {}", patientId);
+            EligibilityResponseDto response = eligibilityService.checkEligibility(patientId, serviceTypeCode);
             
             return ResponseEntity.ok(ApiResponse.<EligibilityResponseDto>builder()
                     .success(true)
@@ -37,44 +38,6 @@ public class EligibilityController {
             return ResponseEntity.ok(ApiResponse.<EligibilityResponseDto>builder()
                     .success(false)
                     .message("Eligibility check failed: " + e.getMessage())
-                    .build());
-        }
-    }
-    
-    @PostMapping("/generate-270")
-    public ResponseEntity<ApiResponse<String>> generate270(
-            @Valid @RequestBody EligibilityRequestDto request) {
-        try {
-            String x12Request = eligibilityService.generateX12Request(request);
-            return ResponseEntity.ok(ApiResponse.<String>builder()
-                    .success(true)
-                    .message("X12 270 request generated successfully")
-                    .data(x12Request)
-                    .build());
-        } catch (Exception e) {
-            log.error("Failed to generate X12 270: {}", e.getMessage(), e);
-            return ResponseEntity.ok(ApiResponse.<String>builder()
-                    .success(false)
-                    .message("Failed to generate X12 270: " + e.getMessage())
-                    .build());
-        }
-    }
-    
-    @PostMapping("/parse-271")
-    public ResponseEntity<ApiResponse<EligibilityResponseDto>> parse271(
-            @RequestBody String x12Response) {
-        try {
-            EligibilityResponseDto response = eligibilityService.parseX12Response(x12Response);
-            return ResponseEntity.ok(ApiResponse.<EligibilityResponseDto>builder()
-                    .success(true)
-                    .message("X12 271 response parsed successfully")
-                    .data(response)
-                    .build());
-        } catch (Exception e) {
-            log.error("Failed to parse X12 271: {}", e.getMessage(), e);
-            return ResponseEntity.ok(ApiResponse.<EligibilityResponseDto>builder()
-                    .success(false)
-                    .message("Failed to parse X12 271: " + e.getMessage())
                     .build());
         }
     }
