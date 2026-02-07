@@ -3,12 +3,12 @@
 
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.4.1'
+	id 'org.springframework.boot' version '4.0.1'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
 group = 'com.qiaben'
-version = '0.0.2'
+version = '0.0.3'
 
 
 
@@ -29,7 +29,7 @@ repositories {
 }
 
 ext {
-	set('springCloudVersion', "2024.0.0")
+	set('springCloudVersion', "2025.1.1")
 }
 
 dependencyManagement {
@@ -49,12 +49,12 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 	implementation 'org.springframework.data:spring-data-commons'
-	
+
 	// Spring Cloud Config
 	implementation 'org.springframework.cloud:spring-cloud-starter-config'
 	implementation 'org.springframework.cloud:spring-cloud-starter-vault-config'
 	implementation 'org.springframework.cloud:spring-cloud-starter-bootstrap'
-	
+
 	// FHIR
 	implementation 'ca.uhn.hapi.fhir:hapi-fhir-base:8.2.1'
 	implementation 'ca.uhn.hapi.fhir:hapi-fhir-client:8.2.1'
@@ -90,11 +90,6 @@ dependencies {
 	implementation 'com.twilio.sdk:twilio:10.9.2'
 	implementation 'com.sun.mail:jakarta.mail:2.0.1'
 	implementation 'com.stripe:stripe-java:24.18.0'
-	
-	// EDI/X12 Processing
-	implementation 'org.smooks:smooks-core:2.0.5'
-	implementation 'org.smooks.cartridges:smooks-edi-cartridge:2.0.5'
-	implementation 'org.smooks.cartridges:smooks-json-cartridge:2.0.5'
 
 	// Testing
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
