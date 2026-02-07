@@ -3,9 +3,6 @@ package com.qiaben.ciyex.controller;
 import com.qiaben.ciyex.dto.ApiResponse;
 import com.qiaben.ciyex.service.telehealth.CloudflareTelehealthService;
 import com.qiaben.ciyex.service.telehealth.JitsiTelehealthService;
-import com.qiaben.ciyex.service.telehealth.TelehealthGateway;
-import com.qiaben.ciyex.service.telehealth.TelehealthResolver;
-import com.qiaben.ciyex.service.telehealth.TelehealthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -30,18 +27,16 @@ import java.util.Map;
 )
 public class TelehealthController {
 
-    private final TelehealthGateway gateway;
-    private final TelehealthResolver resolver;
     private final ApplicationContext applicationContext;
+    private final com.qiaben.ciyex.util.OrgIntegrationConfigProvider configProvider;
 
-    public TelehealthController(TelehealthGateway gateway, TelehealthResolver resolver, ApplicationContext applicationContext) {
-        this.gateway = gateway;
-        this.resolver = resolver;
+    public TelehealthController(ApplicationContext applicationContext, com.qiaben.ciyex.util.OrgIntegrationConfigProvider configProvider) {
         this.applicationContext = applicationContext;
+        this.configProvider = configProvider;
     }
 
     // ----- DTO Records -----
-    public record StartCallRequest(
+    public record CreateMeetingRequest(
             @NotNull(message = "Provider ID is required.")
             Long providerId,
             @NotNull(message = "Patient ID is required.")
@@ -49,10 +44,21 @@ public class TelehealthController {
             @NotBlank(message = "Room name is required.")
             String roomName
     ) {}
+    
+    public record CloudflareMeetingRequest(
+            @NotNull(message = "Provider ID is required.")
+            Long providerId,
+            @NotNull(message = "Patient ID is required.")
+            Long patientId,
+            @NotBlank(message = "Start time is required (HH:mm format).")
+            String startTime,
+            @NotBlank(message = "End time is required (HH:mm format).")
+            String endTime,
+            @NotBlank(message = "Date is required (yyyy-MM-dd format).")
+            String date
+    ) {}
 
-    public record StartCallResponse(String roomSid) {}
-
-    public record JoinTokenRequest(
+    public record JoinMeetingRequest(
             @NotBlank(message = "Room name is required.")
             String roomName,
             @NotBlank(message = "Identity is required (e.g., Patient-John or Provider-Dr-Smith).")
@@ -60,106 +66,43 @@ public class TelehealthController {
             Integer ttlSeconds
     ) {}
 
-    public record JitsiJoinResponse(
+    public record JitsiResponse(
             String token, String roomName, String identity, String meetingUrl, long expiresIn
     ) {}
 
-    public record StatusResponse(String status) {}
+    public record CloudflareResponse(
+            String sessionId, String roomName, String identity, String meetingUrl
+    ) {}
 
     // -------------------------------------------------------------------------
-    // ✅ 1️⃣ Create Telehealth Room
+    // ✅ JITSI MODULE
     // -------------------------------------------------------------------------
-    @PostMapping("/rooms")
+    @PostMapping("/jitsi/create")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<?> startCall(@RequestBody StartCallRequest req, HttpServletRequest request) {
-        List<String> missingFields = new ArrayList<>();
-
-        if (req.providerId() == null) missingFields.add("Provider ID");
-        if (req.patientId() == null) missingFields.add("Patient ID");
-        if (req.roomName() == null || req.roomName().trim().isEmpty()) missingFields.add("Room Name");
-
-        if (!missingFields.isEmpty()) {
-            String message = String.join(", ", missingFields)
-                    + (missingFields.size() > 1 ? " are required." : " is required.");
-            return ResponseEntity.badRequest().body(ApiResponse.error(message));
+    public ResponseEntity<?> createJitsiMeeting(@RequestBody CreateMeetingRequest req, HttpServletRequest request) {
+        if (!validateCreateRequest(req)) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Provider ID, Patient ID, and Room Name are required."));
         }
 
         try {
             setTenantContextFromJwt(request);
-            TelehealthService service = resolver.resolve();
+            JitsiTelehealthService jitsiService = applicationContext.getBean(JitsiTelehealthService.class);
+            String roomSid = jitsiService.startVideoCall(req.providerId(), req.patientId(), req.roomName());
 
-            String roomSid;
-            if (service != null) {
-                roomSid = service.startVideoCall(req.providerId(), req.patientId(), req.roomName());
-            } else {
-                roomSid = req.roomName();
-            }
-
-            return ResponseEntity.ok(ApiResponse.ok("Telehealth room created successfully",
-                    new StartCallResponse(roomSid)));
+            return ResponseEntity.ok(ApiResponse.ok("Jitsi meeting created successfully",
+                    Map.of("roomSid", roomSid, "provider", "jitsi")));
 
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(
-                    ApiResponse.error("Failed to create telehealth room: " + e.getMessage()));
+                    ApiResponse.error("Failed to create Jitsi meeting: " + e.getMessage()));
         }
     }
 
-    // -------------------------------------------------------------------------
-    // ✅ 2️⃣ Generate Token (Tenant-Aware or Fallback)
-    // -------------------------------------------------------------------------
-    @PostMapping("/token")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<?> joinToken(@RequestBody JoinTokenRequest req, HttpServletRequest request) {
-        List<String> missingFields = new ArrayList<>();
-
-        if (req.roomName() == null || req.roomName().trim().isEmpty()) missingFields.add("Room Name");
-        if (req.identity() == null || req.identity().trim().isEmpty()) missingFields.add("Identity");
-
-        if (!missingFields.isEmpty()) {
-            String message = String.join(", ", missingFields)
-                    + (missingFields.size() > 1 ? " are required." : " is required.");
-            return ResponseEntity.badRequest().body(ApiResponse.error(message));
-        }
-
-        try {
-            int ttl = (req.ttlSeconds() != null && req.ttlSeconds() > 0) ? req.ttlSeconds() : 3600;
-
-            setTenantContextFromJwt(request);
-            TelehealthService service = resolver.resolve();
-
-            if (service instanceof JitsiTelehealthService jitsiService) {
-                JitsiTelehealthService.JoinTokenWithMeetingUrl result =
-                        jitsiService.createJoinTokenWithUrl(req.roomName(), req.identity(), ttl);
-
-                return ResponseEntity.ok(ApiResponse.ok("Telehealth token generated successfully",
-                        new JitsiJoinResponse(result.token(), result.roomName(), result.identity(), result.meetingUrl(), ttl)));
-            }
-
-            String token = gateway.createJoinToken(req.roomName(), req.identity(), ttl);
-            return ResponseEntity.ok(ApiResponse.ok("Telehealth token generated successfully (fallback mode)",
-                    new JitsiJoinResponse(token, req.roomName(), req.identity(), null, ttl)));
-
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(
-                    ApiResponse.error("Failed to generate telehealth token: " + e.getMessage()));
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // ✅ 3️⃣ Jitsi Join (Generate Token + Meeting URL)
-    // -------------------------------------------------------------------------
     @PostMapping("/jitsi/join")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<?> jitsiJoin(@RequestBody JoinTokenRequest req, HttpServletRequest request) {
-        List<String> missingFields = new ArrayList<>();
-
-        if (req.roomName() == null || req.roomName().trim().isEmpty()) missingFields.add("Room Name");
-        if (req.identity() == null || req.identity().trim().isEmpty()) missingFields.add("Identity");
-
-        if (!missingFields.isEmpty()) {
-            String message = String.join(", ", missingFields)
-                    + (missingFields.size() > 1 ? " are required." : " is required.");
-            return ResponseEntity.badRequest().body(ApiResponse.error(message));
+    public ResponseEntity<?> joinJitsiMeeting(@RequestBody JoinMeetingRequest req, HttpServletRequest request) {
+        if (!validateJoinRequest(req)) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Room Name and Identity are required."));
         }
 
         try {
@@ -168,30 +111,70 @@ public class TelehealthController {
             JitsiTelehealthService.JoinTokenWithMeetingUrl result =
                     jitsiService.createJoinTokenWithUrl(req.roomName(), req.identity(), ttl);
 
-            return ResponseEntity.ok(ApiResponse.ok("Telehealth join token generated successfully",
-                    new JitsiJoinResponse(result.token(), result.roomName(), result.identity(), result.meetingUrl(), ttl)));
+            return ResponseEntity.ok(ApiResponse.ok("Jitsi meeting joined successfully",
+                    new JitsiResponse(result.token(), result.roomName(), result.identity(), result.meetingUrl(), ttl)));
 
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(
-                    ApiResponse.error("Failed to join telehealth session: " + e.getMessage()));
+                    ApiResponse.error("Failed to join Jitsi meeting: " + e.getMessage()));
         }
     }
 
     // -------------------------------------------------------------------------
-    // ✅ 4️⃣ Cloudflare Join (Generate Session ID)
+    // ✅ CLOUDFLARE MODULE
     // -------------------------------------------------------------------------
+    @PostMapping("/cloudflare/create")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> createCloudflareMeeting(@RequestBody CloudflareMeetingRequest req, HttpServletRequest request) {
+        if (!validateCloudflareRequest(req)) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Provider ID, Patient ID, Start Time, End Time, and Date are required."));
+        }
+
+        try {
+            setTenantContextFromJwt(request);
+            CloudflareTelehealthService cloudflareService = applicationContext.getBean(CloudflareTelehealthService.class);
+            
+            CloudflareTelehealthService.CloudflareMeetingRequest serviceRequest = 
+                new CloudflareTelehealthService.CloudflareMeetingRequest(
+                    req.providerId(), req.patientId(), req.startTime(), req.endTime(), req.date()
+                );
+            
+            CloudflareTelehealthService.CloudflareMeetingResponse result = 
+                cloudflareService.createMeetingWithDetails(serviceRequest);
+
+            return ResponseEntity.ok(ApiResponse.ok("Cloudflare meeting created successfully", result));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.error("Failed to create Cloudflare meeting: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/cloudflare/join/{roomId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> joinCloudflareByRoomId(@PathVariable String roomId, HttpServletRequest request) {
+        if (roomId == null || roomId.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Room ID is required."));
+        }
+
+        try {
+            setTenantContextFromJwt(request);
+            CloudflareTelehealthService cloudflareService = applicationContext.getBean(CloudflareTelehealthService.class);
+            CloudflareTelehealthService.CloudflareJoinResponse result = cloudflareService.joinMeetingByRoomId(roomId);
+
+            return ResponseEntity.ok(ApiResponse.ok("Successfully joined Cloudflare meeting", result));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.error("Failed to join Cloudflare meeting: " + e.getMessage()));
+        }
+    }
+
     @PostMapping("/cloudflare/join")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<?> cloudflareJoin(@RequestBody JoinTokenRequest req, HttpServletRequest request) {
-        List<String> missingFields = new ArrayList<>();
-
-        if (req.roomName() == null || req.roomName().trim().isEmpty()) missingFields.add("Room Name");
-        if (req.identity() == null || req.identity().trim().isEmpty()) missingFields.add("Identity");
-
-        if (!missingFields.isEmpty()) {
-            String message = String.join(", ", missingFields)
-                    + (missingFields.size() > 1 ? " are required." : " is required.");
-            return ResponseEntity.badRequest().body(ApiResponse.error(message));
+    public ResponseEntity<?> joinCloudflareMeeting(@RequestBody JoinMeetingRequest req, HttpServletRequest request) {
+        if (!validateJoinRequest(req)) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Room Name and Identity are required."));
         }
 
         try {
@@ -200,39 +183,68 @@ public class TelehealthController {
             CloudflareTelehealthService.CloudflareJoinResponse result =
                     cloudflareService.createJoinTokenWithUrl(req.roomName(), req.identity(), ttl);
 
-            return ResponseEntity.ok(ApiResponse.ok("Cloudflare session created successfully",
-                    Map.of("sessionId", result.sessionId(), "roomName", result.roomName(), "identity", result.identity())));
+            return ResponseEntity.ok(ApiResponse.ok("Cloudflare meeting joined successfully",
+                    new CloudflareResponse(result.roomId(), result.roomId(), result.identity(), result.meetingUrl())));
 
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(
-                    ApiResponse.error("Failed to create Cloudflare session: " + e.getMessage()));
+                    ApiResponse.error("Failed to join Cloudflare meeting: " + e.getMessage()));
         }
     }
 
-    // -------------------------------------------------------------------------
-    // ✅ 4️⃣ Check Room Status
-    // -------------------------------------------------------------------------
-    @GetMapping("/rooms/{id}/status")
+    @PostMapping("/cloudflare/join/fhir/{fhirId}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<?> status(@PathVariable(value = "id") String callId) {
+    public ResponseEntity<?> joinCloudflareByFhirId(@PathVariable String fhirId, @RequestBody JoinMeetingRequest req, HttpServletRequest request) {
+        if (!validateJoinRequest(req)) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Room Name and Identity are required."));
+        }
+
         try {
-            String status = gateway.getCallStatus(callId);
-            return ResponseEntity.ok(ApiResponse.ok("Telehealth room status retrieved successfully",
-                    new StatusResponse(status)));
+            var cloudflareConfig = configProvider.getCloudflareCredentialsByFhirId(fhirId);
+            if (cloudflareConfig == null) {
+                return ResponseEntity.badRequest().body(
+                    ApiResponse.error("Cloudflare credentials not found for FHIR ID: " + fhirId));
+            }
+
+            int ttl = (req.ttlSeconds() != null && req.ttlSeconds() > 0) ? req.ttlSeconds() : 
+                     (cloudflareConfig.getDefaultTokenTtl() != null ? cloudflareConfig.getDefaultTokenTtl() : 3600);
+            
+            CloudflareTelehealthService cloudflareService = applicationContext.getBean(CloudflareTelehealthService.class);
+            CloudflareTelehealthService.CloudflareJoinResponse result =
+                    cloudflareService.createJoinTokenWithUrl(req.roomName(), req.identity(), ttl);
+
+            return ResponseEntity.ok(ApiResponse.ok("Cloudflare meeting joined with FHIR credentials",
+                    new CloudflareResponse(result.roomId(), result.roomId(), result.identity(), result.meetingUrl())));
+
         } catch (Exception e) {
-            return ResponseEntity.ok(ApiResponse.ok("Telehealth room status assumed active (default)",
-                    new StatusResponse("active")));
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.error("Failed to join Cloudflare meeting with FHIR ID " + fhirId + " : " + e.getMessage()));
         }
     }
 
     // -------------------------------------------------------------------------
-    // 🔹 Helper Method
+    // 🔹 Helper Methods
     // -------------------------------------------------------------------------
+    private boolean validateCreateRequest(CreateMeetingRequest req) {
+        return req.providerId() != null && req.patientId() != null && 
+               req.roomName() != null && !req.roomName().trim().isEmpty();
+    }
+    
+    private boolean validateCloudflareRequest(CloudflareMeetingRequest req) {
+        return req.providerId() != null && req.patientId() != null && 
+               req.startTime() != null && !req.startTime().trim().isEmpty() &&
+               req.endTime() != null && !req.endTime().trim().isEmpty() &&
+               req.date() != null && !req.date().trim().isEmpty();
+    }
+
+    private boolean validateJoinRequest(JoinMeetingRequest req) {
+        return req.roomName() != null && !req.roomName().trim().isEmpty() &&
+               req.identity() != null && !req.identity().trim().isEmpty();
+    }
+
     private void setTenantContextFromJwt(HttpServletRequest request) {
         try {
-            // Always set context, and treat tenantName as 'default' for compatibility
             com.qiaben.ciyex.dto.integration.RequestContext ctx = new com.qiaben.ciyex.dto.integration.RequestContext();
-            // tenantName is deprecated, but if needed elsewhere, use 'default'
             com.qiaben.ciyex.dto.integration.RequestContext.set(ctx);
         } catch (Exception ignored) {}
     }

@@ -40,6 +40,30 @@ public class PracticeService {
         return practiceContextService.getPracticeId();
     }
 
+    // ✅ Delete all existing practices
+    public void deleteAllPractices() {
+        log.info("Deleting all existing practices");
+        try {
+            Bundle bundle = fhirClientService.search(Organization.class, getPracticeId());
+            List<PracticeDto> practices = extractOrganizations(bundle);
+            
+            for (PracticeDto practice : practices) {
+                if (practice.getFhirId() != null) {
+                    try {
+                        fhirClientService.delete(Organization.class, practice.getFhirId(), getPracticeId());
+                        log.info("Deleted practice with FHIR ID: {}", practice.getFhirId());
+                    } catch (Exception e) {
+                        log.error("Failed to delete practice with FHIR ID: {}", practice.getFhirId(), e);
+                    }
+                }
+            }
+            log.info("Deleted {} practices", practices.size());
+        } catch (Exception e) {
+            log.error("Error deleting all practices", e);
+            throw new RuntimeException("Failed to delete all practices: " + e.getMessage(), e);
+        }
+    }
+
     // ✅ Get or create the single practice instance
     public PracticeDto getOrCreatePractice() {
         Bundle bundle = fhirClientService.search(Organization.class, getPracticeId());
@@ -49,22 +73,30 @@ public class PracticeService {
             // Create default practice if none exists
             PracticeDto defaultPractice = new PracticeDto();
             defaultPractice.setName("Default Practice");
-            return create(defaultPractice);
+            return createSingle(defaultPractice);
         }
         
         // Return the first (and should be only) practice
         return practices.get(0);
     }
 
-    // ✅ Create practice in FHIR (only if none exists)
+    // ✅ Create or update the single practice (upsert)
     public PracticeDto create(PracticeDto dto) {
-        // Check if practice already exists
         Bundle bundle = fhirClientService.search(Organization.class, getPracticeId());
         List<PracticeDto> existing = extractOrganizations(bundle);
+        
         if (!existing.isEmpty()) {
-            throw new IllegalStateException("Practice already exists. Use update instead.");
+            // Update existing practice instead of creating new
+            PracticeDto existingPractice = existing.get(0);
+            log.info("Practice already exists, updating instead: {}", existingPractice.getFhirId());
+            return updateByFhirId(existingPractice.getFhirId(), dto);
         }
+        
+        return createSingle(dto);
+    }
 
+    // ✅ Internal method to create a single practice
+    private PracticeDto createSingle(PracticeDto dto) {
         if (dto.getName() == null || dto.getName().trim().isEmpty()) {
             throw new IllegalArgumentException("Practice name is required");
         }
