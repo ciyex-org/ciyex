@@ -49,12 +49,12 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 	implementation 'org.springframework.data:spring-data-commons'
-	
+
 	// Spring Cloud Config
 	implementation 'org.springframework.cloud:spring-cloud-starter-config'
 	implementation 'org.springframework.cloud:spring-cloud-starter-vault-config'
 	implementation 'org.springframework.cloud:spring-cloud-starter-bootstrap'
-	
+
 	// FHIR
 	implementation 'ca.uhn.hapi.fhir:hapi-fhir-base:8.2.1'
 	implementation 'ca.uhn.hapi.fhir:hapi-fhir-client:8.2.1'
