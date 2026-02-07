@@ -230,6 +230,39 @@ public class OrgIntegrationConfigProvider {
         return cfg != null ? cfg.getS3() : null;
     }
 
+    public TelehealthConfig.Cloudflare getCloudflareCredentialsByFhirId(String fhirId) {
+        Map<String,String> all = loadAll();
+        TelehealthConfig.Cloudflare cloudflare = new TelehealthConfig.Cloudflare();
+        
+        // Get credentials using FHIR ID as prefix or lookup
+        String appId = all.get("fhir." + fhirId + ".cloudflare.appId");
+        String appSecret = all.get("fhir." + fhirId + ".cloudflare.appSecret");
+        String apiToken = all.get("fhir." + fhirId + ".cloudflare.apiToken");
+        
+        if (appId == null || appSecret == null || apiToken == null) {
+            return null;
+        }
+        
+        cloudflare.setAppId(appId);
+        cloudflare.setAppSecret(appSecret);
+        cloudflare.setApiToken(apiToken);
+        
+        String ttl = all.get("fhir." + fhirId + ".cloudflare.defaultTokenTtl");
+        if (ttl != null) try { cloudflare.setDefaultTokenTtl(Integer.parseInt(ttl)); } catch (NumberFormatException ignored) {}
+        
+        return cloudflare;
+    }
+
+    public TelehealthConfig getTelehealthConfigByFhirId(String fhirId) {
+        TelehealthConfig.Cloudflare cloudflare = getCloudflareCredentialsByFhirId(fhirId);
+        if (cloudflare == null) return null;
+        
+        TelehealthConfig cfg = new TelehealthConfig();
+        cfg.setVendor("cloudflare");
+        cfg.setCloudflare(cloudflare);
+        return cfg;
+    }
+
     @SuppressWarnings("unchecked")
     public <T> T get(IntegrationKey key) {
         return switch (key) {

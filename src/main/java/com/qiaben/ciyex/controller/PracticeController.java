@@ -31,17 +31,10 @@ public class PracticeController {
             return ResponseEntity.ok(
                     ApiResponse.<PracticeDto>builder()
                             .success(true)
-                            .message("Practice created successfully")
+                            .message("Practice saved successfully")
                             .data(createdPractice)
                             .build()
             );
-        } catch (IllegalStateException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(ApiResponse.<PracticeDto>builder()
-                            .success(false)
-                            .message(e.getMessage())
-                            .data(null)
-                            .build());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<PracticeDto>builder()
@@ -53,7 +46,28 @@ public class PracticeController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.<PracticeDto>builder()
                             .success(false)
-                            .message("Failed to create practice")
+                            .message("Failed to save practice")
+                            .data(null)
+                            .build());
+        }
+    }
+
+    @DeleteMapping("/all")
+    public ResponseEntity<ApiResponse<Void>> deleteAll() {
+        try {
+            service.deleteAllPractices();
+            return ResponseEntity.ok(
+                    ApiResponse.<Void>builder()
+                            .success(true)
+                            .message("All practices deleted successfully")
+                            .data(null)
+                            .build()
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<Void>builder()
+                            .success(false)
+                            .message("Failed to delete all practices")
                             .data(null)
                             .build());
         }

@@ -42,6 +42,7 @@ public class TelehealthConfig {
         private String appId;     // Cloudflare Calls App ID
         private String appSecret; // Cloudflare Calls App Secret
         private String apiToken;  // Cloudflare API Token
+        private String accountId; // Cloudflare Account ID
         private Integer defaultTokenTtl; // Default TTL in seconds
     }
 
