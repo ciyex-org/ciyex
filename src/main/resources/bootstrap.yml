@@ -10,8 +10,33 @@ spring:
       kubernetes:
         role: ciyex
         kubernetes-path: ${VAULT_K8S_AUTH_PATH:kubernetes-stage}
+      kv:
+        enabled: true
+        backend: secret
+        default-context: ciyex
+        application-name: ciyex
+        profile-separator: /
+        backend-version: 2
+      session:
+        lifecycle:
+          enabled: true
+          refresh-before-expiry: 5m
+          expiry-threshold: 7m
+      config:
+        lifecycle:
+          enabled: false
+          min-renewal: 10s
+          expiry-threshold: 1m
+      client:
+        ssl:
+          verification-mode: SELF_SIGNED
     config:
       uri: ${CONFIG_URI:https://config.apps-prod.us-east.in.hinisoft.com}
       username: ${CONFIG_USERNAME}
       password: ${CONFIG_PASSWORD}
       fail-fast: false
+      retry:
+        initial-interval: 1000
+        max-attempts: 3
+        max-interval: 2000
+        multiplier: 1.1
