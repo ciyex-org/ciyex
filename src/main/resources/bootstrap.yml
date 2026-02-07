@@ -27,8 +27,8 @@ spring:
         retry-interval: 1000
     config:
       uri: ${CONFIG_URI:https://config.apps-prod.us-east.in.hinisoft.com}
-      username: ${CONFIG_USERNAME:dev}
-      password: ${CONFIG_PASSWORD:ceffDD0qWy2gMHycsolsQBPi}
+      username: ${CONFIG_USERNAME}
+      password: ${CONFIG_PASSWORD}
       fail-fast: false
       allow-override: true
       override-none: true
