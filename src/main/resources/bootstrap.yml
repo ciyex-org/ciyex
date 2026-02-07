@@ -5,13 +5,17 @@ spring:
     vault:
       enabled: true
       uri: ${VAULT_URI:https://vault.apps-stage.us-east.in.hinisoft.com}
-      authentication: TOKEN
+      authentication: ${VAULT_AUTH_METHOD:TOKEN}
       token: ${VAULT_TOKEN:}
+      kubernetes:
+        role: ciyex
+        kubernetes-path: ${VAULT_K8S_AUTH_PATH:kubernetes-stage}
       kv:
         enabled: true
         backend: secret
         default-context: ciyex
         application-name: ciyex
+        profile-separator: /
         backend-version: 2
       client:
         ssl:
@@ -23,8 +27,8 @@ spring:
         retry-interval: 1000
     config:
       uri: ${CONFIG_URI:https://config.apps-prod.us-east.in.hinisoft.com}
-      username: ${CONFIG_USERNAME:stage}
-      password: ${CONFIG_PASSWORD:ceffDD0qWy2gMHycsolsQBPi}
+      username: ${CONFIG_USERNAME}
+      password: ${CONFIG_PASSWORD}
       fail-fast: false
       allow-override: true
       override-none: true
