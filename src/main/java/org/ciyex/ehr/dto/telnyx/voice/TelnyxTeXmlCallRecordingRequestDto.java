@@ -1,0 +1,14 @@
+package org.ciyex.ehr.dto.telnyx.voice;
+
+import lombok.Data;
+
+@Data
+public class TelnyxTeXmlCallRecordingRequestDto {
+    private Boolean PlayBeep;                         // default true
+    private String  RecordingStatusCallbackEvent;     // "in-progress completed"
+    private String  RecordingStatusCallback;          // URL
+    private String  RecordingStatusCallbackMethod;    // GET | POST
+    private String  RecordingChannels;                // single | dual
+    private String  RecordingTrack;                   // inbound | outbound | both
+    private Boolean SendRecordingUrl;                 // default true
+}

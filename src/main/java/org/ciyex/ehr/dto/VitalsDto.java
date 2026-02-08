@@ -1,0 +1,49 @@
+
+
+
+package org.ciyex.ehr.dto;
+
+import lombok.*;
+import java.time.LocalDateTime;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class VitalsDto {
+    private Long id;
+    private String externalId;
+    private String fhirId;
+    private Long patientId;
+    private Long encounterId;
+
+    private Double weightKg;
+    private Double weightLbs;
+    private Double heightCm;
+    private Double heightIn;
+    private Double bpSystolic;
+    private Double bpDiastolic;
+    private Double pulse;
+    private Double respiration;
+    private Double temperatureC;
+    private Double temperatureF;
+    private Double oxygenSaturation;
+    private Double bmi;
+    private String notes;
+
+    private Boolean signed;
+
+    private LocalDateTime recordedAt;
+
+    // audit
+    private Audit audit;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class Audit {
+        private String createdDate;      // yyyy-MM-dd
+        private String lastModifiedDate; // yyyy-MM-dd
+    }
+}

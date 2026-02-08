@@ -1,0 +1,13 @@
+package org.ciyex.ehr.dto.telnyx;
+
+import lombok.Data;
+
+@Data
+public class UnmuteParticipantsResponseDto {
+    private DataWrapper data;
+
+    @Data
+    public static class DataWrapper {
+        private String result;
+    }
+}

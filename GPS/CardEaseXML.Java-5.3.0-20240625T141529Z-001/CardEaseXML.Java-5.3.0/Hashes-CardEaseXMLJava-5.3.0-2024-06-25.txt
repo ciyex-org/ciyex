@@ -1,2 +1,0 @@
-eee5a2f739abb489064eba4c8f90141e856a7351b5629e8abee89c0cf6caed22 CardEaseXMLJava-5.3.0-2021-11-18.zip
-e8dd1e8db222a63bf55be1313766e1da759e7937fbf003b74f880d3b19aa8f81 CardEaseXMLClient.jar

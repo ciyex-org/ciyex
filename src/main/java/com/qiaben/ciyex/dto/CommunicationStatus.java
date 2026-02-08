@@ -1,5 +1,0 @@
-package com.qiaben.ciyex.dto;
-
-public enum CommunicationStatus {
-    PREPARATION, IN_PROGRESS, NOT_DONE, ON_HOLD, STOPPED, COMPLETED, ENTERED_IN_ERROR, UNKNOWN, SENT, RECEIVED, ARCHIVED
-}
