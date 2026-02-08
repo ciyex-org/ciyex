@@ -29,7 +29,7 @@ concurrency:
 
 env:
   IMAGE_NAME: ciyex
-  REGISTRY: registry.apps-prod.us-east.in.hinisoft.com
+  REGISTRY: ${{ secrets.REGISTRY_URL }}
 
 jobs:
   # Promote to RC - only from main
@@ -106,14 +106,7 @@ jobs:
           git tag -a "${RC_VERSION}-rc" -m "Release Candidate ${RC_VERSION}-rc"
           git push origin "${RC_VERSION}-rc"
           
-          # Update stage overlay with RC version for ArgoCD
-          sed -i "s/newTag: .*/newTag: \"${RC_VERSION}-rc\"/" k8s/overlays/stage/kustomization.yaml
-          git add k8s/overlays/stage/kustomization.yaml
-          git commit -m "chore: update stage image to ${RC_VERSION}-rc [skip ci]" || true
-          git push origin main || true
-          
           echo "✅ Created RC tag: ${RC_VERSION}-rc"
-          echo "✅ Updated stage overlay: ${RC_VERSION}-rc"
           echo "✅ Bumped main to: ${NEXT_VERSION}"
           
           # Store version for notification
@@ -281,14 +274,6 @@ jobs:
           git tag -a "v${GA_VERSION}" -m "Release ${GA_VERSION}"
           git push origin "v${GA_VERSION}"
           echo "✅ Created GA git tag: v${GA_VERSION}"
-          
-          # Update prod overlay with GA version for ArgoCD
-          git pull origin main
-          sed -i "s/newTag: .*/newTag: \"${GA_VERSION}\"/" k8s/overlays/prod/kustomization.yaml
-          git add k8s/overlays/prod/kustomization.yaml
-          git commit -m "chore: update prod image to ${GA_VERSION} [skip ci]" || true
-          git push origin main || true
-          echo "✅ Updated prod overlay: ${GA_VERSION}"
           
           # Find previous GA tag for release notes
           PREV_TAG=$(git tag -l "v*" --sort=-v:refname | grep -v "v${GA_VERSION}" | head -n1)
@@ -482,14 +467,9 @@ jobs:
           done
           
           if [ -n "$NEXT_RC" ]; then
-            echo "Reverting stage overlay to next RC: $NEXT_RC"
-            sed -i "s/newTag: .*/newTag: \"$NEXT_RC\"/" k8s/overlays/stage/kustomization.yaml
-            git add k8s/overlays/stage/kustomization.yaml
-            git commit -m "chore: revert stage to $NEXT_RC after skipping ${{ env.SKIPPED_RC }}" || echo "No changes to commit"
-            git push origin main
+            echo "Next RC to deploy: $NEXT_RC (Image Updater will handle stage overlay update)"
           else
-            echo "No remaining RC tags. Stage overlay not modified."
-            echo "You may want to manually update stage to a dev version."
+            echo "No remaining RC tags."
           fi
 
       - name: Send Teams notification
@@ -695,19 +675,11 @@ jobs:
           git tag -a "$VERSION" -m "Release $VERSION"
           git push origin "$VERSION" || echo "Tag already exists"
 
-      - name: Update Kustomize overlay with new image tag
+      - name: Summary
         run: |
           VERSION="${{ needs.version.outputs.version }}"
-          OVERLAY="${{ needs.version.outputs.overlay }}"
-          
-          # Update the image tag in the appropriate overlay
-          sed -i "s/newTag: .*/newTag: \"$VERSION\"/" k8s/overlays/$OVERLAY/kustomization.yaml
-          
-          git add k8s/overlays/$OVERLAY/kustomization.yaml
-          git commit -m "chore: update $OVERLAY image to $VERSION [skip ci]" || echo "No changes"
-          git push origin main || echo "Push failed"
-          
-          echo "✅ Updated k8s/overlays/$OVERLAY with image tag: $VERSION"
+          echo "✅ Image pushed: $REGISTRY/$IMAGE_NAME:$VERSION"
+          echo "ArgoCD Image Updater will auto-update the deployment overlay"
 
   # Notify team
   notify:

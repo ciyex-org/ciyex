@@ -92,3 +92,10 @@ node_modules
 ciyex-ehr-ui/
 ciyex-portal-ui/
 ciyex-admin-ui/
+
+# Sensitive config files
+.env
+*.env.*
+eligibility-config.yml
+application-local.yml
+application-local.properties

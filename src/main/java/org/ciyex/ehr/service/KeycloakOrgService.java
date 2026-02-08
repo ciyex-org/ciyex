@@ -27,7 +27,7 @@ public class KeycloakOrgService {
     @Value("${keycloak.realm}")
     private String keycloakRealm;
     
-    @Value("${keycloak.admin.username:aran-admin}")
+    @Value("${keycloak.admin.username}")
     private String adminUsername;
     
     @Value("${keycloak.admin.password:}")

@@ -63,9 +63,13 @@ public class JitsiTelehealthService implements TelehealthService {
     }
 
     private String generateJitsiJWT(TelehealthConfig.Jitsi config, String roomName, String identity, int ttlSecs) {
-        String appId = (config != null && !isBlank(config.getAppId())) ? config.getAppId() : "ciyex";
-        String appSecret = (config != null && !isBlank(config.getAppSecret())) ? config.getAppSecret() : "ciyex-default-secret-key-for-development-only-change-in-production";
-        String serverUrl = (config != null && !isBlank(config.getServerUrl())) ? config.getServerUrl() : "https://meet-stg.ciyex.com";
+        String appId = (config != null && !isBlank(config.getAppId())) ? config.getAppId() : null;
+        String appSecret = (config != null && !isBlank(config.getAppSecret())) ? config.getAppSecret() : null;
+        String serverUrl = (config != null && !isBlank(config.getServerUrl())) ? config.getServerUrl() : null;
+
+        if (appId == null || appSecret == null || serverUrl == null) {
+            throw new RuntimeException("Jitsi configuration is incomplete. Required: appId, appSecret, serverUrl");
+        }
 
         if (appSecret.length() < 32) {
             appSecret = String.format("%-32s", appSecret).replace(' ', '0');
@@ -116,8 +120,7 @@ public class JitsiTelehealthService implements TelehealthService {
         if (config != null && config.getJitsi() != null && !isBlank(config.getJitsi().getServerUrl())) {
             serverUrl = config.getJitsi().getServerUrl();
         } else {
-            serverUrl = "https://meet-stg.ciyex.com";
-            log.warn("Jitsi server URL not configured, using default: {}", serverUrl);
+            throw new RuntimeException("Jitsi server URL not configured");
         }
 
         if (serverUrl.endsWith("/")) {

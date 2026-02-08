@@ -34,7 +34,7 @@ public class PortalAuthService {
     private final PracticeContextService practiceContextService;
     private final PasswordEncoder passwordEncoder;
 
-    @Value("${jwt.secret:portal-secret-key-for-development-only}")
+    @Value("${jwt.secret}")
     private String jwtSecret;
 
     private static final long JWT_EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours
@@ -243,7 +243,7 @@ public class PortalAuthService {
         Person newPerson = new Person();
         newPerson.addName().setFamily(lastName).addGiven(firstName);
         newPerson.addTelecom().setSystem(ContactPoint.ContactPointSystem.EMAIL).setValue(email);
-        newPerson.addExtension(new Extension(EXT_PASSWORD, new StringType(passwordEncoder.encode("keycloak-login"))));
+        newPerson.addExtension(new Extension(EXT_PASSWORD, new StringType(passwordEncoder.encode(UUID.randomUUID().toString()))));
         newPerson.addExtension(new Extension(EXT_STATUS, new StringType("APPROVED")));
         newPerson.addExtension(new Extension(EXT_APPROVED_DATE, new DateTimeType(new Date())));
         newPerson.addExtension(new Extension(EXT_KEYCLOAK_ID, new StringType(keycloakId)));

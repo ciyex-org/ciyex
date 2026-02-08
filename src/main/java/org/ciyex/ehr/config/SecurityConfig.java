@@ -40,10 +40,10 @@ public class SecurityConfig implements WebMvcConfigurer {
     @Autowired
     private SessionTimeoutInterceptor sessionTimeoutInterceptor;
 
-    @Value("${jwt.secret:portal-secret-key-for-development-only}")
+    @Value("${jwt.secret}")
     private String jwtSecret;
 
-    @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:https://aran-stg.zpoa.com/realms/master}")
+    @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
     private String issuerUri;
 
     @Bean

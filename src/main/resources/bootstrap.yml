@@ -4,7 +4,7 @@ spring:
   cloud:
     vault:
       enabled: true
-      uri: ${VAULT_URI:https://vault.apps-stage.us-east.in.hinisoft.com}
+      uri: ${VAULT_URI}
       authentication: ${VAULT_AUTH_METHOD:TOKEN}
       token: ${VAULT_TOKEN:}
       kubernetes:
@@ -31,7 +31,7 @@ spring:
         ssl:
           verification-mode: SELF_SIGNED
     config:
-      uri: ${CONFIG_URI:https://config.apps-prod.us-east.in.hinisoft.com}
+      uri: ${CONFIG_URI}
       username: ${CONFIG_USERNAME}
       password: ${CONFIG_PASSWORD}
       fail-fast: false
