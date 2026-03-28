@@ -1,0 +1,43 @@
+### Phase 1 — No Authentication
+### All requests must return 401 Unauthorized.
+### Run WITHOUT any Authorization header.
+
+### Patient resources — no auth
+GET {{BASE_URL}}/api/fhir-resource/patients
+Content-Type: application/json
+
+###
+
+GET {{BASE_URL}}/api/fhir-resource/encounters
+Content-Type: application/json
+
+###
+
+GET {{BASE_URL}}/api/fhir-resource/appointments
+Content-Type: application/json
+
+###
+
+### Admin endpoints — no auth
+GET {{BASE_URL}}/api/admin/roles
+Content-Type: application/json
+
+###
+
+GET {{BASE_URL}}/api/admin/users
+Content-Type: application/json
+
+###
+
+### Write operations — no auth
+POST {{BASE_URL}}/api/fhir-resource/patients
+Content-Type: application/json
+
+{"resourceType":"Patient","name":[{"family":"Test"}]}
+
+###
+
+DELETE {{BASE_URL}}/api/fhir-resource/patients/patient/1/fake-id
+Content-Type: application/json
+
+###

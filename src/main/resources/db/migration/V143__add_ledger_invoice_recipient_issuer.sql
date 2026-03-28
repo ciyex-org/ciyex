@@ -1,0 +1,3 @@
+ALTER TABLE patient_ledger ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(100);
+ALTER TABLE patient_ledger ADD COLUMN IF NOT EXISTS recipient VARCHAR(255);
+ALTER TABLE patient_ledger ADD COLUMN IF NOT EXISTS issuer VARCHAR(255);

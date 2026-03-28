@@ -1,0 +1,74 @@
+//package org.ciyex.ehr.dto;
+//
+//import lombok.Data;
+//
+//@Data
+//public class SignoffDto {
+//    private Long id;
+//    private String externalId;          // optional FHIR id (Provenance/Composition.attester)
+//
+//    private Long patientId;
+//    private Long encounterId;
+//
+//    // What is being signed off
+//    private String targetType;          // NOTE | REPORT | PLAN | CLAIM | INVOICE | OTHER
+//    private Long   targetId;            // ID in your DB for the target resource
+//    private String targetVersion;       // optional version string of target
+//
+//    // Who/when/how
+//    private String status;              // draft | in_review | finalized | amended | revoked
+//    private String signedBy;            // Practitioner/username
+//    private String signerRole;          // MD | RN | ADMIN | BILLING etc
+//    private String signedAt;            // ISO-8601 date-time (Z or offset)
+//    private String signatureType;       // ELECTRONIC | WET | PIN | SMARTCARD
+//    private String signatureData;       // optional Base64 or CMS/JOSE blob (truncate at UI)
+//
+//    // Integrity/attestation
+//    private String contentHash;         // SHA-256 hex of the finalized content
+//    private String attestationText;     // "I attest that..."
+//    private String comments;
+//
+//    private Audit audit;
+//    @Data
+//    public static class Audit {
+//        private String createdDate;      // yyyy-MM-dd
+//        private String lastModifiedDate; // yyyy-MM-dd
+//    }
+//}
+
+package org.ciyex.ehr.dto;
+
+import lombok.Data;
+
+@Data
+public class SignoffDto {
+    private Long id;
+    private String externalId;
+    private String fhirId;
+    private Long patientId;
+    private Long encounterId;
+
+    private String targetType;
+    private Long targetId;
+    private String targetVersion;
+
+    private String status;           // Draft / Signed / Locked / ...
+    private String signedBy;
+    private String signerRole;
+    private String signedAt;         // keep String (schema varchar)
+
+    private String signatureType;    // drawn/typed/etc
+    private String signatureData;    // base64 or text
+    private String contentHash;
+    private String attestationText;
+    private String comments;
+
+    private String printedAt;        // ISO string if available
+
+    private Audit audit;
+    @Data
+    public static class Audit {
+        private String createdDate;      // yyyy-MM-dd
+        private String lastModifiedDate; // yyyy-MM-dd
+    }
+}

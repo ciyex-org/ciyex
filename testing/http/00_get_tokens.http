@@ -1,0 +1,107 @@
+### Get Tokens for All Roles
+### IntelliJ/VS Code REST Client HTTP file
+### Run these first to populate @token_* variables for use in other .http files
+###
+### Set your environment in the IDE before running:
+###   KEYCLOAK_URL = https://dev.aran.me
+###   REALM        = ciyex
+###   CLIENT_ID    = ciyex-app
+###   BASE_URL     = https://api-dev.ciyex.org
+
+### ── ADMIN (michael.chen) ──────────────────────────────────────────────────
+# @name admin_token
+POST {{KEYCLOAK_URL}}/realms/{{REALM}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{CLIENT_ID}}&username=michael.chen@example.com&password={{TEST_USER_PASSWORD}}
+
+> {%
+  client.global.set("token_admin", response.body.access_token);
+  client.log("ADMIN token stored: " + response.body.access_token.substring(0,40) + "...");
+%}
+
+###
+
+### ── PROVIDER (dr.sarah.williams) ─────────────────────────────────────────
+# @name provider_token
+POST {{KEYCLOAK_URL}}/realms/{{REALM}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{CLIENT_ID}}&username=dr.sarah.williams@example.com&password={{TEST_USER_PASSWORD}}
+
+> {%
+  client.global.set("token_provider", response.body.access_token);
+  client.log("PROVIDER token stored");
+%}
+
+###
+
+### ── NURSE (nurse.johnson) ─────────────────────────────────────────────────
+# @name nurse_token
+POST {{KEYCLOAK_URL}}/realms/{{REALM}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{CLIENT_ID}}&username=nurse.johnson@example.com&password={{TEST_USER_PASSWORD}}
+
+> {%
+  client.global.set("token_nurse", response.body.access_token);
+  client.log("NURSE token stored");
+%}
+
+###
+
+### ── MA (ma.smith) ──────────────────────────────────────────────────────────
+# @name ma_token
+POST {{KEYCLOAK_URL}}/realms/{{REALM}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{CLIENT_ID}}&username=ma.smith@example.com&password={{TEST_USER_PASSWORD}}
+
+> {%
+  client.global.set("token_ma", response.body.access_token);
+  client.log("MA token stored");
+%}
+
+###
+
+### ── FRONT_DESK (frontdesk.brown) ─────────────────────────────────────────
+# @name frontdesk_token
+POST {{KEYCLOAK_URL}}/realms/{{REALM}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{CLIENT_ID}}&username=frontdesk.brown@example.com&password={{TEST_USER_PASSWORD}}
+
+> {%
+  client.global.set("token_frontdesk", response.body.access_token);
+  client.log("FRONT_DESK token stored");
+%}
+
+###
+
+### ── BILLING (billing.davis) ───────────────────────────────────────────────
+# @name billing_token
+POST {{KEYCLOAK_URL}}/realms/{{REALM}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{CLIENT_ID}}&username=billing.davis@example.com&password={{TEST_USER_PASSWORD}}
+
+> {%
+  client.global.set("token_billing", response.body.access_token);
+  client.log("BILLING token stored");
+%}
+
+###
+
+### ── PATIENT (jennifer.martinez) ──────────────────────────────────────────
+# @name patient_token
+POST {{KEYCLOAK_URL}}/realms/{{REALM}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{CLIENT_ID}}&username=jennifer.martinez@example.com&password={{TEST_USER_PASSWORD}}
+
+> {%
+  client.global.set("token_patient", response.body.access_token);
+  client.log("PATIENT token stored");
+%}
+
+###
