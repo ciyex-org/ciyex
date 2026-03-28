@@ -1,0 +1,17 @@
+# Clearinghouse Configuration
+
+clearinghouse:
+  api:
+    url: https://api.clearinghouse.example.com/eligibility
+    key: YOUR_API_KEY_HERE
+  sender:
+    id: CIYEX
+  receiver:
+    id: PAYER
+  sftp:
+    enabled: false
+    host: sftp.clearinghouse.example.com
+    port: 22
+    username: ciyex_user
+    password: YOUR_PASSWORD
+    remote-directory: /eligibility/inbound

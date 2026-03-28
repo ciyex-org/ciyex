@@ -1,0 +1,397 @@
+package org.ciyex.ehr.service;
+
+import ca.uhn.fhir.rest.gclient.ReferenceClientParam;
+import org.ciyex.ehr.dto.ApiResponse;
+import org.ciyex.ehr.dto.DocumentDto;
+import org.ciyex.ehr.dto.DocumentSettingsDto;
+import org.ciyex.ehr.fhir.FhirClientService;
+import org.ciyex.ehr.service.storage.FileStorageStrategy;
+import org.ciyex.ehr.service.storage.FileStorageStrategyResolver;
+import org.ciyex.ehr.util.EncryptionUtil;
+import org.ciyex.ehr.util.TenantContextUtil;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.hl7.fhir.r4.model.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import javax.crypto.SecretKey;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.security.SecureRandom;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * FHIR-only Document Service.
+ * Uses FHIR DocumentReference for metadata, Vaultik (via FileStorageStrategy) for content storage.
+ * No local database storage - metadata stored in FHIR server.
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class DocumentService {
+
+    private final FhirClientService fhirClientService;
+    private final PracticeContextService practiceContextService;
+    private final FileStorageStrategyResolver storageResolver;
+    private final DocumentSettingsService documentSettingsService;
+
+    // Extension URLs for custom fields
+    private static final String EXT_S3_KEY = "http://ciyex.com/fhir/StructureDefinition/s3-key";
+    private static final String EXT_ENCRYPTION_KEY = "http://ciyex.com/fhir/StructureDefinition/encryption-key";
+    private static final String EXT_ENCRYPTION_IV = "http://ciyex.com/fhir/StructureDefinition/encryption-iv";
+
+    private String getPracticeId() {
+        return practiceContextService.getPracticeId();
+    }
+
+    private String getOrgId() {
+        return TenantContextUtil.getTenantName();
+    }
+
+    // CREATE
+    public DocumentDto create(String tenantName, Long patientId, DocumentDto dto, MultipartFile file) {
+        // 1. Load document settings
+        DocumentSettingsDto settingsDto = documentSettingsService.get();
+        if (settingsDto == null) {
+            throw new RuntimeException("Document settings not configured");
+        }
+
+        long maxUploadBytes = (long) settingsDto.getMaxUploadSizeMB() * 1024L * 1024L;
+
+        // 2. File size validation
+        long fileSize = file.getSize();
+        if (fileSize > maxUploadBytes) {
+            throw new RuntimeException("File exceeds max upload size (" + maxUploadBytes + " bytes)");
+        }
+
+        // 3. File type validation
+        if (settingsDto.getAllowedFileTypes() != null && !settingsDto.getAllowedFileTypes().isEmpty()) {
+            String ext = getFileExtension(file.getOriginalFilename());
+            // Always allow common document types even if not in org settings
+            var alwaysAllowed = Set.of("pdf", "jpg", "jpeg", "png", "doc", "docx", "txt",
+                    "csv", "xls", "xlsx", "dicom", "tif", "tiff", "zip", "gif");
+            boolean ok = alwaysAllowed.contains(ext) || settingsDto.getAllowedFileTypes().stream()
+                    .map(String::toLowerCase)
+                    .anyMatch(a -> a.equals(ext));
+            if (!ok) throw new RuntimeException("File type ." + ext + " not allowed");
+        }
+
+        // 4. Prepare file bytes
+        byte[] fileBytes;
+        try {
+            fileBytes = file.getBytes();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to read file content", e);
+        }
+
+        // 5. Encrypt if enabled
+        String base64Key = null;
+        String base64Iv = null;
+        if (settingsDto.isEncryptionEnabled()) {
+            try {
+                SecretKey key = EncryptionUtil.generateKey();
+                byte[] iv = new byte[12];
+                new SecureRandom().nextBytes(iv);
+                fileBytes = EncryptionUtil.encrypt(fileBytes, key, iv);
+                base64Key = Base64.getEncoder().encodeToString(key.getEncoded());
+                base64Iv = Base64.getEncoder().encodeToString(iv);
+                log.info("Applied encryption for file={}", file.getOriginalFilename());
+            } catch (Exception e) {
+                throw new RuntimeException("Encryption failed", e);
+            }
+        }
+
+        // 6. Upload via Vaultik (FileStorageStrategy)
+        String orgId = tenantName != null ? tenantName : getOrgId();
+        FileStorageStrategy strategy = storageResolver.resolve(orgId);
+        String s3Key = orgId + "/documents/" + patientId + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
+
+        try {
+            strategy.uploadByKey(fileBytes, s3Key, file.getContentType(), orgId,
+                    "ciyex-ehr", "Patient/" + patientId, file.getOriginalFilename());
+            log.info("Uploaded via storage strategy: key={}", s3Key);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to upload file: " + e.getMessage(), e);
+        }
+
+        // 7. Create FHIR DocumentReference
+        dto.setPatientId(patientId);
+        dto.setFileName(file.getOriginalFilename());
+        dto.setContentType(file.getContentType());
+        dto.setS3Key(s3Key);
+
+        DocumentReference docRef = toFhirDocumentReference(dto, base64Key, base64Iv);
+        var outcome = fhirClientService.create(docRef, getPracticeId());
+        String fhirId = outcome.getId().getIdPart();
+
+        dto.setFhirId(fhirId);
+        dto.setId(Math.abs((long) fhirId.hashCode()));
+        dto.setContent(null);
+        dto.setEncrypted(base64Key != null);
+        log.info("Created FHIR DocumentReference with id: {} (numeric: {})", fhirId, dto.getId());
+
+        return dto;
+    }
+
+    // DELETE
+    public void delete(String fhirId) {
+        DocumentReference docRef = fhirClientService.read(DocumentReference.class, fhirId, getPracticeId());
+        DocumentDto dto = fromFhirDocumentReference(docRef);
+
+        // Delete from storage via strategy
+        if (dto.getS3Key() != null) {
+            try {
+                String orgId = getOrgId();
+                FileStorageStrategy strategy = storageResolver.resolve(orgId);
+                strategy.deleteByKey(dto.getS3Key());
+                log.info("Deleted from storage: key={}", dto.getS3Key());
+            } catch (Exception e) {
+                log.warn("Failed to delete file from storage: {}", e.getMessage());
+            }
+        }
+
+        // Delete FHIR DocumentReference
+        fhirClientService.delete(DocumentReference.class, fhirId, getPracticeId());
+    }
+
+    // DOWNLOAD
+    public DownloadResult download(String fhirId) {
+        DocumentReference docRef = fhirClientService.read(DocumentReference.class, fhirId, getPracticeId());
+
+        // Get storage key from extension
+        String s3Key = getExtensionString(docRef, EXT_S3_KEY);
+        String encryptionKey = getExtensionString(docRef, EXT_ENCRYPTION_KEY);
+        String encryptionIv = getExtensionString(docRef, EXT_ENCRYPTION_IV);
+
+        if (s3Key == null) {
+            throw new RuntimeException("Document storage key not found");
+        }
+
+        // Download via strategy
+        String orgId = getOrgId();
+        FileStorageStrategy strategy = storageResolver.resolve(orgId);
+        byte[] fileBytes;
+        try {
+            fileBytes = strategy.downloadByKey(s3Key);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to download file: " + e.getMessage(), e);
+        }
+
+        // Decrypt if encrypted
+        if (encryptionKey != null && encryptionIv != null) {
+            try {
+                byte[] decodedKey = Base64.getDecoder().decode(encryptionKey);
+                SecretKey key = EncryptionUtil.fromBytes(decodedKey);
+                byte[] iv = Base64.getDecoder().decode(encryptionIv);
+                fileBytes = EncryptionUtil.decrypt(fileBytes, key, iv);
+                log.info("Decrypted file before sending");
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to decrypt file", e);
+            }
+        }
+
+        // Get filename and content type from DocumentReference
+        String fileName = "document";
+        String contentType = "application/octet-stream";
+        if (docRef.hasContent()) {
+            Attachment att = docRef.getContentFirstRep().getAttachment();
+            if (att.hasTitle()) fileName = att.getTitle();
+            if (att.hasContentType()) contentType = att.getContentType();
+        }
+
+        return new DownloadResult(new ByteArrayInputStream(fileBytes), contentType, fileName);
+    }
+
+    // GET ALL FOR PATIENT
+    public ApiResponse<List<DocumentDto>> getAllForPatient(Long patientId) {
+        return getAllForPatient(null, patientId);
+    }
+
+    public ApiResponse<List<DocumentDto>> getAllForPatient(String tenantName, Long patientId) {
+        log.debug("Getting FHIR DocumentReferences for patient: {}", patientId);
+
+        try {
+            Bundle bundle = fhirClientService.getClient(getPracticeId()).search()
+                    .forResource(DocumentReference.class)
+                    .where(new ReferenceClientParam("subject").hasId("Patient/" + patientId))
+                    .returnBundle(Bundle.class)
+                    .execute();
+
+            List<DocumentReference> docs = fhirClientService.extractResources(bundle, DocumentReference.class);
+            List<DocumentDto> dtos = docs.stream().map(this::fromFhirDocumentReference).collect(Collectors.toList());
+
+            return ApiResponse.<List<DocumentDto>>builder()
+                    .success(true)
+                    .message("Documents retrieved successfully")
+                    .data(dtos)
+                    .build();
+        } catch (Exception e) {
+            log.error("Error retrieving documents for patient {}: {}", patientId, e.getMessage());
+            return ApiResponse.<List<DocumentDto>>builder()
+                    .success(false)
+                    .message("Error retrieving documents: " + e.getMessage())
+                    .data(new ArrayList<>())
+                    .build();
+        }
+    }
+
+    // GET ALL BY TENANT
+    public ApiResponse<List<DocumentDto>> getAllByTenantName(String tenantName) {
+        log.debug("Getting all FHIR DocumentReferences");
+
+        Bundle bundle = fhirClientService.search(DocumentReference.class, getPracticeId());
+        List<DocumentReference> docs = fhirClientService.extractResources(bundle, DocumentReference.class);
+        List<DocumentDto> dtos = docs.stream().map(this::fromFhirDocumentReference).collect(Collectors.toList());
+
+        return ApiResponse.<List<DocumentDto>>builder()
+                .success(true)
+                .message("Documents retrieved successfully")
+                .data(dtos)
+                .build();
+    }
+
+    // -------- FHIR Mapping --------
+
+    private DocumentReference toFhirDocumentReference(DocumentDto dto, String encryptionKey, String encryptionIv) {
+        DocumentReference dr = new DocumentReference();
+        dr.setStatus(Enumerations.DocumentReferenceStatus.CURRENT);
+
+        // Subject (Patient)
+        if (dto.getPatientId() != null) {
+            dr.setSubject(new Reference("Patient/" + dto.getPatientId()));
+        }
+
+        // Category
+        if (dto.getCategory() != null) {
+            dr.addCategory().setText(dto.getCategory());
+        }
+
+        // Type
+        if (dto.getType() != null) {
+            dr.getType().setText(dto.getType());
+        }
+
+        // Description
+        if (dto.getDescription() != null) {
+            dr.setDescription(dto.getDescription());
+        }
+
+        // Date
+        if (dto.getDocumentDate() != null) {
+            try {
+                dr.setDate(new DateTimeType(dto.getDocumentDate()).getValue());
+            } catch (Exception e) {
+                log.warn("Could not parse document date: {}", dto.getDocumentDate());
+            }
+        } else {
+            dr.setDate(new Date());
+        }
+
+        // Content (attachment metadata)
+        DocumentReference.DocumentReferenceContentComponent content = dr.addContent();
+        Attachment attachment = new Attachment();
+        if (dto.getFileName() != null) attachment.setTitle(dto.getFileName());
+        if (dto.getContentType() != null) attachment.setContentType(dto.getContentType());
+        content.setAttachment(attachment);
+
+        // Storage key extension
+        if (dto.getS3Key() != null) {
+            dr.addExtension(new Extension(EXT_S3_KEY, new StringType(dto.getS3Key())));
+        }
+
+        // Encryption extensions
+        if (encryptionKey != null) {
+            dr.addExtension(new Extension(EXT_ENCRYPTION_KEY, new StringType(encryptionKey)));
+        }
+        if (encryptionIv != null) {
+            dr.addExtension(new Extension(EXT_ENCRYPTION_IV, new StringType(encryptionIv)));
+        }
+
+        return dr;
+    }
+
+    private DocumentDto fromFhirDocumentReference(DocumentReference dr) {
+        DocumentDto dto = new DocumentDto();
+
+        String fhirId = dr.getIdElement().getIdPart();
+        dto.setId((long) Math.abs(fhirId.hashCode()));
+        dto.setFhirId(fhirId);
+
+        // Subject -> patientId
+        if (dr.hasSubject() && dr.getSubject().hasReference()) {
+            String ref = dr.getSubject().getReference();
+            if (ref.startsWith("Patient/")) {
+                try {
+                    dto.setPatientId(Long.parseLong(ref.substring("Patient/".length())));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Category
+        if (dr.hasCategory()) {
+            dto.setCategory(dr.getCategoryFirstRep().getText());
+        }
+
+        // Type
+        if (dr.hasType()) {
+            dto.setType(dr.getType().getText());
+        }
+
+        // Description
+        if (dr.hasDescription()) {
+            dto.setDescription(dr.getDescription());
+        }
+
+        // Date
+        if (dr.hasDate()) {
+            dto.setDocumentDate(new DateTimeType(dr.getDate()).getValueAsString());
+        }
+
+        // Content
+        if (dr.hasContent()) {
+            Attachment att = dr.getContentFirstRep().getAttachment();
+            if (att.hasTitle()) dto.setFileName(att.getTitle());
+            if (att.hasContentType()) dto.setContentType(att.getContentType());
+        }
+
+        // S3 key extension
+        dto.setS3Key(getExtensionString(dr, EXT_S3_KEY));
+
+        // Encryption flag
+        dto.setEncrypted(getExtensionString(dr, EXT_ENCRYPTION_KEY) != null);
+
+        return dto;
+    }
+
+    // -------- Helpers --------
+
+    private String getExtensionString(DocumentReference dr, String url) {
+        Extension ext = dr.getExtensionByUrl(url);
+        if (ext != null && ext.getValue() instanceof StringType) {
+            return ((StringType) ext.getValue()).getValue();
+        }
+        return null;
+    }
+
+    private String getFileExtension(String fileName) {
+        if (fileName == null) return "";
+        int dot = fileName.lastIndexOf('.');
+        return (dot >= 0) ? fileName.substring(dot + 1).toLowerCase() : "";
+    }
+
+    public static class DownloadResult {
+        private final InputStream inputStream;
+        private final String contentType;
+        private final String fileName;
+        public DownloadResult(InputStream inputStream, String contentType, String fileName) {
+            this.inputStream = inputStream;
+            this.contentType = contentType;
+            this.fileName = fileName;
+        }
+        public InputStream getInputStream() { return inputStream; }
+        public String getContentType() { return contentType; }
+        public String getFileName() { return fileName; }
+    }
+}

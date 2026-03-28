@@ -1,0 +1,24 @@
+# Local development defaults
+# In deployed environments, these are provided by Config Server + Vault
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/ciyexdb}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    out-of-order: true
+
+marketplace:
+  webhook-secret: ${MARKETPLACE_WEBHOOK_SECRET:}
+
+ciyex:
+  vaultik:
+    local-storage-path: ${CIYEX_FILES_LOCAL_PATH:/var/ciyex/files}
