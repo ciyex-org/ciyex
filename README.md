@@ -128,6 +128,69 @@ docker run -p 8080:8080 \
   ciyex
 ```
 
+## Local Development (Simplified)
+
+For local development without Vault and Config Server, you can override all configuration via environment variables or a local profile.
+
+### 1. Start PostgreSQL
+
+```bash
+docker run -d --name ciyex-db \
+  -e POSTGRES_DB=ciyexdb \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 \
+  postgres:16
+```
+
+### 2. Start Keycloak
+
+```bash
+docker run -d --name keycloak \
+  -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+  -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+  -p 8180:8080 \
+  quay.io/keycloak/keycloak:26.2 start-dev
+```
+
+### 3. Create `.env.local`
+
+```env
+DATABASE_URL=jdbc:postgresql://localhost:5432/ciyexdb
+DATABASE_USERNAME=postgres
+DATABASE_PASSWORD=postgres
+SPRING_CLOUD_VAULT_ENABLED=false
+SPRING_CLOUD_CONFIG_ENABLED=false
+JWT_SECRET=your-base64-encoded-secret-at-least-256-bits
+KEYCLOAK_AUTH_SERVER_URL=http://localhost:8180
+KEYCLOAK_REALM=master
+KEYCLOAK_CREDENTIALS_SECRET=your-keycloak-client-secret
+SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8180/realms/master
+```
+
+### 4. Run with local profile
+
+```bash
+source .env.local
+./gradlew bootRun
+```
+
+The API will be available at `http://localhost:8080`.
+
+### Test Users
+
+Set up test users in Keycloak with these roles:
+
+| Role | Description |
+|------|-------------|
+| `ADMIN` | Full system access |
+| `PROVIDER` | Clinical and administrative access |
+| `NURSE` | Clinical documentation access |
+| `MA` | Medical assistant access |
+| `FRONT_DESK` | Scheduling and check-in |
+| `BILLING` | Billing and claims access |
+| `PATIENT` | Portal access only |
+
 ## API Endpoints
 
 All endpoints are under `/api/` and require authentication unless noted.
@@ -187,6 +250,11 @@ ArgoCD Image Updater watches the registry and auto-deploys:
 - `*-alpha.*` tags to **dev**
 - `*-rc` tags to **stage**
 - Semver tags to **prod**
+
+## Related Repositories
+
+- [ciyex-ehr-ui](https://github.com/ciyex-org/ciyex-ehr-ui) — EHR Clinical UI (Next.js)
+- [ciyex-portal-ui](https://github.com/ciyex-org/ciyex-portal-ui) — Patient Portal (Next.js)
 
 ## License
 
