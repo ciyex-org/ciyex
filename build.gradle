@@ -1,0 +1,130 @@
+
+
+
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.0.1'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'org.ciyex.ehr'
+version = '0.1.0'
+
+
+
+
+java {
+/*	toolchain {
+		languageVersion = JavaLanguageVersion.current()
+	}*/
+}
+
+// Fix Spring Boot parameter name resolution
+tasks.withType(JavaCompile) {
+	options.compilerArgs.add('-parameters')
+}
+
+repositories {
+	mavenCentral()
+}
+
+ext {
+	set('springCloudVersion', "2025.1.1")
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+	}
+}
+
+
+
+dependencies {
+	// Spring Boot core
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+	implementation 'org.springframework.data:spring-data-commons'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+	// PostgreSQL
+	runtimeOnly 'org.postgresql:postgresql'
+
+	// Flyway
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	implementation 'org.flywaydb:flyway-database-postgresql'
+
+	// Spring Cloud Config
+	implementation 'org.springframework.cloud:spring-cloud-starter-config'
+	implementation 'org.springframework.cloud:spring-cloud-starter-vault-config'
+	implementation 'org.springframework.cloud:spring-cloud-starter-bootstrap'
+
+	// FHIR
+	implementation 'ca.uhn.hapi.fhir:hapi-fhir-base:8.2.1'
+	implementation 'ca.uhn.hapi.fhir:hapi-fhir-client:8.2.1'
+	implementation 'ca.uhn.hapi.fhir:hapi-fhir-structures-r4:8.2.1'
+
+	// Lombok
+	implementation 'org.projectlombok:lombok:1.18.38'
+	annotationProcessor 'org.projectlombok:lombok:1.18.38'
+
+	// JSON/Jackson
+	implementation 'com.fasterxml.jackson.core:jackson-databind'
+	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+	// JWT
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+	// PDF
+	implementation 'org.apache.pdfbox:pdfbox:2.0.30'
+	implementation 'com.github.librepdf:openpdf:1.3.39'
+	implementation 'com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10'
+	implementation 'com.openhtmltopdf:openhtmltopdf-slf4j:1.0.10'
+
+	// Utilities
+	implementation 'org.bouncycastle:bcprov-jdk18on:1.81'
+	implementation 'commons-io:commons-io:2.19.0'
+	implementation 'com.github.ben-manes.caffeine:caffeine:3.2.2'
+
+	// External integrations
+	implementation 'com.azure:azure-ai-openai:1.0.0-beta.16'
+	implementation 'software.amazon.awssdk:s3:2.32.26'
+	// Twilio + Telnyx removed — telehealth now delegated to ciyex-telehealth service
+	// Email (SMTP for feature requests, password reset notifications)
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
+	implementation 'com.stripe:stripe-java:24.18.0'
+
+	// Testing
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.security:spring-security-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+
+bootRun {
+	def envFile = file("${rootProject.projectDir}/.env")
+	if (envFile.exists()) {
+		envFile.readLines().each { line ->
+			line = line.trim()
+			if (line && !line.startsWith('#')) {
+				def idx = line.indexOf('=')
+				if (idx > 0) {
+					environment line.substring(0, idx), line.substring(idx + 1)
+				}
+			}
+		}
+	}
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+// Use JUnit Platform for tests (don't set Gradle-specific properties that may not exist
+// in older/newer Gradle distributions used in CI Docker builds).

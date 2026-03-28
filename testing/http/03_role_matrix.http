@@ -1,0 +1,210 @@
+### Phase 4 — Full Role Permission Matrix
+### Tests every role against every endpoint category.
+### Run 00_get_tokens.http first.
+###
+### Legend: ✓ = should return 2xx | ✗ = should return 403
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RESOURCE: /api/fhir-resource/{tab}  (Settings/non-patient endpoints)
+# Requires: SCOPE_user/Patient.read
+# ══════════════════════════════════════════════════════════════════════════════
+
+### ADMIN → GET /fhir-resource/patients → EXPECT 200 ✓
+GET {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_admin}}
+
+###
+
+### PROVIDER → GET /fhir-resource/patients → EXPECT 200 ✓
+GET {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_provider}}
+
+###
+
+### NURSE → GET /fhir-resource/patients → EXPECT 200 ✓
+GET {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_nurse}}
+
+###
+
+### MA → GET /fhir-resource/patients → EXPECT 200 ✓
+GET {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_ma}}
+
+###
+
+### FRONT_DESK → GET /fhir-resource/patients → EXPECT 200 ✓
+GET {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_frontdesk}}
+
+###
+
+### BILLING → GET /fhir-resource/patients → EXPECT 200 ✓
+GET {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_billing}}
+
+###
+
+### PATIENT → GET /fhir-resource/patients → EXPECT 403 ✗ (only has patient/* scopes)
+GET {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_patient}}
+
+###
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RESOURCE: POST /api/fhir-resource/{tab}/patient/{id}
+# Requires: SCOPE_user/Patient.write
+# ══════════════════════════════════════════════════════════════════════════════
+
+### ADMIN → POST /fhir-resource/observations/patient/1 → EXPECT 201 ✓
+POST {{BASE_URL}}/api/fhir-resource/observations/patient/1
+Authorization: Bearer {{token_admin}}
+Content-Type: application/json
+
+{"resourceType":"Observation","status":"final"}
+
+###
+
+### PROVIDER → POST /fhir-resource/observations/patient/1 → EXPECT 201 ✓
+POST {{BASE_URL}}/api/fhir-resource/observations/patient/1
+Authorization: Bearer {{token_provider}}
+Content-Type: application/json
+
+{"resourceType":"Observation","status":"final"}
+
+###
+
+### NURSE → POST /fhir-resource/observations/patient/1 → EXPECT 201 ✓
+POST {{BASE_URL}}/api/fhir-resource/observations/patient/1
+Authorization: Bearer {{token_nurse}}
+Content-Type: application/json
+
+{"resourceType":"Observation","status":"final"}
+
+###
+
+### MA → POST /fhir-resource/observations/patient/1 → EXPECT 403 ✗ (no Patient.write)
+POST {{BASE_URL}}/api/fhir-resource/observations/patient/1
+Authorization: Bearer {{token_ma}}
+Content-Type: application/json
+
+{"resourceType":"Observation","status":"final"}
+
+###
+
+### FRONT_DESK → POST /fhir-resource/observations/patient/1 → EXPECT 201 ✓ (has Patient.write)
+POST {{BASE_URL}}/api/fhir-resource/observations/patient/1
+Authorization: Bearer {{token_frontdesk}}
+Content-Type: application/json
+
+{"resourceType":"Observation","status":"final"}
+
+###
+
+### BILLING → POST /fhir-resource/observations/patient/1 → EXPECT 403 ✗ (no Patient.write)
+POST {{BASE_URL}}/api/fhir-resource/observations/patient/1
+Authorization: Bearer {{token_billing}}
+Content-Type: application/json
+
+{"resourceType":"Observation","status":"final"}
+
+###
+
+### PATIENT → POST /fhir-resource/observations/patient/1 → EXPECT 403 ✗
+POST {{BASE_URL}}/api/fhir-resource/observations/patient/1
+Authorization: Bearer {{token_patient}}
+Content-Type: application/json
+
+{"resourceType":"Observation","status":"final"}
+
+###
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RESOURCE: /api/admin/roles
+# Requires: SCOPE_user/Organization.write
+# ══════════════════════════════════════════════════════════════════════════════
+
+### ADMIN → GET /admin/roles → EXPECT 200 ✓
+GET {{BASE_URL}}/api/admin/roles
+Authorization: Bearer {{token_admin}}
+
+###
+
+### PROVIDER → GET /admin/roles → EXPECT 403 ✗
+GET {{BASE_URL}}/api/admin/roles
+Authorization: Bearer {{token_provider}}
+
+###
+
+### NURSE → GET /admin/roles → EXPECT 403 ✗
+GET {{BASE_URL}}/api/admin/roles
+Authorization: Bearer {{token_nurse}}
+
+###
+
+### BILLING → GET /admin/roles → EXPECT 403 ✗
+GET {{BASE_URL}}/api/admin/roles
+Authorization: Bearer {{token_billing}}
+
+###
+
+### PATIENT → GET /admin/roles → EXPECT 403 ✗
+GET {{BASE_URL}}/api/admin/roles
+Authorization: Bearer {{token_patient}}
+
+###
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RESOURCE: /api/admin/users
+# Requires: SCOPE_user/Organization.write
+# ══════════════════════════════════════════════════════════════════════════════
+
+### ADMIN → GET /admin/users → EXPECT 200 ✓
+GET {{BASE_URL}}/api/admin/users
+Authorization: Bearer {{token_admin}}
+
+###
+
+### PROVIDER → GET /admin/users → EXPECT 403 ✗
+GET {{BASE_URL}}/api/admin/users
+Authorization: Bearer {{token_provider}}
+
+###
+
+### FRONT_DESK → GET /admin/users → EXPECT 403 ✗
+GET {{BASE_URL}}/api/admin/users
+Authorization: Bearer {{token_frontdesk}}
+
+###
+
+### BILLING → GET /admin/users → EXPECT 403 ✗
+GET {{BASE_URL}}/api/admin/users
+Authorization: Bearer {{token_billing}}
+
+###
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SCOPE ISOLATION: Cross-scope leakage checks
+# ══════════════════════════════════════════════════════════════════════════════
+
+### BILLING (has Claim.read/write) CANNOT access admin endpoints
+GET {{BASE_URL}}/api/admin/roles
+Authorization: Bearer {{token_billing}}
+# EXPECT: 403
+
+###
+
+### NURSE (has clinical write) CANNOT access admin users
+GET {{BASE_URL}}/api/admin/users
+Authorization: Bearer {{token_nurse}}
+# EXPECT: 403
+
+###
+
+### FRONT_DESK (has Patient.write) CANNOT submit claims
+### This would need a specific billing endpoint — adjust path as needed
+GET {{BASE_URL}}/api/fhir-resource/claims
+Authorization: Bearer {{token_frontdesk}}
+# EXPECT: 403 (FRONT_DESK has no Claim.read scope)
+
+###

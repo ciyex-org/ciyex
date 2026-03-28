@@ -1,0 +1,161 @@
+### Phase 3 — Incremental Permission Testing
+### Run 00_get_tokens.http first to populate token_* variables.
+###
+### Expected results show how permissions build up progressively.
+
+# ────────────────────────────────────────────────────────────────
+# STEP 0: PATIENT token — patient/ scopes only
+# Expected: all staff endpoints → 403
+# ────────────────────────────────────────────────────────────────
+
+### STEP 0-A: PATIENT token → GET /fhir-resource/patients → EXPECT 403
+GET {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_patient}}
+
+###
+
+### STEP 0-B: PATIENT token → GET /admin/roles → EXPECT 403
+GET {{BASE_URL}}/api/admin/roles
+Authorization: Bearer {{token_patient}}
+
+###
+
+### STEP 0-C: PATIENT token → POST /fhir-resource/patients → EXPECT 403
+POST {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_patient}}
+Content-Type: application/json
+
+{"resourceType":"Patient"}
+
+###
+
+# ────────────────────────────────────────────────────────────────
+# STEP 1: FRONT_DESK token — has Patient.read + Appointment.read/write
+# Expected: GET resources → 200, clinical write → 403, admin → 403
+# ────────────────────────────────────────────────────────────────
+
+### STEP 1-A: FRONT_DESK → GET /fhir-resource/patients → EXPECT 200
+GET {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_frontdesk}}
+
+###
+
+### STEP 1-B: FRONT_DESK → GET /fhir-resource/appointments → EXPECT 200
+GET {{BASE_URL}}/api/fhir-resource/appointments
+Authorization: Bearer {{token_frontdesk}}
+
+###
+
+### STEP 1-C: FRONT_DESK → POST /fhir-resource/encounters/patient/1 → EXPECT 403 (no Encounter.write)
+POST {{BASE_URL}}/api/fhir-resource/encounters/patient/1
+Authorization: Bearer {{token_frontdesk}}
+Content-Type: application/json
+
+{"resourceType":"Encounter"}
+
+###
+
+### STEP 1-D: FRONT_DESK → GET /admin/users → EXPECT 403 (no Org.write)
+GET {{BASE_URL}}/api/admin/users
+Authorization: Bearer {{token_frontdesk}}
+
+###
+
+# ────────────────────────────────────────────────────────────────
+# STEP 2: BILLING token — has Claim.read/write but NOT Patient.write
+# Expected: GET claims → 200, POST encounters → 403
+# ────────────────────────────────────────────────────────────────
+
+### STEP 2-A: BILLING → GET /fhir-resource/claims → EXPECT 200
+GET {{BASE_URL}}/api/fhir-resource/claims
+Authorization: Bearer {{token_billing}}
+
+###
+
+### STEP 2-B: BILLING → GET /fhir-resource/patients → EXPECT 200 (has Patient.read)
+GET {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_billing}}
+
+###
+
+### STEP 2-C: BILLING → POST /fhir-resource/patients → EXPECT 403 (no Patient.write)
+POST {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_billing}}
+Content-Type: application/json
+
+{"resourceType":"Patient"}
+
+###
+
+### STEP 2-D: BILLING → GET /admin/roles → EXPECT 403
+GET {{BASE_URL}}/api/admin/roles
+Authorization: Bearer {{token_billing}}
+
+###
+
+# ────────────────────────────────────────────────────────────────
+# STEP 3: PROVIDER token — full clinical, no admin
+# Expected: all clinical → 200, admin → 403
+# ────────────────────────────────────────────────────────────────
+
+### STEP 3-A: PROVIDER → GET /fhir-resource/patients → EXPECT 200
+GET {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_provider}}
+
+###
+
+### STEP 3-B: PROVIDER → POST /fhir-resource/encounters/patient/1 → EXPECT 201
+POST {{BASE_URL}}/api/fhir-resource/encounters/patient/1
+Authorization: Bearer {{token_provider}}
+Content-Type: application/json
+
+{"resourceType":"Encounter","status":"in-progress"}
+
+###
+
+### STEP 3-C: PROVIDER → POST /admin/users → EXPECT 403 (no Org.write)
+POST {{BASE_URL}}/api/admin/users
+Authorization: Bearer {{token_provider}}
+Content-Type: application/json
+
+{"email":"new@test.com","firstName":"Test","lastName":"User"}
+
+###
+
+### STEP 3-D: PROVIDER → GET /admin/roles → EXPECT 403
+GET {{BASE_URL}}/api/admin/roles
+Authorization: Bearer {{token_provider}}
+
+###
+
+# ────────────────────────────────────────────────────────────────
+# STEP 4: ADMIN token — full access including admin endpoints
+# Expected: everything → 200/201
+# ────────────────────────────────────────────────────────────────
+
+### STEP 4-A: ADMIN → GET /admin/roles → EXPECT 200
+GET {{BASE_URL}}/api/admin/roles
+Authorization: Bearer {{token_admin}}
+
+###
+
+### STEP 4-B: ADMIN → GET /admin/users → EXPECT 200
+GET {{BASE_URL}}/api/admin/users
+Authorization: Bearer {{token_admin}}
+
+###
+
+### STEP 4-C: ADMIN → GET /fhir-resource/patients → EXPECT 200
+GET {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_admin}}
+
+###
+
+### STEP 4-D: ADMIN → POST /fhir-resource/patients → EXPECT 201
+POST {{BASE_URL}}/api/fhir-resource/patients
+Authorization: Bearer {{token_admin}}
+Content-Type: application/json
+
+{"resourceType":"Patient","name":[{"family":"TestCreate","given":["API"]}]}
+
+###

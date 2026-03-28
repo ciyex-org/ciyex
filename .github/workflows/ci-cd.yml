@@ -1,0 +1,748 @@
+name: CI/CD Pipeline
+run-name: "${{ github.event.inputs.action == 'Promote to RC' && 'Promote to RC' || github.event.inputs.action == 'Promote to GA' && 'Promote to GA (next RC)' || github.event.inputs.action == 'Skip RC' && 'Skip RC (remove oldest RC tag)' || '' }}"
+
+on:
+  push:
+    branches:
+      - main
+      - 'hotfix-*'
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        type: choice
+        options:
+          - 'Build'
+          - 'Promote to RC'
+          - 'Promote to GA'
+          - 'Skip RC'
+        default: 'Build'
+
+concurrency:
+  group: version-management
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ciyex
+  REGISTRY: ${{ secrets.REGISTRY_URL }}
+
+jobs:
+  # Promote to RC - only from main
+  promote-rc:
+    name: Promote to Release Candidate
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'Promote to RC'
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate branch
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          if [ "$BRANCH" != "main" ]; then
+            echo "❌ Error: Promote to RC must be run from main branch"
+            echo "Current branch: $BRANCH"
+            exit 1
+          fi
+
+      - name: Promote to RC
+        run: |
+          CURRENT=$(grep "^version = " build.gradle | sed "s/version = '\(.*\)'/\1/")
+          MAJOR=$(echo $CURRENT | cut -d. -f1)
+          MINOR=$(echo $CURRENT | cut -d. -f2)
+          PATCH=$(echo $CURRENT | cut -d. -f3 | cut -d- -f1)
+          
+          RC_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          LATEST_ALPHA=$(git tag -l "${MAJOR}.${MINOR}.${PATCH}-alpha.*" --sort=-v:refname | head -n1)
+          if [ -z "$LATEST_ALPHA" ]; then
+            echo "❌ No alpha tag found for ${MAJOR}.${MINOR}.${PATCH}"
+            echo ""
+            echo "This usually means:"
+            echo "  1. No alpha builds exist for this version yet"
+            echo "  2. You need to push a commit to main to trigger an alpha build first"
+            echo ""
+            echo "Available alpha tags:"
+            git tag -l "*-alpha.*" --sort=-v:refname | head -5
+            exit 1
+          fi
+          echo "📦 Latest alpha: $LATEST_ALPHA"
+          
+          # Check if RC already exists for this version
+          if git tag -l "${RC_VERSION}-rc" | grep -q .; then
+            echo "❌ RC already exists for ${RC_VERSION}"
+            exit 1
+          fi
+          
+          echo "${{ secrets.PROD_REGISTRY_PASSWORD }}" | docker login $REGISTRY -u ${{ secrets.PROD_REGISTRY_USERNAME }} --password-stdin
+          
+          ALPHA_IMAGE="${REGISTRY}/${IMAGE_NAME}:${LATEST_ALPHA}"
+          RC_IMAGE="${REGISTRY}/${IMAGE_NAME}:${RC_VERSION}-rc"
+          
+          docker pull $ALPHA_IMAGE
+          docker tag $ALPHA_IMAGE $RC_IMAGE
+          docker push $RC_IMAGE
+          echo "✅ Retagged $ALPHA_IMAGE → $RC_IMAGE"
+          
+          git pull origin main
+          NEXT_PATCH=$((PATCH + 1))
+          NEXT_VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}"
+          sed -i "s/version = '.*'/version = '${NEXT_VERSION}'/" build.gradle
+          git add build.gradle
+          git commit -m "chore: bump version to ${NEXT_VERSION} [skip ci]" || true
+          git push origin main || true
+          
+          git tag -a "${RC_VERSION}-rc" -m "Release Candidate ${RC_VERSION}-rc"
+          git push origin "${RC_VERSION}-rc"
+          
+          echo "✅ Created RC tag: ${RC_VERSION}-rc"
+          echo "✅ Bumped main to: ${NEXT_VERSION}"
+          
+          # Store version for notification
+          echo "RC_VERSION=${RC_VERSION}" >> $GITHUB_ENV
+          echo "LATEST_ALPHA=${LATEST_ALPHA}" >> $GITHUB_ENV
+
+      - name: Generate Release Notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x .github/scripts/generate-release-notes.sh
+          PREV_TAG=$(git tag -l "*-rc" -l "v*" --sort=-v:refname | grep -v "${{ env.RC_VERSION }}-rc" | head -n1)
+          .github/scripts/generate-release-notes.sh "${{ env.RC_VERSION }}" "rc" "$PREV_TAG" "ciyex"
+
+      - name: Update Docs Repository
+        if: env.RC_VERSION != ''
+        env:
+          DOCS_DEPLOY_KEY: ${{ secrets.DOCS_DEPLOY_KEY }}
+        run: |
+          set -ex
+          VERSION="${{ env.RC_VERSION }}-rc"
+          APP_NAME="ciyex"
+          
+          [ -z "$DOCS_DEPLOY_KEY" ] && echo "DOCS_DEPLOY_KEY not set" && exit 0
+          [ ! -f "/tmp/release_notes.rst" ] && echo "Release notes not found" && exit 1
+          
+          # Install openssh-client for ssh-keyscan
+          sudo apt-get update && sudo apt-get install -y openssh-client
+          
+          mkdir -p ~/.ssh
+          echo "$DOCS_DEPLOY_KEY" > ~/.ssh/docs_deploy_key
+          chmod 600 ~/.ssh/docs_deploy_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          
+          rm -rf /tmp/docs
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/docs_deploy_key" git clone git@github.com:ciyex-org/docs.git /tmp/docs
+          cd /tmp/docs
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          mkdir -p "source/releases/${APP_NAME}"
+          CHANGELOG="source/releases/${APP_NAME}/CHANGELOG.rst"
+          
+          if [ -f "$CHANGELOG" ]; then
+            head -n 8 "$CHANGELOG" > /tmp/changelog_header.rst
+            tail -n +9 "$CHANGELOG" > /tmp/changelog_body.rst
+            cat /tmp/changelog_header.rst /tmp/release_notes.rst /tmp/changelog_body.rst > "$CHANGELOG"
+          else
+            echo "Changelog" > "$CHANGELOG"
+            echo "=========" >> "$CHANGELOG"
+            echo "" >> "$CHANGELOG"
+            cat /tmp/release_notes.rst >> "$CHANGELOG"
+          fi
+          
+          git add "source/releases/${APP_NAME}/"
+          git commit -m "docs: add release notes for ${APP_NAME} ${VERSION}" || true
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/docs_deploy_key" git push origin main || true
+          
+          echo "Done updating docs"
+          rm -f ~/.ssh/docs_deploy_key
+
+      - name: Send Teams notification
+        if: always()
+        run: |
+          WEBHOOK="${{ secrets.TEAMS_WEBHOOK_URL }}"
+          [ -z "$WEBHOOK" ] && exit 0
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            EMOJI="✅"
+            STATUS="Promoted to Release Candidate"
+          else
+            EMOJI="❌"
+            STATUS="RC promotion failed"
+          fi
+          
+          curl -H "Content-Type: application/json" -d '{
+            "type": "message",
+            "attachments": [{
+              "contentType": "application/vnd.microsoft.card.adaptive",
+              "content": {
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                  {"type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "'"$EMOJI"' Ciyex - Promote to RC"},
+                  {"type": "FactSet", "facts": [
+                    {"title": "Version", "value": "${{ env.RC_VERSION }}-rc.1"},
+                    {"title": "Status", "value": "'"$STATUS"'"},
+                    {"title": "Actor", "value": "${{ github.actor }}"}
+                  ]}
+                ],
+                "actions": [{"type": "Action.OpenUrl", "title": "View", "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}]
+              }
+            }]
+          }' "$WEBHOOK"
+
+  # Promote to GA - uses selected RC version
+  promote-ga:
+    name: Promote to General Availability
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'Promote to GA'
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Promote to GA
+        run: |
+          # Find the oldest unpromoted RC (FIFO order)
+          # List all RC tags, then filter out ones that already have a GA release
+          RC_TAG=""
+          for tag in $(git tag -l "*-rc" --sort=v:refname); do
+            GA_VERSION=$(echo "$tag" | sed 's/-rc$//')
+            # Check if GA tag exists for this RC
+            if ! git rev-parse "v${GA_VERSION}" >/dev/null 2>&1; then
+              RC_TAG="$tag"
+              break
+            fi
+          done
+          
+          if [ -z "$RC_TAG" ]; then
+            echo "❌ No unpromoted RC tag found"
+            echo ""
+            echo "All RC tags have been promoted to GA, or no RC tags exist."
+            echo ""
+            echo "Available RC tags:"
+            git tag -l "*-rc" --sort=v:refname
+            exit 1
+          fi
+          
+          echo "📦 Found oldest unpromoted RC: $RC_TAG"
+          
+          # Extract GA version from RC tag (e.g., 0.0.8-rc -> 0.0.8)
+          GA_VERSION=$(echo "$RC_TAG" | sed 's/-rc$//')
+          
+          # Check if GA already exists (git tag)
+          if git rev-parse "v${GA_VERSION}" >/dev/null 2>&1; then
+            echo "❌ GA version v${GA_VERSION} already released"
+            echo "Cannot promote to GA twice for the same version"
+            exit 1
+          fi
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          echo "${{ secrets.PROD_REGISTRY_PASSWORD }}" | docker login $REGISTRY -u ${{ secrets.PROD_REGISTRY_USERNAME }} --password-stdin
+          
+          RC_IMAGE="${REGISTRY}/${IMAGE_NAME}:${RC_TAG}"
+          GA_IMAGE="${REGISTRY}/${IMAGE_NAME}:${GA_VERSION}"
+          
+          # Check if GA image already exists in registry
+          if docker manifest inspect $GA_IMAGE >/dev/null 2>&1; then
+            echo "❌ GA image ${GA_IMAGE} already exists in registry"
+            echo "Cannot promote to GA twice for the same version"
+            exit 1
+          fi
+          
+          docker pull $RC_IMAGE
+          docker tag $RC_IMAGE $GA_IMAGE
+          docker push $GA_IMAGE
+          echo "✅ Retagged $RC_IMAGE → $GA_IMAGE"
+          
+          git tag -a "v${GA_VERSION}" -m "Release ${GA_VERSION}"
+          git push origin "v${GA_VERSION}"
+          echo "✅ Created GA git tag: v${GA_VERSION}"
+          
+          # Find previous GA tag for release notes
+          PREV_TAG=$(git tag -l "v*" --sort=-v:refname | grep -v "v${GA_VERSION}" | head -n1)
+          echo "PREV_TAG=${PREV_TAG}" >> $GITHUB_ENV
+          
+          # Store version for notification
+          echo "GA_VERSION=${GA_VERSION}" >> $GITHUB_ENV
+          echo "RC_TAG=${RC_TAG}" >> $GITHUB_ENV
+
+      - name: Generate Release Notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x .github/scripts/generate-release-notes.sh
+          .github/scripts/generate-release-notes.sh "${{ env.GA_VERSION }}" "ga" "${{ env.PREV_TAG }}" "ciyex"
+
+      - name: Update Docs Repository
+        env:
+          DOCS_DEPLOY_KEY: ${{ secrets.DOCS_DEPLOY_KEY }}
+        run: |
+          VERSION="${{ env.GA_VERSION }}"
+          APP_NAME="ciyex"
+          
+          if [ -z "$DOCS_DEPLOY_KEY" ]; then
+            echo "⚠️ DOCS_DEPLOY_KEY not set, skipping docs update"
+            exit 0
+          fi
+          
+          if [ ! -f "/tmp/release_notes.rst" ]; then
+            echo "❌ Release notes file not found"
+            exit 1
+          fi
+          
+          # Install openssh-client for ssh-keyscan
+          sudo apt-get update && sudo apt-get install -y openssh-client
+          
+          mkdir -p ~/.ssh
+          echo "$DOCS_DEPLOY_KEY" > ~/.ssh/docs_deploy_key
+          chmod 600 ~/.ssh/docs_deploy_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          
+          rm -rf /tmp/docs
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/docs_deploy_key" git clone git@github.com:ciyex-org/docs.git /tmp/docs
+          cd /tmp/docs
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          mkdir -p "source/releases/${APP_NAME}"
+          CHANGELOG="source/releases/${APP_NAME}/CHANGELOG.rst"
+          
+          if [ -f "$CHANGELOG" ]; then
+            head -n 8 "$CHANGELOG" > /tmp/changelog_header.rst
+            tail -n +9 "$CHANGELOG" > /tmp/changelog_body.rst
+            cat /tmp/changelog_header.rst /tmp/release_notes.rst /tmp/changelog_body.rst > "$CHANGELOG"
+          else
+            echo "Changelog" > "$CHANGELOG"
+            echo "=========" >> "$CHANGELOG"
+            echo "" >> "$CHANGELOG"
+            cat /tmp/release_notes.rst >> "$CHANGELOG"
+          fi
+          
+          git add "source/releases/${APP_NAME}/"
+          git commit -m "docs: add release notes for ${APP_NAME} ${VERSION}" || true
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/docs_deploy_key" git push origin main || true
+          
+          echo "Done updating docs"
+          rm -f ~/.ssh/docs_deploy_key
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.GA_VERSION }}
+          name: Release ${{ env.GA_VERSION }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Send Teams notification
+        if: always()
+        run: |
+          WEBHOOK="${{ secrets.TEAMS_WEBHOOK_URL }}"
+          [ -z "$WEBHOOK" ] && exit 0
+          
+          # Use GA_VERSION from env (set in Promote to GA step)
+          GA_VERSION="${{ env.GA_VERSION }}"
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            EMOJI="✅"
+            STATUS="Promoted to General Availability"
+          else
+            EMOJI="❌"
+            STATUS="GA promotion failed"
+          fi
+          
+          curl -H "Content-Type: application/json" -d '{
+            "type": "message",
+            "attachments": [{
+              "contentType": "application/vnd.microsoft.card.adaptive",
+              "content": {
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                  {"type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "'"$EMOJI"' Ciyex - Promote to GA"},
+                  {"type": "FactSet", "facts": [
+                    {"title": "Version", "value": "'"$GA_VERSION"'"},
+                    {"title": "Status", "value": "'"$STATUS"'"},
+                    {"title": "Actor", "value": "${{ github.actor }}"}
+                  ]}
+                ],
+                "actions": [{"type": "Action.OpenUrl", "title": "View", "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}]
+              }
+            }]
+          }' "$WEBHOOK"
+
+  # Skip RC - remove the oldest unpromoted RC tag when stage testing fails
+  skip-rc:
+    name: Skip Release Candidate
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'Skip RC'
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Find and Remove Oldest RC
+        run: |
+          # Find the oldest unpromoted RC (FIFO order)
+          RC_TAG=""
+          for tag in $(git tag -l "*-rc" --sort=v:refname); do
+            GA_VERSION=$(echo "$tag" | sed 's/-rc$//')
+            # Check if GA tag exists for this RC
+            if ! git rev-parse "v${GA_VERSION}" >/dev/null 2>&1; then
+              RC_TAG="$tag"
+              break
+            fi
+          done
+          
+          if [ -z "$RC_TAG" ]; then
+            echo "No unpromoted RC tag found to skip"
+            echo ""
+            echo "All RC tags have been promoted to GA, or no RC tags exist."
+            echo ""
+            echo "Available RC tags:"
+            git tag -l "*-rc" --sort=v:refname
+            exit 1
+          fi
+          
+          echo "Found oldest unpromoted RC to skip: $RC_TAG"
+          echo "SKIPPED_RC=$RC_TAG" >> $GITHUB_ENV
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          # Delete the RC tag locally and remotely
+          echo "Deleting RC tag: $RC_TAG"
+          git tag -d "$RC_TAG"
+          git push origin --delete "$RC_TAG"
+          
+          echo "Successfully removed RC tag: $RC_TAG"
+          echo ""
+          echo "Remaining unpromoted RC tags:"
+          git fetch --tags
+          for tag in $(git tag -l "*-rc" --sort=v:refname); do
+            GA_VERSION=$(echo "$tag" | sed 's/-rc$//')
+            if ! git rev-parse "v${GA_VERSION}" >/dev/null 2>&1; then
+              echo "  - $tag"
+            fi
+          done
+
+      - name: Revert Stage Overlay (optional)
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          # Pull latest changes first
+          git pull --rebase origin main
+          
+          # Find the next oldest RC to revert stage to, or use dev version
+          NEXT_RC=""
+          for tag in $(git tag -l "*-rc" --sort=v:refname); do
+            GA_VERSION=$(echo "$tag" | sed 's/-rc$//')
+            if ! git rev-parse "v${GA_VERSION}" >/dev/null 2>&1; then
+              NEXT_RC="$tag"
+              break
+            fi
+          done
+          
+          if [ -n "$NEXT_RC" ]; then
+            echo "Next RC to deploy: $NEXT_RC (Image Updater will handle stage overlay update)"
+          else
+            echo "No remaining RC tags."
+          fi
+
+      - name: Send Teams notification
+        if: always()
+        run: |
+          WEBHOOK="${{ secrets.TEAMS_WEBHOOK_URL }}"
+          [ -z "$WEBHOOK" ] && exit 0
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            EMOJI="⏭️"
+            STATUS="RC Skipped: ${{ env.SKIPPED_RC }}"
+          else
+            EMOJI="❌"
+            STATUS="Skip RC failed"
+          fi
+          
+          curl -H "Content-Type: application/json" -d '{
+            "type": "message",
+            "attachments": [{
+              "contentType": "application/vnd.microsoft.card.adaptive",
+              "content": {
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                  {"type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "'"$EMOJI"' Ciyex - Skip RC"},
+                  {"type": "FactSet", "facts": [
+                    {"title": "Skipped RC", "value": "'"${{ env.SKIPPED_RC }}"'"},
+                    {"title": "Status", "value": "'"$STATUS"'"},
+                    {"title": "Actor", "value": "${{ github.actor }}"}
+                  ]}
+                ],
+                "actions": [{"type": "Action.OpenUrl", "title": "View", "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}]
+              }
+            }]
+          }' "$WEBHOOK"
+
+  # Determine version based on branch/tag
+  version:
+    name: Determine Version
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.action == 'Build'
+    runs-on: [self-hosted, linux, x64]
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      environment: ${{ steps.version.outputs.environment }}
+      overlay: ${{ steps.version.outputs.overlay }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch all tags
+        run: |
+          git fetch --tags --force origin
+          echo "📋 Local tags matching 0.0.3-alpha.*:"
+          git tag -l "0.0.3-alpha.*" --sort=-v:refname | head -5
+          echo "📋 Total local alpha tags: $(git tag -l '0.0.3-alpha.*' | wc -l)"
+
+      - name: Get base version from build.gradle
+        id: base
+        run: |
+          BASE_VERSION=$(grep "^version = " build.gradle | sed "s/version = '\(.*\)'/\1/")
+          echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Base version: $BASE_VERSION"
+
+      - name: Calculate version
+        id: version
+        run: |
+          BASE_RAW="${{ steps.base.outputs.base_version }}"
+          # Strip any existing -alpha or -rc suffix to get clean base version
+          BASE=$(echo "$BASE_RAW" | sed -E 's/-(alpha|rc).*$//')
+
+          # Ensure all tags are fetched (self-hosted runners may lose them)
+          git fetch --tags --force origin 2>/dev/null || true
+          echo "📋 Tags matching ${BASE}-alpha.*: $(git tag -l "${BASE}-alpha.*" | wc -l)"
+
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            # Production release from tag
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            ENV="prod"
+            OVERLAY="prod"
+          elif [[ "${{ github.ref }}" == refs/heads/release-* ]]; then
+            # Release candidate - branch name is release-X.x
+            RELEASE_MAJOR="${GITHUB_REF#refs/heads/release-}"
+            RELEASE_MAJOR="${RELEASE_MAJOR%.x}"
+
+            # Find latest RC for this major version
+            LAST_RC=$(git tag -l "${RELEASE_MAJOR}.*.*-rc.*" --sort=-v:refname | head -n1)
+            if [ -n "$LAST_RC" ]; then
+              LAST_RC_NUM=$(echo "$LAST_RC" | sed -E "s/.*-rc\.([0-9]+)/\1/")
+              RC_BASE=$(echo "$LAST_RC" | sed 's/-rc\..*//')
+              COMMITS_SINCE=$(git rev-list --count HEAD ^$(git rev-list -n1 "$LAST_RC") 2>/dev/null || echo "1")
+              if [ "$COMMITS_SINCE" -gt 0 ]; then
+                RC_NUM=$((LAST_RC_NUM + 1))
+              else
+                RC_NUM=$LAST_RC_NUM
+              fi
+              VERSION="${RC_BASE}-rc.${RC_NUM}"
+            else
+              VERSION="${RELEASE_MAJOR}.0.0-rc.1"
+            fi
+            ENV="stage"
+            OVERLAY="stage"
+          elif [[ "${{ github.ref }}" == refs/heads/hotfix-* ]]; then
+            # Hotfix build - branch name is hotfix-X.Y.Z
+            HOTFIX_BASE="${GITHUB_REF#refs/heads/hotfix-}"
+
+            LAST_HOTFIX=$(git tag -l "${HOTFIX_BASE}-hotfix.*" --sort=-v:refname | head -n1)
+            if [ -n "$LAST_HOTFIX" ]; then
+              LAST_NUM=$(echo "$LAST_HOTFIX" | sed -E "s/.*-hotfix\.([0-9]+)/\1/")
+              HOTFIX_NUM=$((LAST_NUM + 1))
+            else
+              HOTFIX_NUM=1
+            fi
+
+            VERSION="${HOTFIX_BASE}-hotfix.${HOTFIX_NUM}"
+            ENV="prod"
+            OVERLAY="prod"
+          else
+            # Alpha from main branch — try local tags first, then remote
+            git tag -l "${BASE}-alpha.*" --sort=-v:refname | head -5
+            LAST_TAG=$(git tag -l "${BASE}-alpha.*" --sort=-v:refname | head -n1)
+            echo "🔍 Local LAST_TAG: '${LAST_TAG}'"
+
+            # Fallback: if local tags are empty, query remote
+            if [ -z "$LAST_TAG" ]; then
+              echo "⚠️ No local tags found, querying remote..."
+              LAST_TAG=$(git ls-remote --tags origin "${BASE}-alpha.*" | \
+                sed 's|.*refs/tags/||' | grep -v '\^{}' | \
+                sort -t. -k4 -n -r | head -n1)
+              echo "🔍 Remote LAST_TAG: '${LAST_TAG}'"
+            fi
+
+            if [ -n "$LAST_TAG" ]; then
+              LAST_NUM=$(echo "$LAST_TAG" | sed "s/${BASE}-alpha.//")
+              ALPHA_NUM=$((LAST_NUM + 1))
+            else
+              ALPHA_NUM=1
+            fi
+            VERSION="${BASE}-alpha.${ALPHA_NUM}"
+            ENV="dev"
+            OVERLAY="dev"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "overlay=$OVERLAY" >> $GITHUB_OUTPUT
+          echo "🏷️ Version: $VERSION | Environment: $ENV"
+
+  # PR validation - no deploy
+  pr-build:
+    name: PR Build
+    if: github.event_name == 'pull_request'
+    runs-on: [self-hosted, linux, x64]
+    needs: [version]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Build with Gradle
+        run: ./gradlew build -x test
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (no push)
+        env:
+          DOCKER_BUILDKIT: 1
+        run: |
+          docker build -t $REGISTRY/$IMAGE_NAME:pr-${{ github.event.number }} .
+          echo "✅ PR build successful"
+
+  # Build and deploy
+  build-deploy:
+    name: Build & Deploy (${{ needs.version.outputs.environment }})
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'Build')
+    runs-on: [self-hosted, linux, x64]
+    needs: [version]
+    environment:
+      name: ${{ needs.version.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Build with Gradle
+        run: ./gradlew build -x test
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Private Registry
+        run: |
+          echo "${{ secrets.PROD_REGISTRY_PASSWORD }}" | docker login $REGISTRY -u ${{ secrets.PROD_REGISTRY_USERNAME }} --password-stdin
+
+      - name: Build and Push Docker Image
+        env:
+          DOCKER_BUILDKIT: 1
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          docker build -t $REGISTRY/$IMAGE_NAME:$VERSION -t $REGISTRY/$IMAGE_NAME:${{ needs.version.outputs.environment }} .
+          docker push $REGISTRY/$IMAGE_NAME:$VERSION
+          docker push $REGISTRY/$IMAGE_NAME:${{ needs.version.outputs.environment }}
+          echo "✅ Pushed: $REGISTRY/$IMAGE_NAME:$VERSION"
+
+      - name: Create Git tag for alpha/rc
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION" || echo "Tag already exists"
+
+      - name: Summary
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          echo "✅ Image pushed: $REGISTRY/$IMAGE_NAME:$VERSION"
+          echo "ArgoCD Image Updater will auto-update the deployment overlay"
+
+  # Notify team
+  notify:
+    name: Notify
+    if: always() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'Build'))
+    runs-on: [self-hosted, linux, x64]
+    needs: [version, build-deploy]
+    steps:
+      - name: Send Teams notification
+        run: |
+          WEBHOOK="${{ secrets.TEAMS_WEBHOOK_URL }}"
+          [ -z "$WEBHOOK" ] && exit 0
+          
+          RESULT="${{ needs.build-deploy.result }}"
+          if [ "$RESULT" == "success" ]; then
+            EMOJI="✅"
+            STATUS="Build and published to registry"
+          else
+            EMOJI="❌"
+            STATUS="Build failed"
+          fi
+          
+          curl -H "Content-Type: application/json" -d '{
+            "type": "message",
+            "attachments": [{
+              "contentType": "application/vnd.microsoft.card.adaptive",
+              "content": {
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                  {"type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "'"$EMOJI"' Ciyex - ${{ needs.version.outputs.environment }}"},
+                  {"type": "FactSet", "facts": [
+                    {"title": "Version", "value": "${{ needs.version.outputs.version }}"},
+                    {"title": "Status", "value": "'"$STATUS"'"},
+                    {"title": "Actor", "value": "${{ github.actor }}"}
+                  ]}
+                ],
+                "actions": [{"type": "Action.OpenUrl", "title": "View", "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}]
+              }
+            }]
+          }' "$WEBHOOK"
+
